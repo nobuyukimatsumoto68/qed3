@@ -51,7 +51,8 @@ struct CompactU1onS2 {
   double plaquette_angle(const int& i_face) const {
     const QfeFace& face = lattice.faces[i_face];
     double sum = 0.0;
-    for(const int i_edge : face.edges) sum += field[i_edge];
+    // for(const int i_edge : face.edges) sum += field[i_edge];
+    for(int i=0; i<face.n_edges; i++) sum += field[face.edges[i]];
     return face_signs[i_face] * sum;
   }
 
@@ -88,7 +89,7 @@ struct U1Wilson {
     return res;
   }
 
-  // !! need debug !!
+  // !! need debug ?
   // double local( const int i_link, const CompactU1onS2& U ) const {
   //   double res = 0.0;
   //   for(int i=0; i<U.lattice.links[i_link].n_faces; i++) {
