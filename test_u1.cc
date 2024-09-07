@@ -1,6 +1,7 @@
 #include <iostream>
 #include <cstdlib>
 #include <ctime>
+#include <boost/math/special_functions/bessel.hpp>
 
 #include "statistics.h"
 #include "u1_s2.h"
@@ -61,9 +62,9 @@ int main(int argc, char* argv[]){
   double denom = 0.0;
   double numer = 0.0;
   for(int n=0; n<lattice.n_faces; n++){
-    const double bessel_n = std::cyl_bessel_i(n, beta);
-    const double bessel_np1 = std::cyl_bessel_i(n+1, beta);
-    const double bessel_nm1 = std::cyl_bessel_i(std::abs(n-1), beta);
+    const double bessel_n = boost::math::cyl_bessel_i(n, beta);
+    const double bessel_np1 = boost::math::cyl_bessel_i(n+1, beta);
+    const double bessel_nm1 = boost::math::cyl_bessel_i(std::abs(n-1), beta);
     const double d_bessel_n = 0.5*(bessel_np1 + bessel_nm1);
 
     denom += std::pow(bessel_n, lattice.n_faces);
