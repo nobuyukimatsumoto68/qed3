@@ -5,6 +5,13 @@ dir_qfe=$(pwd)/newQFE
 
 #########################
 
+if ! [ -x "$(command -v curl)" ]; then
+    echo 'Error: curl is not installed. Please install with, e.g., brew install curl'
+    exit 1
+fi
+
+#########################
+
 if [ ! -L ${dir_qfe} ] && [ ! -d ${dir_qfe} ]; then
     echo "--- newQFE not found"
     git clone https://github.com/brower/newQFE
@@ -57,10 +64,22 @@ elif [[ "$OSTYPE" == "darwin"* ]]; then
     cd ${dir_qfe}/grp
     cp Makefile Makefile.mac
     sed -i.bak 's/python3/${PYTHON}/g' "Makefile.mac"
-    cd ${dir_qfe}
 
-    export PYTHON=/opt/anaconda3/bin/python3
+    PATHTOCONDA=$(conda info | grep "base environment" | cut -f 2 -d : | cut -f 1 -d "(")
+    if [[ -x "${PATHTOCONDA}/bin/python3" ]]; then
+	export PYTHON=${PATHTOCONDA}/bin/python3
+    elif [[ -x "$(command -v python3)" ]]; then
+	export PYTHON=$(command -v python3)
+    elif [[ -x "$(command -v python)" ]]; then
+	export PYTHON=$(command -v python)
+    else
+	echo 'Error: python is not installed. Please install with, e.g., brew install python3'
+	exit 1
+    fi
+
+    cd ${dir_qfe}
     make gen_grp_o3 -C grp -f Makefile.mac
 else
     echo "unknown OS"
+    exit 1
 fi
