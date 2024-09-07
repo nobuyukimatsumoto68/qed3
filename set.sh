@@ -62,8 +62,8 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     make -C grp gen_grp_o3
 elif [[ "$OSTYPE" == "darwin"* ]]; then
     cd ${dir_qfe}/grp
-    # cp Makefile Makefile.mac
-    sed -i.mac 's/python3/${PYTHON}/g' "Makefile"
+    cp Makefile Makefile.mac
+    sed -i.bak 's/python3/${PYTHON}/g' "Makefile"
 
     PATHTOCONDA=$(conda info | grep "base environment" | cut -f 2 -d : | cut -f 1 -d "(" | sed "s/ //g")
     if [[ -x "${PATHTOCONDA}/bin/python3" ]]; then
