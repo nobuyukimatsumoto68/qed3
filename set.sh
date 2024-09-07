@@ -16,9 +16,9 @@ if [ ! -L ${dir_eigen} ] && [ ! -d ${dir_eigen} ]; then
     echo "--- Eigen not found"
     cd ${dir_qfe}/include/
     if [ ! -L eigen ] && [ ! -d eigen ]; then
-	git clone https://gitlab.com/libeigen/eigen.git
+	git clone https://gitlab.com/libeigen/eigen.git eigen_src
     fi
-    ln -s eigen/Eigen Eigen
+    ln -s eigen_src/Eigen Eigen
     echo "--- Eigen installed"
 fi
 
