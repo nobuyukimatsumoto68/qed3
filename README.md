@@ -6,7 +6,7 @@ In terminal:
 $ git clone https://github.com/nobuyukimatsumoto68/qed3.git
 
 - TO SETUP
-$ ./setup.sh
+$ bash setup.sh
 
 - TO COMPILE
 $ ./make
