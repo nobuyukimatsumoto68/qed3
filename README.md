@@ -9,7 +9,7 @@ $ git clone https://github.com/nobuyukimatsumoto68/qed3.git
 $ bash setup.sh
 
 - TO COMPILE
-$ ./make
+$ make
 
 - TO RUN (currently, compact U(1) on icosahedron)
 $ ./a.out
