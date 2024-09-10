@@ -31,7 +31,7 @@ int main(int argc, char* argv[]){
   lattice.SeedRng(seed);
 
   U1Wilson SW(beta);
-  CompactU1onS2 U(lattice, beta);
+  CompactU1onS2 U(lattice);
   Metropolis<U1Wilson, CompactU1onS2> met(SW, width);
 
   QfeMeasReal plaq;

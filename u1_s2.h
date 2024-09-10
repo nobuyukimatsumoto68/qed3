@@ -10,7 +10,7 @@ struct CompactU1onS2 {
 
   CompactU1onS2()=delete;
 
-  CompactU1onS2(QfeLatticeS2& lattice_, const double beta_)
+  CompactU1onS2(QfeLatticeS2& lattice_)
     : lattice(lattice_)
     , field(lattice.n_links, 0.0)
     , face_signs(lattice.n_faces)
