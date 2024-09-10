@@ -10,4 +10,5 @@ CXXFLAGS+=-DGRP_DIR="\"$(GRP_DIR)\""
 
 all:
 	# $(CXX) test_geometry.cc $(INCLUDES) $(CXXFLAGS)
-	$(CXX) test_u1.cc $(INCLUDES) $(CXXFLAGS)
+	# $(CXX) test_u1.cc $(INCLUDES) $(CXXFLAGS)
+	$(CXX) test_dirac.cc $(INCLUDES) $(CXXFLAGS)
