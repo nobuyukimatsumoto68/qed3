@@ -15,27 +15,46 @@ constexpr int DIM = 2;
 using VD=Eigen::Vector2d;
 
 
-VD projection(const Vec3& x){
-  const double r = x.norm();
-  VD res;
-
-  res[0] = std::acos(x[2]/r);
-
-  if( res[0]<1.0e-15 || M_PI-res[0]<1.0e-15){
-    res[1]=0.0;
-  }
-  else{
-    res[1]=std::asin(x[1] / (r*std::sin(res[0])));
-  }
-
-  return res;
+inline double double_mod(const double x, const double y=2.0*M_PI){
+  double tmp = x + 100*y;
+  return std::fmod(tmp, y);
 }
+
+
+// VD projection(const Vec3& x){
+//   const double r = x.norm();
+//   VD res;
+
+//   res[0] = std::acos(x[2]/r);
+
+//   if( res[0]<1.0e-15 || M_PI-res[0]<1.0e-15){
+//     res[1]=0.0;
+//   }
+//   else{
+//     res[1]=std::asin(x[1] / (r*std::sin(res[0])));
+//   }
+
+//   return res;
+// }
 
 
 struct Dirac1fonS2 {
   QfeLatticeS2& lattice;
-  std::vector<std::vector<double>> alpha;
-  std::vector<double> omega;
+
+  // sign for the ordering of Evan's face.sites; +1 for clockwise rotation from the origin
+  std::vector<int> face_signs; // index: ia (Evan's label for faces)
+
+  // orientation: from a given direction (ilx=0), clockwise ilx=0,...,x.nn-1
+  // The primary directions coincide between the nn_ and link_ lists
+  // the function alpha( ilx ) gives the rotation angle for the ordered label ilx
+  std::vector<std::vector<int> > nn_oriented; // first index: ix (Evan's label for sites)
+  std::vector<std::vector<int> > link_oriented; // first index: ix (Evan's label for sites)
+
+  // always outgoing from ix to ilx
+  std::vector<std::vector<double> > alpha; // first index: ix (Evan's label for sites); second index: oriented ilx
+
+  std::vector<double> omega; // index: il (Evan's label for links); direction x->y (ix<iy)
+
   const double kappa;
   const double m;
   const double r;
@@ -49,23 +68,27 @@ struct Dirac1fonS2 {
 	      const double r_=1.0)
     : lattice(lattice_)
     , kappa(kappa_)
+    , face_signs(lattice.n_faces)
+    , alpha(lattice.n_sites)
+    , omega(lattice.n_links)
     , m(m_)
     , r(r_)
   {
     set_sigma();
+    set_face_signs();
+    set_oriented_info();
+    // set_omega();
   }
 
 
-  Dirac1fonS2( const Dirac1fonS2& other )
-    : lattice(other.lattice)
-    , kappa(other.kappa)
-    , m(other.m)
-    , r(other.r)
-  {
-    set_sigma();
-  }
-
-
+  // Dirac1fonS2( const Dirac1fonS2& other )
+  //   : lattice(other.lattice)
+  //   , kappa(other.kappa)
+  //   , m(other.m)
+  //   , r(other.r)
+  // {
+  //   set_sigma();
+  // }
   Dirac1fonS2 & operator=(const Dirac1fonS2&) = delete;
 
 
@@ -75,6 +98,87 @@ struct Dirac1fonS2 {
     sigma[1] << 0,1,1,0;
     sigma[2] << 0,-I,I,0;
     sigma[3] << 1,0,0,-1;
+  }
+
+
+  int face_sign(const int i_face) const {
+    const QfeFace& face = lattice.faces[i_face];
+    const Vec3 r0 = lattice.r[face.sites[0]];
+    const Vec3 r1 = lattice.r[face.sites[1]];
+    const Vec3 r2 = lattice.r[face.sites[2]];
+
+    const Vec3 cross = (r1-r0).cross(r2-r0);
+    const Vec3 sum = r0+r1+r2;
+
+    const double inner = cross.dot(sum);
+
+    int res = 1;
+    if(inner<0) res = -1;
+    return res;
+  }
+
+
+  void set_face_signs() { for(int i=0; i<lattice.n_faces; i++) face_signs[i] = face_sign(i); }
+
+
+  void set_oriented_info(){
+    for(int ix=0; ix<lattice.n_sites; ix++){
+      auto x = lattice.sites[ix];
+      std::vector<int> x_nn_oriented;
+      std::vector<int> x_link_oriented;
+
+      int iy = x.neighbors[0];
+      x_nn_oriented.push_back(iy);
+      x_link_oriented.push_back(x.links[0]);
+
+      for(int ell=0; ell<x.nn-1; ell++){
+	bool is_break = false;
+
+	for(int kk=0; kk<x.nn; kk++){
+	  const int iz = x.neighbors[kk];
+
+	  if(this->is_nn(iy,iz)){
+	    if(this->sign(ix, iy, iz)==1){
+	      iy = iz;
+	      x_nn_oriented.push_back(iy);
+	      x_link_oriented.push_back(x.links[kk]);
+	      is_break = true;
+	    }
+	  }
+
+	  if(is_break) break;
+	}
+      }
+
+      nn_oriented.push_back(x_nn_oriented);
+      link_oriented.push_back(x_link_oriented);
+    }
+  }
+
+
+  // double alpha(const int ixl) const {
+  //   assert(0<=ixl && ixl<5);
+  //   return 2.0*M_PI/5.0 * ixl;
+  // }
+
+
+  void set_omega(){
+    // for(int il=0; il<lattice.n_links; il++){
+    //   const QfeLink link = lattice.links[il];
+    //   const int ix = std::min(link.sites[0], link.sites[1]);
+    //   const int iy = std::max(link.sites[0], link.sites[1]);
+
+    //   const auto itx_ell = std::find(link_oriented[ix].begin(),
+    // 				     link_oriented[ix].end(),
+    // 				     il);
+    //   const auto ity_ell = std::find(link_oriented[iy].begin(),
+    // 				     link_oriented[iy].end(),
+    // 				     il);
+    //   const int ixl = std::distance(link_oriented[ix].begin(), itx_ell);
+    //   const int iyl = std::distance(link_oriented[iy].begin(), ity_ell);
+
+    //   omega[il] = double_mod( this->alpha(ixl) - this->alpha(iyl) - M_PI, 2.0*M_PI );
+    // }
   }
 
 
@@ -114,7 +218,7 @@ struct Dirac1fonS2 {
 
 
   MS gamma(const int ix, const int iA) const {
-    return std::cos(alpha[ix][iA])*sigma[1] + std::sin(alpha[ix][iA])*sigma[2];
+    // return std::cos(alpha[ix][iA])*sigma[1] + std::sin(alpha[ix][iA])*sigma[2];
   }
 
 
