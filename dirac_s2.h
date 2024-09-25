@@ -15,9 +15,9 @@ constexpr int DIM = 2;
 using VD=Eigen::Vector2d;
 
 
-inline double double_mod(const double x, const double y=2.0*M_PI){
-  double tmp = x + 100*y;
-  return std::fmod(tmp, y);
+inline double double_mod(const double x, const double y=2.0*M_PI, const double z=-M_PI){
+  double tmp = (x+z) + 100*y;
+  return std::fmod(tmp, y) + z;
 }
 
 
@@ -38,6 +38,10 @@ inline double double_mod(const double x, const double y=2.0*M_PI){
 // }
 
 
+
+
+
+
 struct Dirac1fonS2 {
   QfeLatticeS2& lattice;
 
@@ -51,7 +55,8 @@ struct Dirac1fonS2 {
   std::vector<std::vector<int> > link_oriented; // first index: ix (Evan's label for sites)
 
   // always outgoing from ix to ilx
-  std::vector<std::vector<double> > alpha; // first index: ix (Evan's label for sites); second index: oriented ilx
+  std::vector<double> alpha0; // index: ix (Evan's label for sites)
+  // std::vector<std::vector<double> > alpha; // first index: ix (Evan's label for sites); second index: oriented ilx
 
   std::vector<double> omega; // index: il (Evan's label for links); direction x->y (ix<iy)
 
@@ -69,7 +74,8 @@ struct Dirac1fonS2 {
     : lattice(lattice_)
     , kappa(kappa_)
     , face_signs(lattice.n_faces)
-    , alpha(lattice.n_sites)
+    , alpha0(lattice.n_sites)
+    // , alpha(lattice.n_sites)
     , omega(lattice.n_links)
     , m(m_)
     , r(r_)
@@ -156,29 +162,30 @@ struct Dirac1fonS2 {
   }
 
 
-  // double alpha(const int ixl) const {
-  //   assert(0<=ixl && ixl<5);
-  //   return 2.0*M_PI/5.0 * ixl;
-  // }
+  double alpha(const int ix, const int ixl) const {
+    assert(0<=ixl && ixl<5);
+    return alpha0[ix] + 2.0*M_PI/5.0 * ixl;
+  }
 
 
   void set_omega(){
-    // for(int il=0; il<lattice.n_links; il++){
-    //   const QfeLink link = lattice.links[il];
-    //   const int ix = std::min(link.sites[0], link.sites[1]);
-    //   const int iy = std::max(link.sites[0], link.sites[1]);
+    for(int il=0; il<lattice.n_links; il++){
+      const QfeLink link = lattice.links[il];
+      const int ix = std::min(link.sites[0], link.sites[1]);
+      const int iy = std::max(link.sites[0], link.sites[1]);
 
-    //   const auto itx_ell = std::find(link_oriented[ix].begin(),
-    // 				     link_oriented[ix].end(),
-    // 				     il);
-    //   const auto ity_ell = std::find(link_oriented[iy].begin(),
-    // 				     link_oriented[iy].end(),
-    // 				     il);
-    //   const int ixl = std::distance(link_oriented[ix].begin(), itx_ell);
-    //   const int iyl = std::distance(link_oriented[iy].begin(), ity_ell);
+      const auto itx_ell = std::find(link_oriented[ix].begin(),
+				     link_oriented[ix].end(),
+				     il);
+      const auto ity_ell = std::find(link_oriented[iy].begin(),
+				     link_oriented[iy].end(),
+				     il);
+      const int ixl = std::distance(link_oriented[ix].begin(), itx_ell);
+      const int iyl = std::distance(link_oriented[iy].begin(), ity_ell);
 
-    //   omega[il] = double_mod( this->alpha(ixl) - this->alpha(iyl) - M_PI, 2.0*M_PI );
-    // }
+      // omega[il] = double_mod( this->alpha(ixl) - this->alpha(iyl) - M_PI, 2.0*M_PI );
+      omega[il] = double_mod( this->alpha(ix, ixl) - this->alpha(iy, iyl) - M_PI, 2.0*M_PI );
+    }
   }
 
 
@@ -214,8 +221,6 @@ struct Dirac1fonS2 {
     else assert(false);
     return res;
   }
-
-
 
   MS gamma(const int ix, const int iA) const {
     // return std::cos(alpha[ix][iA])*sigma[1] + std::sin(alpha[ix][iA])*sigma[2];
