@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cmath>
+#include <map>
 #include <Eigen/Dense>
 #include "s2.h"
 
@@ -15,29 +16,100 @@ constexpr int DIM = 2;
 using VD=Eigen::Vector2d;
 
 
-inline double double_mod(const double x, const double y=2.0*M_PI, const double z=-M_PI){
-  double tmp = (x+z) + 100*y;
-  return std::fmod(tmp, y) + z;
+double Mod(double a, double b=2.0*M_PI){
+  int p = int(std::round(a / b));
+  double r = a - p*b;
+  return r;
 }
 
 
-// VD projection(const Vec3& x){
-//   const double r = x.norm();
-//   VD res;
+struct SpinStructure{
 
-//   res[0] = std::acos(x[2]/r);
+  using Link = std::array<int,2>; // <int,int>;
 
-//   if( res[0]<1.0e-15 || M_PI-res[0]<1.0e-15){
-//     res[1]=0.0;
-//   }
-//   else{
-//     res[1]=std::asin(x[1] / (r*std::sin(res[0])));
-//   }
+  std::map<const Link, const double> omega;
+  std::map<const Link, const double> alpha;
+  std::map<const int, const int> NM2EO;
 
-//   return res;
-// }
+  std::map<const Link, const double> omegaEO;
+  std::map<const Link, const double> alphaEO;
 
 
+  void set_omega() const {
+  }
+
+  SpinStructure()
+  {
+    // set_omega();
+    {
+      std::ifstream file("omega.dat");
+
+      std::string str;
+      std::string file_contents;
+      while (std::getline(file, str)){
+	std::istringstream iss(str);
+	int i,j;
+	double v;
+	iss >> i;
+	iss >> j;
+	iss >> v;
+	omega.insert( { Link{i,j}, v } );
+	omega.insert( { Link{j,i}, -v } );
+      }
+    }
+
+    {
+      std::ifstream file("alpha.dat");
+
+      std::string str;
+      std::string file_contents;
+      while (std::getline(file, str)){
+	std::istringstream iss(str);
+	int i,j;
+	double v;
+	iss >> i;
+	iss >> j;
+	iss >> v;
+	alpha.insert( {Link{i,j}, v} );
+      }
+    }
+
+    {
+      NM2EO.insert( {10, 0} );
+
+      NM2EO.insert( { 3, 3} );
+      NM2EO.insert( { 9, 5} );
+      NM2EO.insert( { 1, 8} );
+      NM2EO.insert( { 7, 9} );
+      NM2EO.insert( { 8,11} );
+
+      NM2EO.insert( { 6,10} );
+      NM2EO.insert( { 5, 1} );
+      NM2EO.insert( { 2, 2} );
+      NM2EO.insert( {12, 4} );
+      NM2EO.insert( { 4, 7} );
+
+      NM2EO.insert( {11, 6} );
+    }
+
+    {
+      for(auto elem : alpha){
+	int ix1 = elem.first[0];
+	int iy1 = elem.first[1];
+	int ix2 = NM2EO[ix1];
+	int iy2 = NM2EO[iy1];
+	alphaEO.insert( { Link{ix2,iy2}, alpha[Link{ix1,iy1}] } );
+      }
+      for(auto elem : omega){
+	int ix1 = elem.first[0];
+	int iy1 = elem.first[1];
+	int ix2 = NM2EO[ix1];
+	int iy2 = NM2EO[iy1];
+	omegaEO.insert( { Link{ix2,iy2}, omega[Link{ix1,iy1}] } );
+      }
+    }
+  }
+};
 
 
 
@@ -48,21 +120,14 @@ struct Dirac1fonS2 {
   // sign for the ordering of Evan's face.sites; +1 for clockwise rotation from the origin
   std::vector<int> face_signs; // index: ia (Evan's label for faces)
 
-  // orientation: from a given direction (ilx=0), clockwise ilx=0,...,x.nn-1
-  // The primary directions coincide between the nn_ and link_ lists
-  // the function alpha( ilx ) gives the rotation angle for the ordered label ilx
-  std::vector<std::vector<int> > nn_oriented; // first index: ix (Evan's label for sites)
-  std::vector<std::vector<int> > link_oriented; // first index: ix (Evan's label for sites)
-
-  // always outgoing from ix to ilx
-  std::vector<double> alpha0; // index: ix (Evan's label for sites)
-  // std::vector<std::vector<double> > alpha; // first index: ix (Evan's label for sites); second index: oriented ilx
-
-  std::vector<double> omega; // index: il (Evan's label for links); direction x->y (ix<iy)
-
   const double kappa;
   const double m;
   const double r;
+
+  using Link = std::array<int,2>; // <int,int>;
+  const std::map<const Link, const double> omega;
+  const std::map<const Link, const double> alpha;
+
   std::array<MS, 4> sigma;
 
   Dirac1fonS2()=delete;
@@ -70,33 +135,51 @@ struct Dirac1fonS2 {
   Dirac1fonS2(QfeLatticeS2& lattice_,
 	      const double kappa_=1.0,
 	      const double m_=0.0,
-	      const double r_=1.0)
+	      const double r_=1.0,
+	      const SpinStructure spin_=SpinStructure() )
     : lattice(lattice_)
     , kappa(kappa_)
     , face_signs(lattice.n_faces)
-    , alpha0(lattice.n_sites)
-    // , alpha(lattice.n_sites)
-    , omega(lattice.n_links)
     , m(m_)
     , r(r_)
+    , omega(spin_.omegaEO)
+    , alpha(spin_.alphaEO)
   {
     set_sigma();
     set_face_signs();
-    set_oriented_info();
-    // set_omega();
+
+    // check
+    {
+      for(int ix=0; ix<lattice.n_sites; ix++){
+	for(int jj=0; jj<lattice.sites[ix].nn; jj++){
+	  const int iy = lattice.sites[ix].neighbors[jj];
+
+	  const double alpha1 = alpha.at(Link{ix,iy});
+	  double alpha2 = alpha.at(Link{iy,ix});
+	  double omega12 = omega.at(Link{ix,iy});
+
+	  double diff = (alpha2 + M_PI + omega12) - alpha1;
+	  assert( std::abs(Mod(diff))<1.0e-14 );
+	}}
+    }
+
+    {
+      for(int ia=0; ia<lattice.n_faces; ia++){
+	double omega_sum = 0.0;
+
+	for(int i=0; i<3; i++){
+	  int ix = lattice.faces[ia].sites[i];
+	  int iy = lattice.faces[ia].sites[(i+1)%3];
+	  omega_sum += omega.at(Link{ix,iy});
+	}
+
+	double diff = Mod( face_signs[ia]*omega_sum ) + M_PI/5.0;
+	assert( std::abs(diff)<1.0e-14 );
+      }
+    }
   }
 
-
-  // Dirac1fonS2( const Dirac1fonS2& other )
-  //   : lattice(other.lattice)
-  //   , kappa(other.kappa)
-  //   , m(other.m)
-  //   , r(other.r)
-  // {
-  //   set_sigma();
-  // }
   Dirac1fonS2 & operator=(const Dirac1fonS2&) = delete;
-
 
   void set_sigma(){
     assert(NS==2);
@@ -127,68 +210,6 @@ struct Dirac1fonS2 {
   void set_face_signs() { for(int i=0; i<lattice.n_faces; i++) face_signs[i] = face_sign(i); }
 
 
-  void set_oriented_info(){
-    for(int ix=0; ix<lattice.n_sites; ix++){
-      auto x = lattice.sites[ix];
-      std::vector<int> x_nn_oriented;
-      std::vector<int> x_link_oriented;
-
-      int iy = x.neighbors[0];
-      x_nn_oriented.push_back(iy);
-      x_link_oriented.push_back(x.links[0]);
-
-      for(int ell=0; ell<x.nn-1; ell++){
-	bool is_break = false;
-
-	for(int kk=0; kk<x.nn; kk++){
-	  const int iz = x.neighbors[kk];
-
-	  if(this->is_nn(iy,iz)){
-	    if(this->sign(ix, iy, iz)==1){
-	      iy = iz;
-	      x_nn_oriented.push_back(iy);
-	      x_link_oriented.push_back(x.links[kk]);
-	      is_break = true;
-	    }
-	  }
-
-	  if(is_break) break;
-	}
-      }
-
-      nn_oriented.push_back(x_nn_oriented);
-      link_oriented.push_back(x_link_oriented);
-    }
-  }
-
-
-  double alpha(const int ix, const int ixl) const {
-    assert(0<=ixl && ixl<5);
-    return alpha0[ix] + 2.0*M_PI/5.0 * ixl;
-  }
-
-
-  void set_omega(){
-    for(int il=0; il<lattice.n_links; il++){
-      const QfeLink link = lattice.links[il];
-      const int ix = std::min(link.sites[0], link.sites[1]);
-      const int iy = std::max(link.sites[0], link.sites[1]);
-
-      const auto itx_ell = std::find(link_oriented[ix].begin(),
-				     link_oriented[ix].end(),
-				     il);
-      const auto ity_ell = std::find(link_oriented[iy].begin(),
-				     link_oriented[iy].end(),
-				     il);
-      const int ixl = std::distance(link_oriented[ix].begin(), itx_ell);
-      const int iyl = std::distance(link_oriented[iy].begin(), ity_ell);
-
-      // omega[il] = double_mod( this->alpha(ixl) - this->alpha(iyl) - M_PI, 2.0*M_PI );
-      omega[il] = double_mod( this->alpha(ix, ixl) - this->alpha(iy, iyl) - M_PI, 2.0*M_PI );
-    }
-  }
-
-
   bool is_nn(const int ix, const int iy) const {
     if(ix==iy) return false;
 
@@ -204,6 +225,7 @@ struct Dirac1fonS2 {
     }
     return res;
   }
+
 
   // +1 if (ix, iy, iz) is RH
   int sign(const int ix, const int iy, const int iz) const {
@@ -222,13 +244,16 @@ struct Dirac1fonS2 {
     return res;
   }
 
-  MS gamma(const int ix, const int iA) const {
-    // return std::cos(alpha[ix][iA])*sigma[1] + std::sin(alpha[ix][iA])*sigma[2];
+
+  MS gamma(const int ix, const int iy, const double shift = 0.0) const { // located at x
+    const double al = alpha.at(Link{ix,iy}) + shift;
+    return std::cos(al)*sigma[1] + std::sin(al)*sigma[2];
+    // return std::cos(al)*sigma[1] - std::sin(al)*sigma[2];
   }
 
-
-  MS Omega(const int il) const {
-    return std::cos(omega[il])*sigma[0] + std::cos(omega[il])*sigma[3];
+  MS Omega(const int ix, const int iy) const {
+    const double om = omega.at(Link{ix,iy});
+    return std::cos(0.5*om)*sigma[0] - I*std::sin(0.5*om)*sigma[3];
   }
 
 
@@ -238,39 +263,13 @@ struct Dirac1fonS2 {
     for(int ix=0; ix<lattice.n_sites; ix++){
       for(int jj=0; jj<lattice.sites[ix].nn; jj++){
 	const int iy = lattice.sites[ix].neighbors[jj];
-
-	// hopping
-	if(ix<iy){
-	  res.block<NS,NS>(NS*ix,NS*iy) = - 0.5*kappa * ( r*sigma[0] - gamma(ix,jj) ) * Omega(jj);
-	  res.block<NS,NS>(NS*iy,NS*ix) = - 0.5*kappa * Omega(jj).adjoint() * ( r*sigma[0] + gamma(ix,jj) );
-	}
-	res.block<NS,NS>(NS*ix,NS*ix) = (m + DIM*r) * sigma[0];
-      }}
+	res.block<NS,NS>(NS*ix,NS*iy) = - 0.5*kappa * ( r*sigma[0] - gamma(ix, iy) ) * Omega(ix, iy);
+	// res.block<NS,NS>(NS*ix,NS*iy) = - 0.5*kappa * Omega(ix, iy) * ( r*sigma[0] - gamma(iy, ix, M_PI) );
+      }
+      res.block<NS,NS>(NS*ix,NS*ix) = (m + DIM*r) * sigma[0];
+    }
 
     return res;
   } // end matrix_form
 
 
-  // Eigen::MatrixXd matrix_form( const CompactU1onS2& U ) const {
-  //   Eigen::MatrixXd res(NS*lattice.n_sites, NS*lattice.n_sites);
-
-  //   for(int ix=0; ix<lattice.n_sites; ix++){
-  //     for(int jj=0; jj<lattice.sites[ix].nn; jj++){
-  // 	const int iy = lattice.sites[ix].neighbors[jj];
-  // 	const int il = lattice.sites[ix].links[jj];
-
-  // 	// hopping
-  // 	if(ix<iy){
-  // 	  res.block(NS*ix,NS*iy, NS,NS) = - 0.5*kappa*U[il] * ( r*sigma[0] - gamma(ix,jj) ) * Omega(jj);
-  // 	  res.block(NS*iy,NS*ix, NS,NS) = - 0.5*kappa*std::conj(U[il]) * Omega(jj).adjoint() * ( r*sigma[0] + gamma(ix,jj) );
-  // 	}
-  // 	res.block(NS*ix,NS*ix, NS,NS) = (m + DIM*r) * sigma[0];
-  //     }
-  //   }
-
-
-  // } // end matrix_form
-
-  
-
-};
