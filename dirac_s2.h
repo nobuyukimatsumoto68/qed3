@@ -272,4 +272,4 @@ struct Dirac1fonS2 {
     return res;
   } // end matrix_form
 
-
+};

@@ -1,24 +1,8 @@
 #include <iostream>
 #include <fstream>
 #include <cstdlib>
-#include <ctime>
-// #include <boost/math/special_functions/bessel.hpp>
 
-// #include "statistics.h"
 #include "dirac_s2.h"
-
-
-#include <algorithm>
-#include <iterator>
-
-#include <random>
-
-
-// #include <unordered_map>
-// #include <utility>
-// #include <tuple>
-
-
 
 int main(int argc, char* argv[]){
 
@@ -36,7 +20,7 @@ int main(int argc, char* argv[]){
   for(int i=0; i<ev.size(); i++){
     std::cout << ev[i].real() << " " << ev[i].imag() << std::endl;
   }
-  
+
   // ----------------------------------
 
   return 0;
