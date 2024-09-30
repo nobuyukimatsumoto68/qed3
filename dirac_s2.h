@@ -31,18 +31,15 @@ struct SpinStructure{
   std::map<const Link, const double> alpha;
   std::map<const int, const int> NM2EO;
 
-  std::map<const Link, const double> omegaEO;
-  std::map<const Link, const double> alphaEO;
+  // std::map<const Link, const double> omegaEO;
+  // std::map<const Link, const double> alphaEO;
 
 
-  void set_omega() const {
-  }
 
   SpinStructure()
   {
-    // set_omega();
     {
-      std::ifstream file("omega.dat");
+      std::ifstream file("omega_n1.dat");
 
       std::string str;
       std::string file_contents;
@@ -59,7 +56,7 @@ struct SpinStructure{
     }
 
     {
-      std::ifstream file("alpha.dat");
+      std::ifstream file("alpha_n1.dat");
 
       std::string str;
       std::string file_contents;
@@ -74,40 +71,73 @@ struct SpinStructure{
       }
     }
 
-    {
-      NM2EO.insert( {10, 0} );
+    // {
+    //   std::ifstream file("omega.dat");
 
-      NM2EO.insert( { 3, 3} );
-      NM2EO.insert( { 9, 5} );
-      NM2EO.insert( { 1, 8} );
-      NM2EO.insert( { 7, 9} );
-      NM2EO.insert( { 8,11} );
+    //   std::string str;
+    //   std::string file_contents;
+    //   while (std::getline(file, str)){
+    // 	std::istringstream iss(str);
+    // 	int i,j;
+    // 	double v;
+    // 	iss >> i;
+    // 	iss >> j;
+    // 	iss >> v;
+    // 	omega.insert( { Link{i,j}, v } );
+    // 	omega.insert( { Link{j,i}, -v } );
+    //   }
+    // }
 
-      NM2EO.insert( { 6,10} );
-      NM2EO.insert( { 5, 1} );
-      NM2EO.insert( { 2, 2} );
-      NM2EO.insert( {12, 4} );
-      NM2EO.insert( { 4, 7} );
+    // {
+    //   std::ifstream file("alpha.dat");
 
-      NM2EO.insert( {11, 6} );
-    }
+    //   std::string str;
+    //   std::string file_contents;
+    //   while (std::getline(file, str)){
+    // 	std::istringstream iss(str);
+    // 	int i,j;
+    // 	double v;
+    // 	iss >> i;
+    // 	iss >> j;
+    // 	iss >> v;
+    // 	alpha.insert( {Link{i,j}, v} );
+    //   }
+    // }
 
-    {
-      for(auto elem : alpha){
-	int ix1 = elem.first[0];
-	int iy1 = elem.first[1];
-	int ix2 = NM2EO[ix1];
-	int iy2 = NM2EO[iy1];
-	alphaEO.insert( { Link{ix2,iy2}, alpha[Link{ix1,iy1}] } );
-      }
-      for(auto elem : omega){
-	int ix1 = elem.first[0];
-	int iy1 = elem.first[1];
-	int ix2 = NM2EO[ix1];
-	int iy2 = NM2EO[iy1];
-	omegaEO.insert( { Link{ix2,iy2}, omega[Link{ix1,iy1}] } );
-      }
-    }
+    // {
+    //   NM2EO.insert( {10, 0} );
+
+    //   NM2EO.insert( { 3, 3} );
+    //   NM2EO.insert( { 9, 5} );
+    //   NM2EO.insert( { 1, 8} );
+    //   NM2EO.insert( { 7, 9} );
+    //   NM2EO.insert( { 8,11} );
+
+    //   NM2EO.insert( { 6,10} );
+    //   NM2EO.insert( { 5, 1} );
+    //   NM2EO.insert( { 2, 2} );
+    //   NM2EO.insert( {12, 4} );
+    //   NM2EO.insert( { 4, 7} );
+
+    //   NM2EO.insert( {11, 6} );
+    // }
+
+    // {
+    //   for(auto elem : alpha){
+    // 	int ix1 = elem.first[0];
+    // 	int iy1 = elem.first[1];
+    // 	int ix2 = NM2EO[ix1];
+    // 	int iy2 = NM2EO[iy1];
+    // 	alphaEO.insert( { Link{ix2,iy2}, alpha[Link{ix1,iy1}] } );
+    //   }
+    //   for(auto elem : omega){
+    // 	int ix1 = elem.first[0];
+    // 	int iy1 = elem.first[1];
+    // 	int ix2 = NM2EO[ix1];
+    // 	int iy2 = NM2EO[iy1];
+    // 	omegaEO.insert( { Link{ix2,iy2}, omega[Link{ix1,iy1}] } );
+    //   }
+    // }
   }
 };
 
@@ -142,24 +172,28 @@ struct Dirac1fonS2 {
     , face_signs(lattice.n_faces)
     , m(m_)
     , r(r_)
-    , omega(spin_.omegaEO)
-    , alpha(spin_.alphaEO)
+    // , omega(spin_.omegaEO)
+    // , alpha(spin_.alphaEO)
+    , omega(spin_.omega)
+    , alpha(spin_.alpha)
   {
     set_sigma();
     set_face_signs();
 
     // check
+    double TOL=1.0e-12;
     {
       for(int ix=0; ix<lattice.n_sites; ix++){
 	for(int jj=0; jj<lattice.sites[ix].nn; jj++){
 	  const int iy = lattice.sites[ix].neighbors[jj];
+	  // std::cout << "alpha. ix, iy = " << ix << ", " << iy << std::endl;
 
 	  const double alpha1 = alpha.at(Link{ix,iy});
 	  double alpha2 = alpha.at(Link{iy,ix});
 	  double omega12 = omega.at(Link{ix,iy});
 
 	  double diff = (alpha2 + M_PI + omega12) - alpha1;
-	  assert( std::abs(Mod(diff))<1.0e-14 );
+	  assert( std::abs(Mod(diff))<TOL );
 	}}
     }
 
@@ -170,11 +204,12 @@ struct Dirac1fonS2 {
 	for(int i=0; i<3; i++){
 	  int ix = lattice.faces[ia].sites[i];
 	  int iy = lattice.faces[ia].sites[(i+1)%3];
+	  // std::cout << "omega. ix, iy = " << ix << ", " << iy << std::endl;
 	  omega_sum += omega.at(Link{ix,iy});
 	}
 
 	double diff = Mod( face_signs[ia]*omega_sum ) + M_PI/5.0;
-	assert( std::abs(diff)<1.0e-14 );
+	assert( std::abs(diff)<TOL );
       }
     }
   }
