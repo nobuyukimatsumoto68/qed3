@@ -181,7 +181,10 @@ struct Dirac1fonS2 {
 
   std::array<MS, 4> sigma;
 
-  std::vector<double> kappa; // evan's link label
+  std::vector<double> ell; // evan's link label
+  std::vector<double> ellstar; // evan's link label
+  // std::vector<double> kappa; // evan's link label
+  std::vector<double> site_vol; // evan's site label
 
   Dirac1fonS2()=delete;
 
@@ -200,11 +203,14 @@ struct Dirac1fonS2 {
     , spin(n_refine)
     , omega(spin.omega)
     , alpha(spin.alpha)
-    , kappa(lattice.n_links)
+    , ell(lattice.n_links)
+    , ellstar(lattice.n_links)
+    , site_vol(lattice.n_sites)
   {
     set_sigma();
     set_face_signs();
-    set_kappas();
+    set_ell_ellstar();
+    set_site_vol();
 
     // check
     double TOL=1.0e-6;
@@ -327,10 +333,10 @@ struct Dirac1fonS2 {
 	const int iy = lattice.sites[ix].neighbors[jj];
 	const int il = lattice.sites[ix].links[jj];
 
-	res.block<NS,NS>(NS*ix,NS*iy) = - kappa[il] * ( r*sigma[0] - gamma(ix, iy) ) * Omega(ix, iy);
+	res.block<NS,NS>(NS*ix,NS*iy) = - ellstar[il] * ( r*sigma[0] - gamma(ix, iy) ) * Omega(ix, iy);
 	// res.block<NS,NS>(NS*ix,NS*iy) = - 0.5*kappa * Omega(ix, iy) * ( r*sigma[0] - gamma(iy, ix, M_PI) );
       }
-      res.block<NS,NS>(NS*ix,NS*ix) = (m + DIM*r) * sigma[0];
+      res.block<NS,NS>(NS*ix,NS*ix) = site_vol[ix] * (m + DIM*r) * sigma[0];
     }
 
     return res;
@@ -338,7 +344,7 @@ struct Dirac1fonS2 {
 
 
 
-  void set_kappas() {
+  void set_ell_ellstar() {
     for(int il=0; il<lattice.n_links; il++) {
       const auto link = lattice.links[il];
       const int iA = link.faces[0];
@@ -448,7 +454,18 @@ struct Dirac1fonS2 {
       // std::cout << ellA << ", " << ellB << ", " << ellstarHA << ", " << ellstarHB << std::endl;
       assert( std::abs(ellA-ellB)<1.0e-14 );
       // const double ellstar = ellstarH0 + ellstarH1;
-      kappa[il] = ellstarHA + ellstarHB;
+      ell[il] = ellA;
+      ellstar[il] = ellstarHA + ellstarHB;
+    }
+  }
+
+  void set_site_vol(){
+    for(int i=0; i<lattice.n_sites; i++){
+      site_vol[i] = 0.0;
+      const auto x = lattice.sites[i];
+      for(const int il : x.links){
+	site_vol[i] += 0.5*ell[il]*ellstar[il];
+      }
     }
   }
   
