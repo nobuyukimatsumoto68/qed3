@@ -8,10 +8,10 @@ int main(int argc, char* argv[]){
 
   // geometry
   const int q=5; // icosahedron
-  const int n_refine=1; // no refinement
+  const int n_refine=2; // no refinement
 
   QfeLatticeS2 lattice(q, n_refine);
-  Dirac1fonS2 D(lattice);
+  Dirac1fonS2 D(lattice, n_refine);
 
   // ----------------------------------
 

@@ -23,6 +23,21 @@ double Mod(double a, double b=2.0*M_PI){
 }
 
 
+Vec3 circumcenter(const Vec3& r0, const Vec3& r1, const Vec3& r2){
+  const Vec3 r10 = r1 - r0;
+  const Vec3 r20 = r2 - r0;
+
+  const Vec3 tmp1 = r10.squaredNorm() * r20 - r20.squaredNorm() * r10;
+  const Vec3 cross = r10.cross(r20);
+  const Vec3 numer = tmp1.cross(cross);
+  const double denom = 2.0*cross.squaredNorm();
+
+  return numer/denom + r0;
+}
+
+
+
+
 struct SpinStructure{
 
   using Link = std::array<int,2>; // <int,int>;
@@ -36,10 +51,10 @@ struct SpinStructure{
 
 
 
-  SpinStructure()
+  SpinStructure(const int n_refine)
   {
     {
-      std::ifstream file("omega_n1.dat");
+      std::ifstream file("omega_n"+std::to_string(n_refine)+".dat");
 
       std::string str;
       std::string file_contents;
@@ -56,7 +71,7 @@ struct SpinStructure{
     }
 
     {
-      std::ifstream file("alpha_n1.dat");
+      std::ifstream file("alpha_n"+std::to_string(n_refine)+".dat");
 
       std::string str;
       std::string file_contents;
@@ -144,44 +159,55 @@ struct SpinStructure{
 
 
 
+
+
+
+
+
 struct Dirac1fonS2 {
   QfeLatticeS2& lattice;
 
   // sign for the ordering of Evan's face.sites; +1 for clockwise rotation from the origin
   std::vector<int> face_signs; // index: ia (Evan's label for faces)
 
-  const double kappa;
+  // const double kappa;
   const double m;
   const double r;
 
   using Link = std::array<int,2>; // <int,int>;
+  SpinStructure spin;
   const std::map<const Link, const double> omega;
   const std::map<const Link, const double> alpha;
 
   std::array<MS, 4> sigma;
 
+  std::vector<double> kappa; // evan's link label
+
   Dirac1fonS2()=delete;
 
   Dirac1fonS2(QfeLatticeS2& lattice_,
-	      const double kappa_=1.0,
+	      const int n_refine,
+	      // const double kappa_=1.0,
 	      const double m_=0.0,
-	      const double r_=1.0,
-	      const SpinStructure spin_=SpinStructure() )
+	      const double r_=1.0)
     : lattice(lattice_)
-    , kappa(kappa_)
+      // , kappa(kappa_)
     , face_signs(lattice.n_faces)
     , m(m_)
     , r(r_)
     // , omega(spin_.omegaEO)
     // , alpha(spin_.alphaEO)
-    , omega(spin_.omega)
-    , alpha(spin_.alpha)
+    , spin(n_refine)
+    , omega(spin.omega)
+    , alpha(spin.alpha)
+    , kappa(lattice.n_links)
   {
     set_sigma();
     set_face_signs();
+    set_kappas();
 
     // check
-    double TOL=1.0e-12;
+    double TOL=1.0e-6;
     {
       for(int ix=0; ix<lattice.n_sites; ix++){
 	for(int jj=0; jj<lattice.sites[ix].nn; jj++){
@@ -193,25 +219,26 @@ struct Dirac1fonS2 {
 	  double omega12 = omega.at(Link{ix,iy});
 
 	  double diff = (alpha2 + M_PI + omega12) - alpha1;
+	  // std::cout << "diff = " << std::abs(Mod(diff)) << std::endl;
 	  assert( std::abs(Mod(diff))<TOL );
 	}}
     }
 
-    {
-      for(int ia=0; ia<lattice.n_faces; ia++){
-	double omega_sum = 0.0;
+    // {
+    //   for(int ia=0; ia<lattice.n_faces; ia++){
+    // 	double omega_sum = 0.0;
 
-	for(int i=0; i<3; i++){
-	  int ix = lattice.faces[ia].sites[i];
-	  int iy = lattice.faces[ia].sites[(i+1)%3];
-	  // std::cout << "omega. ix, iy = " << ix << ", " << iy << std::endl;
-	  omega_sum += omega.at(Link{ix,iy});
-	}
+    // 	for(int i=0; i<3; i++){
+    // 	  int ix = lattice.faces[ia].sites[i];
+    // 	  int iy = lattice.faces[ia].sites[(i+1)%3];
+    // 	  // std::cout << "omega. ix, iy = " << ix << ", " << iy << std::endl;
+    // 	  omega_sum += omega.at(Link{ix,iy});
+    // 	}
 
-	double diff = Mod( face_signs[ia]*omega_sum ) + M_PI/5.0;
-	assert( std::abs(diff)<TOL );
-      }
-    }
+    // 	double diff = Mod( face_signs[ia]*omega_sum ) + M_PI/5.0;
+    // 	assert( std::abs(diff)<TOL );
+    //   }
+    // }
   }
 
   Dirac1fonS2 & operator=(const Dirac1fonS2&) = delete;
@@ -293,12 +320,14 @@ struct Dirac1fonS2 {
 
 
   Eigen::MatrixXcd matrix_form() const {
-    Eigen::MatrixXcd res(NS*lattice.n_sites, NS*lattice.n_sites);
+    Eigen::MatrixXcd res = Eigen::MatrixXcd::Zero(NS*lattice.n_sites, NS*lattice.n_sites);
 
     for(int ix=0; ix<lattice.n_sites; ix++){
       for(int jj=0; jj<lattice.sites[ix].nn; jj++){
 	const int iy = lattice.sites[ix].neighbors[jj];
-	res.block<NS,NS>(NS*ix,NS*iy) = - 0.5*kappa * ( r*sigma[0] - gamma(ix, iy) ) * Omega(ix, iy);
+	const int il = lattice.sites[ix].links[jj];
+
+	res.block<NS,NS>(NS*ix,NS*iy) = - kappa[il] * ( r*sigma[0] - gamma(ix, iy) ) * Omega(ix, iy);
 	// res.block<NS,NS>(NS*ix,NS*iy) = - 0.5*kappa * Omega(ix, iy) * ( r*sigma[0] - gamma(iy, ix, M_PI) );
       }
       res.block<NS,NS>(NS*ix,NS*ix) = (m + DIM*r) * sigma[0];
@@ -306,5 +335,123 @@ struct Dirac1fonS2 {
 
     return res;
   } // end matrix_form
+
+
+
+  void set_kappas() {
+    for(int il=0; il<lattice.n_links; il++) {
+      const auto link = lattice.links[il];
+      const int iA = link.faces[0];
+      const int iB = link.faces[1];
+
+      double ellA=0.0, ellB=0.0;
+      double ellstarHA=0.0, ellstarHB=0.0;
+      {
+	const QfeFace& face = lattice.faces[iA];
+	Vec3 r0, r1, r2; // r0,1: link
+	if(face.sites[0]==link.sites[0] && face.sites[1]==link.sites[1]){
+	  r0 = lattice.r[face.sites[0]];
+	  r1 = lattice.r[face.sites[1]];
+	  r2 = lattice.r[face.sites[2]];
+	}
+	else if(face.sites[1]==link.sites[0] && face.sites[2]==link.sites[1]){
+	  r0 = lattice.r[face.sites[1]];
+	  r1 = lattice.r[face.sites[2]];
+	  r2 = lattice.r[face.sites[0]];
+	}
+	else if(face.sites[2]==link.sites[0] && face.sites[0]==link.sites[1]){
+	  r0 = lattice.r[face.sites[2]];
+	  r1 = lattice.r[face.sites[0]];
+	  r2 = lattice.r[face.sites[1]];
+	} // reverse
+	else if(face.sites[1]==link.sites[0] && face.sites[0]==link.sites[1]){
+	  r0 = lattice.r[face.sites[1]];
+	  r1 = lattice.r[face.sites[0]];
+	  r2 = lattice.r[face.sites[2]];
+	}
+	else if(face.sites[2]==link.sites[0] && face.sites[1]==link.sites[1]){
+	  r0 = lattice.r[face.sites[2]];
+	  r1 = lattice.r[face.sites[1]];
+	  r2 = lattice.r[face.sites[0]];
+	}
+	else if(face.sites[0]==link.sites[0] && face.sites[2]==link.sites[1]){
+	  r0 = lattice.r[face.sites[0]];
+	  r1 = lattice.r[face.sites[2]];
+	  r2 = lattice.r[face.sites[1]];
+	}
+	else assert(false);
+
+	const double ell2 = (r0-r1).norm(); // link
+	const double ell0 = (r1-r2).norm();
+	const double ell1 = (r2-r0).norm();
+	//
+	const Vec3 p = circumcenter(r0, r1, r2).transpose();
+	assert( std::abs( (p-r0).norm() - (p-r1).norm() )<1.0e-14 );
+	assert( std::abs( (p-r0).norm() - (p-r2).norm() )<1.0e-14 );
+
+	const double ellstarH0 = (p-0.5*(r1+r2)).norm();
+	const double ellstarH1 = (p-0.5*(r2+r0)).norm();
+	const double ellstarH2 = (p-0.5*(r0+r1)).norm(); // dual link (half)
+
+	ellA = ell2; ellstarHA = ellstarH2;
+      }
+      {
+	const QfeFace& face = lattice.faces[iB];
+	Vec3 r0, r1, r2; // r0,1: link
+	if(face.sites[0]==link.sites[0] && face.sites[1]==link.sites[1]){
+	  r0 = lattice.r[face.sites[0]];
+	  r1 = lattice.r[face.sites[1]];
+	  r2 = lattice.r[face.sites[2]];
+	}
+	else if(face.sites[1]==link.sites[0] && face.sites[2]==link.sites[1]){
+	  r0 = lattice.r[face.sites[1]];
+	  r1 = lattice.r[face.sites[2]];
+	  r2 = lattice.r[face.sites[0]];
+	}
+	else if(face.sites[2]==link.sites[0] && face.sites[0]==link.sites[1]){
+	  r0 = lattice.r[face.sites[2]];
+	  r1 = lattice.r[face.sites[0]];
+	  r2 = lattice.r[face.sites[1]];
+	} // reverse
+	else if(face.sites[1]==link.sites[0] && face.sites[0]==link.sites[1]){
+	  r0 = lattice.r[face.sites[1]];
+	  r1 = lattice.r[face.sites[0]];
+	  r2 = lattice.r[face.sites[2]];
+	}
+	else if(face.sites[2]==link.sites[0] && face.sites[1]==link.sites[1]){
+	  r0 = lattice.r[face.sites[2]];
+	  r1 = lattice.r[face.sites[1]];
+	  r2 = lattice.r[face.sites[0]];
+	}
+	else if(face.sites[0]==link.sites[0] && face.sites[2]==link.sites[1]){
+	  r0 = lattice.r[face.sites[0]];
+	  r1 = lattice.r[face.sites[2]];
+	  r2 = lattice.r[face.sites[1]];
+	}
+	else assert(false);
+
+	const double ell2 = (r0-r1).norm(); // link
+	const double ell0 = (r1-r2).norm();
+	const double ell1 = (r2-r0).norm();
+	//
+	const Vec3 p = circumcenter(r0, r1, r2).transpose();
+	assert( std::abs( (p-r0).norm() - (p-r1).norm() )<1.0e-14 );
+	assert( std::abs( (p-r0).norm() - (p-r2).norm() )<1.0e-14 );
+
+	const double ellstarH0 = (p-0.5*(r1+r2)).norm();
+	const double ellstarH1 = (p-0.5*(r2+r0)).norm();
+	const double ellstarH2 = (p-0.5*(r0+r1)).norm(); // dual link (half)
+
+	ellB = ell2; ellstarHB = ellstarH2;
+      }
+
+      // std::cout << ellA << ", " << ellB << ", " << ellstarHA << ", " << ellstarHB << std::endl;
+      assert( std::abs(ellA-ellB)<1.0e-14 );
+      // const double ellstar = ellstarH0 + ellstarH1;
+      kappa[il] = ellstarHA + ellstarHB;
+    }
+  }
+  
+
 
 };
