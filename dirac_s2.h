@@ -85,74 +85,6 @@ struct SpinStructure{
 	alpha.insert( {Link{i,j}, v} );
       }
     }
-
-    // {
-    //   std::ifstream file("omega.dat");
-
-    //   std::string str;
-    //   std::string file_contents;
-    //   while (std::getline(file, str)){
-    // 	std::istringstream iss(str);
-    // 	int i,j;
-    // 	double v;
-    // 	iss >> i;
-    // 	iss >> j;
-    // 	iss >> v;
-    // 	omega.insert( { Link{i,j}, v } );
-    // 	omega.insert( { Link{j,i}, -v } );
-    //   }
-    // }
-
-    // {
-    //   std::ifstream file("alpha.dat");
-
-    //   std::string str;
-    //   std::string file_contents;
-    //   while (std::getline(file, str)){
-    // 	std::istringstream iss(str);
-    // 	int i,j;
-    // 	double v;
-    // 	iss >> i;
-    // 	iss >> j;
-    // 	iss >> v;
-    // 	alpha.insert( {Link{i,j}, v} );
-    //   }
-    // }
-
-    // {
-    //   NM2EO.insert( {10, 0} );
-
-    //   NM2EO.insert( { 3, 3} );
-    //   NM2EO.insert( { 9, 5} );
-    //   NM2EO.insert( { 1, 8} );
-    //   NM2EO.insert( { 7, 9} );
-    //   NM2EO.insert( { 8,11} );
-
-    //   NM2EO.insert( { 6,10} );
-    //   NM2EO.insert( { 5, 1} );
-    //   NM2EO.insert( { 2, 2} );
-    //   NM2EO.insert( {12, 4} );
-    //   NM2EO.insert( { 4, 7} );
-
-    //   NM2EO.insert( {11, 6} );
-    // }
-
-    // {
-    //   for(auto elem : alpha){
-    // 	int ix1 = elem.first[0];
-    // 	int iy1 = elem.first[1];
-    // 	int ix2 = NM2EO[ix1];
-    // 	int iy2 = NM2EO[iy1];
-    // 	alphaEO.insert( { Link{ix2,iy2}, alpha[Link{ix1,iy1}] } );
-    //   }
-    //   for(auto elem : omega){
-    // 	int ix1 = elem.first[0];
-    // 	int iy1 = elem.first[1];
-    // 	int ix2 = NM2EO[ix1];
-    // 	int iy2 = NM2EO[iy1];
-    // 	omegaEO.insert( { Link{ix2,iy2}, omega[Link{ix1,iy1}] } );
-    //   }
-    // }
   }
 };
 
@@ -170,7 +102,6 @@ struct Dirac1fonS2 {
   // sign for the ordering of Evan's face.sites; +1 for clockwise rotation from the origin
   std::vector<int> face_signs; // index: ia (Evan's label for faces)
 
-  // const double kappa;
   const double m;
   const double r;
 
@@ -183,23 +114,18 @@ struct Dirac1fonS2 {
 
   std::vector<double> ell; // evan's link label
   std::vector<double> ellstar; // evan's link label
-  // std::vector<double> kappa; // evan's link label
   std::vector<double> site_vol; // evan's site label
 
   Dirac1fonS2()=delete;
 
   Dirac1fonS2(QfeLatticeS2& lattice_,
 	      const int n_refine,
-	      // const double kappa_=1.0,
 	      const double m_=0.0,
 	      const double r_=1.0)
     : lattice(lattice_)
-      // , kappa(kappa_)
     , face_signs(lattice.n_faces)
     , m(m_)
     , r(r_)
-    // , omega(spin_.omegaEO)
-    // , alpha(spin_.alphaEO)
     , spin(n_refine)
     , omega(spin.omega)
     , alpha(spin.alpha)
@@ -218,33 +144,31 @@ struct Dirac1fonS2 {
       for(int ix=0; ix<lattice.n_sites; ix++){
 	for(int jj=0; jj<lattice.sites[ix].nn; jj++){
 	  const int iy = lattice.sites[ix].neighbors[jj];
-	  // std::cout << "alpha. ix, iy = " << ix << ", " << iy << std::endl;
 
 	  const double alpha1 = alpha.at(Link{ix,iy});
 	  double alpha2 = alpha.at(Link{iy,ix});
 	  double omega12 = omega.at(Link{ix,iy});
 
 	  double diff = (alpha2 + M_PI + omega12) - alpha1;
-	  // std::cout << "diff = " << std::abs(Mod(diff)) << std::endl;
 	  assert( std::abs(Mod(diff))<TOL );
 	}}
     }
 
-    // {
-    //   for(int ia=0; ia<lattice.n_faces; ia++){
-    // 	double omega_sum = 0.0;
+    {
+      for(int ia=0; ia<lattice.n_faces; ia++){
+	double sum = 0.0;
 
-    // 	for(int i=0; i<3; i++){
-    // 	  int ix = lattice.faces[ia].sites[i];
-    // 	  int iy = lattice.faces[ia].sites[(i+1)%3];
-    // 	  // std::cout << "omega. ix, iy = " << ix << ", " << iy << std::endl;
-    // 	  omega_sum += omega.at(Link{ix,iy});
-    // 	}
+	for(int i=0; i<3; i++){
+	  int ix = lattice.faces[ia].sites[i];
+	  int iy = lattice.faces[ia].sites[(i+1)%3];
+	  sum -= omega.at(Link{ix,iy});
+	  sum += alpha.at(Link{ix,iy});
+	  sum -= alpha.at(Link{iy,ix}) + M_PI;
+	}
 
-    // 	double diff = Mod( face_signs[ia]*omega_sum ) + M_PI/5.0;
-    // 	assert( std::abs(diff)<TOL );
-    //   }
-    // }
+	assert( std::abs(Mod(-std::abs(Mod(sum)))) < TOL );
+      }
+    }
   }
 
   Dirac1fonS2 & operator=(const Dirac1fonS2&) = delete;
@@ -313,15 +237,17 @@ struct Dirac1fonS2 {
   }
 
 
-  MS gamma(const int ix, const int iy, const double shift = 0.0) const { // located at x
+  MS gamma(const int ix, const int iy, const double shift=0.0) const { // located at x
     const double al = alpha.at(Link{ix,iy}) + shift;
     return std::cos(al)*sigma[1] + std::sin(al)*sigma[2];
-    // return std::cos(al)*sigma[1] - std::sin(al)*sigma[2];
   }
 
   MS Omega(const int ix, const int iy) const {
     const double om = omega.at(Link{ix,iy});
+    // return sigma[0];
     return std::cos(0.5*om)*sigma[0] - I*std::sin(0.5*om)*sigma[3];
+    // return std::cos(0.5*om)*sigma[0] + I*std::sin(0.5*om)*sigma[3];
+    // return std::cos(0.25 * om)*sigma[0] - I*std::sin(0.25 * om)*sigma[3];
   }
 
 
@@ -333,10 +259,30 @@ struct Dirac1fonS2 {
 	const int iy = lattice.sites[ix].neighbors[jj];
 	const int il = lattice.sites[ix].links[jj];
 
-	res.block<NS,NS>(NS*ix,NS*iy) = - ellstar[il] * ( r*sigma[0] - gamma(ix, iy) ) * Omega(ix, iy);
+	// naive
+	// res.block<NS,NS>(NS*ix,NS*iy) += 0.5*ellstar[il] * gamma(ix, iy) * Omega(ix, iy);
+	// res.block<NS,NS>(NS*iy,NS*ix) -= 0.5*ellstar[il] * Omega(iy, ix) * gamma(ix, iy);
+
+	// wilson
+	res.block<NS,NS>(NS*ix,NS*iy) -= 0.125*ellstar[il] * ( r*sigma[0] - gamma(ix, iy) ) * Omega(ix, iy);
+	res.block<NS,NS>(NS*iy,NS*ix) -= 0.125*ellstar[il] * Omega(iy, ix) * ( r*sigma[0] + gamma(ix, iy) );
+	// res.block<NS,NS>(NS*ix,NS*iy) -= 0.125*ellstar[il] * ( r*sigma[0] - gamma(ix, iy) ) * Omega(ix, iy);
+
+
+	// res.block<NS,NS>(NS*iy,NS*ix) += 0.125*ellstar[il] * Omega(iy, ix) * ( r*sigma[0] - gamma(ix, iy) );
+	// res.block<NS,NS>(NS*iy,NS*ix) += 0.5 * 0.25*ellstar[il] * ( r*sigma[0] - gamma(ix, iy) ) * Omega(ix, iy);
+
+	// res.block<NS,NS>(NS*ix,NS*iy) += 0.5 * (0.5*ellstar[il]) * gamma(ix, iy) * Omega(ix, iy);
+
+	// res.block<NS,NS>(NS*ix,NS*iy) += 0.25 * (0.5*ellstar[il]) * gamma(ix, iy) * Omega(ix, iy);
+	// res.block<NS,NS>(NS*iy,NS*ix) -= 0.25 * (0.5*ellstar[il]) * gamma(ix, iy) * Omega(ix, iy);
+
+	// res.block<NS,NS>(NS*ix,NS*iy) += 0.5 * (0.5*ellstar[il]) * Omega(ix, iy) * gamma(iy, ix, M_PI);
 	// res.block<NS,NS>(NS*ix,NS*iy) = - 0.5*kappa * Omega(ix, iy) * ( r*sigma[0] - gamma(iy, ix, M_PI) );
       }
-      res.block<NS,NS>(NS*ix,NS*ix) = site_vol[ix] * (m + DIM*r) * sigma[0];
+      // res.block<NS,NS>(NS*ix,NS*ix) = site_vol[ix] * (m + DIM*r) * sigma[0];
+      res.block<NS,NS>(NS*ix,NS*ix) = site_vol[ix] * (m + 3*r) * sigma[0];
+      // res.block<NS,NS>(NS*ix, NS*ix) += site_vol[ix] * m * sigma[0];
     }
 
     return res;
@@ -451,9 +397,7 @@ struct Dirac1fonS2 {
 	ellB = ell2; ellstarHB = ellstarH2;
       }
 
-      // std::cout << ellA << ", " << ellB << ", " << ellstarHA << ", " << ellstarHB << std::endl;
       assert( std::abs(ellA-ellB)<1.0e-14 );
-      // const double ellstar = ellstarH0 + ellstarH1;
       ell[il] = ellA;
       ellstar[il] = ellstarHA + ellstarHB;
     }
@@ -463,8 +407,10 @@ struct Dirac1fonS2 {
     for(int i=0; i<lattice.n_sites; i++){
       site_vol[i] = 0.0;
       const auto x = lattice.sites[i];
-      for(const int il : x.links){
-	site_vol[i] += 0.5*ell[il]*ellstar[il];
+      //for(const int il : x.links){
+      for(int jj=0; jj<x.nn; jj++){
+	const int il = x.links[jj];
+	site_vol[i] += 0.25*ell[il]*ellstar[il];
       }
     }
   }
