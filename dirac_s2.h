@@ -105,6 +105,8 @@ struct Dirac1fonS2 {
   const double m;
   const double r;
 
+  double a = 1.0;
+
   using Link = std::array<int,2>; // <int,int>;
   SpinStructure spin;
   const std::map<const Link, const double> omega;
@@ -113,8 +115,10 @@ struct Dirac1fonS2 {
   std::array<MS, 4> sigma;
 
   std::vector<double> ell; // evan's link label
-  std::vector<double> ellstar; // evan's link label
-  std::vector<double> site_vol; // evan's site label
+
+  // std::vector<double> ellstar; // evan's link label
+  std::vector<double> link_volume; // evan's link label
+  // std::vector<double> site_vol; // evan's site label
 
   Dirac1fonS2()=delete;
 
@@ -130,13 +134,15 @@ struct Dirac1fonS2 {
     , omega(spin.omega)
     , alpha(spin.alpha)
     , ell(lattice.n_links)
-    , ellstar(lattice.n_links)
-    , site_vol(lattice.n_sites)
+      // , ellstar(lattice.n_links)
+    , link_volume(lattice.n_links)
+      // , site_vol(lattice.n_sites)
   {
     set_sigma();
     set_face_signs();
-    set_ell_ellstar();
-    set_site_vol();
+    set_ell_and_link_volumes();
+    // set_ell_ellstar();
+    // set_site_vol();
 
     // check
     double TOL=1.0e-6;
@@ -238,14 +244,18 @@ struct Dirac1fonS2 {
 
 
   MS gamma(const int ix, const int iy, const double shift=0.0) const { // located at x
-    const double al = alpha.at(Link{ix,iy}) + shift;
+    double al = alpha.at(Link{ix,iy}) + shift;
+    // al *= -1.0;
+
     return std::cos(al)*sigma[1] + std::sin(al)*sigma[2];
   }
 
   MS Omega(const int ix, const int iy) const {
-    const double om = omega.at(Link{ix,iy});
+    double om = omega.at(Link{ix,iy});
     // return sigma[0];
-    return std::cos(0.5*om)*sigma[0] - I*std::sin(0.5*om)*sigma[3];
+    om *= 0.5;
+    // om *= -0.5;
+    return std::cos(om)*sigma[0] - I*std::sin(om)*sigma[3];
     // return std::cos(0.5*om)*sigma[0] + I*std::sin(0.5*om)*sigma[3];
     // return std::cos(0.25 * om)*sigma[0] - I*std::sin(0.25 * om)*sigma[3];
   }
@@ -263,9 +273,48 @@ struct Dirac1fonS2 {
 	// res.block<NS,NS>(NS*ix,NS*iy) += 0.5*ellstar[il] * gamma(ix, iy) * Omega(ix, iy);
 	// res.block<NS,NS>(NS*iy,NS*ix) -= 0.5*ellstar[il] * Omega(iy, ix) * gamma(ix, iy);
 
-	// wilson
-	res.block<NS,NS>(NS*ix,NS*iy) -= 0.125*ellstar[il] * ( r*sigma[0] - gamma(ix, iy) ) * Omega(ix, iy);
-	res.block<NS,NS>(NS*iy,NS*ix) -= 0.125*ellstar[il] * Omega(iy, ix) * ( r*sigma[0] + gamma(ix, iy) );
+	// // wilson
+	// res.block<NS,NS>(NS*ix,NS*iy) -= 0.125*ellstar[il] * ( r*sigma[0] - gamma(ix, iy) ) * Omega(ix, iy);
+	// res.block<NS,NS>(NS*iy,NS*ix) -= 0.125*ellstar[il] * Omega(iy, ix) * ( r*sigma[0] + gamma(ix, iy) );
+
+
+	// // wilson // BROWER ET AL.
+	// res.block<NS,NS>(NS*ix,NS*iy) += 0.125*ellstar[il] * gamma(ix, iy) * Omega(ix, iy);
+	// // res.block<NS,NS>(NS*iy,NS*ix) -= 0.125*ellstar[il] * Omega(iy, ix) * gamma(ix, iy);
+	// res.block<NS,NS>(NS*iy,NS*ix) += 0.125*ellstar[il] * gamma(iy, ix) * Omega(iy, ix);
+
+	// res.block<NS,NS>(NS*ix,NS*ix) += 0.125*a*ellstar[il]/ell[il] * sigma[0];
+	// res.block<NS,NS>(NS*iy,NS*iy) += 0.125*a*ellstar[il]/ell[il] * sigma[0];
+	// res.block<NS,NS>(NS*ix,NS*iy) -= 0.125*a*ellstar[il]/ell[il] * Omega(ix, iy);
+	// res.block<NS,NS>(NS*iy,NS*ix) -= 0.125*a*ellstar[il]/ell[il] * Omega(iy, ix);
+
+
+	// // wilson // BROWER ET AL., WITH GEODESIC
+	// res.block<NS,NS>(NS*ix,NS*iy) += 0.125 * (link_volume[il]/ell[il]) * gamma(ix, iy) * Omega(ix, iy);
+	// res.block<NS,NS>(NS*iy,NS*ix) += 0.125 * (link_volume[il]/ell[il]) * gamma(iy, ix) * Omega(iy, ix);
+
+	// res.block<NS,NS>(NS*ix,NS*ix) += 0.125 * a * (link_volume[il]/(ell[il]*ell[il])) * sigma[0];
+	// res.block<NS,NS>(NS*iy,NS*iy) += 0.125 * a * (link_volume[il]/(ell[il]*ell[il])) * sigma[0];
+	// res.block<NS,NS>(NS*ix,NS*iy) -= 0.125 * a * (link_volume[il]/(ell[il]*ell[il])) * Omega(ix, iy);
+	// res.block<NS,NS>(NS*iy,NS*ix) -= 0.125 * a * (link_volume[il]/(ell[il]*ell[il])) * Omega(iy, ix);
+
+
+	// wilson // WITH GEODESIC
+	res.block<NS,NS>(NS*ix,NS*iy) -= 0.25 * (link_volume[il]/ell[il]) * (r*sigma[0] - gamma(ix, iy)) * Omega(ix, iy);
+	// res.block<NS,NS>(NS*iy,NS*ix) -= 0.125 * (link_volume[il]/ell[il]) * gamma(iy, ix) * Omega(iy, ix);
+
+	res.block<NS,NS>(NS*ix,NS*ix) += 0.125 * a * (link_volume[il]/(ell[il]*ell[il])) * sigma[0];
+	res.block<NS,NS>(NS*iy,NS*iy) += 0.125 * a * (link_volume[il]/(ell[il]*ell[il])) * sigma[0];
+	// res.block<NS,NS>(NS*ix,NS*iy) -= 0.125 * a * (link_volume[il]/(ell[il]*ell[il])) * Omega(ix, iy);
+	// res.block<NS,NS>(NS*iy,NS*ix) -= 0.125 * a * (link_volume[il]/(ell[il]*ell[il])) * Omega(iy, ix);
+
+
+
+
+
+	// res.block<NS,NS>(NS*ix,NS*iy) -= 0.125*a*ellstar[il]/ell[il] * sigma[0];
+	// res.block<NS,NS>(NS*iy,NS*ix) -= 0.125*a*ellstar[il]/ell[il] * sigma[0];
+
 	// res.block<NS,NS>(NS*ix,NS*iy) -= 0.125*ellstar[il] * ( r*sigma[0] - gamma(ix, iy) ) * Omega(ix, iy);
 
 
@@ -280,8 +329,9 @@ struct Dirac1fonS2 {
 	// res.block<NS,NS>(NS*ix,NS*iy) += 0.5 * (0.5*ellstar[il]) * Omega(ix, iy) * gamma(iy, ix, M_PI);
 	// res.block<NS,NS>(NS*ix,NS*iy) = - 0.5*kappa * Omega(ix, iy) * ( r*sigma[0] - gamma(iy, ix, M_PI) );
       }
+
       // res.block<NS,NS>(NS*ix,NS*ix) = site_vol[ix] * (m + DIM*r) * sigma[0];
-      res.block<NS,NS>(NS*ix,NS*ix) = site_vol[ix] * (m + 3*r) * sigma[0];
+      // res.block<NS,NS>(NS*ix,NS*ix) = site_vol[ix] * (m + 3*r) * sigma[0];
       // res.block<NS,NS>(NS*ix, NS*ix) += site_vol[ix] * m * sigma[0];
     }
 
@@ -290,14 +340,139 @@ struct Dirac1fonS2 {
 
 
 
-  void set_ell_ellstar() {
+  // void set_ell_ellstar() {
+  //   for(int il=0; il<lattice.n_links; il++) {
+  //     const auto link = lattice.links[il];
+  //     const int iA = link.faces[0];
+  //     const int iB = link.faces[1];
+
+  //     double ellA=0.0, ellB=0.0;
+  //     double ellstarHA=0.0, ellstarHB=0.0;
+  //     {
+  // 	const QfeFace& face = lattice.faces[iA];
+  // 	Vec3 r0, r1, r2; // r0,1: link
+  // 	if(face.sites[0]==link.sites[0] && face.sites[1]==link.sites[1]){
+  // 	  r0 = lattice.r[face.sites[0]];
+  // 	  r1 = lattice.r[face.sites[1]];
+  // 	  r2 = lattice.r[face.sites[2]];
+  // 	}
+  // 	else if(face.sites[1]==link.sites[0] && face.sites[2]==link.sites[1]){
+  // 	  r0 = lattice.r[face.sites[1]];
+  // 	  r1 = lattice.r[face.sites[2]];
+  // 	  r2 = lattice.r[face.sites[0]];
+  // 	}
+  // 	else if(face.sites[2]==link.sites[0] && face.sites[0]==link.sites[1]){
+  // 	  r0 = lattice.r[face.sites[2]];
+  // 	  r1 = lattice.r[face.sites[0]];
+  // 	  r2 = lattice.r[face.sites[1]];
+  // 	} // reverse
+  // 	else if(face.sites[1]==link.sites[0] && face.sites[0]==link.sites[1]){
+  // 	  r0 = lattice.r[face.sites[1]];
+  // 	  r1 = lattice.r[face.sites[0]];
+  // 	  r2 = lattice.r[face.sites[2]];
+  // 	}
+  // 	else if(face.sites[2]==link.sites[0] && face.sites[1]==link.sites[1]){
+  // 	  r0 = lattice.r[face.sites[2]];
+  // 	  r1 = lattice.r[face.sites[1]];
+  // 	  r2 = lattice.r[face.sites[0]];
+  // 	}
+  // 	else if(face.sites[0]==link.sites[0] && face.sites[2]==link.sites[1]){
+  // 	  r0 = lattice.r[face.sites[0]];
+  // 	  r1 = lattice.r[face.sites[2]];
+  // 	  r2 = lattice.r[face.sites[1]];
+  // 	}
+  // 	else assert(false);
+
+  // 	const double ell2 = (r0-r1).norm(); // link
+  // 	const double ell0 = (r1-r2).norm();
+  // 	const double ell1 = (r2-r0).norm();
+  // 	//
+  // 	const Vec3 p = circumcenter(r0, r1, r2).transpose();
+  // 	assert( std::abs( (p-r0).norm() - (p-r1).norm() )<1.0e-14 );
+  // 	assert( std::abs( (p-r0).norm() - (p-r2).norm() )<1.0e-14 );
+
+  // 	const double ellstarH0 = (p-0.5*(r1+r2)).norm();
+  // 	const double ellstarH1 = (p-0.5*(r2+r0)).norm();
+  // 	const double ellstarH2 = (p-0.5*(r0+r1)).norm(); // dual link (half)
+
+  // 	ellA = ell2; ellstarHA = ellstarH2;
+  //     }
+  //     {
+  // 	const QfeFace& face = lattice.faces[iB];
+  // 	Vec3 r0, r1, r2; // r0,1: link
+  // 	if(face.sites[0]==link.sites[0] && face.sites[1]==link.sites[1]){
+  // 	  r0 = lattice.r[face.sites[0]];
+  // 	  r1 = lattice.r[face.sites[1]];
+  // 	  r2 = lattice.r[face.sites[2]];
+  // 	}
+  // 	else if(face.sites[1]==link.sites[0] && face.sites[2]==link.sites[1]){
+  // 	  r0 = lattice.r[face.sites[1]];
+  // 	  r1 = lattice.r[face.sites[2]];
+  // 	  r2 = lattice.r[face.sites[0]];
+  // 	}
+  // 	else if(face.sites[2]==link.sites[0] && face.sites[0]==link.sites[1]){
+  // 	  r0 = lattice.r[face.sites[2]];
+  // 	  r1 = lattice.r[face.sites[0]];
+  // 	  r2 = lattice.r[face.sites[1]];
+  // 	} // reverse
+  // 	else if(face.sites[1]==link.sites[0] && face.sites[0]==link.sites[1]){
+  // 	  r0 = lattice.r[face.sites[1]];
+  // 	  r1 = lattice.r[face.sites[0]];
+  // 	  r2 = lattice.r[face.sites[2]];
+  // 	}
+  // 	else if(face.sites[2]==link.sites[0] && face.sites[1]==link.sites[1]){
+  // 	  r0 = lattice.r[face.sites[2]];
+  // 	  r1 = lattice.r[face.sites[1]];
+  // 	  r2 = lattice.r[face.sites[0]];
+  // 	}
+  // 	else if(face.sites[0]==link.sites[0] && face.sites[2]==link.sites[1]){
+  // 	  r0 = lattice.r[face.sites[0]];
+  // 	  r1 = lattice.r[face.sites[2]];
+  // 	  r2 = lattice.r[face.sites[1]];
+  // 	}
+  // 	else assert(false);
+
+  // 	const double ell2 = (r0-r1).norm(); // link
+  // 	const double ell0 = (r1-r2).norm();
+  // 	const double ell1 = (r2-r0).norm();
+  // 	//
+  // 	const Vec3 p = circumcenter(r0, r1, r2).transpose();
+  // 	assert( std::abs( (p-r0).norm() - (p-r1).norm() )<1.0e-14 );
+  // 	assert( std::abs( (p-r0).norm() - (p-r2).norm() )<1.0e-14 );
+
+  // 	const double ellstarH0 = (p-0.5*(r1+r2)).norm();
+  // 	const double ellstarH1 = (p-0.5*(r2+r0)).norm();
+  // 	const double ellstarH2 = (p-0.5*(r0+r1)).norm(); // dual link (half)
+
+  // 	ellB = ell2; ellstarHB = ellstarH2;
+  //     }
+
+  //     assert( std::abs(ellA-ellB)<1.0e-14 );
+  //     ell[il] = ellA;
+  //     ellstar[il] = ellstarHA + ellstarHB;
+  //   }
+
+  //   int counter = 0;
+  //   a = 0.0;
+  //   for(int il=0; il<lattice.n_links; il++) {
+  //     a += ell[il];
+  //     counter++;
+  //     std::cout << "ell[il] =" << ell[il] << std::endl;
+  //   }
+  //   a /= counter;
+  //   a *= 0.1;
+  //   std::cout << "a = " << a << std::endl;
+  // }
+
+
+  void set_ell_and_link_volumes() {
     for(int il=0; il<lattice.n_links; il++) {
       const auto link = lattice.links[il];
       const int iA = link.faces[0];
       const int iB = link.faces[1];
 
       double ellA=0.0, ellB=0.0;
-      double ellstarHA=0.0, ellstarHB=0.0;
+      double areaA=0.0, areaB=0.0;
       {
 	const QfeFace& face = lattice.faces[iA];
 	Vec3 r0, r1, r2; // r0,1: link
@@ -333,19 +508,21 @@ struct Dirac1fonS2 {
 	}
 	else assert(false);
 
-	const double ell2 = (r0-r1).norm(); // link
-	const double ell0 = (r1-r2).norm();
-	const double ell1 = (r2-r0).norm();
 	//
 	const Vec3 p = circumcenter(r0, r1, r2).transpose();
 	assert( std::abs( (p-r0).norm() - (p-r1).norm() )<1.0e-14 );
 	assert( std::abs( (p-r0).norm() - (p-r2).norm() )<1.0e-14 );
 
-	const double ellstarH0 = (p-0.5*(r1+r2)).norm();
-	const double ellstarH1 = (p-0.5*(r2+r0)).norm();
-	const double ellstarH2 = (p-0.5*(r0+r1)).norm(); // dual link (half)
+	double a_ = std::acos( r0.dot(p) /(r0.norm()* p.norm()) );
+	double b_ = std::acos( r1.dot(p) /(r1.norm()* p.norm()) );
+	double c_ = std::acos( r0.dot(r1)/(r0.norm()*r1.norm()) ); // ell
 
-	ellA = ell2; ellstarHA = ellstarH2;
+	double s_ = 0.5*(a_+b_+c_);
+	double tmp = std::tan(0.5*s_) * std::tan(0.5*(s_-a_)) * std::tan(0.5*(s_-b_)) * std::tan(0.5*(s_-c_));
+	double area_ = 4.0*std::atan( std::sqrt( tmp ) );
+
+	ellA = c_;
+	areaA = area_;
       }
       {
 	const QfeFace& face = lattice.faces[iB];
@@ -382,38 +559,51 @@ struct Dirac1fonS2 {
 	}
 	else assert(false);
 
-	const double ell2 = (r0-r1).norm(); // link
-	const double ell0 = (r1-r2).norm();
-	const double ell1 = (r2-r0).norm();
-	//
 	const Vec3 p = circumcenter(r0, r1, r2).transpose();
 	assert( std::abs( (p-r0).norm() - (p-r1).norm() )<1.0e-14 );
 	assert( std::abs( (p-r0).norm() - (p-r2).norm() )<1.0e-14 );
 
-	const double ellstarH0 = (p-0.5*(r1+r2)).norm();
-	const double ellstarH1 = (p-0.5*(r2+r0)).norm();
-	const double ellstarH2 = (p-0.5*(r0+r1)).norm(); // dual link (half)
+	double a_ = std::acos( r0.dot(p) /(r0.norm()* p.norm()) );
+	double b_ = std::acos( r1.dot(p) /(r1.norm()* p.norm()) );
+	double c_ = std::acos( r0.dot(r1)/(r0.norm()*r1.norm()) ); // ell
 
-	ellB = ell2; ellstarHB = ellstarH2;
+	double s_ = 0.5*(a_+b_+c_);
+	double tmp = std::tan(0.5*s_) * std::tan(0.5*(s_-a_)) * std::tan(0.5*(s_-b_)) * std::tan(0.5*(s_-c_));
+	double area_ = 4.0*std::atan( std::sqrt( tmp ) );
+
+	ellB = c_;
+	areaB = area_;
       }
 
       assert( std::abs(ellA-ellB)<1.0e-14 );
       ell[il] = ellA;
-      ellstar[il] = ellstarHA + ellstarHB;
+      link_volume[il] = areaA + areaB;
     }
+
+    int counter = 0;
+    a = 0.0;
+    for(int il=0; il<lattice.n_links; il++) {
+      a += ell[il];
+      counter++;
+      std::cout << "ell[il] =" << ell[il] << std::endl;
+    }
+    a /= counter;
+    a *= 0.1;
+    std::cout << "a = " << a << std::endl;
   }
 
-  void set_site_vol(){
-    for(int i=0; i<lattice.n_sites; i++){
-      site_vol[i] = 0.0;
-      const auto x = lattice.sites[i];
-      //for(const int il : x.links){
-      for(int jj=0; jj<x.nn; jj++){
-	const int il = x.links[jj];
-	site_vol[i] += 0.25*ell[il]*ellstar[il];
-      }
-    }
-  }
+
+  // void set_site_vol(){
+  //   for(int i=0; i<lattice.n_sites; i++){
+  //     site_vol[i] = 0.0;
+  //     const auto x = lattice.sites[i];
+  //     //for(const int il : x.links){
+  //     for(int jj=0; jj<x.nn; jj++){
+  // 	const int il = x.links[jj];
+  // 	site_vol[i] += 0.25*ell[il]*ellstar[il];
+  //     }
+  //   }
+  // }
   
 
 
