@@ -7,7 +7,7 @@
 int main(int argc, char* argv[]){
 
   // geometry
-  const int n_refine=2;
+  const int n_refine=3;
 
   Lattice lattice(n_refine);
   // SpinStructure spin(n_refine);

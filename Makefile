@@ -23,9 +23,9 @@ all:
 	# $(CXX) test_u1.cc $(INCLUDES) $(CXXFLAGS)
 	# $(CXX) test_dirac.cc $(INCLUDES) $(CXXFLAGS)
 	# $(CXX) test_dirac_flat.cc $(INCLUDES) $(CXXFLAGS)
-	$(CXX) test_dirac_dual.cc $(INCLUDES) $(CXXFLAGS)
+	$(CXX) test_dirac_dual.cc $(INCLUDES) # $(CXXFLAGS)
 
-eig: test_dirac.cu header_cusolver.hpp
+eig: test_dirac_dual.cu header_cusolver.hpp
 	$(NVCC) $< $(NVCCFLAGS) $(INCLUDES_CUDA) -o b.out
 
 geometry:

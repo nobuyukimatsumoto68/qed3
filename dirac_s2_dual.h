@@ -9,6 +9,8 @@
 
 
 
+
+
 double Mod(double a, double b=2.0*M_PI){
   int p = int(std::round(a / b));
   double r = a - p*b;
@@ -89,6 +91,7 @@ struct Dirac1fonS2 : public SpinStructure{
 
   std::vector<double> ell; // link label
   std::vector<double> link_volume; // link label
+  // std::vector<std::array<VD, 3>> exM; // site, M=A,B,C
 
   Dirac1fonS2()=delete;
 
@@ -102,6 +105,7 @@ struct Dirac1fonS2 : public SpinStructure{
     // , spin(lattice.n_refine)
     , ell(lattice.n_links)
     , link_volume(lattice.n_links)
+    // , exM(lattice.n_sites)
   {
     set_sigma();
     set_ell_and_link_volumes();
@@ -133,9 +137,15 @@ struct Dirac1fonS2 : public SpinStructure{
   }
   
 
-  MS gamma(const int ix, const int iy, const double shift=0.0) const { // located at x
-    const double al = alpha.at(Link{ix,iy}) + shift;
-    return std::cos(al)*sigma[1] + std::sin(al)*sigma[2];
+  // MS gamma(const int ix, const int iy, const double shift=0.0) const { // located at x
+  //   const double al = alpha.at(Link{ix,iy}) + shift;
+  //   // return std::cos(al)*sigma[1] + std::sin(al)*sigma[2];
+  //   return std::cos(al)*sigma[1] + std::sin(al)*sigma[2];
+  // }
+  MS gamma(const int ix, const int jj) const { // located at x
+    // const double al = alpha.at(Link{ix,iy}) + shift;
+    // return std::cos(al)*sigma[1] + std::sin(al)*sigma[2];
+    return lattice.v[ix][jj](0) * sigma[1] + lattice.v[ix][jj](1) * sigma[2];
   }
 
   MS Omega(const int ix, const int iy) const {
@@ -147,16 +157,21 @@ struct Dirac1fonS2 : public SpinStructure{
     Eigen::MatrixXcd res = Eigen::MatrixXcd::Zero(NS*lattice.n_sites, NS*lattice.n_sites);
 
     for(int ix=0; ix<lattice.n_sites; ix++){
-      for(int iy : lattice.nns[ix]){
+      // for(int iy : lattice.nns[ix]){
+      for(int jj=0; jj<3; jj++){
+	int iy = lattice.nns[ix][jj];
 	// naive
 	// res.block<NS,NS>(NS*ix,NS*iy) += 0.5*ellstar[il] * gamma(ix, iy) * Omega(ix, iy);
-	res.block<NS,NS>(NS*ix,NS*iy) += gamma(ix, iy) * Omega(ix, iy);
+	// res.block<NS,NS>(NS*ix,NS*iy) += gamma(ix, iy) * Omega(ix, iy);
 
 	// wilson // WITH GEODESIC
 	// res.block<NS,NS>(NS*ix,NS*iy) -= 0.25 * (link_volume[il]/ell[il]) * (r*sigma[0] - gamma(ix, iy)) * Omega(ix, iy);
-	res.block<NS,NS>(NS*ix,NS*iy) -= (r*sigma[0] - gamma(ix, iy)) * Omega(ix, iy);
+	// res.block<NS,NS>(NS*ix,NS*iy) -= (r*sigma[0] - gamma(ix, iy)) * Omega(ix, iy);
+	// res.block<NS,NS>(NS*ix,NS*iy) -= (r*sigma[0] - gamma(ix, iy)) * Omega(ix, iy);
+	res.block<NS,NS>(NS*ix,NS*iy) -= lattice.vol[ix]*(0.5*lattice.u[ix][jj]*sigma[0] - gamma(ix, jj)) * Omega(ix, iy);
+	// res.block<NS,NS>(NS*ix,NS*iy) -= (r*sigma[0] - gamma(ix, jj)) * Omega(ix, iy);
 
-	res.block<NS,NS>(NS*ix,NS*ix) += r*sigma[0];
+	// res.block<NS,NS>(NS*ix,NS*ix) += r*sigma[0];
       }
 
       // res.block<NS,NS>(NS*ix,NS*ix) = site_vol[ix] * (m + DIM*r) * sigma[0];

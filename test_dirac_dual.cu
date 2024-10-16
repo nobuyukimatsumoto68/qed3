@@ -19,12 +19,11 @@ int main(int argc, char* argv[]){
 
   // ---------------------------------------
 
-  // const int q=5; // icosahedron
-  const int n_refine=1;
+  const int n_refine=5;
 
   Lattice lattice(n_refine);
 
-  Dirac1fonS2 D(lattice, n_refine);
+  Dirac1fonS2 D(lattice);
   auto mat = D.matrix_form();
 
   // =========================================
