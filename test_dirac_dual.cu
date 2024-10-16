@@ -19,11 +19,11 @@ int main(int argc, char* argv[]){
 
   // ---------------------------------------
 
-  const int n_refine=5;
+  const int n_refine=3;
 
   Lattice lattice(n_refine);
 
-  Dirac1fonS2 D(lattice);
+  Dirac1fonS2 D(lattice, 0.0, 1.0);
   auto mat = D.matrix_form();
 
   // =========================================

@@ -38,6 +38,7 @@ struct Lattice {
   std::vector<std::array<double, 3>> u; // site, M=A,B,C
   std::vector<std::array<VD, 3>> v; // site, M=A,B,C
   std::vector<double> vol; // site
+  double mean_vol;
 
   int n_sites;
   int n_links;
@@ -162,6 +163,14 @@ struct Lattice {
       }
 
       assert( vol.size()==n_sites );
+    }
+    {
+      int counter=0;
+      for(double elem : vol){
+	mean_vol += elem;
+	counter++;
+      }
+      mean_vol /= counter;
     }
 
     // {

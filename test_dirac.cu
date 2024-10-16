@@ -20,11 +20,11 @@ int main(int argc, char* argv[]){
   // ---------------------------------------
 
   const int q=5; // icosahedron
-  const int n_refine=5; // no refinement
+  const int n_refine=3; // no refinement
 
 
   QfeLatticeS2 lattice(q, n_refine);
-  Dirac1fonS2 D(lattice, n_refine);
+  Dirac1fonS2 D(lattice, n_refine, 0.0, 1.0);
   auto mat = D.matrix_form();
 
   // =========================================

@@ -168,10 +168,10 @@ struct Dirac1fonS2 : public SpinStructure{
 	// res.block<NS,NS>(NS*ix,NS*iy) -= 0.25 * (link_volume[il]/ell[il]) * (r*sigma[0] - gamma(ix, iy)) * Omega(ix, iy);
 	// res.block<NS,NS>(NS*ix,NS*iy) -= (r*sigma[0] - gamma(ix, iy)) * Omega(ix, iy);
 	// res.block<NS,NS>(NS*ix,NS*iy) -= (r*sigma[0] - gamma(ix, iy)) * Omega(ix, iy);
-	res.block<NS,NS>(NS*ix,NS*iy) -= lattice.vol[ix]*(0.5*lattice.u[ix][jj]*sigma[0] - gamma(ix, jj)) * Omega(ix, iy);
+	res.block<NS,NS>(NS*ix,NS*iy) -= lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj]*sigma[0] - gamma(ix, jj)) * Omega(ix, iy);
 	// res.block<NS,NS>(NS*ix,NS*iy) -= (r*sigma[0] - gamma(ix, jj)) * Omega(ix, iy);
 
-	// res.block<NS,NS>(NS*ix,NS*ix) += r*sigma[0];
+	res.block<NS,NS>(NS*ix,NS*ix) += lattice.vol[ix]/lattice.mean_vol * r*lattice.u[ix][jj]*sigma[0];
       }
 
       // res.block<NS,NS>(NS*ix,NS*ix) = site_vol[ix] * (m + DIM*r) * sigma[0];
