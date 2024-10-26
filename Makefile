@@ -21,9 +21,10 @@ all:
 	# $(CXX) test_geometry.cc $(INCLUDES) $(CXXFLAGS)
 	# $(CXX) test_geometry_flat.cc $(INCLUDES) $(CXXFLAGS)
 	# $(CXX) test_u1.cc $(INCLUDES) $(CXXFLAGS)
-	$(CXX) test_dirac.cc $(INCLUDES) $(CXXFLAGS)
+	# $(CXX) test_dirac.cc $(INCLUDES) $(CXXFLAGS)
 	# $(CXX) test_dirac_flat.cc $(INCLUDES) $(CXXFLAGS)
 	# $(CXX) test_dirac_dual.cc $(INCLUDES) # $(CXXFLAGS)
+	$(CXX) test_dirac_tim.cc $(INCLUDES) $(CXXFLAGS)
 
 eig: test_dirac.cu header_cusolver.hpp
 	$(NVCC) $< $(NVCCFLAGS) $(INCLUDES_CUDA) -o b.out

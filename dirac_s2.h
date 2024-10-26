@@ -54,7 +54,8 @@ struct SpinStructure{
   SpinStructure(const int n_refine)
   {
     {
-      std::ifstream file("omega_n"+std::to_string(n_refine)+".dat");
+      // std::ifstream file("omega_n"+std::to_string(n_refine)+".dat");
+      std::ifstream file("omega_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
       std::string str;
       std::string file_contents;
@@ -71,7 +72,7 @@ struct SpinStructure{
     }
 
     {
-      std::ifstream file("alpha_n"+std::to_string(n_refine)+".dat");
+      std::ifstream file("alpha_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
       std::string str;
       std::string file_contents;
@@ -172,6 +173,7 @@ struct Dirac1fonS2 {
 	  sum -= alpha.at(Link{iy,ix}) + M_PI;
 	}
 
+	// std::cout << sum << std::endl;
 	assert( std::abs(Mod(-std::abs(Mod(sum)))) < TOL );
       }
     }
@@ -244,20 +246,13 @@ struct Dirac1fonS2 {
 
 
   MS gamma(const int ix, const int iy, const double shift=0.0) const { // located at x
-    double al = alpha.at(Link{ix,iy}) + shift;
-    // al *= -1.0;
-
+    const double al = alpha.at(Link{ix,iy}) + shift;
     return std::cos(al)*sigma[1] + std::sin(al)*sigma[2];
   }
 
   MS Omega(const int ix, const int iy) const {
-    double om = omega.at(Link{ix,iy});
-    // return sigma[0];
-    om *= 0.5;
-    // om *= -0.5;
-    return std::cos(om)*sigma[0] - I*std::sin(om)*sigma[3];
-    // return std::cos(0.5*om)*sigma[0] + I*std::sin(0.5*om)*sigma[3];
-    // return std::cos(0.25 * om)*sigma[0] - I*std::sin(0.25 * om)*sigma[3];
+    const double om = omega.at(Link{ix,iy});
+    return std::cos(0.5*om)*sigma[0] - I*std::sin(0.5*om)*sigma[3];
   }
 
 
@@ -593,11 +588,11 @@ struct Dirac1fonS2 {
     for(int il=0; il<lattice.n_links; il++) {
       a += ell[il];
       counter++;
-      std::cout << "ell[il] =" << ell[il] << std::endl;
+      // std::cout << "ell[il] =" << ell[il] << std::endl;
     }
     a /= counter;
     a *= 1.0;
-    std::cout << "a = " << a << std::endl;
+    // std::cout << "a = " << a << std::endl;
   }
 
 

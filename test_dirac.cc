@@ -33,7 +33,6 @@ int main(int argc, char* argv[]){
   // 	      << mat_yx << std::endl;
   // }
 
-
   auto mat = D.matrix_form();
   auto ev = mat.eigenvalues();
   for(int i=0; i<ev.size(); i++){
