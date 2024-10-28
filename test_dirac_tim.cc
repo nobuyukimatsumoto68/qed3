@@ -84,6 +84,8 @@ int main(int argc, char* argv[]){
   // 	    assert( std::abs(Mod(diff2))<TOL );
   // 	  }}
   //     }
+  //     std::vector<double> sum2s_tim;
+  //     std::vector<double> sum2s_evan;
   //     {
   // 	for(int ia=0; ia<lattice.n_faces; ia++){
   // 	  double sum = 0.0;
@@ -110,9 +112,10 @@ int main(int argc, char* argv[]){
   // 	    sum2 -= omega12;
   // 	  }
 
-  // 	  while(sum2>M_PI) sum2 -= 2.0*M_PI;
-  // 	  while(sum2<-M_PI) sum2 += 2.0*M_PI;
+  // 	  // while(sum2>M_PI) sum2 -= 2.0*M_PI;
+  // 	  // while(sum2<-M_PI) sum2 += 2.0*M_PI;
   // 	  std::cout << "sum2(1) : " << D0.face_signs[ia] * sum2 << std::endl;
+  // 	  sum2s_tim.push_back( D0.face_signs[ia] * sum2 );
   // 	  assert( std::abs(Mod(-std::abs(Mod(sum)))) < TOL );
   // 	}
   // 	{
@@ -130,12 +133,16 @@ int main(int argc, char* argv[]){
   // 	      sum2 -= D0.omega.at(Link{ix,iy});
   // 	    }
 
-  // 	    while(sum2>M_PI) sum2 -= 2.0*M_PI;
-  // 	    while(sum2<-M_PI) sum2 += 2.0*M_PI;
+  // 	    // while(sum2>M_PI) sum2 -= 2.0*M_PI;
+  // 	    // while(sum2<-M_PI) sum2 += 2.0*M_PI;
   // 	    std::cout << "sum2(2) : " << D0.face_signs[ia] * sum2 << std::endl;
+  // 	    sum2s_evan.push_back( D0.face_signs[ia] * sum2 );
   // 	    assert( std::abs(Mod(-std::abs(Mod(sum)))) < TOL );
   // 	  }
   // 	}
+  //     }
+  //     for(int i=0; i<sum2s_evan.size(); i++){
+  // 	std::cout << "diff = " << sum2s_tim[i] - sum2s_evan[i] << std::endl;
   //     }
   //     {
   // 	for(int ix=0; ix<lattice.n_sites; ix++){
