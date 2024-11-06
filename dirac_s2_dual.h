@@ -40,7 +40,7 @@ struct SpinStructure{
   {
     {
       std::cout << "reading omega" << std::endl;
-      std::ifstream file("omega_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      std::ifstream file("./dats/omega_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
       std::string str;
       std::string file_contents;
@@ -58,7 +58,7 @@ struct SpinStructure{
 
     {
       std::cout << "reading alpha" << std::endl;
-      std::ifstream file("alpha_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      std::ifstream file("./dats/alpha_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
       std::string str;
       std::string file_contents;

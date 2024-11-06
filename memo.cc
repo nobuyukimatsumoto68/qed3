@@ -463,3 +463,115 @@ std::unordered_map<Link, double> alphaEO;
 	// double diff = alpha_x - (alpha_y+D.omega[il]);
 	// std::cout << "diff = " << double_mod( diff ) << std::endl;
 	// ----------------------------
+
+
+  std::cout << SW.gR << std::endl;
+  {
+    std::cout << "vps = " << std::endl;
+    int i=0;
+    double sum = 0.0;
+    for(auto elem : lattice.vps) {
+      sum += elem;
+      i++;
+    }
+    std::cout << "sum = " << sum << std::endl;
+    std::cout << "check = " << 4.0*M_PI << std::endl;
+  }
+  std::cout << U.plaquette_angle( 0 ) << std::endl;
+  std::cout << SW( U ) << std::endl;
+
+
+
+      // if(is_compact) plaq.Measure( U.average_plaquette() );
+      // else
+      // double val = U.plaquette_angle(iface);
+      // while(val>M_PI) val -= 2.0*M_PI;
+      // while(val<-M_PI) val += 2.0*M_PI;
+      // std::cout << val << std::endl;
+
+
+  // std::cout << var.Mean() << " ";
+  // std::cout << var.Error() * std::sqrt( var.AutocorrBack() )
+  // 	    << std::endl;
+  // }
+  // << " "
+  // << plaq.AutocorrFront() << " "
+  // << plaq.AutocorrBack()
+
+  
+  // double denom = 0.0;
+  // double numer = 0.0;
+
+  // double tmp = 0.0;
+  // // const int n=2;
+  // // for(int n=0; n<lattice.n_faces; n++){
+  // //   std::cout << std::exp(-beta) * boost::math::cyl_bessel_i(n, beta) << std::endl;
+  // //   const double bessel_n = ine(n, beta);
+  // //   const double bessel_np1 = ine(n+1, beta);
+  // //   const double bessel_nm1 = ine(std::abs(n-1), beta);
+  // //   const double d_bessel_n = 0.5*(bessel_np1 + bessel_nm1);
+  // //   // std::cout << "bessel_n = " << bessel_n << std::endl;
+  // //   // std::cout << "bessel_np1 (boost)" << std::exp(-beta) * boost::math::cyl_bessel_i(n+1, beta) << std::endl;
+  // //   // std::cout << "bessel_np1 = " << bessel_np1 << std::endl;
+  // //   // std::cout << "bessel_nm1 = " << bessel_nm1 << std::endl;
+  // //   // std::cout << "d_bessel_n = " << d_bessel_n << std::endl;
+
+  // //   denom += std::pow(bessel_n / bessel_0, lattice.n_faces);
+  // //   numer += d_bessel_n / bessel_0 * std::pow(bessel_n / bessel_0, lattice.n_faces-1);
+
+  // //   std::cout << "denom = " << denom << std::endl;
+  // //   std::cout << "numer = " << numer << std::endl;
+  // // }
+  // double beta = 4.0;
+  // const double bessel_0 = std::exp(-beta) * boost::math::cyl_bessel_i(0, beta);
+  // for(int n=0; n<lattice.n_faces; n++){
+  //   const double bessel_n = std::exp(-beta) * boost::math::cyl_bessel_i(n, beta);
+  //   const double bessel_np1 = std::exp(-beta) * boost::math::cyl_bessel_i(n+1, beta);
+  //   const double bessel_nm1 = std::exp(-beta) * boost::math::cyl_bessel_i(std::abs(n-1), beta);
+  //   const double d_bessel_n = 0.5*(bessel_np1 + bessel_nm1);
+  //   // const double bessel_n = ine(n, beta);
+  //   // std::cout << "bessel = " << bessel_n << std::endl;
+  //   // const double bessel_np1 = ine(n+1, beta);
+  //   // std::cout << "bessel = " << bessel_np1 << std::endl;
+  //   // const double bessel_nm1 = ine(std::abs(n-1), beta);
+  //   // std::cout << "bessel = " << bessel_nm1 << std::endl;
+  //   // const double d_bessel_n = 0.5*(bessel_np1 + bessel_nm1);
+
+  //   denom += std::pow(bessel_n / bessel_0, lattice.n_faces);
+  //   numer += d_bessel_n / bessel_0 * std::pow(bessel_n / bessel_0, lattice.n_faces-1);
+  //   // std::cout << "denom = " << denom << std::endl;
+  //   // std::cout << "numer = " << numer << std::endl;
+  //   // if( std::abs(numer / denom - tmp ) < 1.0e-10  ) break;
+  //   // tmp = numer / denom;
+  // }
+  // const double exact = numer / denom;
+  // std::cout << "exact = " << lattice.n_faces * ( 1.0 - exact ) << std::endl;
+
+
+  // const int iface = 1;
+  // const double factor = 0.5 / U.info_p.vp(iface);
+  // std::cout << "vp = " << U.info_p.vp(iface) << std::endl;
+  // const double factor = 0.5;
+
+
+// double ine( const int nu, const double z ){
+//   double res = 0.0;
+//   double tmp = 0.0;
+//   if(std::abs(z)>20.0){
+//     double pow = 1.0;
+//     for(int n=0; n<100; n++){
+//       const double coeff = std::tgamma( nu+n+0.5 ) / std::tgamma( n+1 ) / std::tgamma( nu-n+0.5 );
+//       // std::cout << "coeff = " << coeff << std::endl;
+//       res += std::pow( -1.0/(2.0*z), n ) * coeff;
+//       // res += pow * coeff;
+//       // pow *= -1.0/(2.0*z);
+//       if( std::abs(res - tmp) < 1.0e-10  ) break;
+//       tmp = res;
+//     }
+//     res /= std::sqrt(2.0*M_PI*z);
+//   }
+//   else{
+//     res = std::exp(-z) * boost::math::cyl_bessel_i(nu, z);
+//   }
+//   return res;
+// }

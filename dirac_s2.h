@@ -46,16 +46,12 @@ struct SpinStructure{
   std::map<const Link, const double> alpha;
   std::map<const int, const int> NM2EO;
 
-  // std::map<const Link, const double> omegaEO;
-  // std::map<const Link, const double> alphaEO;
-
-
 
   SpinStructure(const int n_refine)
   {
     {
-      // std::ifstream file("omega_n"+std::to_string(n_refine)+".dat");
-      std::ifstream file("omega_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      // std::ifstream file("./dats/omega_n"+std::to_string(n_refine)+".dat");
+      std::ifstream file("./dats/omega_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
       std::string str;
       std::string file_contents;
@@ -72,8 +68,8 @@ struct SpinStructure{
     }
 
     {
-      // std::ifstream file("alpha_n"+std::to_string(n_refine)+".dat");
-      std::ifstream file("alpha_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      // std::ifstream file("./dats/alpha_n"+std::to_string(n_refine)+".dat");
+      std::ifstream file("./dats/alpha_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
       std::string str;
       std::string file_contents;

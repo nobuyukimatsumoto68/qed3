@@ -4,26 +4,24 @@
 #include <boost/math/special_functions/bessel.hpp>
 
 #include "statistics.h"
-#include "s2util.h"
-#include "u1_s2.h"
+#include "s2n.h"
+#include "rng.h"
+#include "u1_s2_dual.h"
 #include "metropolis.h"
 
 int main(int argc, char* argv[]){
-
-  // geometry
-  const int q=5; // icosahedron
 
   // wilson gauge action
   const double gR = 0.4;
   int n_refine=1; // no refinement
   if(argc==2) n_refine = std::atoi(argv[1]);
-  QfeLatticeS2 lattice(q, n_refine);
+  Lattice lattice(n_refine);
   std::cout << "n_refine = " << n_refine << std::endl;
 
   // metropolis
   const double width = 5.0 * gR / std::sqrt( lattice.n_faces );
   const int met_iter = 2e4;
-  const int n_therm = 2e3;
+  const int n_therm = 1e4;
   const int interval = 20;
 
   // random
@@ -63,7 +61,7 @@ int main(int argc, char* argv[]){
   std::cout << 1.0/std::sqrt(lattice.n_faces) << ", ";
   std::cout << plaq.Mean()/exact << ", ";
   std::cout << plaq.Error()/exact * std::sqrt( std::max(1.0, plaq.AutocorrBack()) )
-	    << std::endl;  
-
+	    << std::endl;
+  
   return 0;
 }

@@ -118,20 +118,35 @@ struct FaceInfo {
     const Vec3 r1 = lattice.r[face.sites[1]];
     const Vec3 r2 = lattice.r[face.sites[2]];
 
-    const Vec3 p = circumcenter(r0, r1, r2);
-    assert( std::abs( (p-r0).norm() - (p-r1).norm() )<1.0e-14 );
-    assert( std::abs( (p-r0).norm() - (p-r2).norm() )<1.0e-14 );
+    // const Vec3 p = circumcenter(r0, r1, r2);
+    // assert( std::abs( (p-r0).norm() - (p-r1).norm() )<1.0e-14 );
+    // assert( std::abs( (p-r0).norm() - (p-r2).norm() )<1.0e-14 );
+    // const double a = (r0-p).norm();
+    // const double b = (r1-p).norm();
+    // const double c = (r0-r1).norm();
+    // const double s = 0.5*(a+b+c);
+    // const double tmp = s * (s-a) * (s-b) * (s-c);
+    // return std::sqrt( tmp );
 
-    const double a = (r0-p).norm();
-    const double b = (r1-p).norm();
-    const double c = (r0-r1).norm();
-
+    const double a = std::acos(r0.dot(r1));
+    const double b = std::acos(r1.dot(r2));
+    const double c = std::acos(r2.dot(r0));
     const double s = 0.5*(a+b+c);
-    const double tmp = s * (s-a) * (s-b) * (s-c);
-    return std::sqrt( tmp );
+
+    double tantan = std::tan(0.5*s);
+    tantan *= std::tan(0.5*(s-a));
+    tantan *= std::tan(0.5*(s-b));
+    tantan *= std::tan(0.5*(s-c));
+    return 4.0 * std::atan( std::sqrt(tantan) );
   }
 
-  void set_vps() { for(int i=0; i<lattice.n_faces; i++) vps.push_back( vp(i) ); }
+  void set_vps() {
+    for(int i=0; i<lattice.n_faces; i++) vps.push_back( vp(i) );
+
+    double sum = 0.0;
+    for(auto elem : vps) sum += elem;
+    assert( std::abs(sum-4.0*M_PI)<1.0e-10 );
+  }
 
   Vec3 circumcenter(const Vec3& r0, const Vec3& r1, const Vec3& r2) const {
     const Vec3 r10 = r1 - r0;
