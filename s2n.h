@@ -48,7 +48,7 @@ struct Lattice {
   {
     {
       std::cout << "reading simplicial points" << std::endl;
-      std::ifstream file("pts_n"+std::to_string(n_refine)+".dat");
+      std::ifstream file("pts_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
       std::string str;
       while (std::getline(file, str)){
@@ -62,7 +62,7 @@ struct Lattice {
     }
     {
       std::cout << "reading dual points" << std::endl;
-      std::ifstream file("pts_dual_n"+std::to_string(n_refine)+".dat");
+      std::ifstream file("pts_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
       std::string str;
       while (std::getline(file, str)){
@@ -76,7 +76,7 @@ struct Lattice {
     }
     {
       std::cout << "reading nns" << std::endl;
-      std::ifstream file("nns_dual_n"+std::to_string(n_refine)+".dat");
+      std::ifstream file("nns_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
       std::string str;
       while (std::getline(file, str)){
@@ -90,7 +90,7 @@ struct Lattice {
     }
     {
       std::cout << "reading links" << std::endl;
-      std::ifstream file("dual_links_n"+std::to_string(n_refine)+".dat");
+      std::ifstream file("dual_links_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
       std::string str;
       while (std::getline(file, str)){
@@ -107,7 +107,7 @@ struct Lattice {
 
     {
       std::cout << "reading vs" << std::endl;
-      std::ifstream file("vs_n"+std::to_string(n_refine)+".dat");
+      std::ifstream file("vs_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
       std::string str;
       while (std::getline(file, str)){
@@ -131,7 +131,7 @@ struct Lattice {
 
     {
       std::cout << "reading us" << std::endl;
-      std::ifstream file("us_n"+std::to_string(n_refine)+".dat");
+      std::ifstream file("us_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
       std::string str;
       while (std::getline(file, str)){
@@ -152,7 +152,7 @@ struct Lattice {
     {
       std::cout << "reading vols" << std::endl;
       // std::ifstream file("dualtriangleareas_n"+std::to_string(n_refine)+".dat");
-      std::ifstream file("dualtriangleareas_n"+std::to_string(n_refine)+".dat");
+      std::ifstream file("dualtriangleareas_n"+std::to_string(n_refine)+"_singlepatch.dat");
       assert(file.is_open());
       std::string str;
       while (std::getline(file, str)){
@@ -199,9 +199,6 @@ struct Lattice {
     //   assert( exM.size()==n_sites );
     //   std::cout << "assert done. " << std::endl;
     // }
-
-
-
   }
 
 

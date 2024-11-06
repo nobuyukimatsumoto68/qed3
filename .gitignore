@@ -1,0 +1,5 @@
+*.dat
+*.out
+*.pdf
+.ipynb_checkpoints/
+newQFE/

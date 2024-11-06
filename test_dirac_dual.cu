@@ -19,12 +19,14 @@ int main(int argc, char* argv[]){
 
   // ---------------------------------------
 
-  const int n_refine=3;
+  const int n_refine=7;
 
   Lattice lattice(n_refine);
 
   Dirac1fonS2 D(lattice, 0.0, 1.0);
   auto mat = D.matrix_form();
+
+  // std::cout << mat << std::endl;
 
   // =========================================
   // cusolver
@@ -52,7 +54,6 @@ int main(int argc, char* argv[]){
   void *d_work = nullptr;              /* device workspace */
   size_t workspaceInBytesOnHost = 0;   /* size of workspace */
   void *h_work = nullptr;              /* host workspace for */
-
 
   /* step 1: create cusolver handle, bind a stream */
   cudacheck(cusolverDnCreate(&handle));
@@ -128,6 +129,7 @@ int main(int argc, char* argv[]){
   cudacheck(cudaMemcpy( &info, d_info, sizeof(int), D2H ));
 
   std::cout << "info (0=success) = " << info << std::endl;
+  assert( info==0 );
   for(int i=0; i<n; i++){
     std::clog << real(W[i]) << " " << imag(W[i]) << std::endl;
   }
@@ -150,16 +152,6 @@ int main(int argc, char* argv[]){
   cudacheck(cudaDeviceReset());
 
   return 0; // EXIT_SUCCESS;
-
-
-
-
-
-
-
-
-
-
 
 
 

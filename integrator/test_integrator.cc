@@ -42,7 +42,6 @@ int main(int argc, char* argv[]){
   std::cout << "Dphi = "
 	    << (sol.phi( 0.1+EPSNUMDER )-sol.phi( 0.1-EPSNUMDER ))/(2.0*EPSNUMDER) << std::endl;
   std::cout << "phi = " << sol.phi( 0.1 ) << std::endl;
-
   
   if(sol.is_split){
     double ss = 0.5*(sol.sE+sol.ell);

@@ -72,6 +72,7 @@ struct SpinStructure{
     }
 
     {
+      // std::ifstream file("alpha_n"+std::to_string(n_refine)+".dat");
       std::ifstream file("alpha_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
       std::string str;

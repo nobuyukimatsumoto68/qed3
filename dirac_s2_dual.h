@@ -10,7 +10,6 @@
 
 
 
-
 double Mod(double a, double b=2.0*M_PI){
   int p = int(std::round(a / b));
   double r = a - p*b;
@@ -41,7 +40,7 @@ struct SpinStructure{
   {
     {
       std::cout << "reading omega" << std::endl;
-      std::ifstream file("omega_dual_n"+std::to_string(n_refine)+".dat");
+      std::ifstream file("omega_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
       std::string str;
       std::string file_contents;
@@ -59,7 +58,7 @@ struct SpinStructure{
 
     {
       std::cout << "reading alpha" << std::endl;
-      std::ifstream file("alpha_dual_n"+std::to_string(n_refine)+".dat");
+      std::ifstream file("alpha_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
       std::string str;
       std::string file_contents;

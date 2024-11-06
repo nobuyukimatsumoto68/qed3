@@ -13,15 +13,16 @@ int main(int argc, char* argv[]){
   cudacheck(cudaGetDeviceCount(&device));
   cudaDeviceProp device_prop[device];
   cudaGetDeviceProperties(&device_prop[0], 0);
-  std::cout << "dev = " << device_prop[0].name << std::endl;
+  std::cout << "1. dev = " << device_prop[0].name << std::endl;
   cudacheck(cudaSetDevice(0));// "TITAN V"
   std::cout << "(GPU device is set.)" << std::endl;
 
   // ---------------------------------------
 
   const int q=5; // icosahedron
-  const int n_refine=3; // no refinement
+  int n_refine=2; // no refinement
 
+  if (argc>1) n_refine = atoi(argv[1]);
 
   QfeLatticeS2 lattice(q, n_refine);
   Dirac1fonS2 D(lattice, n_refine, 0.0, 1.0);

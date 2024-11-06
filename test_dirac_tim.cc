@@ -9,7 +9,7 @@ int main(int argc, char* argv[]){
 
   // geometry
   const int q=5; // icosahedron
-  const int n_refine=2;
+  const int n_refine=4;
 
   QfeLatticeS2 lattice(q, n_refine);
   Dirac1fonS2 D0(lattice, n_refine);
