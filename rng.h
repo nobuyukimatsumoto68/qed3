@@ -2,7 +2,6 @@
 
 #include <random>
 
-
 struct Rng {
   std::mt19937_64 mt;
 

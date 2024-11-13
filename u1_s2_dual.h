@@ -1,8 +1,14 @@
 #pragma once
 
-struct U1onS2 {
-  Lattice& lattice;
+#include <vector>
+#include <cmath>
 
+
+struct U1onS2 {
+  using Link = std::array<int,2>; // <int,int>;
+  using Face = std::vector<int>;
+
+  Lattice& lattice;
   std::vector<double> field;
 
   U1onS2()=delete;

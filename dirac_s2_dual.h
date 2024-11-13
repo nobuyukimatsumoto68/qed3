@@ -4,11 +4,9 @@
 #include <cmath>
 #include <map>
 #include <Eigen/Dense>
+#include <complex>
 
-#include "s2n.h"
-
-
-
+// #include "s2n.h"
 
 double Mod(double a, double b=2.0*M_PI){
   int p = int(std::round(a / b));
@@ -17,22 +15,27 @@ double Mod(double a, double b=2.0*M_PI){
 }
 
 
-VE circumcenter(const VE& r0, const VE& r1, const VE& r2){
-  const VE r10 = r1 - r0;
-  const VE r20 = r2 - r0;
+// VE circumcenter(const VE& r0, const VE& r1, const VE& r2){
+//   const VE r10 = r1 - r0;
+//   const VE r20 = r2 - r0;
 
-  const VE tmp1 = r10.squaredNorm() * r20 - r20.squaredNorm() * r10;
-  const VE cross = r10.cross(r20);
-  const VE numer = tmp1.cross(cross);
-  const double denom = 2.0*cross.squaredNorm();
+//   const VE tmp1 = r10.squaredNorm() * r20 - r20.squaredNorm() * r10;
+//   const VE cross = r10.cross(r20);
+//   const VE numer = tmp1.cross(cross);
+//   const double denom = 2.0*cross.squaredNorm();
 
-  return numer/denom + r0;
-}
-
-
+//   return numer/denom + r0;
+// }
 
 
 struct SpinStructure{
+  using Link = std::array<int,2>; // <int,int>;
+  using Face = std::vector<int>;
+
+  static constexpr int NS = 2;
+  static constexpr int DIM = 2;
+  static constexpr int EDIM = 3;
+
   std::map<const Link, const double> omega;
   std::map<const Link, const double> alpha;
 
@@ -77,8 +80,16 @@ struct SpinStructure{
 
 
 
-
+// template<typename Complex>
 struct Dirac1fonS2 : public SpinStructure{
+  using Complex = std::complex<double>;
+  static constexpr Complex I = Complex(0.0, 1.0);
+
+  using MS=Eigen::Matrix2cd;
+  using VD=Eigen::Vector2d;
+  using VE=Eigen::Vector3d;
+  using VC=Eigen::VectorXcd;
+
   const Lattice& lattice;
 
   const double m;
@@ -101,13 +112,11 @@ struct Dirac1fonS2 : public SpinStructure{
     , lattice(lattice_)
     , m(m_)
     , r(r_)
-    // , spin(lattice.n_refine)
     , ell(lattice.n_links)
     , link_volume(lattice.n_links)
-    // , exM(lattice.n_sites)
   {
     set_sigma();
-    set_ell_and_link_volumes();
+    // set_ell_and_link_volumes();
 
     // check
     double TOL=1.0e-6;
@@ -156,157 +165,143 @@ struct Dirac1fonS2 : public SpinStructure{
     Eigen::MatrixXcd res = Eigen::MatrixXcd::Zero(NS*lattice.n_sites, NS*lattice.n_sites);
 
     for(int ix=0; ix<lattice.n_sites; ix++){
-      // for(int iy : lattice.nns[ix]){
       for(int jj=0; jj<3; jj++){
 	int iy = lattice.nns[ix][jj];
-	// naive
-	// res.block<NS,NS>(NS*ix,NS*iy) += 0.5*ellstar[il] * gamma(ix, iy) * Omega(ix, iy);
-	// res.block<NS,NS>(NS*ix,NS*iy) += gamma(ix, iy) * Omega(ix, iy);
-
-	// wilson // WITH GEODESIC
-	// res.block<NS,NS>(NS*ix,NS*iy) -= 0.25 * (link_volume[il]/ell[il]) * (r*sigma[0] - gamma(ix, iy)) * Omega(ix, iy);
-	// res.block<NS,NS>(NS*ix,NS*iy) -= (r*sigma[0] - gamma(ix, iy)) * Omega(ix, iy);
-	// res.block<NS,NS>(NS*ix,NS*iy) -= (r*sigma[0] - gamma(ix, iy)) * Omega(ix, iy);
 	res.block<NS,NS>(NS*ix,NS*iy) -= lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj]*sigma[0] - gamma(ix, jj)) * Omega(ix, iy);
-	// res.block<NS,NS>(NS*ix,NS*iy) -= (r*sigma[0] - gamma(ix, jj)) * Omega(ix, iy);
 
 	res.block<NS,NS>(NS*ix,NS*ix) += lattice.vol[ix]/lattice.mean_vol * r*lattice.u[ix][jj]*sigma[0];
       }
 
-      // res.block<NS,NS>(NS*ix,NS*ix) = site_vol[ix] * (m + DIM*r) * sigma[0];
-      // res.block<NS,NS>(NS*ix,NS*ix) = (m + 3*r) * sigma[0];
-      // res.block<NS,NS>(NS*ix, NS*ix) += site_vol[ix] * m * sigma[0];
     }
 
     return res;
   } // end matrix_form
 
 
-  void set_ell_and_link_volumes() {
-    // for(int il=0; il<lattice.n_links; il++) {
-    //   const auto link = lattice.links[il];
-    //   const int iA = link.faces[0];
-    //   const int iB = link.faces[1];
+  Eigen::MatrixXcd matrix_form( const U1onS2& U ) const {
+    Eigen::MatrixXcd res = Eigen::MatrixXcd::Zero(NS*lattice.n_sites, NS*lattice.n_sites);
 
-    //   double ellA=0.0, ellB=0.0;
-    //   double areaA=0.0, areaB=0.0;
-    //   {
-    // 	const QfeFace& face = lattice.faces[iA];
-    // 	VE r0, r1, r2; // r0,1: link
-    // 	if(face.sites[0]==link.sites[0] && face.sites[1]==link.sites[1]){
-    // 	  r0 = lattice.r[face.sites[0]];
-    // 	  r1 = lattice.r[face.sites[1]];
-    // 	  r2 = lattice.r[face.sites[2]];
-    // 	}
-    // 	else if(face.sites[1]==link.sites[0] && face.sites[2]==link.sites[1]){
-    // 	  r0 = lattice.r[face.sites[1]];
-    // 	  r1 = lattice.r[face.sites[2]];
-    // 	  r2 = lattice.r[face.sites[0]];
-    // 	}
-    // 	else if(face.sites[2]==link.sites[0] && face.sites[0]==link.sites[1]){
-    // 	  r0 = lattice.r[face.sites[2]];
-    // 	  r1 = lattice.r[face.sites[0]];
-    // 	  r2 = lattice.r[face.sites[1]];
-    // 	} // reverse
-    // 	else if(face.sites[1]==link.sites[0] && face.sites[0]==link.sites[1]){
-    // 	  r0 = lattice.r[face.sites[1]];
-    // 	  r1 = lattice.r[face.sites[0]];
-    // 	  r2 = lattice.r[face.sites[2]];
-    // 	}
-    // 	else if(face.sites[2]==link.sites[0] && face.sites[1]==link.sites[1]){
-    // 	  r0 = lattice.r[face.sites[2]];
-    // 	  r1 = lattice.r[face.sites[1]];
-    // 	  r2 = lattice.r[face.sites[0]];
-    // 	}
-    // 	else if(face.sites[0]==link.sites[0] && face.sites[2]==link.sites[1]){
-    // 	  r0 = lattice.r[face.sites[0]];
-    // 	  r1 = lattice.r[face.sites[2]];
-    // 	  r2 = lattice.r[face.sites[1]];
-    // 	}
-    // 	else assert(false);
+    for(int ix=0; ix<lattice.n_sites; ix++){
+      for(int jj=0; jj<3; jj++){
+	int iy = lattice.nns[ix][jj];
+	res.block<NS,NS>(NS*ix,NS*iy) -= lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj]*sigma[0] - gamma(ix, jj)) * std::exp( I* U(Link{ix,iy})) * Omega(ix, iy);
 
-    // 	//
-    // 	const VE p = circumcenter(r0, r1, r2).transpose();
-    // 	assert( std::abs( (p-r0).norm() - (p-r1).norm() )<1.0e-14 );
-    // 	assert( std::abs( (p-r0).norm() - (p-r2).norm() )<1.0e-14 );
+	res.block<NS,NS>(NS*ix,NS*ix) += lattice.vol[ix]/lattice.mean_vol * r*lattice.u[ix][jj]*sigma[0];
+      }
 
-    // 	double a_ = std::acos( r0.dot(p) /(r0.norm()* p.norm()) );
-    // 	double b_ = std::acos( r1.dot(p) /(r1.norm()* p.norm()) );
-    // 	double c_ = std::acos( r0.dot(r1)/(r0.norm()*r1.norm()) ); // ell
+    }
 
-    // 	double s_ = 0.5*(a_+b_+c_);
-    // 	double tmp = std::tan(0.5*s_) * std::tan(0.5*(s_-a_)) * std::tan(0.5*(s_-b_)) * std::tan(0.5*(s_-c_));
-    // 	double area_ = 4.0*std::atan( std::sqrt( tmp ) );
+    return res;
+  } // end matrix_form
 
-    // 	ellA = c_;
-    // 	areaA = area_;
-    //   }
-    //   {
-    // 	const QfeFace& face = lattice.faces[iB];
-    // 	VE r0, r1, r2; // r0,1: link
-    // 	if(face.sites[0]==link.sites[0] && face.sites[1]==link.sites[1]){
-    // 	  r0 = lattice.r[face.sites[0]];
-    // 	  r1 = lattice.r[face.sites[1]];
-    // 	  r2 = lattice.r[face.sites[2]];
-    // 	}
-    // 	else if(face.sites[1]==link.sites[0] && face.sites[2]==link.sites[1]){
-    // 	  r0 = lattice.r[face.sites[1]];
-    // 	  r1 = lattice.r[face.sites[2]];
-    // 	  r2 = lattice.r[face.sites[0]];
-    // 	}
-    // 	else if(face.sites[2]==link.sites[0] && face.sites[0]==link.sites[1]){
-    // 	  r0 = lattice.r[face.sites[2]];
-    // 	  r1 = lattice.r[face.sites[0]];
-    // 	  r2 = lattice.r[face.sites[1]];
-    // 	} // reverse
-    // 	else if(face.sites[1]==link.sites[0] && face.sites[0]==link.sites[1]){
-    // 	  r0 = lattice.r[face.sites[1]];
-    // 	  r1 = lattice.r[face.sites[0]];
-    // 	  r2 = lattice.r[face.sites[2]];
-    // 	}
-    // 	else if(face.sites[2]==link.sites[0] && face.sites[1]==link.sites[1]){
-    // 	  r0 = lattice.r[face.sites[2]];
-    // 	  r1 = lattice.r[face.sites[1]];
-    // 	  r2 = lattice.r[face.sites[0]];
-    // 	}
-    // 	else if(face.sites[0]==link.sites[0] && face.sites[2]==link.sites[1]){
-    // 	  r0 = lattice.r[face.sites[0]];
-    // 	  r1 = lattice.r[face.sites[2]];
-    // 	  r2 = lattice.r[face.sites[1]];
-    // 	}
-    // 	else assert(false);
 
-    // 	const VE p = circumcenter(r0, r1, r2).transpose();
-    // 	assert( std::abs( (p-r0).norm() - (p-r1).norm() )<1.0e-14 );
-    // 	assert( std::abs( (p-r0).norm() - (p-r2).norm() )<1.0e-14 );
+  VC operator()( const VC& v ) const {
+    VC res = VC::Zero(v.size());
 
-    // 	double a_ = std::acos( r0.dot(p) /(r0.norm()* p.norm()) );
-    // 	double b_ = std::acos( r1.dot(p) /(r1.norm()* p.norm()) );
-    // 	double c_ = std::acos( r0.dot(r1)/(r0.norm()*r1.norm()) ); // ell
+    for(int ix=0; ix<lattice.n_sites; ix++){
+      for(int jj=0; jj<3; jj++){
+	int iy = lattice.nns[ix][jj];
+	
+	{
+	  // res.block<NS,NS>(NS*ix,NS*iy) -= lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj]*sigma[0] - gamma(ix, jj)) * Omega(ix, iy);
+	  const MS tmp = lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj]*sigma[0] - gamma(ix, jj)) * Omega(ix, iy);
+	  res.segment<NS>(NS*ix) -= tmp * v.segment<NS>(NS*iy);
+	}
 
-    // 	double s_ = 0.5*(a_+b_+c_);
-    // 	double tmp = std::tan(0.5*s_) * std::tan(0.5*(s_-a_)) * std::tan(0.5*(s_-b_)) * std::tan(0.5*(s_-c_));
-    // 	double area_ = 4.0*std::atan( std::sqrt( tmp ) );
+	{
+	  // res.block<NS,NS>(NS*ix,NS*ix) += lattice.vol[ix]/lattice.mean_vol * r*lattice.u[ix][jj]*sigma[0];
+	  const MS tmp = lattice.vol[ix]/lattice.mean_vol * r*lattice.u[ix][jj]*sigma[0];
+	  res.segment<NS>(NS*ix) += tmp * v.segment<NS>(NS*ix);
+	}
+      }
+    }
 
-    // 	ellB = c_;
-    // 	areaB = area_;
-    //   }
+    return res;
+  } // end matrix_form
 
-    //   assert( std::abs(ellA-ellB)<1.0e-14 );
-    //   ell[il] = ellA;
-    //   link_volume[il] = areaA + areaB;
-    // }
 
-    // int counter = 0;
-    // a = 0.0;
-    // for(int il=0; il<lattice.n_links; il++) {
-    //   a += ell[il];
-    //   counter++;
-    //   std::cout << "ell[il] =" << ell[il] << std::endl;
-    // }
-    // a /= counter;
-    // a *= 0.1;
-    // std::cout << "a = " << a << std::endl;
+  VC operator()( const U1onS2& U, const VC& v ) const {
+    VC res = VC::Zero(v.size());
+
+    for(int ix=0; ix<lattice.n_sites; ix++){
+      for(int jj=0; jj<3; jj++){
+	int iy = lattice.nns[ix][jj];
+	
+	{
+	  const MS tmp = lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj]*sigma[0] - gamma(ix, jj)) * std::exp( I* U(Link{ix,iy})) * Omega(ix, iy);
+	  res.segment<NS>(NS*ix) -= tmp * v.segment<NS>(NS*iy);
+	}
+
+	{
+	  const MS tmp = lattice.vol[ix]/lattice.mean_vol * r*lattice.u[ix][jj]*sigma[0];
+	  res.segment<NS>(NS*ix) += tmp * v.segment<NS>(NS*ix);
+	}
+      }
+    }
+
+    return res;
+  } // end matrix_form
+
+
+  void operator()( Complex* res, const Complex* v, const U1onS2& U ) const {
+    const int N = 2*lattice.n_sites;
+
+    for(int i=0; i<N; i++) res[i] = 0.0;
+
+    for(int ix=0; ix<lattice.n_sites; ix++){
+      for(int jj=0; jj<3; jj++){
+	int iy = lattice.nns[ix][jj];
+	
+	{
+	  const MS tmp = lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj]*sigma[0] - gamma(ix, jj)) * std::exp( I* U(Link{ix,iy})) * Omega(ix, iy);
+	  // res.segment<NS>(NS*ix) -= tmp * v.segment<NS>(NS*iy);
+	  res[NS*ix] += -tmp(0,0)*v[NS*iy] - tmp(0,1)*v[NS*iy+1];
+	  res[NS*ix+1] += -tmp(1,0)*v[NS*iy] - tmp(1,1)*v[NS*iy+1];
+	}
+
+	{
+	  // res.block<NS,NS>(NS*ix,NS*ix) += lattice.vol[ix]/lattice.mean_vol * r*lattice.u[ix][jj]*sigma[0];
+	  const MS tmp = lattice.vol[ix]/lattice.mean_vol * r*lattice.u[ix][jj]*sigma[0];
+	  // res.segment<NS>(NS*ix) += tmp * v.segment<NS>(NS*ix);
+	  res[NS*ix] += tmp(0,0)*v[NS*ix] + tmp(0,1)*v[NS*ix+1];
+	  res[NS*ix+1] += tmp(1,0)*v[NS*ix] + tmp(1,1)*v[NS*ix+1];
+	}
+      }
+    }
+  } // end matrix_form
+
+
+  void coo_format( Complex* v,
+		   const int N,
+		   const U1onS2& U ) const {
+    for(int i=0; i<N; i++) v[i] = 0.0;
+
+    int counter=0;
+
+    for(int ix=0; ix<lattice.n_sites; ix++){
+      for(int jj=0; jj<3; jj++){
+	int iy = lattice.nns[ix][jj];
+	const MS tmp = lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj]*sigma[0] - gamma(ix, jj)) * std::exp( I* U(Link{ix,iy})) * Omega(ix, iy);
+	const MS tmp2 = lattice.vol[ix]/lattice.mean_vol * r*lattice.u[ix][jj]*sigma[0];
+
+	// res[NS*ix] += -tmp(0,0)*v[NS*iy] - tmp(0,1)*v[NS*iy+1];
+	v[counter] = -tmp(0,0); counter++;
+	v[counter] = -tmp(0,1); counter++;
+
+	// res[NS*ix] += tmp(0,0)*v[NS*ix] + tmp(0,1)*v[NS*ix+1];
+	v[counter] = tmp2(0,0); counter++;
+	v[counter] = tmp2(0,1); counter++;
+
+	// res[NS*ix+1] += -tmp(1,0)*v[NS*iy] - tmp(1,1)*v[NS*iy+1];
+	v[counter] = -tmp(1,0); counter++;
+	v[counter] = -tmp(1,1); counter++;
+
+	// res[NS*ix+1] += tmp(1,0)*v[NS*ix] + tmp(1,1)*v[NS*ix+1];
+	v[counter] = tmp2(1,0); counter++;
+	v[counter] = tmp2(1,1); counter++;
+      }
+    }
   }
 
 };
+

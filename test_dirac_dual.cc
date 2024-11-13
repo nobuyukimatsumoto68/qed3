@@ -2,12 +2,14 @@
 #include <fstream>
 #include <cstdlib>
 
+#include "u1_s2_dual.h"
 #include "dirac_s2_dual.h"
+
 
 int main(int argc, char* argv[]){
 
   // geometry
-  const int n_refine=3;
+  const int n_refine=1;
 
   Lattice lattice(n_refine);
   // SpinStructure spin(n_refine);
@@ -39,6 +41,11 @@ int main(int argc, char* argv[]){
   auto ev = mat.eigenvalues();
   for(int i=0; i<ev.size(); i++){
     std::clog << ev[i].real() << " " << ev[i].imag() << std::endl;
+  }
+
+  {
+    const VC r = VC::Random( mat.cols() );
+    std::cout << mat * r - D( r ) << std::endl;
   }
 
   // ----------------------------------

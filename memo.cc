@@ -575,3 +575,232 @@ std::unordered_map<Link, double> alphaEO;
 //   }
 //   return res;
 // }
+
+
+
+
+  { // first in coo
+    const int N = 2*lattice.n_sites;
+    std::vector<int> cols;
+    std::vector<int> rows;
+
+    // std::vector<int> passive_counter_cols_visited(N,0);
+    // std::vector<int> passive_counter_rows_visited(N,0);
+    // std::vector<int> active_counter_cols_visited;
+    // std::vector<int> active_counter_rows_visited;
+
+    // int counter=0;
+    // rows.push_back(counter);
+    for(int ix=0; ix<lattice.n_sites; ix++){
+      for(int jj=0; jj<3; jj++){
+	int iy = lattice.nns[ix][jj];
+
+	rows.push_back( NS*ix ); cols.push_back( NS*iy );
+	// active_counter_rows_visited.push_back( passive_counter_rows_visited[ Ns*ix ] );
+	// active_counter_cols_visited.push_back( passive_counter_cols_visited[ Ns*iy ] );
+	// ++passive_counter_rows_visited[ Ns*ix ];
+	// ++passive_counter_cols_visited[ Ns*iy ];
+
+	rows.push_back( NS*ix ); cols.push_back( NS*iy+1 );
+	// active_counter_rows_visited.push_back( passive_counter_rows_visited[ Ns*ix ] );
+	// active_counter_cols_visited.push_back( passive_counter_cols_visited[ Ns*iy+1 ] );
+	// ++passive_counter_rows_visited[ Ns*ix ];
+	// ++passive_counter_cols_visited[ Ns*iy+1 ];
+
+	// res[NS*ix] += tmp(0,0)*v[NS*ix] + tmp(0,1)*v[NS*ix+1];
+	rows.push_back( NS*ix ); cols.push_back( NS*ix );
+	// active_counter_rows_visited.push_back( passive_counter_rows_visited[ Ns*ix ] );
+	// active_counter_cols_visited.push_back( passive_counter_cols_visited[ Ns*ix ] );
+	// ++passive_counter_rows_visited[ Ns*ix ];
+	// ++passive_counter_cols_visited[ Ns*ix ];
+
+	rows.push_back( NS*ix ); cols.push_back( NS*ix+1 );
+	// active_counter_rows_visited.push_back( passive_counter_rows_visited[ Ns*ix ] );
+	// active_counter_cols_visited.push_back( passive_counter_cols_visited[ Ns*ix+1 ] );
+	// ++passive_counter_rows_visited[ Ns*ix ];
+	// ++passive_counter_cols_visited[ Ns*ix+1 ];
+
+	// res[NS*ix+1] += -tmp(1,0)*v[NS*iy] - tmp(1,1)*v[NS*iy+1];
+	rows.push_back( NS*ix+1 ); cols.push_back( NS*iy );
+	// active_counter_rows_visited.push_back( passive_counter_rows_visited[ Ns*ix+1 ] );
+	// active_counter_cols_visited.push_back( passive_counter_cols_visited[ Ns*iy ] );
+	// ++passive_counter_rows_visited[ Ns*ix+1 ];
+	// ++passive_counter_cols_visited[ Ns*iy ];
+
+	rows.push_back( NS*ix+1 ); cols.push_back( NS*iy+1 );
+	// active_counter_rows_visited.push_back( passive_counter_rows_visited[ Ns*ix+1 ] );
+	// active_counter_cols_visited.push_back( passive_counter_cols_visited[ Ns*iy+1 ] );
+	// ++passive_counter_rows_visited[ Ns*ix+1 ];
+	// ++passive_counter_cols_visited[ Ns*iy+1 ];
+
+	// res[NS*ix+1] += tmp(1,0)*v[NS*ix] + tmp(1,1)*v[NS*ix+1];
+	rows.push_back( NS*ix+1 ); cols.push_back( NS*ix );
+	// active_counter_rows_visited.push_back( passive_counter_rows_visited[ Ns*ix+1 ] );
+	// active_counter_cols_visited.push_back( passive_counter_cols_visited[ Ns*ix ] );
+	// ++passive_counter_rows_visited[ Ns*ix+1 ];
+	// ++passive_counter_cols_visited[ Ns*ix ];
+
+	rows.push_back( NS*ix+1 ); cols.push_back( NS*ix+1 );
+	// active_counter_rows_visited.push_back( passive_counter_rows_visited[ Ns*ix+1 ] );
+	// active_counter_cols_visited.push_back( passive_counter_cols_visited[ Ns*ix+1 ] );
+	// ++passive_counter_rows_visited[ Ns*ix+1 ];
+	// ++passive_counter_cols_visited[ Ns*ix+1 ];
+      }
+    }
+
+    const int len = cols.size();
+
+    std::vector<int> cols_csr(len,-1);
+    std::vector<int> rows_csr(len,-1);
+
+    std::vector<int> cols_csrT(len,-1);
+    std::vector<int> rows_csrT(len,-1);
+
+    int counter_csr=0;
+    int counter_csrT=0;
+
+    rows_csr( counter_csr );
+    for(int i=0; i<N; i++){
+      for(int k=0; k<len; k++){
+	if( rows[k]==i ){
+	  cols_csr[k] = counter_csr;
+	  ++counter_csr;
+	}
+	if( cols[k]==i ){
+	  cols_csrT[k] = counter_csrT;
+	  ++counter_csrT;
+	}
+      }
+      rows_csr( counter_csr );
+      rows_csrT( counter_csrT );
+    }
+    
+  }
+
+
+  // ugliness of repetition
+  void csr( std::vector<Complex>& v,
+	    std::vector<int>& cols,
+	    std::vector<int>& rows,
+	    const U1onS2& U ) const {
+    int counter=0;
+    rows.push_back(counter);
+
+    for(int ix=0; ix<lattice.n_sites; ix++){
+      for(int jj=0; jj<3; jj++){
+	int iy = lattice.nns[ix][jj];
+	const MS tmp = lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj]*sigma[0] - gamma(ix, jj)) * std::exp( I* U(Link{ix,iy})) * Omega(ix, iy);
+	const MS tmp2 = lattice.vol[ix]/lattice.mean_vol * r*lattice.u[ix][jj]*sigma[0];
+
+	// res[NS*ix] += -tmp(0,0)*v[NS*iy] - tmp(0,1)*v[NS*iy+1];
+	v.push_back( -tmp(0,0) ); cols.push_back( NS*iy ); counter++;
+	v.push_back( -tmp(0,1) ); cols.push_back( NS*iy+1 ); counter++;
+
+	// res[NS*ix] += tmp(0,0)*v[NS*ix] + tmp(0,1)*v[NS*ix+1];
+	v.push_back( tmp2(0,0) ); cols.push_back( NS*ix ); counter++;
+	v.push_back( tmp2(0,1) ); cols.push_back( NS*ix+1 ); counter++;
+      }
+      rows.push_back(counter);
+
+      for(int jj=0; jj<3; jj++){
+	int iy = lattice.nns[ix][jj];
+	const MS tmp = lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj]*sigma[0] - gamma(ix, jj)) * std::exp( I* U(Link{ix,iy})) * Omega(ix, iy);
+	const MS tmp2 = lattice.vol[ix]/lattice.mean_vol * r*lattice.u[ix][jj]*sigma[0];
+
+	// res[NS*ix+1] += -tmp(1,0)*v[NS*iy] - tmp(1,1)*v[NS*iy+1];
+	v.push_back( -tmp(1,0) ); cols.push_back( NS*iy ); counter++;
+	v.push_back( -tmp(1,1) ); cols.push_back( NS*iy+1 ); counter++;
+
+	// res[NS*ix+1] += tmp(1,0)*v[NS*ix] + tmp(1,1)*v[NS*ix+1];
+	v.push_back( tmp2(1,0) ); cols.push_back( NS*ix ); counter++;
+	v.push_back( tmp2(1,1) ); cols.push_back( NS*ix+1 ); counter++;
+      }
+      rows.push_back(counter);
+    }
+  }
+
+
+  void coo( std::vector<Complex>& v,
+	    std::vector<int>& cols,
+	    std::vector<int>& rows,
+	    const U1onS2& U ) const {
+
+    for(int ix=0; ix<lattice.n_sites; ix++){
+      for(int jj=0; jj<3; jj++){
+	int iy = lattice.nns[ix][jj];
+	const MS tmp = lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj]*sigma[0] - gamma(ix, jj)) * std::exp( I* U(Link{ix,iy})) * Omega(ix, iy);
+	const MS tmp2 = lattice.vol[ix]/lattice.mean_vol * r*lattice.u[ix][jj]*sigma[0];
+
+	// res[NS*ix] += -tmp(0,0)*v[NS*iy] - tmp(0,1)*v[NS*iy+1];
+	v.push_back( -tmp(0,0) ); rows.push_back( NS*ix ); cols.push_back( NS*iy );
+	v.push_back( -tmp(0,1) ); rows.push_back( NS*ix ); cols.push_back( NS*iy+1 );
+
+	// res[NS*ix] += tmp(0,0)*v[NS*ix] + tmp(0,1)*v[NS*ix+1];
+	v.push_back( tmp2(0,0) ); rows.push_back( NS*ix ); cols.push_back( NS*ix );
+	v.push_back( tmp2(0,1) ); rows.push_back( NS*ix ); cols.push_back( NS*ix+1 );
+
+	// res[NS*ix+1] += -tmp(1,0)*v[NS*iy] - tmp(1,1)*v[NS*iy+1];
+	v.push_back( -tmp(1,0) ); rows.push_back( NS*ix+1 ); cols.push_back( NS*iy );
+	v.push_back( -tmp(1,1) ); rows.push_back( NS*ix+1 ); cols.push_back( NS*iy+1 );
+
+	// res[NS*ix+1] += tmp(1,0)*v[NS*ix] + tmp(1,1)*v[NS*ix+1];
+	v.push_back( tmp2(1,0) ); rows.push_back( NS*ix+1 ); cols.push_back( NS*ix );
+	v.push_back( tmp2(1,1) ); rows.push_back( NS*ix+1 ); cols.push_back( NS*ix+1 );
+      }
+    }
+  }
+
+
+
+template <typename T>
+void matmul( T* res, T* v,
+	     const std::vector<Complex>& val,
+	     const std::vector<int>& cols,
+	     const std::vector<int>& rows ) {
+  const int N = rows.size();
+
+  for(int i=0; i<N; i++){
+    res[i] = 0.0;
+    const int row_start = rows[i];
+    const int row_end = rows[i+1];
+    for(int jj=row_start; jj<row_end; jj++){
+      res[i] += val[jj] * v[cols[jj]];
+    }
+  }
+}
+
+
+template <typename T>
+void matmulcoo( T* res, T* v,
+		const std::vector<Complex>& val,
+		const std::vector<int>& cols,
+		const std::vector<int>& rows,
+		const int N) {
+  assert( val.size()==cols.size() );
+  assert( val.size()==rows.size() );
+
+  for(int i=0; i<N; i++) res[i] = 0.0;
+  for(int i=0; i<val.size(); i++) res[rows[i]] += val[i] * v[cols[i]];
+}
+
+template <typename T=Complex>
+void matmuladjointcoo( T* res, T* v,
+		       const std::vector<Complex>& val,
+		       const std::vector<int>& cols,
+		       const std::vector<int>& rows,
+		       const int N) {
+  assert( val.size()==cols.size() );
+  assert( val.size()==rows.size() );
+
+  for(int i=0; i<N; i++) res[i] = 0.0;
+  for(int i=0; i<val.size(); i++) res[cols[i]] += std::conj(val[i]) * v[rows[i]];
+}
+
+
+template <typename T>
+void matmulgam5( T* res, T* v, const int Nx) {
+  for(int ix=0; ix<Nx; ix++){
+    res[2*ix] = v[2*ix];
+    res[2*ix+1] = -v[2*ix+1];
+  }
+}

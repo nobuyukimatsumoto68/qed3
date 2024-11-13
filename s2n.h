@@ -1,39 +1,26 @@
 #pragma once
 
-#include <cmath>
-#include <complex>
-#include <vector>
 #include <array>
-#include <map>
-
-#include <string>
-#include <sstream>
-
-#include <fstream>
-
+#include <vector>
 #include <Eigen/Dense>
+#include <map>
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <cmath>
 
-
-using Complex = std::complex<double>;
-const Complex I = Complex(0.0, 1.0);
-
-using Link = std::array<int,2>; // <int,int>;
-using Face = std::vector<int>;
-
-constexpr int NS = 2;
-using MS=Eigen::Matrix2cd;
-
-constexpr int DIM = 2;
-using VD=Eigen::Vector2d;
-
-constexpr int EDIM = 3;
-using VE=Eigen::Vector3d;
-
-
-#include "rng.h"
 
 
 struct Lattice {
+  using Link = std::array<int,2>; // <int,int>;
+  using Face = std::vector<int>;
+
+  using MS=Eigen::Matrix2cd;
+  using VD=Eigen::Vector2d;
+  using VE=Eigen::Vector3d;
+  using VC=Eigen::VectorXcd;
+
   const int n_refine;
   Rng rng;
 

@@ -1,12 +1,12 @@
-
-CXX=g++
-CXXFLAGS=-std=c++17 -g -O3
+# CXX=g++
+# CXXFLAGS=-std=c++17 -g -O3
 INCLUDES=-I"./newQFE/include"
 
 NVCC=/usr/local/cuda-12.6/bin/nvcc # nvcc
-NVCCFLAGS = -arch=sm_70 -O3 -lcusolver -std=c++17 # -diag-suppress<1650-D>
-INCLUDES_CUDA =
-LDFLAGS_CUDA = -L/opt/nvidia/hpc_sdk/Linux_x86_64/24.3/cuda/12.3/targets/x86_64-linux/lib/
+# NVCCFLAGS = -arch=sm_70 -O3 -lcusolver -std=c++17 # -diag-suppress<1650-D>
+NVCCFLAGS=-arch=sm_70 -O2 -lcusolver -std=c++17 # -diag-suppress<1650-D>
+INCLUDES_CUDA=-I/usr/local/cuda-12.6/include/
+LDFLAGS_CUDA=-L/opt/nvidia/hpc_sdk/Linux_x86_64/24.3/cuda/12.3/targets/x86_64-linux/lib/
 
 INCLUDES_CUDA += $(INCLUDES)
 
@@ -16,11 +16,11 @@ CXXFLAGS+=-DGRP_DIR="\"$(GRP_DIR)\""
 NVCCFLAGS+=-DGRP_DIR="\"$(GRP_DIR)\""
 
 
-simp:
+# simp:
 	# $(CXX) get_geometry.cc $(INCLUDES) $(CXXFLAGS)
 	# $(CXX) test_geometry.cc $(INCLUDES) $(CXXFLAGS)
 	# $(CXX) test_geometry_flat.cc $(INCLUDES) $(CXXFLAGS)
-	$(CXX) test_u1.cc $(INCLUDES) $(CXXFLAGS) -o c.out
+	# $(CXX) test_u1.cc $(INCLUDES) $(CXXFLAGS) -o c.out
 	# $(CXX) test_dirac.cc $(INCLUDES) $(CXXFLAGS)
 	# $(CXX) test_dirac_flat.cc $(INCLUDES) $(CXXFLAGS)
 	# $(CXX) test_dirac_dual.cc $(INCLUDES) # $(CXXFLAGS)
@@ -30,10 +30,13 @@ dual:
 	# $(CXX) get_geometry.cc $(INCLUDES) $(CXXFLAGS)
 	# $(CXX) test_geometry.cc $(INCLUDES) $(CXXFLAGS)
 	# $(CXX) test_geometry_flat.cc $(INCLUDES) $(CXXFLAGS)
-	$(CXX) test_u1_dual.cc $(INCLUDES) $(CXXFLAGS)
+	# $(CXX) test_u1_dual.cc $(INCLUDES) $(CXXFLAGS)
 	# $(CXX) test_dirac.cc $(INCLUDES) $(CXXFLAGS)
 	# $(CXX) test_dirac_flat.cc $(INCLUDES) $(CXXFLAGS)
 	# $(CXX) test_dirac_dual.cc $(INCLUDES) # $(CXXFLAGS)
+	# $(CXX) test_sparse.cc $(INCLUDES) $(CXXFLAGS)
+	$(NVCC) test_cg.cu $(NVCCFLAGS) $(INCLUDES_CUDA) $(LDFLAGS_CUDA)
+	# $(CXX) hmc_dirac_dual.cc $(INCLUDES) $(CXXFLAGS)
 	# $(CXX) test_dirac_tim.cc $(INCLUDES) $(CXXFLAGS)
 
 eig: test_dirac.cu header_cusolver.hpp
