@@ -23,19 +23,55 @@ struct U1onS2 {
     , field(other.field)
   {}
 
-  U1onS2 & operator=(const U1onS2&) = delete;
+  // U1onS2 & operator=(const U1onS2&) = delete;
+  U1onS2& operator=(const U1onS2& other){
+    if (this == &other) return *this;
+
+    assert(&lattice==&other.lattice);
+    field = other.field;
+    return *this;
+  }
 
   double operator[](const int i) const { return field[i]; }
   double& operator[](const int i) { return field[i]; }
 
+  auto begin(){ return field.begin(); }
+  auto end(){ return field.end(); }
+  auto begin() const { return field.begin(); }
+  auto end() const { return field.end(); }
+
   double operator()(const Link& ell) const { // recommended
     const int il = lattice.map2il.at(ell);
     const int sign = lattice.map2sign.at(ell);
-    return sign * field[il] ;
+    return sign * field[il];
   }
 
-  double plaquette_angle(const int& i_face) const {
-    const Face& face = lattice.faces[i_face];
+  U1onS2& operator+=(const U1onS2& rhs){
+    for(int i=0; i<field.size(); i++) field[i] += rhs.field[i];
+    return *this;
+  }
+
+  U1onS2& operator*=(const double rhs){
+    for(int i=0; i<field.size(); i++) field[i] *= rhs;
+    return *this;
+  }
+
+  U1onS2& operator/=(const double rhs){
+    for(int i=0; i<field.size(); i++) field[i] /= rhs;
+    return *this;
+  }
+
+  friend U1onS2 operator*(U1onS2 v, const double a) {
+    for(int i=0; i<v.field.size(); i++) v.field[i] *= a;
+    return v;
+  }
+
+  friend U1onS2 operator*(const double a, U1onS2 v) {
+    for(int i=0; i<v.field.size(); i++) v.field[i] *= a;
+    return v;
+  }
+
+  double plaquette_angle(const Face& face) const {
     double sum = 0.0;
     for(int i=0; i<face.size(); i++) {
       const int ix = face[i];
@@ -43,6 +79,10 @@ struct U1onS2 {
       sum += (*this)( Link{ix,iy} );
     }
     return sum;
+  }
+
+  double plaquette_angle(const int i_face) const {
+    return plaquette_angle(lattice.faces[i_face]);
   }
 
   double average_plaquette() const {
@@ -85,12 +125,18 @@ struct U1onS2 {
     square /= lattice.n_faces;
   }
 
+  void gaussian(ParallelRng& rng) {
+    for(int il=0; il<lattice.n_links; il++) field[il] = rng.gaussian_link(il);
+  }
+
 };
 
 
 
-
 struct U1Wilson {
+  using Link = std::array<int,2>; // <int,int>;
+  using Face = std::vector<int>;
+
   const double gR;
   const bool is_compact;
 
@@ -112,6 +158,27 @@ struct U1Wilson {
     }
     res /= gR*gR;
     return res;
+  }
+
+  U1onS2 d( const U1onS2& U ) const {
+    U1onS2 pi( U.lattice ); // 0 initialized
+    assert(!is_compact);
+
+    for(int i_face=0; i_face<U.lattice.n_faces; i_face++){
+      const Face& face = U.lattice.faces[i_face];
+      const double grad = 1.0/U.lattice.vps[i_face] * U.plaquette_angle(face);
+
+      for(int i=0; i<face.size(); i++) {
+	const int ix = face[i];
+	const int iy = face[(i+1)%face.size()];
+	const Link ell{ix, iy};
+	pi[ U.lattice.map2il.at(ell) ] += grad * U.lattice.map2sign.at(ell);
+      }
+    }
+
+    pi /= gR*gR;
+
+    return pi;
   }
 
   // !! need debug ?

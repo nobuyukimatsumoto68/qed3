@@ -2,10 +2,8 @@
 #include "s2n.h"
 #include "u1_s2_dual.h"
 #include "dirac_s2_dual.h"
-
 #include "sparse.h"
 #include "cg_cuda.h"
-
 #include "metropolis.h"
 
 
@@ -185,57 +183,57 @@ int main(int argc, char* argv[]){
 
   // }
 
+  // {
+  //   auto mat = D.matrix_form( U );
+  //   const VC r = VC::Random( mat.cols() );
+
+  //   auto tmp1 = (mat.adjoint()*mat).inverse() * r;
+
+  //   // ----------------
+
+  //   Sparse sparse(lattice);
+  //   Complex v_coo[ sparse.len ], v_csr[ sparse.len ], v_csrH[ sparse.len ];
+  //   D.coo_format( v_coo, sparse.N, U );
+  //   sparse.coo2csr_csrH( v_csr, v_csrH, v_coo );
+
+  //   Complex res[sparse.N];
+  //   Complex v[sparse.N];
+  //   for(int i=0; i<sparse.N; i++) v[i] = r[i];
+
+  //   solve(reinterpret_cast<CuC*>(res),
+  // 	  reinterpret_cast<CuC*>(v),
+  // 	  reinterpret_cast<CuC*>(v_csr), sparse.cols_csr, sparse.rows_csr,
+  // 	  reinterpret_cast<CuC*>(v_csrH), sparse.cols_csrT, sparse.rows_csrT,
+  // 	  sparse.N, sparse.len
+  // 	  );
+
+  //   // for(int i=0; i<sparse.N; i++){
+  //   //   std::cout << res[i] << std::endl;
+  //   // }
+
+  //   double norm = 0.0;
+  //   for(int i=0; i<sparse.N; i++) {
+  //     // std::cout << "i = " << i << ", " << std::abs(tmp1[i] - res[i]) << std::endl;
+  //     norm += std::abs(tmp1[i] - res[i]);
+  //   }
+  //   std::cout << "norm = " << norm << std::endl;
+
+  // }
+
+
+
   {
     auto mat = D.matrix_form( U );
     const VC r = VC::Random( mat.cols() );
-
     auto tmp1 = (mat.adjoint()*mat).inverse() * r;
 
     // ----------------
 
-    Sparse sparse(lattice);
-    Complex v_coo[ sparse.len ], v_csr[ sparse.len ], v_csrH[ sparse.len ];
-    D.coo_format( v_coo, sparse.N, U );
-    sparse.coo2csr_csrH( v_csr, v_csrH, v_coo );
-
-    Complex res[sparse.N];
-    Complex v[sparse.N];
-    for(int i=0; i<sparse.N; i++) v[i] = r[i];
-
-    solve(reinterpret_cast<CuC*>(res),
-	  reinterpret_cast<CuC*>(v),
-	  reinterpret_cast<CuC*>(v_csr), sparse.cols_csr, sparse.rows_csr,
-	  reinterpret_cast<CuC*>(v_csrH), sparse.cols_csrT, sparse.rows_csrT,
-	  sparse.N, sparse.len
-	  );
-
-    // for(int i=0; i<sparse.N; i++){
-    //   std::cout << res[i] << std::endl;
-    // }
-
-    double norm = 0.0;
-    for(int i=0; i<sparse.N; i++) {
-      // std::cout << "i = " << i << ", " << std::abs(tmp1[i] - res[i]) << std::endl;
-      norm += std::abs(tmp1[i] - res[i]);
-    }
-    std::cout << "norm = " << norm << std::endl;
-
-  }
-
-
-
-  {
-    auto mat = D.matrix_form( U );
-    const VC r = VC::Random( mat.cols() );
-    auto tmp1 = (mat.adjoint()*mat).inverse() * r;
-
-    // ----------------
-
+    const CGCUDA solver( lattice, D );
     Complex v[solver.sparse.N];
     for(int i=0; i<solver.sparse.N; i++) v[i] = r[i];
-
     Complex res[solver.sparse.N];
-    const CGCUDA solver( lattice, D );
+
     solver( res, v, U );
 
     double norm = 0.0;

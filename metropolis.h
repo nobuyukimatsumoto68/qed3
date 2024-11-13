@@ -2,14 +2,16 @@
 
 template<class Action, class Field>
 struct Metropolis {
+  ParallelRng& rng;
   const Action& S;
-  const double width;
+  const double width;  
 
   Metropolis()=delete;
   Metropolis(const Metropolis& other)=delete;
 
-  Metropolis( const Action& S_, const double width_ )
-    : S(S_)
+  Metropolis( ParallelRng& rng, const Action& S_, const double width_ )
+    : rng(rng)
+    , S(S_)
     , width(width_)
   {}
 
@@ -21,12 +23,12 @@ struct Metropolis {
 
     for (int i=0; i<U.lattice.n_links; i++) {
       Field Up(U);
-      Up[i] += U.lattice.rng.RandReal(-1.0, 1.0) * width;
+      Up[i] += rng.RandReal(-1.0, 1.0) * width;
 
       const double dS = S(Up) - S(U);
       // const double dS = S.local(i, Up) - S.local(i, U);
 
-      const double rate = U.lattice.rng.RandReal();
+      const double rate = rng.RandReal();
       if ( rate < std::exp(-dS) ) {
 	U[i] = Up[i];
 	n_accept++;

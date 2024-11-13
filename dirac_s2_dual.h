@@ -305,3 +305,19 @@ struct Dirac1fonS2 : public SpinStructure{
 
 };
 
+
+template <typename T> // eigen
+void matmulgam5( T* res, T* v, const int Nx) {
+  for(int ix=0; ix<Nx; ix++){
+    res[2*ix] = v[2*ix];
+    res[2*ix+1] = -v[2*ix+1];
+  }
+}
+
+
+template <typename T>
+T matmultgam5(const T& v) {
+  T res = v;
+  for(int i=0; i<res.rows(); i++) res.row(i) *= -2*(i%2) + 1;
+  return res;
+}

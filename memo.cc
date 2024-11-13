@@ -804,3 +804,24 @@ void matmulgam5( T* res, T* v, const int Nx) {
     res[2*ix+1] = -v[2*ix+1];
   }
 }
+
+
+  {
+    U1onS2 ds = SW.d(U);
+
+    const double eps = 1.0e-2;
+
+    for(int a=0; a<U.field.size(); a++){
+      U1onS2 UP(U);
+      U1onS2 UM(U);
+
+      UP[a] += eps;
+      UM[a] -= eps;
+
+      double check = ( SW(UP) - SW(UM) ) / (2.0*eps);
+      std::cout << "ds = " << ds[a] << std::endl
+                << "ch = " << check << std::endl
+		<< "ratio = " << ds[a]/check << std::endl
+		<< std::endl;
+    }
+  }

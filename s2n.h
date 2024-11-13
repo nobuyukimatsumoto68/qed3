@@ -22,7 +22,7 @@ struct Lattice {
   using VC=Eigen::VectorXcd;
 
   const int n_refine;
-  Rng rng;
+  // Rng rng;
 
   std::vector<VE> simp_sites;
   std::vector<VE> sites;
@@ -265,6 +265,6 @@ struct Lattice {
   //   return numer/denom + r0;
   // }
 
-  void SeedRng(const int seed) { rng.SeedRng(seed); }
+  // void SeedRng(const int seed) { rng.SeedRng(seed); }
 
 };
