@@ -16,8 +16,8 @@ CXXFLAGS+=-DGRP_DIR="\"$(GRP_DIR)\""
 NVCCFLAGS+=-DGRP_DIR="\"$(GRP_DIR)\""
 
 
-# simp:
-	# $(CXX) get_geometry.cc $(INCLUDES) $(CXXFLAGS)
+simp:
+	#$(CXX) get_geometry.cc $(INCLUDES) $(CXXFLAGS)
 	# $(CXX) test_geometry.cc $(INCLUDES) $(CXXFLAGS)
 	# $(CXX) test_geometry_flat.cc $(INCLUDES) $(CXXFLAGS)
 	# $(CXX) test_u1.cc $(INCLUDES) $(CXXFLAGS) -o c.out
@@ -36,8 +36,8 @@ dual:
 	# $(CXX) test_dirac_dual.cc $(INCLUDES) # $(CXXFLAGS)
 	# $(CXX) test_sparse.cc $(INCLUDES) $(CXXFLAGS)
 	# $(NVCC) test_cg.cu $(NVCCFLAGS) $(INCLUDES_CUDA) $(LDFLAGS_CUDA)
-	# $(NVCC) hmc_dirac_dual.cu $(NVCCFLAGS) $(INCLUDES_CUDA) $(LDFLAGS_CUDA)
-	$(CXX) test_hmc_scalar.cc $(INCLUDES) # $(CXXFLAGS)
+	$(NVCC) hmc_dirac_dual.cu $(NVCCFLAGS) $(INCLUDES_CUDA) $(LDFLAGS_CUDA)
+	# $(CXX) test_hmc_scalar.cc $(INCLUDES) # $(CXXFLAGS)
 	# $(CXX) hmc_dirac_dual.cc $(INCLUDES) $(CXXFLAGS)
 	# $(CXX) test_dirac_tim.cc $(INCLUDES) $(CXXFLAGS)
 

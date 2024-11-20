@@ -421,9 +421,8 @@ struct CGCUDA{ // wrapper
   const Sparse sparse;
   const Dirac1fonS2& D;
 
-  CGCUDA( const Lattice& lattice,
-	  const Dirac1fonS2& D )
-    : sparse(lattice)
+  CGCUDA( const Dirac1fonS2& D )
+    : sparse(D.lattice)
     , D(D)
   {}
 

@@ -7,7 +7,7 @@
 int main(){
 
   const int q=5; // icosahedron
-  const int n_refine=7;
+  const int n_refine=2;
 
   QfeLatticeS2 lattice(q, n_refine);
 

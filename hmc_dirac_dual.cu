@@ -1,10 +1,11 @@
-#include "rng.h"
 #include "s2n.h"
+#include "rng.h"
 #include "u1_s2_dual.h"
 #include "dirac_s2_dual.h"
 #include "sparse.h"
-#include "cg_cuda.h"
-#include "metropolis.h"
+#include "pseudofermion.h"
+// #include "cg_cuda.h"
+// #include "metropolis.h"
 
 
 
@@ -26,40 +27,39 @@ int main(int argc, char* argv[]){
   const bool is_compact = false;
   U1onS2 U(lattice);
   U1Wilson SW(gR, is_compact);
-  Metropolis<U1Wilson, U1onS2> met(SW, width);
-
-  for(int i=0; i<100; i++) double r = met( U );
+  // Metropolis<U1Wilson, U1onS2> met(SW, width);
+  // for(int i=0; i<100; i++) double r = met( U );
 
   // ---------------------------------------
 
-  {
-    auto mat = D.matrix_form( U );
-    auto gam5_D = matmultgam5( mat );
-    std::cout << gam5_D.adjoint() - gam5_D << std::endl;
-    std::cout << "det D = "  << mat.determinant() << std::endl;
-    std::cout << "det HW = " << gam5_D.determinant() << std::endl;
+  // {
+  //   auto mat = D.matrix_form( U );
+  //   auto gam5_D = matmultgam5( mat );
+  //   std::cout << gam5_D.adjoint() - gam5_D << std::endl;
+  //   std::cout << "det D = "  << mat.determinant() << std::endl;
+  //   std::cout << "det HW = " << gam5_D.determinant() << std::endl;
 
-    // std::cout << "det = " << mat.determinant() << std::endl;
-    // const VC r = VC::Random( mat.cols() );
-    // auto tmp1 = (mat.adjoint()*mat).inverse() * r;
+  //   // std::cout << "det = " << mat.determinant() << std::endl;
+  //   // const VC r = VC::Random( mat.cols() );
+  //   // auto tmp1 = (mat.adjoint()*mat).inverse() * r;
 
-    // // ----------------
+  //   // // ----------------
 
-    // const CGCUDA solver( lattice, D );
+  //   // const CGCUDA solver( lattice, D );
 
-    // Complex v[solver.sparse.N];
-    // for(int i=0; i<solver.sparse.N; i++) v[i] = r[i];
-    // Complex res[solver.sparse.N];
+  //   // Complex v[solver.sparse.N];
+  //   // for(int i=0; i<solver.sparse.N; i++) v[i] = r[i];
+  //   // Complex res[solver.sparse.N];
 
-    // solver( res, v, U );
+  //   // solver( res, v, U );
 
-    // double norm = 0.0;
-    // for(int i=0; i<solver.sparse.N; i++) {
-    //   // std::cout << "i = " << i << ", " << std::abs(tmp1[i] - res[i]) << std::endl;
-    //   norm += std::abs(tmp1[i] - res[i]);
-    // }
-    // std::cout << "norm = " << norm << std::endl;
-  }
+  //   // double norm = 0.0;
+  //   // for(int i=0; i<solver.sparse.N; i++) {
+  //   //   // std::cout << "i = " << i << ", " << std::abs(tmp1[i] - res[i]) << std::endl;
+  //   //   norm += std::abs(tmp1[i] - res[i]);
+  //   // }
+  //   // std::cout << "norm = " << norm << std::endl;
+  // }
 
 
 
