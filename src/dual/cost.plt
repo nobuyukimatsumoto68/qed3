@@ -1,0 +1,15 @@
+set term postscript eps color blacktext enhanced
+set output 'cost_scaling.eps'
+set xlabel font "Liberation Sans,16"
+set ylabel font "Liberation Sans,16"
+set tics font "Liberation Sans,20"
+set title font "Liberation Sans,22"
+
+set xlabel 'volume'
+set ylabel 'sec'
+
+set logscale x
+set logscale y
+
+plot 'cost_scaling.dat' using ($1):(abs($2))
+replot 0.0001 * x**2
