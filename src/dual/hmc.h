@@ -106,8 +106,6 @@ struct HMC {
   {}
 
   double H( const Force& pi, const Gauge& U ) {
-    assert( phi.flag );
-
     double res = 0.0;
     for(const auto elem : pi ) res += elem*elem;
     res *= 0.5;
@@ -117,12 +115,10 @@ struct HMC {
   }
 
   void leapfrog_explicit_singlestep( Force& pi, Gauge& U ) {
-    assert( phi.flag );
-
     pi += -0.5*tau * ( S.d(U) + phi.dS(U) );
 
     U += tau * pi;
-    phi.calc_eta( U );
+    phi.update_eta( U );
 
     pi += -0.5*tau * ( S.d(U) + phi.dS(U) );
   }
@@ -154,8 +150,6 @@ struct HMC {
       is_accept=true;
     }
     else is_accept=false;
-
-    phi.flag=false;
   }
 
 };

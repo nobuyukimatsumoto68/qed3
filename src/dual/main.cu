@@ -35,7 +35,7 @@ int main(int argc, char* argv[]){
   using Rng=ParallelRng;
 
   // geometry
-  const int n_refine=2;
+  const int n_refine=1;
   Lattice lattice(n_refine);
   Fermion D(lattice);
   Rng rng(lattice);
@@ -48,15 +48,13 @@ int main(int argc, char* argv[]){
   const bool is_compact = false;
   Action SW(gR, is_compact);
 
-  // double stot = 0.1;
-  // int nsteps = 2;
   double stot = 1.0;
-  int nsteps = 20;
+  int nsteps = 10;
   HMC hmc(rng, SW, D, stot, nsteps);
 
   // ---------------------------------------
 
-  for(int n=0; n<100; n++){
+  for(int n=0; n<10; n++){
 
     double r, dH;
     bool is_accept;

@@ -180,8 +180,8 @@ void solve(CuC* x, const CuC* b,
   cudacheck(cudaMalloc(&d_q, N*CD));
   cudacheck(cudaMalloc(&d_tmp, N*CD));
   cudacheck(cudaMemset(d_x, 0, N*CD)); // added @@
-  cudacheck(cudaMemset(d_r, 0, N*CD)); // added @@
-  cudacheck(cudaMemset(d_p, 0, N*CD)); // added @@
+  // cudacheck(cudaMemset(d_r, 0, N*CD)); // added @@
+  // cudacheck(cudaMemset(d_p, 0, N*CD)); // added @@
   cudacheck(cudaMemset(d_q, 0, N*CD)); // added @@
   cudacheck(cudaMemset(d_tmp, 0, N*CD)); // added @@
 

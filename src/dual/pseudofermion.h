@@ -21,7 +21,6 @@ struct PseudoFermion {
 
   std::vector<Complex> phi;
   std::vector<Complex> eta;
-  bool flag;
 
   PseudoFermion()=delete;
 
@@ -30,17 +29,7 @@ struct PseudoFermion {
     , cg(D)
     , phi(D.lattice.n_sites*NS, 0.0)
     , eta(D.lattice.n_sites*NS, 0.0)
-    , flag(false)
   {}
-
-  // PseudoFermion(const Dirac1fonS2& D_, const Gauge& U, Rng& rng)
-  //   : D(D_)
-  //   , cg(D)
-  //   , phi(D.lattice.n_sites*NS, 0.0)
-  //   , flag(false)
-  // {
-  //   gen( U, rng );
-  // }
 
 
   Complex operator[](const int i) const { return phi[i]; }
@@ -94,23 +83,11 @@ struct PseudoFermion {
 
     multDH( phi, xi, U );
 
-    calc_eta(U);
-    flag=true;
+    update_eta(U);
   }
 
 
-  void calc_eta( const Gauge& U ) {
-    // const int N = D.lattice.n_sites*NS;
-    // std::vector<Complex> eta(N, 0.0);
-    cg( eta.data(), phi.data(), U );
-    // return eta;
-  };
-  // std::vector<Complex> get_eta( const Gauge& U ) const {
-  //   const int N = D.lattice.n_sites*NS;
-  //   std::vector<Complex> eta(N, 0.0);
-  //   cg( eta.data(), phi.data(), U );
-  //   return eta;
-  // };
+  void update_eta( const Gauge& U ) { cg( eta.data(), phi.data(), U ); }
 
 
   auto begin(){ return phi.begin(); }
@@ -131,15 +108,10 @@ struct PseudoFermion {
   }
 
   double S() const { return dot( eta ).real(); }
-  // void update_eta( const Gauge& U ) {
-  //   get_eta(U);
-  // }
 
 
-  // double get_force( const Gauge& U, const Link& ell, const std::vector<Complex>& eta ) const {
   double get_force( const Gauge& U, const Link& ell ) const {
     const int N = D.lattice.n_sites*NS;
-    // std::vector<Complex> eta = get_eta(U);
 
     std::vector<Complex> dD;
     std::vector<int> is;
