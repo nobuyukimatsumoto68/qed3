@@ -1,10 +1,10 @@
 # CXX=g++
 # CXXFLAGS=-std=c++17 -g -O3
-INCLUDES=-I"../../newQFE/include"
+INCLUDES=-I"../../newQFE/include" -pg
 
 NVCC=/usr/local/cuda-12.6/bin/nvcc # nvcc
 # NVCCFLAGS = -arch=sm_70 -O3 -lcusolver -std=c++17 # -diag-suppress<1650-D>
-NVCCFLAGS=-w -arch=sm_70 -O2 -lcusolver -std=c++17 # -diag-suppress<1650-D>
+NVCCFLAGS=-w -arch=sm_70 -O3 -std=c++17 -Xcompiler -fopenmp -lgomp # -diag-suppress<1650-D>
 INCLUDES_CUDA=-I/usr/local/cuda-12.6/include/
 LDFLAGS_CUDA=-L/opt/nvidia/hpc_sdk/Linux_x86_64/24.3/cuda/12.3/targets/x86_64-linux/lib/
 

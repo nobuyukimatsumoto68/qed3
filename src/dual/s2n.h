@@ -47,7 +47,7 @@ struct Lattice {
     : n_refine(n_refine)
   {
     {
-      std::cout << "reading simplicial points" << std::endl;
+      std::cout << "# reading simplicial points" << std::endl;
       std::ifstream file("../../dats/pts_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
       std::string str;
@@ -61,7 +61,7 @@ struct Lattice {
       }
     }
     {
-      std::cout << "reading dual points" << std::endl;
+      std::cout << "# reading dual points" << std::endl;
       std::ifstream file("../../dats/pts_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
       std::string str;
@@ -75,7 +75,7 @@ struct Lattice {
       }
     }
     {
-      std::cout << "reading nns" << std::endl;
+      std::cout << "# reading nns" << std::endl;
       std::ifstream file("../../dats/nns_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
       std::string str;
@@ -89,7 +89,7 @@ struct Lattice {
       }
     }
     {
-      std::cout << "reading links" << std::endl;
+      std::cout << "# reading links" << std::endl;
       std::ifstream file("../../dats/dual_links_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
       std::string str;
@@ -106,7 +106,7 @@ struct Lattice {
     n_links = links.size();
 
     {
-      std::cout << "reading vs" << std::endl;
+      std::cout << "# reading vs" << std::endl;
       std::ifstream file("../../dats/vs_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
       std::string str;
@@ -128,7 +128,7 @@ struct Lattice {
     }
 
     {
-      std::cout << "reading us" << std::endl;
+      std::cout << "# reading us" << std::endl;
       std::ifstream file("../../dats/us_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
       std::string str;
@@ -145,7 +145,7 @@ struct Lattice {
     }
 
     {
-      std::cout << "reading vols" << std::endl;
+      std::cout << "# reading vols" << std::endl;
       std::ifstream file("../../dats/dualtriangleareas_n"+std::to_string(n_refine)+"_singlepatch.dat");
       assert(file.is_open());
       std::string str;
@@ -168,7 +168,7 @@ struct Lattice {
     }
 
     {
-      std::cout << "reading faces" << std::endl;
+      std::cout << "# reading faces" << std::endl;
       std::ifstream file("../../dats/face_dual_n"+std::to_string(n_refine)+".dat");
       assert(file.is_open());
       std::string str;

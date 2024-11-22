@@ -20,6 +20,8 @@ struct PseudoFermion {
   const CGCUDA cg;
 
   std::vector<Complex> phi;
+  std::vector<Complex> eta;
+  bool flag;
 
   PseudoFermion()=delete;
 
@@ -27,15 +29,18 @@ struct PseudoFermion {
     : D(D_)
     , cg(D)
     , phi(D.lattice.n_sites*NS, 0.0)
+    , eta(D.lattice.n_sites*NS, 0.0)
+    , flag(false)
   {}
 
-  PseudoFermion(const Dirac1fonS2& D_, const Gauge& U, Rng& rng)
-    : D(D_)
-    , cg(D)
-    , phi(D.lattice.n_sites*NS, 0.0)
-  {
-    gen( U, rng );
-  }
+  // PseudoFermion(const Dirac1fonS2& D_, const Gauge& U, Rng& rng)
+  //   : D(D_)
+  //   , cg(D)
+  //   , phi(D.lattice.n_sites*NS, 0.0)
+  //   , flag(false)
+  // {
+  //   gen( U, rng );
+  // }
 
 
   Complex operator[](const int i) const { return phi[i]; }
@@ -88,15 +93,24 @@ struct PseudoFermion {
     for(int ix=0; ix<D.lattice.n_sites; ix++) for(int a=0; a<NS; a++) xi[NS*ix+a] = ( rng.gaussian_site(ix) + I*rng.gaussian_site(ix) ) / std::sqrt(2.0);
 
     multDH( phi, xi, U );
+
+    calc_eta(U);
+    flag=true;
   }
 
 
-  std::vector<Complex> get_eta( const Gauge& U ) const {
-    const int N = D.lattice.n_sites*NS;
-    std::vector<Complex> eta(N, 0.0);
+  void calc_eta( const Gauge& U ) {
+    // const int N = D.lattice.n_sites*NS;
+    // std::vector<Complex> eta(N, 0.0);
     cg( eta.data(), phi.data(), U );
-    return eta;
+    // return eta;
   };
+  // std::vector<Complex> get_eta( const Gauge& U ) const {
+  //   const int N = D.lattice.n_sites*NS;
+  //   std::vector<Complex> eta(N, 0.0);
+  //   cg( eta.data(), phi.data(), U );
+  //   return eta;
+  // };
 
 
   auto begin(){ return phi.begin(); }
@@ -105,25 +119,27 @@ struct PseudoFermion {
   auto end() const { return phi.end(); }
 
 
-  Complex dot( const std::vector<Complex>& eta, const std::vector<Complex>& xi) const {
-    assert( eta.size()==xi.size() );
+  Complex dot( const std::vector<Complex>& eta1, const std::vector<Complex>& xi) const {
+    assert( eta1.size()==xi.size() );
     Complex res = 0.0;
-    for(int i=0; i<eta.size(); i++) res += std::conj(eta[i]) * xi[i];
+    for(int i=0; i<eta1.size(); i++) res += std::conj(eta1[i]) * xi[i];
     return res;
   }
 
-  Complex dot( const std::vector<Complex>& eta ) const {
-    return dot(this->phi, eta);
+  Complex dot( const std::vector<Complex>& eta1 ) const {
+    return dot(this->phi, eta1);
   }
 
-  double S( const Gauge& U ) const {
-    return dot( this->get_eta( U ) ).real();
-  }
+  double S() const { return dot( eta ).real(); }
+  // void update_eta( const Gauge& U ) {
+  //   get_eta(U);
+  // }
 
 
+  // double get_force( const Gauge& U, const Link& ell, const std::vector<Complex>& eta ) const {
   double get_force( const Gauge& U, const Link& ell ) const {
     const int N = D.lattice.n_sites*NS;
-    std::vector<Complex> eta = get_eta(U);
+    // std::vector<Complex> eta = get_eta(U);
 
     std::vector<Complex> dD;
     std::vector<int> is;
@@ -142,6 +158,9 @@ struct PseudoFermion {
 
   Force dS( const Gauge& U ) const {
     Force pi( U.lattice ); // 0 initialized
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(nparallel)
+#endif
     for(int ell=0; ell<U.lattice.n_links; ell++) pi[ell] = get_force( U, U.lattice.links[ell] );
     return pi;
   }

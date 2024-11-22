@@ -4,6 +4,7 @@ struct U1Wilson {
   using Link = std::array<int,2>; // <int,int>;
   using Face = std::vector<int>;
   using Gauge=U1onS2;
+  using Force=U1onS2;
   using Action=U1Wilson;
 
   const double gR;
@@ -29,8 +30,8 @@ struct U1Wilson {
     return res;
   }
 
-  Gauge d( const Gauge& U ) const {
-    Gauge pi( U.lattice ); // 0 initialized
+  Force d( const Gauge& U ) const {
+    Force pi( U.lattice ); // 0 initialized
     assert(!is_compact);
 
     for(int i_face=0; i_face<U.lattice.n_faces; i_face++){

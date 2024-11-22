@@ -8,6 +8,7 @@ struct U1onS2 {
   using Link = std::array<int,2>; // <int,int>;
   using Face = std::vector<int>;
   using Gauge=U1onS2;
+  using Force=U1onS2;
 
   Lattice& lattice;
   std::vector<double> field;
@@ -50,6 +51,7 @@ struct U1onS2 {
     for(int i=0; i<field.size(); i++) field[i] += rhs.field[i];
     return *this;
   }
+  friend Force operator+(Force v, const Force& w) { v += w; return v; }
 
   Gauge& operator*=(const double rhs){
     for(int i=0; i<field.size(); i++) field[i] *= rhs;

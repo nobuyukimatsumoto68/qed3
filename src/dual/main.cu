@@ -1,5 +1,10 @@
 #include <iomanip>
 
+#include <omp.h>
+constexpr int nparallel=10;
+// #define IsVerbose
+
+
 #include "s2n.h"
 #include "rng.h"
 #include "gauge.h"
@@ -8,7 +13,6 @@
 #include "sparse.h"
 #include "pseudofermion.h"
 #include "cg_cuda.h"
-// #include "metropolis.h"
 #include "hmc.h"
 
 
@@ -31,44 +35,34 @@ int main(int argc, char* argv[]){
   using Rng=ParallelRng;
 
   // geometry
-  const int n_refine=1;
+  const int n_refine=2;
   Lattice lattice(n_refine);
   Fermion D(lattice);
   Rng rng(lattice);
 
   const double gR = 0.4;
-  const double width = 5.0 * gR / std::sqrt( lattice.n_faces );
 
-  const bool is_compact = false;
   Gauge U(lattice);
   U.gaussian( rng );
 
+  const bool is_compact = false;
   Action SW(gR, is_compact);
 
+  // double stot = 0.1;
+  // int nsteps = 2;
   double stot = 1.0;
-  int nsteps = 10;
+  int nsteps = 20;
+  HMC hmc(rng, SW, D, stot, nsteps);
 
   // ---------------------------------------
 
-  for(int nsteps=10; nsteps<100; nsteps+=10){
-    HMC hmc(rng, SW, D, stot, nsteps);
-    // HMC<GaugeForce,GaugeField,GaugeAction> hmc(rng, SW, stot, nsteps);
+  for(int n=0; n<100; n++){
 
-    GaugeField U1( U );
-    GaugeForce pi1(pi);
+    double r, dH;
+    bool is_accept;
+    hmc.run( U, r, dH, is_accept );
 
-    std::cout << "pi1 = " << std::endl;
-    for(auto elem : pi1 ) std::cout << elem << " ";
-    std::cout << std::endl;
-    std::cout << "U1 = " << std::endl;
-    for(auto elem : U1 ) std::cout << elem << " ";
-    std::cout << std::endl;
-
-    const double h0 = hmc.H(pi1, U1);
-    hmc.leapfrog_explicit( pi1, U1 );
-    const double h1 = hmc.H(pi1, U1);
-
-    std::clog << nsteps << " " << h1-h0 << std::endl;
+    std::cout << n << "; " << is_accept << "; dH = " << dH << std::endl;
   }  
 
 

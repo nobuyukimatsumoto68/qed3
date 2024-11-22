@@ -1212,3 +1212,37 @@ void matmulgam5( T* res, T* v, const int Nx) {
       std::cout << exact[il] << " " << numeric << std::endl;
     }
   }
+
+
+
+  double stot = 1.0;
+  // int nsteps = 10;
+
+  // ---------------------------------------
+
+  Force pi( lattice );
+  pi.gaussian( rng );
+
+  for(int nsteps=10; nsteps<100; nsteps+=10){
+    HMC hmc(rng, SW, D, stot, nsteps);
+    // HMC<GaugeForce,GaugeField,GaugeAction> hmc(rng, SW, stot, nsteps);
+
+    Gauge U1( U );
+    rng.reseed( 1 );
+    PseudoFermion phi( D, U, rng );
+    Force pi1(pi);
+
+    // std::cout << "pi1 = " << std::endl;
+    // for(auto elem : pi1 ) std::cout << elem << " ";
+    // std::cout << std::endl;
+    // std::cout << "U1 = " << std::endl;
+    // for(auto elem : U1 ) std::cout << elem << " ";
+    // std::cout << std::endl;
+
+    const double h0 = hmc.H(pi1, U1, phi);
+    hmc.leapfrog_explicit( pi1, U1, phi );
+    const double h1 = hmc.H(pi1, U1, phi);
+
+    std::cout << nsteps << " " << h1-h0 << std::endl;
+  }  
+

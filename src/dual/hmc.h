@@ -92,6 +92,8 @@ struct HMC {
   const int nsteps;
   const double tau;
 
+  PseudoFermion phi;
+
   HMC(ParallelRng& rng, const Action& S_, const Fermion& D_,
       const double stot_=1.0, const int nsteps_=10)
     : rng(rng)
@@ -100,41 +102,49 @@ struct HMC {
     , stot(stot_)
     , nsteps(nsteps_)
     , tau(stot/nsteps)
+    , phi(D)
   {}
 
-  double H( const Force& pi, const Gauge& U, const PseudoFermion& phi ) const {
+  double H( const Force& pi, const Gauge& U ) {
+    assert( phi.flag );
+
     double res = 0.0;
     for(const auto elem : pi ) res += elem*elem;
     res *= 0.5;
     res += S(U);
-    res += phi.S(U);
+    res += phi.S();
     return res;
   }
 
-  void leapfrog_explicit_singlestep( Force& pi, Gauge& U, const PseudoFermion& phi ) const {
+  void leapfrog_explicit_singlestep( Force& pi, Gauge& U ) {
+    assert( phi.flag );
+
     pi += -0.5*tau * ( S.d(U) + phi.dS(U) );
+
     U += tau * pi;
+    phi.calc_eta( U );
+
     pi += -0.5*tau * ( S.d(U) + phi.dS(U) );
   }
 
-  void leapfrog_explicit( Force& pi, Gauge& U, const PseudoFermion& phi ) const {
-    for(int n=0; n<nsteps; n++) leapfrog_explicit_singlestep(pi, U, phi);
+  void leapfrog_explicit( Force& pi, Gauge& U ) {
+    for(int n=0; n<nsteps; n++) leapfrog_explicit_singlestep(pi, U );
   }
 
   void run( Gauge& U0,
 	    double& r,
 	    double& dH,
 	    bool& is_accept,
-	    const bool no_reject = false ) const {
+	    const bool no_reject = false ) {
     Force pi( U0.lattice );
     pi.gaussian( rng );
 
     Gauge U( U0 );
-    PseudoFermion phi( D, U, rng );
+    phi.gen( U, rng );
 
-    const double h0 = H(pi, U, phi);
-    leapfrog_explicit( pi, U, phi );
-    const double h1 = H(pi, U, phi);
+    const double h0 = H(pi, U);
+    leapfrog_explicit( pi, U );
+    const double h1 = H(pi, U);
 
     dH = h1-h0;
     r = std::min( 1.0, std::exp(-dH) );
@@ -144,6 +154,8 @@ struct HMC {
       is_accept=true;
     }
     else is_accept=false;
+
+    phi.flag=false;
   }
 
 };

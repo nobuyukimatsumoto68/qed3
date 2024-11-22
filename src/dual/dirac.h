@@ -27,7 +27,7 @@ struct SpinStructure{
   SpinStructure(const int n_refine)
   {
     {
-      std::cout << "reading omega" << std::endl;
+      std::cout << "# reading omega" << std::endl;
       std::ifstream file("../../dats/omega_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
       assert(file.is_open());
 
@@ -46,7 +46,7 @@ struct SpinStructure{
     }
 
     {
-      std::cout << "reading alpha" << std::endl;
+      std::cout << "# reading alpha" << std::endl;
       std::ifstream file("../../dats/alpha_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
       assert(file.is_open());
 
@@ -109,7 +109,7 @@ struct Dirac1fonS2 : public SpinStructure{
     // check
     double TOL=1.0e-6;
     {
-      std::cout << "checking spin structure" << std::endl;
+      std::cout << "# checking spin structure" << std::endl;
       for(int ix=0; ix<lattice.n_sites; ix++){
 	for(int iy : lattice.nns[ix]){
 	  const double alpha1 = alpha.at(Link{ix,iy});
@@ -176,11 +176,15 @@ struct Dirac1fonS2 : public SpinStructure{
   void coo_format( Complex* v,
 		   const Gauge& U ) const {
     const int N = lattice.n_sites * NS;
-    for(int i=0; i<N; i++) v[i] = 0.0;
+    // for(int i=0; i<N; i++) v[i] = 0.0;
 
-    int counter=0;
-
+    // int counter=0;
+    
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(nparallel)
+#endif
     for(int ix=0; ix<lattice.n_sites; ix++){
+      int counter = 3*8*ix;
       for(int jj=0; jj<3; jj++){
 	int iy = lattice.nns[ix][jj];
 	const MS tmp = lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj]*sigma[0] - gamma(ix, jj)) * std::exp( I* U(Link{ix,iy})) * Omega(ix, iy);

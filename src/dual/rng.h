@@ -52,5 +52,9 @@ struct ParallelRng {
     return (b-a) * uniform() + a;
   }
 
-  // void SeedRng(const int seed) { mt.seed(seed); }
+  void reseed(const int seed) {
+    mt.seed(seed);
+    for(auto& elem : mt_link) elem.seed( mt() );
+    for(auto& elem : mt_site) elem.seed( mt() );
+  }
 };
