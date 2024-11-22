@@ -78,34 +78,6 @@ void mult ( CuC* res,
 }
 
 
-// __global__
-// void mult_gam5_M( CuC* res,
-// 		  const CuC* v,
-// 		  const CuC* v_csr,
-// 		  const int* cols,
-// 		  const int* rows,
-// 		  const int N
-// 		  ){
-//   Idx i = blockIdx.x*blockDim.x + threadIdx.x;
-
-//   if(i<N) {
-//     res[i] = cplx(0.0);
-//     const int row_start = rows[i];
-//     const int row_end = rows[i+1];
-//     for(int jj=row_start; jj<row_end; jj++) res[i] = res[i] + v_csr[jj] * v[ cols[jj] ];
-//     res[i] = ( -2*(i%2) + 1 ) * res[i];
-//   }
-// }
-
-
-// __global__
-// void multgam5_self ( CuC* v,
-// 		     const int N
-// 		){
-//   Idx i = blockIdx.x*blockDim.x + threadIdx.x;
-//   if(i<N) v[i] = ( -2*(i%2) + 1 ) * v[i];
-// }
-
 
 __host__
 void multA(CuC* d_v, CuC* d_tmp, CuC* d_v0,
@@ -121,23 +93,6 @@ void multA(CuC* d_v, CuC* d_tmp, CuC* d_v0,
 }
 
 
-// __host__
-// void multA(CuC* d_v, CuC* d_tmp, CuC* d_v0,
-// 	   CuC* d_val, int* d_cols, int* d_rows,
-// 	   // CuC* d_valH, int* d_colsT, int* d_rowsT,
-// 	   const int N
-// 	   ){
-//   cudacheck(cudaMemset(d_tmp, 0, N*CD));
-//   mult<<<NBlocks, NThreadsPerBlock>>>(d_tmp, d_v0, d_val, d_cols, d_rows, N);
-
-//   cudacheck(cudaMemset(d_v, 0, N*CD));
-//   // mult_gam5_M<<<NBlocks, NThreadsPerBlock>>>(d_tmp, d_v0, d_val, d_cols, d_rows, N);
-//   mult<<<NBlocks, NThreadsPerBlock>>>(d_v, d_tmp, d_valH, d_colsT, d_rowsT, N);
-// }
-
-
-
-
 // https://forums.developer.nvidia.com/t/atomic-add-for-complex-numbers/39757
 __device__
 void atomicAddCuC(CuC* a, CuC b){
@@ -148,6 +103,8 @@ void atomicAddCuC(CuC* a, CuC b){
   atomicAdd(x, real(b));
   atomicAdd(y, imag(b));
 }
+
+
 __global__
 void dot_normalized(CuC* d_res, CuC* d_p, CuC* d_q, const int N){
   __shared__ CuC tmp[NThreadsPerBlock];
@@ -180,7 +137,6 @@ void dot2self_normalized_wrapper(double& scalar, CuC* d_scalar, CuC* d_p, const 
   cudacheck(cudaMemcpy(d_scalar, &dummy, CD, H2D));
   dot_normalized<<<NBlocks, NThreadsPerBlock>>>(d_scalar, d_p, d_p, N);
   cudacheck(cudaMemcpy(&dummy, d_scalar, CD, D2H));
-  // std::cout << abs( imag(dummy) ) << std::endl;
   assert( abs( imag(dummy) )<1.0e-13*std::sqrt(N) );
   scalar = real(dummy);
 }
@@ -247,7 +203,6 @@ void solve(CuC* x, const CuC* b,
     CuC gam;
 
     for(; k<maxiter; ++k){
-      // multA(d_q, d_tmp, d_p, nu);
       multA(d_q, d_tmp, d_p,
 	    d_val, d_cols, d_rows,
 	    d_valH, d_colsT, d_rowsT,
@@ -300,119 +255,6 @@ void solve(CuC* x, const CuC* b,
 }
 
 
-// __host__
-// void solve(CuC* x, const CuC* b,
-// 	   const CuC* val, const std::vector<int>& cols, const std::vector<int>& rows,
-// 	   // const CuC* valH, const std::vector<int>& colsT, const std::vector<int>& rowsT,
-// 	   const int N, const int len,
-// 	   const double tol=1.0e-13, const int maxiter=1e8){
-
-//   // sparse matrix
-//   CuC *d_val, *d_valH;
-//   cudacheck(cudaMalloc(&d_val, len*CD));
-//   cudacheck(cudaMemcpy(d_val, val, len*CD, H2D));
-//   //
-//   // cudacheck(cudaMalloc(&d_valH, len*CD));
-//   // cudacheck(cudaMemcpy(d_valH, valH, len*CD, H2D));
-//   //
-//   int *d_cols, *d_rows; // , *d_colsT, *d_rowsT;
-//   cudacheck(cudaMalloc(&d_cols, len*sizeof(int)));
-//   cudacheck(cudaMalloc(&d_rows, (N+1)*sizeof(int)));
-//   cudacheck(cudaMemcpy(d_cols, cols.data(), len*sizeof(int), H2D));
-//   cudacheck(cudaMemcpy(d_rows, rows.data(), (N+1)*sizeof(int), H2D));
-//   //
-//   // cudacheck(cudaMalloc(&d_colsT, len*sizeof(int)));
-//   // cudacheck(cudaMalloc(&d_rowsT, (N+1)*sizeof(int)));
-//   // cudacheck(cudaMemcpy(d_colsT, colsT.data(), len*sizeof(int), H2D));
-//   // cudacheck(cudaMemcpy(d_rowsT, rowsT.data(), (N+1)*sizeof(int), H2D));
-
-//   // CG
-//   CuC *d_x, *d_r, *d_p, *d_q, *d_tmp;
-//   cudacheck(cudaMalloc(&d_x, N*CD));
-//   cudacheck(cudaMalloc(&d_r, N*CD));
-//   cudacheck(cudaMalloc(&d_p, N*CD));
-//   cudacheck(cudaMalloc(&d_q, N*CD));
-//   cudacheck(cudaMalloc(&d_tmp, N*CD));
-//   cudacheck(cudaMemset(d_x, 0, N*CD)); // added @@
-//   cudacheck(cudaMemset(d_r, 0, N*CD)); // added @@
-//   cudacheck(cudaMemset(d_p, 0, N*CD)); // added @@
-//   cudacheck(cudaMemset(d_q, 0, N*CD)); // added @@
-//   cudacheck(cudaMemset(d_tmp, 0, N*CD)); // added @@
-
-//   CuC *d_scalar;
-//   cudacheck(cudaMalloc(&d_scalar, CD));
-//   cudacheck(cudaMemset(d_scalar, 0, CD)); // added @@
-
-//   cudacheck(cudaMemcpy(d_r, b, N*CD, H2D));
-//   cudacheck(cudaMemcpy(d_p, d_r, N*CD, D2D));
-
-//   double mu; dot2self_normalized_wrapper(mu, d_scalar, d_r, N);
-//   assert(mu>=0.0);
-//   double mu_old = mu;
-
-//   double b_norm_sq; dot2self_normalized_wrapper(b_norm_sq, d_scalar, d_r, N);
-//   assert(b_norm_sq>=0.0);
-//   double mu_crit = tol*tol*b_norm_sq;
-
-//   if(mu<mu_crit) std::clog << "NO SOLVE" << std::endl;
-//   else{
-//     int k=0;
-//     CuC gam;
-
-//     for(; k<maxiter; ++k){
-//       // multA(d_q, d_tmp, d_p, nu);
-//       multA(d_q, d_tmp, d_p,
-// 	    d_val, d_cols, d_rows,
-// 	    // d_valH, d_colsT, d_rowsT,
-// 	    N
-// 	    );
-
-//       dot_normalized_wrapper(gam, d_scalar, d_p, d_q, N);
-
-//       CuC al = mu/gam;
-//       cudacheck(cudaMemcpy(d_scalar, &al, CD, H2D));
-//       daxpy<<<NBlocks, NThreadsPerBlock>>>(d_x, d_scalar, d_p, d_x, N);
-
-//       al = -al;
-//       cudacheck(cudaMemcpy(d_scalar, &al, CD, H2D));
-//       daxpy<<<NBlocks, NThreadsPerBlock>>>(d_r, d_scalar, d_q, d_r, N);
-
-//       dot2self_normalized_wrapper(mu, d_scalar, d_r, N);
-//       assert(mu>=0.0);
-
-//       if(mu<mu_crit || std::isnan(mu)) break;
-//       CuC bet = cplx(mu/mu_old);
-//       mu_old = mu;
-
-//       cudacheck(cudaMemcpy(d_scalar, &bet, CD, H2D));
-//       daxpy<<<NBlocks, NThreadsPerBlock>>>(d_p, d_scalar, d_p, d_r, N);
-
-//       if(k%100==0) {
-// 	std::clog << "SOLVER:       #iterations: " << k << ", mu =         " << mu << std::endl;
-//       }
-//     }
-//     std::clog << "SOLVER:       #iterations: " << k << std::endl;
-//     std::clog << "SOLVER:       mu =         " << mu << std::endl;
-//   }
-
-//   cudacheck(cudaMemcpy(x, d_x, N*CD, D2H));
-
-//   cudacheck(cudaFree(d_x));
-//   cudacheck(cudaFree(d_r));
-//   cudacheck(cudaFree(d_p));
-//   cudacheck(cudaFree(d_q));
-//   cudacheck(cudaFree(d_tmp));
-//   cudacheck(cudaFree(d_scalar));
-
-//   cudacheck(cudaFree(d_val));
-//   cudacheck(cudaFree(d_cols));
-//   cudacheck(cudaFree(d_rows));
-//   // cudacheck(cudaFree(d_valH));
-//   // cudacheck(cudaFree(d_colsT));
-//   // cudacheck(cudaFree(d_rowsT));
-// }
-
-
 
 
 struct CGCUDA{ // wrapper
@@ -441,6 +283,8 @@ struct CGCUDA{ // wrapper
   }
 
 };
+
+
 
 
 
@@ -579,3 +423,161 @@ struct CGCUDA{ // wrapper
 //   }
 
 // };
+
+
+// __global__
+// void mult_gam5_M( CuC* res,
+// 		  const CuC* v,
+// 		  const CuC* v_csr,
+// 		  const int* cols,
+// 		  const int* rows,
+// 		  const int N
+// 		  ){
+//   Idx i = blockIdx.x*blockDim.x + threadIdx.x;
+
+//   if(i<N) {
+//     res[i] = cplx(0.0);
+//     const int row_start = rows[i];
+//     const int row_end = rows[i+1];
+//     for(int jj=row_start; jj<row_end; jj++) res[i] = res[i] + v_csr[jj] * v[ cols[jj] ];
+//     res[i] = ( -2*(i%2) + 1 ) * res[i];
+//   }
+// }
+
+
+// __global__
+// void multgam5_self ( CuC* v,
+// 		     const int N
+// 		){
+//   Idx i = blockIdx.x*blockDim.x + threadIdx.x;
+//   if(i<N) v[i] = ( -2*(i%2) + 1 ) * v[i];
+// }
+
+
+// __host__
+// void multA(CuC* d_v, CuC* d_tmp, CuC* d_v0,
+// 	   CuC* d_val, int* d_cols, int* d_rows,
+// 	   // CuC* d_valH, int* d_colsT, int* d_rowsT,
+// 	   const int N
+// 	   ){
+//   cudacheck(cudaMemset(d_tmp, 0, N*CD));
+//   mult<<<NBlocks, NThreadsPerBlock>>>(d_tmp, d_v0, d_val, d_cols, d_rows, N);
+
+//   cudacheck(cudaMemset(d_v, 0, N*CD));
+//   // mult_gam5_M<<<NBlocks, NThreadsPerBlock>>>(d_tmp, d_v0, d_val, d_cols, d_rows, N);
+//   mult<<<NBlocks, NThreadsPerBlock>>>(d_v, d_tmp, d_valH, d_colsT, d_rowsT, N);
+// }
+
+
+
+// __host__
+// void solve(CuC* x, const CuC* b,
+// 	   const CuC* val, const std::vector<int>& cols, const std::vector<int>& rows,
+// 	   // const CuC* valH, const std::vector<int>& colsT, const std::vector<int>& rowsT,
+// 	   const int N, const int len,
+// 	   const double tol=1.0e-13, const int maxiter=1e8){
+
+//   // sparse matrix
+//   CuC *d_val, *d_valH;
+//   cudacheck(cudaMalloc(&d_val, len*CD));
+//   cudacheck(cudaMemcpy(d_val, val, len*CD, H2D));
+//   //
+//   // cudacheck(cudaMalloc(&d_valH, len*CD));
+//   // cudacheck(cudaMemcpy(d_valH, valH, len*CD, H2D));
+//   //
+//   int *d_cols, *d_rows; // , *d_colsT, *d_rowsT;
+//   cudacheck(cudaMalloc(&d_cols, len*sizeof(int)));
+//   cudacheck(cudaMalloc(&d_rows, (N+1)*sizeof(int)));
+//   cudacheck(cudaMemcpy(d_cols, cols.data(), len*sizeof(int), H2D));
+//   cudacheck(cudaMemcpy(d_rows, rows.data(), (N+1)*sizeof(int), H2D));
+//   //
+//   // cudacheck(cudaMalloc(&d_colsT, len*sizeof(int)));
+//   // cudacheck(cudaMalloc(&d_rowsT, (N+1)*sizeof(int)));
+//   // cudacheck(cudaMemcpy(d_colsT, colsT.data(), len*sizeof(int), H2D));
+//   // cudacheck(cudaMemcpy(d_rowsT, rowsT.data(), (N+1)*sizeof(int), H2D));
+
+//   // CG
+//   CuC *d_x, *d_r, *d_p, *d_q, *d_tmp;
+//   cudacheck(cudaMalloc(&d_x, N*CD));
+//   cudacheck(cudaMalloc(&d_r, N*CD));
+//   cudacheck(cudaMalloc(&d_p, N*CD));
+//   cudacheck(cudaMalloc(&d_q, N*CD));
+//   cudacheck(cudaMalloc(&d_tmp, N*CD));
+//   cudacheck(cudaMemset(d_x, 0, N*CD)); // added @@
+//   cudacheck(cudaMemset(d_r, 0, N*CD)); // added @@
+//   cudacheck(cudaMemset(d_p, 0, N*CD)); // added @@
+//   cudacheck(cudaMemset(d_q, 0, N*CD)); // added @@
+//   cudacheck(cudaMemset(d_tmp, 0, N*CD)); // added @@
+
+//   CuC *d_scalar;
+//   cudacheck(cudaMalloc(&d_scalar, CD));
+//   cudacheck(cudaMemset(d_scalar, 0, CD)); // added @@
+
+//   cudacheck(cudaMemcpy(d_r, b, N*CD, H2D));
+//   cudacheck(cudaMemcpy(d_p, d_r, N*CD, D2D));
+
+//   double mu; dot2self_normalized_wrapper(mu, d_scalar, d_r, N);
+//   assert(mu>=0.0);
+//   double mu_old = mu;
+
+//   double b_norm_sq; dot2self_normalized_wrapper(b_norm_sq, d_scalar, d_r, N);
+//   assert(b_norm_sq>=0.0);
+//   double mu_crit = tol*tol*b_norm_sq;
+
+//   if(mu<mu_crit) std::clog << "NO SOLVE" << std::endl;
+//   else{
+//     int k=0;
+//     CuC gam;
+
+//     for(; k<maxiter; ++k){
+//       // multA(d_q, d_tmp, d_p, nu);
+//       multA(d_q, d_tmp, d_p,
+// 	    d_val, d_cols, d_rows,
+// 	    // d_valH, d_colsT, d_rowsT,
+// 	    N
+// 	    );
+
+//       dot_normalized_wrapper(gam, d_scalar, d_p, d_q, N);
+
+//       CuC al = mu/gam;
+//       cudacheck(cudaMemcpy(d_scalar, &al, CD, H2D));
+//       daxpy<<<NBlocks, NThreadsPerBlock>>>(d_x, d_scalar, d_p, d_x, N);
+
+//       al = -al;
+//       cudacheck(cudaMemcpy(d_scalar, &al, CD, H2D));
+//       daxpy<<<NBlocks, NThreadsPerBlock>>>(d_r, d_scalar, d_q, d_r, N);
+
+//       dot2self_normalized_wrapper(mu, d_scalar, d_r, N);
+//       assert(mu>=0.0);
+
+//       if(mu<mu_crit || std::isnan(mu)) break;
+//       CuC bet = cplx(mu/mu_old);
+//       mu_old = mu;
+
+//       cudacheck(cudaMemcpy(d_scalar, &bet, CD, H2D));
+//       daxpy<<<NBlocks, NThreadsPerBlock>>>(d_p, d_scalar, d_p, d_r, N);
+
+//       if(k%100==0) {
+// 	std::clog << "SOLVER:       #iterations: " << k << ", mu =         " << mu << std::endl;
+//       }
+//     }
+//     std::clog << "SOLVER:       #iterations: " << k << std::endl;
+//     std::clog << "SOLVER:       mu =         " << mu << std::endl;
+//   }
+
+//   cudacheck(cudaMemcpy(x, d_x, N*CD, D2H));
+
+//   cudacheck(cudaFree(d_x));
+//   cudacheck(cudaFree(d_r));
+//   cudacheck(cudaFree(d_p));
+//   cudacheck(cudaFree(d_q));
+//   cudacheck(cudaFree(d_tmp));
+//   cudacheck(cudaFree(d_scalar));
+
+//   cudacheck(cudaFree(d_val));
+//   cudacheck(cudaFree(d_cols));
+//   cudacheck(cudaFree(d_rows));
+//   // cudacheck(cudaFree(d_valH));
+//   // cudacheck(cudaFree(d_colsT));
+//   // cudacheck(cudaFree(d_rowsT));
+// }

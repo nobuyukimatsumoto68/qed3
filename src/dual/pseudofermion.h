@@ -5,23 +5,18 @@
 
 #include "cg_cuda.h"
 
-
 struct PseudoFermion {
+
+  using Complex = std::complex<double>;
   using Link = std::array<int,2>; // <int,int>;
   using Face = std::vector<int>;
   using Gauge = U1onS2;
+  using Force=U1onS2;
   using Rng = ParallelRng;
 
-  using Complex = std::complex<double>;
   static constexpr Complex I = Complex(0.0, 1.0);
   const int NS=2;
 
-  // using MS=Eigen::Matrix2cd;
-  // using Spinor=Eigen::Vector2cd;
-  // using VE=Eigen::Vector3d;
-  // using VC=Eigen::VectorXcd;
-
-  // const Lattice& lattice;
   const Dirac1fonS2& D;
   const CGCUDA cg;
 
@@ -43,11 +38,6 @@ struct PseudoFermion {
     gen( U, rng );
   }
 
-  // PseudoFermion( const PseudoFermion& other )
-  //   : D(other.D)
-  //   , cg(other.cg)
-  //   , phi(other.phi)
-  // {}
 
   Complex operator[](const int i) const { return phi[i]; }
   Complex& operator[](const int i) { return phi[i]; }
@@ -98,12 +88,9 @@ struct PseudoFermion {
 
     for(int ix=0; ix<D.lattice.n_sites; ix++) for(int a=0; a<NS; a++) xi[NS*ix+a] = ( rng.gaussian_site(ix) + I*rng.gaussian_site(ix) ) / std::sqrt(2.0);
 
-    // Complex D_coo[cg.sparse.len], D_csrH[cg.sparse.len];
-    // D.coo_format(D_coo, U);
-    // cg.sparse.coo2csrH( D_csrH, D_coo );
-    // cg.sparse.multT<Complex>( phi.data(), xi.data(), D_csrH );
     multDH( phi, xi, U );
   }
+
 
   std::vector<Complex> get_eta( const Gauge& U ) const {
     const int N = D.lattice.n_sites*NS;
@@ -111,8 +98,6 @@ struct PseudoFermion {
     cg( eta.data(), phi.data(), U );
     return eta;
   };
-
-  using Force=U1onS2;
 
 
   auto begin(){ return phi.begin(); }
@@ -154,49 +139,6 @@ struct PseudoFermion {
     return pi;
   }
 
-
-  // PseudoFermion & operator=(const PseudoFermion&) = delete;
-  // PseudoFermion& operator=(const PseudoFermion& other){
-  //   if (this == &other) return *this;
-  //   assert(&D==&other.D);
-  //   eta = other.eta;
-  //   phi = other.phi;
-  //   return *this;
-  // }
-
-
-
-
-  // double operator()(const Link& ell) const { // recommended
-  //   const int il = lattice.map2il.at(ell);
-  //   const int sign = lattice.map2sign.at(ell);
-  //   return sign * field[il];
-  // }
-
-  // PseudoFermion& operator+=(const PseudoFermion& rhs){
-  //   for(int i=0; i<field.size(); i++) field[i] += rhs.field[i];
-  //   return *this;
-  // }
-
-  // PseudoFermion& operator*=(const double rhs){
-  //   for(int i=0; i<field.size(); i++) field[i] *= rhs;
-  //   return *this;
-  // }
-
-  // PseudoFermion& operator/=(const double rhs){
-  //   for(int i=0; i<field.size(); i++) field[i] /= rhs;
-  //   return *this;
-  // }
-
-  // friend PseudoFermion operator*(PseudoFermion v, const double a) {
-  //   for(int i=0; i<v.field.size(); i++) v.field[i] *= a;
-  //   return v;
-  // }
-
-  // friend PseudoFermion operator*(const double a, PseudoFermion v) {
-  //   for(int i=0; i<v.field.size(); i++) v.field[i] *= a;
-  //   return v;
-  // }
 
 };
 

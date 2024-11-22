@@ -1,6 +1,6 @@
 # CXX=g++
 # CXXFLAGS=-std=c++17 -g -O3
-INCLUDES=-I"./newQFE/include"
+INCLUDES=-I"../../newQFE/include"
 
 NVCC=/usr/local/cuda-12.6/bin/nvcc # nvcc
 # NVCCFLAGS = -arch=sm_70 -O3 -lcusolver -std=c++17 # -diag-suppress<1650-D>
@@ -26,7 +26,7 @@ NVCCFLAGS+=-DGRP_DIR="\"$(GRP_DIR)\""
 	# $(CXX) test_dirac_dual.cc $(INCLUDES) # $(CXXFLAGS)
 	# $(CXX) test_dirac_tim.cc $(INCLUDES) $(CXXFLAGS)
 
-SRCDIR="./src/dual/"
+SRCDIR="./"
 
 dual:
 	# $(CXX) get_geometry.cc $(INCLUDES) $(CXXFLAGS)

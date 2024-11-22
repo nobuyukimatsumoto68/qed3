@@ -6,27 +6,12 @@
 #include <Eigen/Dense>
 #include <complex>
 
-// #include "s2n.h"
 
 double Mod(double a, double b=2.0*M_PI){
   int p = int(std::round(a / b));
   double r = a - p*b;
   return r;
 }
-
-
-// VE circumcenter(const VE& r0, const VE& r1, const VE& r2){
-//   const VE r10 = r1 - r0;
-//   const VE r20 = r2 - r0;
-
-//   const VE tmp1 = r10.squaredNorm() * r20 - r20.squaredNorm() * r10;
-//   const VE cross = r10.cross(r20);
-//   const VE numer = tmp1.cross(cross);
-//   const double denom = 2.0*cross.squaredNorm();
-
-//   return numer/denom + r0;
-// }
-
 
 struct SpinStructure{
   using Link = std::array<int,2>; // <int,int>;
@@ -43,7 +28,8 @@ struct SpinStructure{
   {
     {
       std::cout << "reading omega" << std::endl;
-      std::ifstream file("./dats/omega_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      std::ifstream file("../../dats/omega_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      assert(file.is_open());
 
       std::string str;
       std::string file_contents;
@@ -61,7 +47,8 @@ struct SpinStructure{
 
     {
       std::cout << "reading alpha" << std::endl;
-      std::ifstream file("./dats/alpha_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      std::ifstream file("../../dats/alpha_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      assert(file.is_open());
 
       std::string str;
       std::string file_contents;
@@ -80,15 +67,16 @@ struct SpinStructure{
 
 
 
-// template<typename Complex>
 struct Dirac1fonS2 : public SpinStructure{
   using Complex = std::complex<double>;
-  static constexpr Complex I = Complex(0.0, 1.0);
+  using Gauge=U1onS2;
 
   using MS=Eigen::Matrix2cd;
   using VD=Eigen::Vector2d;
   using VE=Eigen::Vector3d;
   using VC=Eigen::VectorXcd;
+
+  static constexpr Complex I = Complex(0.0, 1.0);
 
   const Lattice& lattice;
 
@@ -145,14 +133,7 @@ struct Dirac1fonS2 : public SpinStructure{
   }
   
 
-  // MS gamma(const int ix, const int iy, const double shift=0.0) const { // located at x
-  //   const double al = alpha.at(Link{ix,iy}) + shift;
-  //   // return std::cos(al)*sigma[1] + std::sin(al)*sigma[2];
-  //   return std::cos(al)*sigma[1] + std::sin(al)*sigma[2];
-  // }
   MS gamma(const int ix, const int jj) const { // located at x
-    // const double al = alpha.at(Link{ix,iy}) + shift;
-    // return std::cos(al)*sigma[1] + std::sin(al)*sigma[2];
     return lattice.v[ix][jj](0) * sigma[1] + lattice.v[ix][jj](1) * sigma[2];
   }
 
@@ -168,7 +149,6 @@ struct Dirac1fonS2 : public SpinStructure{
       for(int jj=0; jj<3; jj++){
 	int iy = lattice.nns[ix][jj];
 	res.block<NS,NS>(NS*ix,NS*iy) -= lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj]*sigma[0] - gamma(ix, jj)) * Omega(ix, iy);
-
 	res.block<NS,NS>(NS*ix,NS*ix) += lattice.vol[ix]/lattice.mean_vol * r*lattice.u[ix][jj]*sigma[0];
       }
     }
@@ -177,14 +157,13 @@ struct Dirac1fonS2 : public SpinStructure{
   } // end matrix_form
 
 
-  Eigen::MatrixXcd matrix_form( const U1onS2& U ) const {
+  Eigen::MatrixXcd matrix_form( const Gauge& U ) const {
     Eigen::MatrixXcd res = Eigen::MatrixXcd::Zero(NS*lattice.n_sites, NS*lattice.n_sites);
 
     for(int ix=0; ix<lattice.n_sites; ix++){
       for(int jj=0; jj<3; jj++){
 	int iy = lattice.nns[ix][jj];
 	res.block<NS,NS>(NS*ix,NS*iy) -= lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj]*sigma[0] - gamma(ix, jj)) * std::exp( I* U(Link{ix,iy})) * Omega(ix, iy);
-
 	res.block<NS,NS>(NS*ix,NS*ix) += lattice.vol[ix]/lattice.mean_vol * r*lattice.u[ix][jj]*sigma[0];
       }
     }
@@ -195,7 +174,7 @@ struct Dirac1fonS2 : public SpinStructure{
 
 
   void coo_format( Complex* v,
-		   const U1onS2& U ) const {
+		   const Gauge& U ) const {
     const int N = lattice.n_sites * NS;
     for(int i=0; i<N; i++) v[i] = 0.0;
 
@@ -229,12 +208,11 @@ struct Dirac1fonS2 : public SpinStructure{
   void d_coo_format( std::vector<Complex>& v,
 		     std::vector<int>& is,
 		     std::vector<int>& js,
-		     const U1onS2& U,
+		     const Gauge& U,
 		     const Link& ell ) const {
     const int ix0 = ell[0];
     const int iy0 = ell[1];
 
-    // int counter=0;
     {
       // pos
       const int ix = ix0;
@@ -272,20 +250,6 @@ struct Dirac1fonS2 : public SpinStructure{
     }
   }
 
-  // void operator()( Complex* res, const Complex* v, const U1onS2& U ) const {
-  //   const int N = NS*lattice.n_sites;
-  //   Complex vD[N];
-  //   coo_format( vD, U );
-  //   for(int i=0; i<N; i++) {
-  //     res[i] = 0.0;
-  //     const int row_start = rows[i];
-  //     const int row_end = rows[i+1];
-  //     for(int jj=row_start; jj<row_end; jj++) res[i] = res[i] + v_csr[jj] * v[ cols[jj] ];
-  //   };
-  // } // end matrix_form
-
-
-
 
 };
 
@@ -306,67 +270,4 @@ T matmultgam5(const T& v) {
   return res;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  // VC operator()( const VC& v ) const {
-  //   VC res = VC::Zero(v.size());
-
-  //   for(int ix=0; ix<lattice.n_sites; ix++){
-  //     for(int jj=0; jj<3; jj++){
-  // 	int iy = lattice.nns[ix][jj];
-	
-  // 	{
-  // 	  // res.block<NS,NS>(NS*ix,NS*iy) -= lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj]*sigma[0] - gamma(ix, jj)) * Omega(ix, iy);
-  // 	  const MS tmp = lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj]*sigma[0] - gamma(ix, jj)) * Omega(ix, iy);
-  // 	  res.segment<NS>(NS*ix) -= tmp * v.segment<NS>(NS*iy);
-  // 	}
-
-  // 	{
-  // 	  // res.block<NS,NS>(NS*ix,NS*ix) += lattice.vol[ix]/lattice.mean_vol * r*lattice.u[ix][jj]*sigma[0];
-  // 	  const MS tmp = lattice.vol[ix]/lattice.mean_vol * r*lattice.u[ix][jj]*sigma[0];
-  // 	  res.segment<NS>(NS*ix) += tmp * v.segment<NS>(NS*ix);
-  // 	}
-  //     }
-  //   }
-
-  //   return res;
-  // } // end matrix_form
-
-
-  // VC operator()( const U1onS2& U, const VC& v ) const {
-  //   VC res = VC::Zero(v.size());
-
-  //   for(int ix=0; ix<lattice.n_sites; ix++){
-  //     for(int jj=0; jj<3; jj++){
-  // 	int iy = lattice.nns[ix][jj];
-	
-  // 	{
-  // 	  const MS tmp = lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj]*sigma[0] - gamma(ix, jj)) * std::exp( I* U(Link{ix,iy})) * Omega(ix, iy);
-  // 	  res.segment<NS>(NS*ix) -= tmp * v.segment<NS>(NS*iy);
-  // 	}
-
-  // 	{
-  // 	  const MS tmp = lattice.vol[ix]/lattice.mean_vol * r*lattice.u[ix][jj]*sigma[0];
-  // 	  res.segment<NS>(NS*ix) += tmp * v.segment<NS>(NS*ix);
-  // 	}
-  //     }
-  //   }
-
-  //   return res;
-  // } // end matrix_form
 

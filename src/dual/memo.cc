@@ -1074,3 +1074,75 @@ void matmulgam5( T* res, T* v, const int Nx) {
     }
     std::cout << std::endl;
   }
+
+
+// VE circumcenter(const VE& r0, const VE& r1, const VE& r2){
+//   const VE r10 = r1 - r0;
+//   const VE r20 = r2 - r0;
+
+//   const VE tmp1 = r10.squaredNorm() * r20 - r20.squaredNorm() * r10;
+//   const VE cross = r10.cross(r20);
+//   const VE numer = tmp1.cross(cross);
+//   const double denom = 2.0*cross.squaredNorm();
+
+//   return numer/denom + r0;
+// }
+
+
+  // MS gamma(const int ix, const int iy, const double shift=0.0) const { // located at x
+  //   const double al = alpha.at(Link{ix,iy}) + shift;
+  //   // return std::cos(al)*sigma[1] + std::sin(al)*sigma[2];
+  //   return std::cos(al)*sigma[1] + std::sin(al)*sigma[2];
+  // }
+
+
+
+
+
+  // VC operator()( const VC& v ) const {
+  //   VC res = VC::Zero(v.size());
+
+  //   for(int ix=0; ix<lattice.n_sites; ix++){
+  //     for(int jj=0; jj<3; jj++){
+  // 	int iy = lattice.nns[ix][jj];
+	
+  // 	{
+  // 	  // res.block<NS,NS>(NS*ix,NS*iy) -= lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj]*sigma[0] - gamma(ix, jj)) * Omega(ix, iy);
+  // 	  const MS tmp = lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj]*sigma[0] - gamma(ix, jj)) * Omega(ix, iy);
+  // 	  res.segment<NS>(NS*ix) -= tmp * v.segment<NS>(NS*iy);
+  // 	}
+
+  // 	{
+  // 	  // res.block<NS,NS>(NS*ix,NS*ix) += lattice.vol[ix]/lattice.mean_vol * r*lattice.u[ix][jj]*sigma[0];
+  // 	  const MS tmp = lattice.vol[ix]/lattice.mean_vol * r*lattice.u[ix][jj]*sigma[0];
+  // 	  res.segment<NS>(NS*ix) += tmp * v.segment<NS>(NS*ix);
+  // 	}
+  //     }
+  //   }
+
+  //   return res;
+  // } // end matrix_form
+
+
+  // VC operator()( const U1onS2& U, const VC& v ) const {
+  //   VC res = VC::Zero(v.size());
+
+  //   for(int ix=0; ix<lattice.n_sites; ix++){
+  //     for(int jj=0; jj<3; jj++){
+  // 	int iy = lattice.nns[ix][jj];
+	
+  // 	{
+  // 	  const MS tmp = lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj]*sigma[0] - gamma(ix, jj)) * std::exp( I* U(Link{ix,iy})) * Omega(ix, iy);
+  // 	  res.segment<NS>(NS*ix) -= tmp * v.segment<NS>(NS*iy);
+  // 	}
+
+  // 	{
+  // 	  const MS tmp = lattice.vol[ix]/lattice.mean_vol * r*lattice.u[ix][jj]*sigma[0];
+  // 	  res.segment<NS>(NS*ix) += tmp * v.segment<NS>(NS*ix);
+  // 	}
+  //     }
+  //   }
+
+  //   return res;
+  // } // end matrix_form
+

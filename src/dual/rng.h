@@ -52,5 +52,5 @@ struct ParallelRng {
     return (b-a) * uniform() + a;
   }
 
-  void SeedRng(const int seed) { mt.seed(seed); }
+  // void SeedRng(const int seed) { mt.seed(seed); }
 };

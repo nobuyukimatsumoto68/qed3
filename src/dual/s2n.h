@@ -15,21 +15,18 @@
 struct Lattice {
   using Link = std::array<int,2>; // <int,int>;
   using Face = std::vector<int>;
-
   using MS=Eigen::Matrix2cd;
   using VD=Eigen::Vector2d;
   using VE=Eigen::Vector3d;
   using VC=Eigen::VectorXcd;
 
   const int n_refine;
-  // Rng rng;
 
   std::vector<VE> simp_sites;
   std::vector<VE> sites;
   std::vector<std::vector<int> > nns;
   std::vector<Link> links;
 
-  // std::vector<std::array<VD, 3>> exM; // site, M=A,B,C
   std::vector<std::array<double, 3>> u; // site, M=A,B,C
   std::vector<std::array<VD, 3>> v; // site, M=A,B,C
   std::vector<double> vol; // site
@@ -51,7 +48,7 @@ struct Lattice {
   {
     {
       std::cout << "reading simplicial points" << std::endl;
-      std::ifstream file("./dats/pts_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      std::ifstream file("../../dats/pts_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
       std::string str;
       while (std::getline(file, str)){
@@ -65,7 +62,7 @@ struct Lattice {
     }
     {
       std::cout << "reading dual points" << std::endl;
-      std::ifstream file("./dats/pts_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      std::ifstream file("../../dats/pts_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
       std::string str;
       while (std::getline(file, str)){
@@ -79,7 +76,7 @@ struct Lattice {
     }
     {
       std::cout << "reading nns" << std::endl;
-      std::ifstream file("./dats/nns_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      std::ifstream file("../../dats/nns_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
       std::string str;
       while (std::getline(file, str)){
@@ -93,7 +90,7 @@ struct Lattice {
     }
     {
       std::cout << "reading links" << std::endl;
-      std::ifstream file("./dats/dual_links_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      std::ifstream file("../../dats/dual_links_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
       std::string str;
       while (std::getline(file, str)){
@@ -110,7 +107,7 @@ struct Lattice {
 
     {
       std::cout << "reading vs" << std::endl;
-      std::ifstream file("./dats/vs_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      std::ifstream file("../../dats/vs_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
       std::string str;
       while (std::getline(file, str)){
@@ -127,14 +124,12 @@ struct Lattice {
 	const VD vv3(v5,v6);
 	v.push_back( std::array<VD,3>{vv1,vv2,vv3} );
       }
-      // std::cout << "set. size=" << exM.size() << std::endl;
       assert( v.size()==n_sites );
-      // std::cout << "assert done. " << std::endl;
     }
 
     {
       std::cout << "reading us" << std::endl;
-      std::ifstream file("./dats/us_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      std::ifstream file("../../dats/us_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
       std::string str;
       while (std::getline(file, str)){
@@ -143,19 +138,15 @@ struct Lattice {
 	iss >> v1;
 	iss >> v2;
 	iss >> v3;
-	// const VD e3(v5,v6);
 	u.push_back( std::array<double,3>{v1,v2,v3} );
       }
 
-      // std::cout << "set. size=" << exM.size() << std::endl;
       assert( u.size()==n_sites );
-      // std::cout << "assert done. " << std::endl;
     }
 
     {
       std::cout << "reading vols" << std::endl;
-      // std::ifstream file("./dats/dualtriangleareas_n"+std::to_string(n_refine)+".dat");
-      std::ifstream file("./dats/dualtriangleareas_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      std::ifstream file("../../dats/dualtriangleareas_n"+std::to_string(n_refine)+"_singlepatch.dat");
       assert(file.is_open());
       std::string str;
       while (std::getline(file, str)){
@@ -178,8 +169,7 @@ struct Lattice {
 
     {
       std::cout << "reading faces" << std::endl;
-      // std::ifstream file("./dats/dualtriangleareas_n"+std::to_string(n_refine)+".dat");
-      std::ifstream file("./dats/face_dual_n"+std::to_string(n_refine)+".dat");
+      std::ifstream file("../../dats/face_dual_n"+std::to_string(n_refine)+".dat");
       assert(file.is_open());
       std::string str;
       while (std::getline(file, str)){
@@ -251,20 +241,5 @@ struct Lattice {
 
     return res;
   }
-
-  // VE circumcenter(const VE& r0, const VE& r1, const VE& r2) const {
-  //   const VE r10 = r1 - r0;
-  //   const VE r20 = r2 - r0;
-
-  //   const VE tmp1 = r10.squaredNorm() * r20 - r20.squaredNorm() * r10;
-  //   const VE cross = r10.cross(r20);
-
-  //   const VE numer = tmp1.cross(cross);
-  //   const double denom = 2.0*cross.squaredNorm();
-
-  //   return numer/denom + r0;
-  // }
-
-  // void SeedRng(const int seed) { rng.SeedRng(seed); }
 
 };

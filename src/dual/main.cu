@@ -2,8 +2,9 @@
 
 #include "s2n.h"
 #include "rng.h"
-#include "u1_s2_dual.h"
-#include "dirac_s2_dual.h"
+#include "gauge.h"
+#include "action.h"
+#include "dirac.h"
 #include "sparse.h"
 #include "pseudofermion.h"
 #include "cg_cuda.h"
@@ -23,7 +24,7 @@ int main(int argc, char* argv[]){
 
   using Gauge=U1onS2;
   using Force=U1onS2;
-  using GaugeAction=U1Wilson;
+  using Action=U1Wilson;
   using Fermion=Dirac1fonS2;
   using Rng=ParallelRng;
 
@@ -38,10 +39,11 @@ int main(int argc, char* argv[]){
 
   const bool is_compact = false;
   Gauge U(lattice);
-  GaugeAction SW(gR, is_compact);
+  Action SW(gR, is_compact);
 
-  Metropolis<GaugeAction, Gauge> met(rng, SW, width);
-  for(int i=0; i<100; i++) double r = met( U );
+  // Metropolis<Action, Gauge> met(rng, SW, width);
+  // for(int i=0; i<100; i++) double r = met( U );
+  U.gaussian( rng );
 
   // ---------------------------------------
 

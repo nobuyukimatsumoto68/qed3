@@ -6,7 +6,6 @@ struct Sparse{
 
   static constexpr int NS = 2;
 
-
   int len;
 
   std::vector<int> is;
@@ -144,8 +143,5 @@ struct Sparse{
     for(int i=0; i<v.size(); i++) res[i] = 0.0;
     for(int i=0; i<isC.size(); i++) res[isC[i]] += val[i] * v[jsC[i]];
   }
-
-
-
 
 };
