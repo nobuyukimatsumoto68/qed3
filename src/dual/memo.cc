@@ -1146,3 +1146,69 @@ void matmulgam5( T* res, T* v, const int Nx) {
   //   return res;
   // } // end matrix_form
 
+
+
+
+
+  {
+    using Link = std::array<int,2>; // <int,int>;
+    PseudoFermion phi( D, U, rng );
+    Force exact = phi.get_force( U );
+
+    for(int il=0; il<U.lattice.n_links; il++){
+      const double eps = 1.0e-5;
+      Gauge UP(U);
+      Gauge UM(U);
+
+      UP[il] += eps;
+      UM[il] -= eps;
+
+      std::vector<Complex> etaP = phi.get_eta( UP );
+      std::vector<Complex> etaM = phi.get_eta( UM );
+
+      Complex SP = phi.dot( phi.phi, etaP );
+      Complex SM = phi.dot( phi.phi, etaM );
+      Complex numeric = ( SP - SM ) / (2.0*eps);
+      std::cout << exact[il] << " " << numeric << std::endl;
+    }
+  }
+
+
+
+  {
+    using Link = std::array<int,2>; // <int,int>;
+    PseudoFermion phi( D, U, rng );
+    Force exact = phi.get_force( U );
+
+    for(int il=0; il<U.lattice.n_links; il++){
+      const double eps = 1.0e-5;
+      Gauge UP(U);
+      Gauge UM(U);
+
+      UP[il] += eps;
+      UM[il] -= eps;
+
+      double numeric = ( phi.S(UP) - phi.S(UM) ) / (2.0*eps);
+      std::cout << exact[il] << " " << numeric << std::endl;
+    }
+  }
+
+
+
+  {
+    using Link = std::array<int,2>; // <int,int>;
+    PseudoFermion phi( D, U, rng );
+    Force exact = phi.dS( U );
+
+    for(int il=0; il<U.lattice.n_links; il++){
+      const double eps = 1.0e-5;
+      Gauge UP(U);
+      Gauge UM(U);
+
+      UP[il] += eps;
+      UM[il] -= eps;
+
+      double numeric = ( phi.S(UP) - phi.S(UM) ) / (2.0*eps);
+      std::cout << exact[il] << " " << numeric << std::endl;
+    }
+  }

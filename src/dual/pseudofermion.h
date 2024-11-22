@@ -6,7 +6,6 @@
 #include "cg_cuda.h"
 
 struct PseudoFermion {
-
   using Complex = std::complex<double>;
   using Link = std::array<int,2>; // <int,int>;
   using Face = std::vector<int>;
@@ -106,13 +105,21 @@ struct PseudoFermion {
   auto end() const { return phi.end(); }
 
 
-  Complex dot( const std::vector<Complex> eta, const std::vector<Complex> phi) const {
-    assert( eta.size()==phi.size() );
+  Complex dot( const std::vector<Complex>& eta, const std::vector<Complex>& xi) const {
+    assert( eta.size()==xi.size() );
     Complex res = 0.0;
-    for(int i=0; i<eta.size(); i++) res += std::conj(eta[i]) * phi[i];
+    for(int i=0; i<eta.size(); i++) res += std::conj(eta[i]) * xi[i];
     return res;
   }
-  
+
+  Complex dot( const std::vector<Complex>& eta ) const {
+    return dot(this->phi, eta);
+  }
+
+  double S( const Gauge& U ) const {
+    return dot( this->get_eta( U ) ).real();
+  }
+
 
   double get_force( const Gauge& U, const Link& ell ) const {
     const int N = D.lattice.n_sites*NS;
@@ -133,7 +140,7 @@ struct PseudoFermion {
   }
 
 
-  Force get_force( const Gauge& U ) const {
+  Force dS( const Gauge& U ) const {
     Force pi( U.lattice ); // 0 initialized
     for(int ell=0; ell<U.lattice.n_links; ell++) pi[ell] = get_force( U, U.lattice.links[ell] );
     return pi;
