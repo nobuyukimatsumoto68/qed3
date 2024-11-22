@@ -13,10 +13,10 @@ int main(int argc, char* argv[]){
   std::cout << std::scientific << std::setprecision(14);
   std::clog << std::scientific << std::setprecision(14);
 
-  using GaugeField=U1onS2;
-  using GaugeForce=U1onS2;
-  using GaugeAction=U1Wilson;
-  using FermionAction=Dirac1fonS2;
+  using Gauge=U1onS2;
+  using Force=U1onS2;
+  using Action=U1Wilson;
+  using Fermion=Dirac1fonS2;
 
   using MS=Eigen::Matrix2cd;
   using VD=Eigen::Vector2d;

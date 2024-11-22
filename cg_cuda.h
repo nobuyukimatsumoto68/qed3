@@ -180,7 +180,7 @@ void dot2self_normalized_wrapper(double& scalar, CuC* d_scalar, CuC* d_p, const 
   cudacheck(cudaMemcpy(d_scalar, &dummy, CD, H2D));
   dot_normalized<<<NBlocks, NThreadsPerBlock>>>(d_scalar, d_p, d_p, N);
   cudacheck(cudaMemcpy(&dummy, d_scalar, CD, D2H));
-  std::cout << abs( imag(dummy) ) << std::endl;
+  // std::cout << abs( imag(dummy) ) << std::endl;
   assert( abs( imag(dummy) )<1.0e-13*std::sqrt(N) );
   scalar = real(dummy);
 }
@@ -429,7 +429,7 @@ struct CGCUDA{ // wrapper
   void operator()( Complex* res, const Complex* v, const U1onS2& U ) const {
 
     Complex v_coo[ sparse.len ], v_csr[ sparse.len ], v_csrH[ sparse.len ];
-    D.coo_format( v_coo, sparse.N, U );
+    D.coo_format( v_coo, U );
     sparse.coo2csr_csrH( v_csr, v_csrH, v_coo );
 
     solve(reinterpret_cast<CuC*>(res),

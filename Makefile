@@ -16,7 +16,7 @@ CXXFLAGS+=-DGRP_DIR="\"$(GRP_DIR)\""
 NVCCFLAGS+=-DGRP_DIR="\"$(GRP_DIR)\""
 
 
-simp:
+# simp:
 	#$(CXX) get_geometry.cc $(INCLUDES) $(CXXFLAGS)
 	# $(CXX) test_geometry.cc $(INCLUDES) $(CXXFLAGS)
 	# $(CXX) test_geometry_flat.cc $(INCLUDES) $(CXXFLAGS)

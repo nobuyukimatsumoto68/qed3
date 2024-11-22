@@ -3,8 +3,7 @@
 #include <random>
 
 
-
-struct Rng {
+struct SingleRng {
   std::mt19937_64 mt;
 
   std::normal_distribution<double> dist_gaussian;
@@ -20,6 +19,7 @@ struct Rng {
   void SeedRng(const int seed) { mt.seed(seed); }
 };
 
+
 struct ParallelRng {
   const Lattice& lattice;
   const int seed;
@@ -34,8 +34,8 @@ struct ParallelRng {
     , mt_site( lattice.n_sites )
   {
     mt.seed(seed);
-    for(auto elem : mt_link) elem.seed( mt() );
-    for(auto elem : mt_site) elem.seed( mt() );
+    for(auto& elem : mt_link) elem.seed( mt() );
+    for(auto& elem : mt_site) elem.seed( mt() );
   }
 
   std::normal_distribution<double> dist_gaussian;

@@ -1,11 +1,13 @@
+#include <iomanip>
+
 #include "s2n.h"
 #include "rng.h"
 #include "u1_s2_dual.h"
 #include "dirac_s2_dual.h"
 #include "sparse.h"
 #include "pseudofermion.h"
-// #include "cg_cuda.h"
-// #include "metropolis.h"
+#include "cg_cuda.h"
+#include "metropolis.h"
 
 
 
@@ -16,53 +18,63 @@ int main(int argc, char* argv[]){
   using VC=Eigen::VectorXcd;
   using Complex=std::complex<double>;
 
+  std::cout << std::scientific << std::setprecision(14);
+  std::clog << std::scientific << std::setprecision(14);
+
+  using Gauge=U1onS2;
+  using Force=U1onS2;
+  using GaugeAction=U1Wilson;
+  using Fermion=Dirac1fonS2;
+  using Rng=ParallelRng;
+
   // geometry
   const int n_refine=1;
   Lattice lattice(n_refine);
-  Dirac1fonS2 D(lattice);
+  Fermion D(lattice);
+  Rng rng(lattice);
 
   const double gR = 0.4;
   const double width = 5.0 * gR / std::sqrt( lattice.n_faces );
 
   const bool is_compact = false;
-  U1onS2 U(lattice);
-  U1Wilson SW(gR, is_compact);
-  // Metropolis<U1Wilson, U1onS2> met(SW, width);
-  // for(int i=0; i<100; i++) double r = met( U );
+  Gauge U(lattice);
+  GaugeAction SW(gR, is_compact);
+
+  Metropolis<GaugeAction, Gauge> met(rng, SW, width);
+  for(int i=0; i<100; i++) double r = met( U );
 
   // ---------------------------------------
 
-  // {
-  //   auto mat = D.matrix_form( U );
-  //   auto gam5_D = matmultgam5( mat );
-  //   std::cout << gam5_D.adjoint() - gam5_D << std::endl;
-  //   std::cout << "det D = "  << mat.determinant() << std::endl;
-  //   std::cout << "det HW = " << gam5_D.determinant() << std::endl;
+  {
+    using Link = std::array<int,2>; // <int,int>;
+    PseudoFermion phi( D, U, rng );
+    // phi.gen( U, rng );
 
-  //   // std::cout << "det = " << mat.determinant() << std::endl;
-  //   // const VC r = VC::Random( mat.cols() );
-  //   // auto tmp1 = (mat.adjoint()*mat).inverse() * r;
+    Force exact = phi.get_force( U );
 
-  //   // // ----------------
+    for(int il=0; il<U.lattice.n_links; il++){
+      // Link link = lattice.links[il];
+      // const int ix=link[0], iy=link[1];
 
-  //   // const CGCUDA solver( lattice, D );
+      const double eps = 1.0e-5;
+      // const int ell=lattice.map2il.at( link );
+      Gauge UP(U);
+      Gauge UM(U);
 
-  //   // Complex v[solver.sparse.N];
-  //   // for(int i=0; i<solver.sparse.N; i++) v[i] = r[i];
-  //   // Complex res[solver.sparse.N];
+      UP[il] += eps;
+      UM[il] -= eps;
 
-  //   // solver( res, v, U );
+      std::vector<Complex> etaP = phi.get_eta( UP );
+      std::vector<Complex> etaM = phi.get_eta( UM );
 
-  //   // double norm = 0.0;
-  //   // for(int i=0; i<solver.sparse.N; i++) {
-  //   //   // std::cout << "i = " << i << ", " << std::abs(tmp1[i] - res[i]) << std::endl;
-  //   //   norm += std::abs(tmp1[i] - res[i]);
-  //   // }
-  //   // std::cout << "norm = " << norm << std::endl;
-  // }
+      Complex SP = phi.dot( phi.phi, etaP );
+      Complex SM = phi.dot( phi.phi, etaM );
+      Complex numeric = ( SP - SM ) / (2.0*eps);
+      std::cout << exact[il] << " " << numeric << std::endl;
+    }
+  }
 
 
 
   return 0; // EXIT_SUCCESS;
-
 }

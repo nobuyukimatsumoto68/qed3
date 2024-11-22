@@ -825,3 +825,252 @@ void matmulgam5( T* res, T* v, const int Nx) {
 		<< std::endl;
     }
   }
+
+
+
+
+  // {
+  //   auto mat = D.matrix_form( U );
+  //   // auto gam5_D = matmultgam5( mat );
+  //   // std::cout << gam5_D.adjoint() - gam5_D << std::endl;
+  //   // std::cout << "det D = "  << mat.determinant() << std::endl;
+  //   // std::cout << "det HW = " << gam5_D.determinant() << std::endl;
+
+  //   // std::cout << "det = " << mat.determinant() << std::endl;
+
+  //   // // ----------------
+
+  //   const CGCUDA cg( D );
+
+  //   Complex v[cg.sparse.N];
+  //   for(int i=0; i<cg.sparse.N; i++) v[i] = rng.gaussian();
+
+  //   Complex res[cg.sparse.N];
+  //   cg( res, v, U );
+
+  //   const VC r = Eigen::Map<VC>( v, cg.sparse.N );
+  //   auto tmp1 = (mat.adjoint()*mat).inverse() * r;
+
+  //   double norm = 0.0;
+  //   for(int i=0; i<cg.sparse.N; i++) {
+  //     // std::cout << "i = " << i << ", " << std::abs(tmp1[i] - res[i]) << std::endl;
+  //     norm += std::abs(tmp1[i] - res[i]);
+  //   }
+  //   std::cout << "norm = " << norm << std::endl;
+  // }
+
+
+  // {
+  //   const CGCUDA cg( D );
+
+  //   Complex v[cg.sparse.N];
+  //   std::vector<Complex> xi(cg.sparse.N, 0.0);
+  //   std::vector<Complex> phi(cg.sparse.N, 0.0);
+  //   for(int i=0; i<cg.sparse.N; i++) xi[i] = rng.gaussian();
+
+  //   // Complex res[cg.sparse.N];
+  //   Complex D_coo[cg.sparse.len], D_csrH[cg.sparse.len];
+  //   D.coo_format(D_coo, U);
+  //   cg.sparse.coo2csrH( D_csrH, D_coo );
+  //   cg.sparse.multT<Complex>( phi.data(), xi.data(), D_csrH );
+
+  //   const VC r = Eigen::Map<VC>( xi.data(), cg.sparse.N );
+  //   auto mat = D.matrix_form( U );
+  //   auto tmp1 = mat.adjoint() * r;
+  //   for(int i=0; i<phi.size(); i++) std::cout << "diff = " << tmp1(i) - phi[i] << std::endl;
+  // }
+
+
+  // for(int ix=0; ix<D.lattice.n_sites; ix++){
+  //   std::cout << ix << " " << rng.gaussian_site(ix) << std::endl;
+  // }
+
+
+  {
+    PseudoFermion phi( D );
+    phi.gen( U, rng );
+
+    Eigen::MatrixXcd tmp = Eigen::MatrixXcd::Zero( phi.phi.size(), phi.phi.size() );
+    int kkmax = 1000000;
+
+    for(int kk=0; kk<kkmax; kk++){
+      phi.gen( U, rng );
+      for(int i=0; i<phi.phi.size(); i++) for(int j=0; j<phi.phi.size(); j++) {
+	  // tmp(i,j) += phi[i] * std::conj(phi[j]);
+	  // tmp(i,j) += std::conj(phi[i]) * phi[j];
+	  tmp(i,j) += phi[i] * std::conj(phi[j]);
+	  // std::cout << *iter << " ";
+	}
+    }
+    tmp /= kkmax;
+
+    // for(int i=0; i<phi.phi.size(); i++) {
+    //   for(int j=0; j<phi.phi.size(); j++) {
+    // 	std::cout << i << " " << j << " " << tmp(i,j) << " ";
+    //   }
+    //   std::cout << std::endl;
+    // }
+    // std::cout << std::endl;
+
+    auto mat = D.matrix_form( U );
+    auto mat2= mat.adjoint() * mat;
+    std::cout << "diff (Ddag D) = " << std::endl;
+    // auto mat2= mat * mat.adjoint();
+    // std::cout << "D Ddag = " << std::endl;
+    for(int i=0; i<phi.phi.size(); i++) {
+      for(int j=0; j<phi.phi.size(); j++) {
+	std::cout << i << " " << j << " " << mat2(i,j) << " " << tmp(i,j) << std::endl;
+      }
+      std::cout << std::endl;
+    }
+    std::cout << std::endl;
+
+
+    // auto mat = D.matrix_form( U );
+    // auto mat2= mat.adjoint() * mat;
+    // std::cout << "diff (Ddag D) = " << std::endl;
+    // // auto mat2= mat * mat.adjoint();
+    // // std::cout << "D Ddag = " << std::endl;
+    // for(int i=0; i<phi.phi.size(); i++) {
+    //   for(int j=0; j<phi.phi.size(); j++) {
+    // 	std::cout << i << " " << j << " " << mat2(i,j) - tmp(j,i) << std::endl;
+    //   }
+    //   std::cout << std::endl;
+    // }
+    // std::cout << std::endl;
+
+    // std::cout << mat2 << std::endl;
+    // std::cout << mat2.inverse() << std::endl;
+  }
+
+
+
+
+
+
+  PseudoFermion pf( D );
+  pf.gen( U, rng );
+
+  {
+    using Link = std::array<int,2>; // <int,int>;
+
+    std::vector<Complex> dD;
+    std::vector<int> is;
+    std::vector<int> js;
+
+    const int ix=0, jj=0;
+    const int iy=lattice.nns[ix][jj];
+
+    D.d_coo_format( dD, is, js, U, Link{ix,iy} );
+
+    // std::cout << "vD = " << std::endl;
+    // for(int i=0; i<vD.size(); i++) {
+    //   std::cout << is[i] << " " << js[i] << " " << vD[i] << std::endl;
+    // }
+    // std::cout << std::endl;
+    // std::cout << "is = " << std::endl;
+    // for(int i=0; i<is.size(); i++) std::cout << ;
+    // std::cout << std::endl;
+    // std::cout << "js = " << std::endl;
+    // for(int i=0; i<js.size(); i++) std::cout << js[i] << " ";
+    // std::cout << std::endl;
+
+    std::vector<Complex> v(lattice.n_sites*2, 0.0);
+    constexpr Complex I = Complex(0.0, 1.0);
+    for(int ix=0; ix<lattice.n_sites; ix++) for(int a=0; a<2; a++) v[2*ix+a] = ( rng.gaussian_site(ix) + I*rng.gaussian_site(ix) ) / std::sqrt(2.0);
+
+    std::vector<Complex> dDv;
+    pf.cg.sparse.multcoo( dDv, v, dD, is, js );
+
+    std::cout << "dDv = " << std::endl;
+    for(int i=0; i<dDv.size(); i++) std::cout << dDv[i] << " ";
+    std::cout << std::endl;
+
+    const double eps = 1.0e-5;
+
+    // for(int a=0; a<U.field.size(); a++){
+    const int ell=lattice.map2il.at(Link{ix,iy});
+    Gauge UP(U);
+    Gauge UM(U);
+
+    UP[ell] += eps;
+    UM[ell] -= eps;
+
+    auto DP = D.matrix_form( UP );
+    auto DM = D.matrix_form( UM );
+
+    const VC r = Eigen::Map<VC>( v.data(), pf.cg.sparse.N );
+    // auto numeric = ( DP - DM ) / (2.0*eps);
+    // for(int i=0; i<numeric.cols(); i++) {
+    //   for(int j=0; j<numeric.rows(); j++) {
+    // 	if( std::abs(numeric(i,j))>1.0e-15 ) std::cout << i << " " << j << " " << numeric(i,j) << std::endl;
+    //   }
+    //   // std::cout << std::endl;
+    // }
+    // std::cout << std::endl;
+
+    auto numeric = ( DP*r - DM*r ) / (2.0*eps);
+    std::cout << "numeric = " << std::endl;
+    for(int i=0; i<numeric.size(); i++) std::cout << numeric[i] << " ";
+    std::cout << std::endl;
+  }
+
+
+
+
+
+  {
+    PseudoFermion phi( D );
+
+    Eigen::MatrixXcd tmp = Eigen::MatrixXcd::Zero( phi.phi.size(), phi.phi.size() );
+    int kkmax = 1000;
+
+    for(int kk=0; kk<kkmax; kk++){
+      phi.gen( U, rng );
+      std::vector<Complex> eta = phi.get_eta( U );
+      for(int i=0; i<phi.phi.size(); i++) for(int j=0; j<phi.phi.size(); j++) {
+	  tmp(i,j) += eta[i] * std::conj(eta[j]);
+	}
+    }
+    tmp /= kkmax;
+
+    auto mat = D.matrix_form( U );
+    auto mat2= (mat.adjoint() * mat).inverse();
+    std::cout << "diff (Ddag D)^{-1} = " << std::endl;
+    for(int i=0; i<phi.phi.size(); i++) {
+      for(int j=0; j<phi.phi.size(); j++) {
+	std::cout << i << " " << j << " " << mat2(i,j) << " " << tmp(i,j) << std::endl;
+      }
+      std::cout << std::endl;
+    }
+    std::cout << std::endl;
+  }
+
+
+
+  {
+    PseudoFermion phi( D );
+
+    Eigen::MatrixXcd tmp = Eigen::MatrixXcd::Zero( phi.phi.size(), phi.phi.size() );
+    int kkmax = 1000;
+
+    for(int kk=0; kk<kkmax; kk++){
+      phi.gen( U, rng );
+      std::vector<Complex> eta = phi.get_eta( U );
+      for(int i=0; i<phi.phi.size(); i++) for(int j=0; j<phi.phi.size(); j++) {
+	  tmp(i,j) += eta[i] * std::conj(eta[j]);
+	}
+    }
+    tmp /= kkmax;
+
+    auto mat = D.matrix_form( U );
+    auto mat2= (mat.adjoint() * mat).inverse();
+    std::cout << "diff (Ddag D)^{-1} = " << std::endl;
+    for(int i=0; i<phi.phi.size(); i++) {
+      for(int j=0; j<phi.phi.size(); j++) {
+	std::cout << i << " " << j << " " << mat2(i,j) << " " << tmp(i,j) << std::endl;
+      }
+      std::cout << std::endl;
+    }
+    std::cout << std::endl;
+  }

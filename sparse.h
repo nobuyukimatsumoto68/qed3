@@ -22,7 +22,7 @@ struct Sparse{
 
   Sparse(const Lattice& lattice_)
     : lattice(lattice_)
-    , N(2*lattice.n_sites)
+    , N(NS*lattice.n_sites)
   {
     // ========= COO ========= //
 
@@ -79,6 +79,7 @@ struct Sparse{
     assert( rows_csrT.size()==N+1 );
   } // end of constructor
 
+
   template<typename T>
   void coo2csr( T* v_csr,
 	        const T* v_coo) const {
@@ -108,8 +109,9 @@ struct Sparse{
   }
 
   template<typename T>
-  void mult( T* res, T* v,
+  void mult( T* res, const T* v,
 	     const T* v_csr ) const {
+    assert(res!=v);
     for(int i=0; i<N; i++){
       res[i] = 0.0;
       const int row_start = rows_csr[i];
@@ -121,8 +123,9 @@ struct Sparse{
   }
 
   template<typename T>
-  void multT( T* res, T* v,
+  void multT( T* res, const T* v,
 	      const T* v_csrT ) const {
+    assert(res!=v);
     for(int i=0; i<N; i++){
       res[i] = 0.0;
       const int row_start = rows_csrT[i];
@@ -132,6 +135,16 @@ struct Sparse{
       }
     }
   }
+
+  // for customized sparse structure such as for the derivatives
+  template <typename T>
+  void multcoo( std::vector<T>& res, const std::vector<T>& v,
+		const std::vector<T>& val, const std::vector<int>& isC, const std::vector<int>& jsC ) const {
+    res.resize( v.size() );
+    for(int i=0; i<v.size(); i++) res[i] = 0.0;
+    for(int i=0; i<isC.size(); i++) res[isC[i]] += val[i] * v[jsC[i]];
+  }
+
 
 
 
