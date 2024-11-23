@@ -1,5 +1,5 @@
-set term postscript eps color blacktext enhanced
-set output 'cost_scaling.eps'
+set term pdfcairo enhanced
+set output 'cost_scaling.pdf'
 set xlabel font "Liberation Sans,16"
 set ylabel font "Liberation Sans,16"
 set tics font "Liberation Sans,20"
@@ -7,6 +7,7 @@ set title font "Liberation Sans,22"
 
 set xlabel 'volume'
 set ylabel 'sec'
+set title "10 configs"
 
 set logscale x
 set logscale y

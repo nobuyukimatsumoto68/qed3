@@ -1246,3 +1246,27 @@ void matmulgam5( T* res, T* v, const int Nx) {
     std::cout << nsteps << " " << h1-h0 << std::endl;
   }  
 
+
+
+
+  // double stot = 1.0;
+
+  // Force pi( lattice );
+  // pi.gaussian( rng );
+
+  // for(int nsteps=10; nsteps<100; nsteps+=10){
+  //   rng.reseed( 1 );
+  //   HMC hmc(rng, SW, D, stot, nsteps);
+
+  //   Force pi1(pi);
+  //   Gauge U1( U );
+  //   hmc.phi.gen( U, rng );
+
+  //   const double h0 = hmc.H(pi1, U1);
+  //   hmc.leapfrog_explicit( pi1, U1 );
+  //   const double h1 = hmc.H(pi1, U1);
+
+  //   std::cout << nsteps << " " << h1-h0 << std::endl;
+  // }
+
+  // ---------------------------------------

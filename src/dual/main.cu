@@ -2,7 +2,7 @@
 
 #include <omp.h>
 constexpr int nparallel=10;
-// #define IsVerbose
+#define IsVerbose
 
 
 #include "s2n.h"
@@ -18,12 +18,6 @@ constexpr int nparallel=10;
 
 
 int main(int argc, char* argv[]){
-  using MS=Eigen::Matrix2cd;
-  using VD=Eigen::Vector2d;
-  using VE=Eigen::Vector3d;
-  using VC=Eigen::VectorXcd;
-  using Complex=std::complex<double>;
-
   std::cout << std::scientific << std::setprecision(14);
   std::clog << std::scientific << std::setprecision(14);
 
@@ -35,7 +29,7 @@ int main(int argc, char* argv[]){
   using Rng=ParallelRng;
 
   // geometry
-  const int n_refine=4;
+  const int n_refine=2;
   Lattice lattice(n_refine);
   Fermion D(lattice);
   Rng rng(lattice);
@@ -51,38 +45,28 @@ int main(int argc, char* argv[]){
 
   // ---------------------------------------
 
-  // double stot = 1.0;
-
-  // Force pi( lattice );
-  // pi.gaussian( rng );
-
-  // for(int nsteps=10; nsteps<100; nsteps+=10){
-  //   rng.reseed( 1 );
-  //   HMC hmc(rng, SW, D, stot, nsteps);
-
-  //   Force pi1(pi);
-  //   Gauge U1( U );
-  //   hmc.phi.gen( U, rng );
-
-  //   const double h0 = hmc.H(pi1, U1);
-  //   hmc.leapfrog_explicit( pi1, U1 );
-  //   const double h1 = hmc.H(pi1, U1);
-
-  //   std::cout << nsteps << " " << h1-h0 << std::endl;
-  // }
-
-  // ---------------------------------------
-
   double stot = 1.0;
-  int nsteps = 20;
+  int nsteps = 40;
   HMC hmc(rng, SW, D, stot, nsteps);
 
-  for(int n=0; n<10; n++){
+  const int ntherm=100;
+  const int ntot=100;
+  for(int n=0; n<ntherm; n++){
     double r, dH;
     bool is_accept;
     hmc.run( U, r, dH, is_accept );
     std::cout << n << "; " << is_accept << "; dH = " << dH << std::endl;
-  }  
+  }
+  double acceptance=0.0;
+  for(int n=0; n<ntot; n++){
+    double r, dH;
+    bool is_accept;
+    hmc.run( U, r, dH, is_accept );
+    acceptance+=r;
+    std::cout << n << "; " << is_accept << "; dH = " << dH << std::endl;
+  }
+  acceptance /= ntot;
+  std::cout << "acceptance = " << acceptance << std::endl;
 
 
   return 0; // EXIT_SUCCESS;
