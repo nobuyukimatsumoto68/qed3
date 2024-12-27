@@ -1270,6 +1270,7 @@ void matmulgam5( T* res, T* v, const int Nx) {
   // }
 
   // ---------------------------------------
+<<<<<<< HEAD
 
 
 
@@ -1352,3 +1353,5 @@ void matmulgam5( T* res, T* v, const int Nx) {
   for(double x = -1.0; x<=1.0; x+=0.01){
     std::cout << x << " " << 1.0-std::abs(f(x)) << std::endl;
   }
+=======
+>>>>>>> e437e6bff02af9896eb4e9c1ec4b6ea935665eb2
