@@ -1,10 +1,10 @@
 # CXX=g++
 # CXXFLAGS=-std=c++17 -g -O3
-INCLUDES=-I"../../newQFE/include" -pg
+INCLUDES=-I"../../newQFE/include"
 
 NVCC=/usr/local/cuda-12.6/bin/nvcc # nvcc
 # NVCCFLAGS = -arch=sm_70 -O3 -lcusolver -std=c++17 # -diag-suppress<1650-D>
-NVCCFLAGS=-w -arch=sm_70 -O3 -std=c++17 -Xcompiler -fopenmp -lgomp # -diag-suppress<1650-D>
+NVCCFLAGS=-w -arch=sm_70 -O3 -std=c++17 -lcusolver -Xcompiler -fopenmp -lgomp # -diag-suppress<1650-D>
 INCLUDES_CUDA=-I/usr/local/cuda-12.6/include/
 LDFLAGS_CUDA=-L/opt/nvidia/hpc_sdk/Linux_x86_64/24.3/cuda/12.3/targets/x86_64-linux/lib/
 
@@ -38,7 +38,9 @@ dual:
 	# $(CXX) test_dirac_dual.cc $(INCLUDES) # $(CXXFLAGS)
 	# $(CXX) test_sparse.cc $(INCLUDES) $(CXXFLAGS)
 	# $(NVCC) test_cg.cu $(NVCCFLAGS) $(INCLUDES_CUDA) $(LDFLAGS_CUDA)
-	$(NVCC) $(SRCDIR)main.cu $(NVCCFLAGS) $(INCLUDES_CUDA) $(LDFLAGS_CUDA)
+	# $(NVCC) $(SRCDIR)main.cu $(NVCCFLAGS) $(INCLUDES_CUDA) $(LDFLAGS_CUDA)
+	# $(NVCC) $(SRCDIR)test.cu $(NVCCFLAGS) $(INCLUDES_CUDA) $(LDFLAGS_CUDA)
+	$(NVCC) eig.cu $(NVCCFLAGS) $(INCLUDES_CUDA) $(LDFLAGS_CUDA)
 	# $(CXX) test_hmc_scalar.cc $(INCLUDES) # $(CXXFLAGS)
 	# $(CXX) hmc_dirac_dual.cc $(INCLUDES) $(CXXFLAGS)
 	# $(CXX) test_dirac_tim.cc $(INCLUDES) $(CXXFLAGS)

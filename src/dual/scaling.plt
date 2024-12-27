@@ -1,5 +1,7 @@
-set term postscript eps color blacktext enhanced
-set output 'stepsize_scaling.eps'
+set term pdfcairo enhanced
+set output 'stepsize_scaling.pdf'
+# set term pdf enhanced
+# set output 'stepsize_scaling.svg'
 set xlabel font "Liberation Sans,16"
 set ylabel font "Liberation Sans,16"
 set tics font "Liberation Sans,20"

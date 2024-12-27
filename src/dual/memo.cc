@@ -1246,3 +1246,109 @@ void matmulgam5( T* res, T* v, const int Nx) {
     std::cout << nsteps << " " << h1-h0 << std::endl;
   }  
 
+
+
+
+  // double stot = 1.0;
+
+  // Force pi( lattice );
+  // pi.gaussian( rng );
+
+  // for(int nsteps=10; nsteps<100; nsteps+=10){
+  //   rng.reseed( 1 );
+  //   HMC hmc(rng, SW, D, stot, nsteps);
+
+  //   Force pi1(pi);
+  //   Gauge U1( U );
+  //   hmc.phi.gen( U, rng );
+
+  //   const double h0 = hmc.H(pi1, U1);
+  //   hmc.leapfrog_explicit( pi1, U1 );
+  //   const double h1 = hmc.H(pi1, U1);
+
+  //   std::cout << nsteps << " " << h1-h0 << std::endl;
+  // }
+
+  // ---------------------------------------
+
+
+
+
+
+  // {
+  //   double z = 0.1;
+
+  //   double k, sn, cn, K;
+  //   z = 0.1;
+  //   k = 0.2;
+  //   EllipticUtils::sncnK( z, k, sn, cn, K);
+  //   std::cout << "z  = " << z  << std::endl
+  // 	      << "k  = " << k  << std::endl
+  // 	      << "sn = " << sn << std::endl
+  // 	      << "cn = " << cn << std::endl
+  // 	      << "K  = " << K  << std::endl;
+
+  //   double kp, snk, cnk, Kp;
+  //   kp = std::sqrt(1.0-k*k);
+  //   EllipticUtils::sncnK( z, kp, snk, cnk, Kp, agm );
+  //   std::cout << "Kp = " << Kp << std::endl;
+  // }
+
+
+  {
+    const int n=11;
+    const double k = 0.1;
+
+    const double kp = std::sqrt(1.0-k*k);
+
+    std::vector<double> c( int(n/2)+1, 0.0 );
+    std::vector<double> cp( int(n/2)+1, 0.0 );
+
+    double Kp = 1.0, xibar;
+    for(int m=0; m<=int(n/2); m++){
+      double sn, cn, dn;
+      double z = 2.0 * Kp * m / n;
+      EllipticUtils::sncndnK( z, kp, sn, cn, dn, Kp );
+      if(m==0) continue;
+      c[m] = - std::pow( cn / sn, 2 );
+
+      z = 2.0 * Kp * (m-0.5) / n;
+      EllipticUtils::sncndnK( z, kp, sn, cn, dn, Kp );
+      cp[m] = - std::pow( cn / sn, 2 );
+      if(m==1) xibar = 1.0/dn;
+
+      std::cout << "c[" << m << "] = " << c[m] << std::endl
+		<< "cp[" << m << "] = " << cp[m] << std::endl;
+    }
+
+    double M = 1.0;
+    for(int m=1; m<=int(n/2); m++) M *= (1.0-c[m]) / (1.0-cp[m]);
+
+    double lambda_inv = xibar / M;
+    for(int m=1; m<=int(n/2); m++) lambda_inv *= (1.0-c[m]*xibar*xibar) / (1.0-cp[m]*xibar*xibar);
+
+    // double A = 2.0 / (1.0+1.0/lambda) / k;
+    // for(int m=1; m<=int(n/2); m++) A *= ap[m] / a[m] * (1.0-k*k/ap[m]) / (1.0-k*k/a[m]);
+    std::cout << "M = " << M << std::endl
+	      << "lambda_inv = " << lambda_inv << std::endl;
+
+    {
+      for(double x = 0.01; x<=1.0; x+=0.01){
+	double res = 2.0 / (1.0+lambda_inv) * x / (k*M);
+	for(int m=1; m<=int(n/2); m++) res *= (k*k - c[m]*x*x) / (k*k - cp[m]*x*x);
+	std::cout << x << " " << 1.0-res << std::endl;
+      }
+    }
+
+    const double Delta = (lambda_inv - 1.0) / (lambda_inv + 1.0);
+    std::cout << "Delta = " << Delta << std::endl;
+  }
+
+
+
+  Zolotarev f;
+  std::cout << "Delta = " << f.Delta() << std::endl;
+
+  for(double x = -1.0; x<=1.0; x+=0.01){
+    std::cout << x << " " << 1.0-std::abs(f(x)) << std::endl;
+  }
