@@ -14,6 +14,7 @@ constexpr int nparallel=10;
 #include "dirac.h"
 #include "sparse.h"
 // #include "pseudofermion.h"
+#include "cg_cuda.h"
 #include "overlap.h"
 // #include "hmc.h"
 
@@ -28,7 +29,8 @@ int main(int argc, char* argv[]){
   std::cout << "# Delta = " << f.Delta() << std::endl;
 
   for(double x = -1.0; x<=1.0; x+=0.001){
-    std::cout << x << " " << 1.0-std::abs(f(x)) << std::endl;
+    // std::cout << x << " " << 1.0-std::abs(f(x)) << std::endl;
+    std::cout << x << " " << 1.0-std::abs(f[x]) << " " << 1.0-std::abs(f(x)) << std::endl;
   }
 
   

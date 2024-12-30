@@ -41,6 +41,7 @@ dual:
 	# $(NVCC) $(SRCDIR)main.cu $(NVCCFLAGS) $(INCLUDES_CUDA) $(LDFLAGS_CUDA)
 	# $(NVCC) $(SRCDIR)test.cu $(NVCCFLAGS) $(INCLUDES_CUDA) $(LDFLAGS_CUDA)
 	$(NVCC) eig.cu $(NVCCFLAGS) $(INCLUDES_CUDA) $(LDFLAGS_CUDA)
+	# $(NVCC) test.cu $(NVCCFLAGS) $(INCLUDES_CUDA) $(LDFLAGS_CUDA)
 	# $(CXX) test_hmc_scalar.cc $(INCLUDES) # $(CXXFLAGS)
 	# $(CXX) hmc_dirac_dual.cc $(INCLUDES) $(CXXFLAGS)
 	# $(CXX) test_dirac_tim.cc $(INCLUDES) $(CXXFLAGS)

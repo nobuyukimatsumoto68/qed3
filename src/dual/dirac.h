@@ -149,7 +149,7 @@ struct Dirac1fonS2 : public SpinStructure{
       for(int jj=0; jj<3; jj++){
 	int iy = lattice.nns[ix][jj];
 	res.block<NS,NS>(NS*ix,NS*iy) -= lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj]*sigma[0] - gamma(ix, jj)) * Omega(ix, iy);
-	res.block<NS,NS>(NS*ix,NS*ix) += lattice.vol[ix]/lattice.mean_vol * r*lattice.u[ix][jj]*sigma[0];
+	res.block<NS,NS>(NS*ix,NS*ix) += lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj] + m/3.0)*sigma[0];
       }
     }
 
@@ -164,7 +164,7 @@ struct Dirac1fonS2 : public SpinStructure{
       for(int jj=0; jj<3; jj++){
 	int iy = lattice.nns[ix][jj];
 	res.block<NS,NS>(NS*ix,NS*iy) -= lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj]*sigma[0] - gamma(ix, jj)) * std::exp( I* U(Link{ix,iy})) * Omega(ix, iy);
-	res.block<NS,NS>(NS*ix,NS*ix) += lattice.vol[ix]/lattice.mean_vol * r*lattice.u[ix][jj]*sigma[0];
+	res.block<NS,NS>(NS*ix,NS*ix) += lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj] + m/3.0)*sigma[0];
       }
     }
 
@@ -188,7 +188,7 @@ struct Dirac1fonS2 : public SpinStructure{
       for(int jj=0; jj<3; jj++){
 	int iy = lattice.nns[ix][jj];
 	const MS tmp = lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj]*sigma[0] - gamma(ix, jj)) * std::exp( I* U(Link{ix,iy})) * Omega(ix, iy);
-	const MS tmp2 = lattice.vol[ix]/lattice.mean_vol * r*lattice.u[ix][jj]*sigma[0];
+	const MS tmp2 = lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj] + m/3.0)*sigma[0];
 
 	// res[NS*ix] += -tmp(0,0)*v[NS*iy] - tmp(0,1)*v[NS*iy+1];
 	v[counter] = -tmp(0,0); counter++;
@@ -209,6 +209,44 @@ struct Dirac1fonS2 : public SpinStructure{
     }
   }
 
+  void H_coo_format( Complex* v,
+		     const Gauge& U,
+		     const double lambda_max=1.0 ) const {
+    const int N = lattice.n_sites * NS;
+    // for(int i=0; i<N; i++) v[i] = 0.0;
+
+    // int counter=0;
+    
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(nparallel)
+#endif
+    for(int ix=0; ix<lattice.n_sites; ix++){
+      int counter = 3*8*ix;
+      for(int jj=0; jj<3; jj++){
+	int iy = lattice.nns[ix][jj];
+	const MS tmp = lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj]*sigma[0] - gamma(ix, jj)) * std::exp( I* U(Link{ix,iy})) * Omega(ix, iy) / lambda_max;
+	const MS tmp2 = lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj] + m/3.0)*sigma[0] / lambda_max;
+
+	// res[NS*ix] += -tmp(0,0)*v[NS*iy] - tmp(0,1)*v[NS*iy+1];
+	v[counter] = -tmp(0,0); counter++;
+	v[counter] = -tmp(0,1); counter++;
+
+	// res[NS*ix] += tmp(0,0)*v[NS*ix] + tmp(0,1)*v[NS*ix+1];
+	v[counter] = tmp2(0,0); counter++;
+	v[counter] = tmp2(0,1); counter++;
+
+	// res[NS*ix+1] -= -tmp(1,0)*v[NS*iy] - tmp(1,1)*v[NS*iy+1];
+	v[counter] = tmp(1,0); counter++;
+	v[counter] = tmp(1,1); counter++;
+
+	// res[NS*ix+1] -= tmp(1,0)*v[NS*ix] + tmp(1,1)*v[NS*ix+1];
+	v[counter] = -tmp2(1,0); counter++;
+	v[counter] = -tmp2(1,1); counter++;
+      }
+    }
+  }
+
+  
   void d_coo_format( std::vector<Complex>& v,
 		     std::vector<int>& is,
 		     std::vector<int>& js,
@@ -264,6 +302,11 @@ void matmulgam5( T* res, T* v, const int Nx) {
     res[2*ix] = v[2*ix];
     res[2*ix+1] = -v[2*ix+1];
   }
+}
+
+template <typename T> // eigen
+void mult_a( T* res, const T a, const int N) {
+  for(int i=0; i<N; i++) res[i] *= a;
 }
 
 
