@@ -1,22 +1,5 @@
 #pragma once
 
-#include <cuComplex.h>
-#include <cuda_runtime.h>
-
-using Idx = std::int32_t;
-using CuC = cuDoubleComplex;
-
-// ======================================
-
-#define NThreadsPerBlock (256) // 256, 1024
-#define NBlocks (N+NThreadsPerBlock)/NThreadsPerBlock
-#define H2D (cudaMemcpyHostToDevice)
-#define D2H (cudaMemcpyDeviceToHost)
-#define D2D (cudaMemcpyDeviceToDevice)
-#define DB (sizeof(double))
-#define CD (sizeof(cuDoubleComplex))
-#define cuI ( make_cuDoubleComplex(0.0,1.0) )
-
 
 __device__ __host__ cuDoubleComplex cplx(const double c) { return make_cuDoubleComplex(c, 0.0); }
 __device__ __host__ cuDoubleComplex cplx(const std::complex<double> c) { return make_cuDoubleComplex(c.real(), c.imag()); }
@@ -150,9 +133,9 @@ void linop_wrapper(CuC* d_v, CuC* d_tmp, CuC* d_Mv0, CuC* d_v0,
     cudacheck(cudaMemcpy(d_tmp, d_v0, CD, D2D));
     for(int j=0; j<d_op[i].size(); j++){
       mult<N><<<NBlocks, NThreadsPerBlock>>>(d_Mv0, d_tmp,
-					     d_op[i][j].val.data(),
-					     d_op[i][j].cols.data(),
-					     d_op[i][j].rows.data());
+					     d_op[i][j].val,
+					     d_op[i][j].cols,
+					     d_op[i][j].rows);
       cudacheck(cudaMemcpy(d_tmp, d_Mv0, CD, D2D));
     }
     daxpy<N><<<NBlocks, NThreadsPerBlock>>>(d_v, d_op.coeffs[i], d_Mv0, d_v);

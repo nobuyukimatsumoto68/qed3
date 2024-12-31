@@ -68,7 +68,6 @@ struct SpinStructure{
 
 
 struct Dirac1fonS2 : public SpinStructure{
-  using Complex = std::complex<double>;
   using Gauge=U1onS2;
 
   using MS=Eigen::Matrix2cd;
@@ -181,7 +180,7 @@ struct Dirac1fonS2 : public SpinStructure{
     // int counter=0;
     
 #ifdef _OPENMP
-#pragma omp parallel for num_threads(nparallel)
+#pragma omp parallel for num_threads(CompilationConst::NPARALLEL)
 #endif
     for(int ix=0; ix<lattice.n_sites; ix++){
       int counter = 3*8*ix;
@@ -218,7 +217,7 @@ struct Dirac1fonS2 : public SpinStructure{
     // int counter=0;
     
 #ifdef _OPENMP
-#pragma omp parallel for num_threads(nparallel)
+#pragma omp parallel for num_threads(CompilationConst::NPARALLEL)
 #endif
     for(int ix=0; ix<lattice.n_sites; ix++){
       int counter = 3*8*ix;

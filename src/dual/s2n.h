@@ -39,12 +39,14 @@ struct Lattice {
 
   double mean_vol;
 
-  int n_sites;
-  int n_links;
-  int n_faces;
+  Idx n_sites;
+  Idx n_links;
+  Idx n_faces;
 
   Lattice(const int n_refine)
-    : n_refine(n_refine)
+    : n_refine( n_refine )
+    , n_sites( 20*n_refine*n_refine )
+  
   {
     {
       std::cout << "# reading simplicial points" << std::endl;
@@ -103,6 +105,7 @@ struct Lattice {
     }
 
     n_sites = sites.size();
+    // assert( n_sites == sites.size() );
     n_links = links.size();
 
     {

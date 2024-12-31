@@ -3,32 +3,55 @@
 struct SparseHelper{
   const Lattice& lattice;
   const Idx N;
+
   const bool locate_on_gpu;
+  bool is_set;
 
   static constexpr int NS = 2;
 
   Idx len;
 
-  std::vector<Idx> is;
-  std::vector<Idx> js;
-
   std::vector<Idx> ell2em;
+  std::vector<Idx> ell2emT;
+
   std::vector<Idx> cols_csr;
   std::vector<Idx> rows_csr;
 
-  std::vector<Idx> ell2emT;
   std::vector<Idx> cols_csrT;
   std::vector<Idx> rows_csrT;
 
-  Idx *d_cols, *d_rows, *d_colsT, *d_rowsT;
+  std::vector<Complex> v_coo, v_csr, v_csrH;
 
-  SparseHelper(const Lattice& lattice_, const bool locate_on_gpu_=false)
+  Idx *d_cols, *d_rows, *d_colsT, *d_rowsT;
+  CuC *d_val, *d_valH;
+
+  SparseHelper(const Lattice& lattice_, const bool locate_on_gpu_=true)
     : lattice(lattice_)
     , N(NS*lattice.n_sites)
     , locate_on_gpu(locate_on_gpu_)
+    , is_set(false)
   {
-    // ========= COO ========= //
+  } // end of constructor
 
+
+  ~SparseHelper()
+  {
+    if(locate_on_gpu&&is_set){
+      cudacheck(cudaFree(d_cols));
+      cudacheck(cudaFree(d_rows));
+      cudacheck(cudaFree(d_colsT));
+      cudacheck(cudaFree(d_rowsT));
+
+      cudacheck(cudaFree(d_val));
+      cudacheck(cudaFree(d_valH));
+    }
+  }
+
+  void set_dirac(){
+    std::vector<Idx> is;
+    std::vector<Idx> js;
+
+    // ========= COO ========= //
     for(Idx ix=0; ix<lattice.n_sites; ix++){
       for(int jj=0; jj<3; jj++){
 	Idx iy = lattice.nns[ix][jj];
@@ -96,21 +119,60 @@ struct SparseHelper{
       cudacheck(cudaMalloc(&d_rowsT, (N+1)*sizeof(Idx)));
       cudacheck(cudaMemcpy(d_colsT, colsT.data(), len*sizeof(Idx), H2D));
       cudacheck(cudaMemcpy(d_rowsT, rowsT.data(), (N+1)*sizeof(Idx), H2D));
+      //
+      cudacheck(cudaMalloc(&d_val, len*CD));
+      cudacheck(cudaMalloc(&d_valH, len*CD));
     }
-  } // end of constructor
 
+    v_coo.resize(len);
+    v_csr.resize(len);
+    v_csrH.resize(len);
 
-  ~SparseHelper()
-  {
-    if(locate_on_gpu){
-      cudacheck(cudaFree(d_cols));
-      cudacheck(cudaFree(d_rows));
-      cudacheck(cudaFree(d_colsT));
-      cudacheck(cudaFree(d_rowsT));
-    }
+    is_set = true;
   }
 
 
+  void set_diag(){
+    len = N;
+
+    // ========= CSR ========= //
+
+    cols_csr.resize(N);
+    for(Idx i=0; i<N; i++){
+      cols_csr[i] = i;
+      rows_csr.push_back( i );
+    }
+    rows_csr.push_back( N );
+
+    cols_csrT = cols_csr;
+    rows_csrT = rows_csr;
+
+    assert( rows_csr.size()==N+1 );
+    assert( rows_csrT.size()==N+1 );
+
+    if(locate_on_gpu){
+      const std::vector<Idx>& cols = cols_csr;
+      const std::vector<Idx>& rows = rows_csr;
+      const std::vector<Idx>& colsT = cols_csrT;
+      const std::vector<Idx>& rowsT = rows_csrT;
+
+      cudacheck(cudaMalloc(&d_cols, len*sizeof(Idx)));
+      cudacheck(cudaMalloc(&d_rows, (N+1)*sizeof(Idx)));
+      cudacheck(cudaMemcpy(d_cols, cols.data(), len*sizeof(Idx), H2D));
+      cudacheck(cudaMemcpy(d_rows, rows.data(), (N+1)*sizeof(Idx), H2D));
+      //
+      cudacheck(cudaMalloc(&d_colsT, len*sizeof(Idx)));
+      cudacheck(cudaMalloc(&d_rowsT, (N+1)*sizeof(Idx)));
+      cudacheck(cudaMemcpy(d_colsT, colsT.data(), len*sizeof(Idx), H2D));
+      cudacheck(cudaMemcpy(d_rowsT, rowsT.data(), (N+1)*sizeof(Idx), H2D));
+    }
+
+    v_coo.resize(len);
+    v_csr.resize(len);
+    v_csrH.resize(len);
+
+    is_set = true;
+  }
 
   template<typename T>
   void coo2csr( T* v_csr,
@@ -140,70 +202,14 @@ struct SparseHelper{
     }
   }
 
-  // template<typename T>
-  // void mult( T* res, const T* v,
-  // 	     const T* v_csr ) const {
-  //   assert(res!=v);
-  //   for(int i=0; i<N; i++){
-  //     res[i] = 0.0;
-  //     const int row_start = rows_csr[i];
-  //     const int row_end = rows_csr[i+1];
-  //     for(int jj=row_start; jj<row_end; jj++){
-  // 	res[i] += v_csr[jj] * v[ cols_csr[jj] ];
-  //     }
-  //   }
-  // }
+  void reset_DU( const Dirac1fonS2& D, const U1onS2& U ){
+    D.coo_format( v_coo.data(), U );
+    coo2csr_csrH<Complex>( v_csr.data(), v_csrH.data(), v_coo.data() );
 
-  // template<typename T>
-  // void multT( T* res, const T* v,
-  // 	      const T* v_csrT ) const {
-  //   assert(res!=v);
-  //   for(int i=0; i<N; i++){
-  //     res[i] = 0.0;
-  //     const int row_start = rows_csrT[i];
-  //     const int row_end = rows_csrT[i+1];
-  //     for(int jj=row_start; jj<row_end; jj++){
-  // 	res[i] += v_csrT[jj] * v[ cols_csrT[jj] ];
-  //     }
-  //   }
-  // }
-
-  // // for customized sparse structure such as for the derivatives
-  // template <typename T>
-  // void multcoo( std::vector<T>& res, const std::vector<T>& v,
-  // 		const std::vector<T>& val, const std::vector<int>& isC, const std::vector<int>& jsC ) const {
-  //   res.resize( v.size() );
-  //   for(int i=0; i<v.size(); i++) res[i] = 0.0;
-  //   for(int i=0; i<isC.size(); i++) res[isC[i]] += val[i] * v[jsC[i]];
-  // }
-
+    if(locate_on_gpu){
+      cudacheck(cudaMemcpy(d_val, reinterpret_cast<const CuC*>(v_csr.data()), len*CD, H2D));
+      cudacheck(cudaMemcpy(d_valH, reinterpret_cast<const CuC*>(v_csrH.data()), len*CD, H2D));
+    }
+  }
+  
 };
-
-
-
-
-
-
-// struct SparseMatrix{
-//   const Lattice& lattice;
-//   const int N;
-
-//   static constexpr int NS = 2;
-
-//   int len;
-
-//   std::vector<int> is;
-//   std::vector<int> js;
-
-//   std::vector<int> ell2em;
-//   std::vector<int> cols_csr;
-//   std::vector<int> rows_csr;
-
-//   std::vector<int> ell2emT;
-//   std::vector<int> cols_csrT;
-//   std::vector<int> rows_csrT;
-
-//   SparseHelper(const Lattice& lattice_)
-//     : lattice(lattice_)
-//     , N(NS*lattice.n_sites)
-//       };
