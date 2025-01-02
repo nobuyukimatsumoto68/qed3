@@ -322,10 +322,9 @@ struct CGCUDA{ // wrapper
 
   void operator()( Complex* res, const Complex* v, const U1onS2& U ) const {
 
-    Complex v_coo[ len ], v_csr[ len ], v_csrH[ len ];
-    D.coo_format( v_coo, U );
-    sparse.coo2csr_csrH( v_csr, v_csrH, v_coo );
-
+    // Complex v_coo[ len ], v_csr[ len ], v_csrH[ len ];
+    // D.coo_format( v_coo, U );
+    // sparse.coo2csr_csrH( v_csr, v_csrH, v_coo );
     solve<N,len>(reinterpret_cast<CuC*>(res),
 		 reinterpret_cast<const CuC*>(v),
 		 reinterpret_cast<const CuC*>(v_csr),
@@ -337,59 +336,59 @@ struct CGCUDA{ // wrapper
   }
 
 
-  void general_op_inv( Complex* res, const Complex* v, const U1onS2& U,
-		       const double aa, const double bb ) const {
+  // void general_op_inv( Complex* res, const Complex* v, const U1onS2& U,
+  // 		       const double aa, const double bb ) const {
 
-    Complex v_coo[ len ], v_csr[ len ], v_csrH[ len ];
-    D.coo_format( v_coo, U );
-    sparse.coo2csr_csrH( v_csr, v_csrH, v_coo );
+  //   Complex v_coo[ len ], v_csr[ len ], v_csrH[ len ];
+  //   D.coo_format( v_coo, U );
+  //   sparse.coo2csr_csrH( v_csr, v_csrH, v_coo );
 
-    solve<N,len>(reinterpret_cast<CuC*>(res),
-		 reinterpret_cast<const CuC*>(v),
-		 reinterpret_cast<const CuC*>(v_csr),
-		 // sparse.cols_csr, sparse.rows_csr,
-		 reinterpret_cast<const CuC*>(v_csrH),
-		 // sparse.cols_csrT, sparse.rows_csrT,
-		 d_cols, d_rows, d_colsT, d_rowsT,
-		 aa, bb
-		 );
-  }
+  //   solve<N,len>(reinterpret_cast<CuC*>(res),
+  // 		 reinterpret_cast<const CuC*>(v),
+  // 		 reinterpret_cast<const CuC*>(v_csr),
+  // 		 // sparse.cols_csr, sparse.rows_csr,
+  // 		 reinterpret_cast<const CuC*>(v_csrH),
+  // 		 // sparse.cols_csrT, sparse.rows_csrT,
+  // 		 d_cols, d_rows, d_colsT, d_rowsT,
+  // 		 aa, bb
+  // 		 );
+  // }
 
-  void generalH_op_inv( Complex* res, const Complex* v, const U1onS2& U,
-			const double aa, const double bb,
-			const double lambda_max ) const {
+  // void generalH_op_inv( Complex* res, const Complex* v, const U1onS2& U,
+  // 			const double aa, const double bb,
+  // 			const double lambda_max ) const {
 
-    Complex v_coo[ len ], v_csr[ len ], v_csrH[ len ];
-    D.H_coo_format( v_coo, U, lambda_max);
-    sparse.coo2csr_csrH( v_csr, v_csrH, v_coo );
+  //   Complex v_coo[ len ], v_csr[ len ], v_csrH[ len ];
+  //   D.H_coo_format( v_coo, U, lambda_max);
+  //   sparse.coo2csr_csrH( v_csr, v_csrH, v_coo );
 
-    solve<N,len>(reinterpret_cast<CuC*>(res),
-		 reinterpret_cast<const CuC*>(v),
-		 reinterpret_cast<const CuC*>(v_csr),
-		 // sparse.cols_csr, sparse.rows_csr,
-		 reinterpret_cast<const CuC*>(v_csrH),
-		 // sparse.cols_csrT, sparse.rows_csrT,
-		 d_cols, d_rows, d_colsT, d_rowsT,
-		 aa, bb
-		 );
-  }
+  //   solve<N,len>(reinterpret_cast<CuC*>(res),
+  // 		 reinterpret_cast<const CuC*>(v),
+  // 		 reinterpret_cast<const CuC*>(v_csr),
+  // 		 // sparse.cols_csr, sparse.rows_csr,
+  // 		 reinterpret_cast<const CuC*>(v_csrH),
+  // 		 // sparse.cols_csrT, sparse.rows_csrT,
+  // 		 d_cols, d_rows, d_colsT, d_rowsT,
+  // 		 aa, bb
+  // 		 );
+  // }
 
 
-  void general_op( Complex* res, const Complex* v, const U1onS2& U,
-		   const double aa, const double bb ) const {
+  // void general_op( Complex* res, const Complex* v, const U1onS2& U,
+  // 		   const double aa, const double bb ) const {
 
-    Complex v_coo[ len ], v_csr[ len ], v_csrH[ len ];
-    D.coo_format( v_coo, U );
-    sparse.coo2csr_csrH( v_csr, v_csrH, v_coo );
+  //   Complex v_coo[ len ], v_csr[ len ], v_csrH[ len ];
+  //   D.coo_format( v_coo, U );
+  //   sparse.coo2csr_csrH( v_csr, v_csrH, v_coo );
 
-    multA_wrapper<N,len>(reinterpret_cast<CuC*>(res),
-			 reinterpret_cast<const CuC*>(v),
-			 reinterpret_cast<const CuC*>(v_csr),
-			 reinterpret_cast<const CuC*>(v_csrH),
-			 d_cols, d_rows, d_colsT, d_rowsT,
-			 aa, bb
-			 );
-  }
+  //   multA_wrapper<N,len>(reinterpret_cast<CuC*>(res),
+  // 			 reinterpret_cast<const CuC*>(v),
+  // 			 reinterpret_cast<const CuC*>(v_csr),
+  // 			 reinterpret_cast<const CuC*>(v_csrH),
+  // 			 d_cols, d_rows, d_colsT, d_rowsT,
+  // 			 aa, bb
+  // 			 );
+  // }
 
 };
 

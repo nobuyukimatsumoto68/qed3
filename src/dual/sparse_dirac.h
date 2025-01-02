@@ -1,6 +1,9 @@
 #pragma once
 
-struct SparseHelper{
+struct SparseDW{
+  using WilsonDirac=Dirac1fonS2;
+
+  const WilsonDirac& D;
   const Lattice& lattice;
   const Idx N;
 
@@ -25,29 +28,31 @@ struct SparseHelper{
   Idx *d_cols, *d_rows, *d_colsT, *d_rowsT;
   CuC *d_val, *d_valH;
 
-  SparseHelper(const Lattice& lattice_, const bool locate_on_gpu_=true)
-    : lattice(lattice_)
+  SparseDW(const WilsonDirac& D_, const bool locate_on_gpu_=true)
+    : D(D_)
+    , lattice(D.lattice)
     , N(NS*lattice.n_sites)
     , locate_on_gpu(locate_on_gpu_)
     , is_set(false)
   {
+    initialize();
   } // end of constructor
 
 
-  ~SparseHelper()
+  ~SparseDW()
   {
     if(locate_on_gpu&&is_set){
-      cudacheck(cudaFree(d_cols));
-      cudacheck(cudaFree(d_rows));
-      cudacheck(cudaFree(d_colsT));
-      cudacheck(cudaFree(d_rowsT));
+      CUDA_CHECK(cudaFree(d_cols));
+      CUDA_CHECK(cudaFree(d_rows));
+      CUDA_CHECK(cudaFree(d_colsT));
+      CUDA_CHECK(cudaFree(d_rowsT));
 
-      cudacheck(cudaFree(d_val));
-      cudacheck(cudaFree(d_valH));
+      CUDA_CHECK(cudaFree(d_val));
+      CUDA_CHECK(cudaFree(d_valH));
     }
   }
 
-  void set_dirac(){
+  void initialize(){
     std::vector<Idx> is;
     std::vector<Idx> js;
 
@@ -110,61 +115,18 @@ struct SparseHelper{
       const std::vector<Idx>& colsT = cols_csrT;
       const std::vector<Idx>& rowsT = rows_csrT;
 
-      cudacheck(cudaMalloc(&d_cols, len*sizeof(Idx)));
-      cudacheck(cudaMalloc(&d_rows, (N+1)*sizeof(Idx)));
-      cudacheck(cudaMemcpy(d_cols, cols.data(), len*sizeof(Idx), H2D));
-      cudacheck(cudaMemcpy(d_rows, rows.data(), (N+1)*sizeof(Idx), H2D));
+      CUDA_CHECK(cudaMalloc(&d_cols, len*sizeof(Idx)));
+      CUDA_CHECK(cudaMalloc(&d_rows, (N+1)*sizeof(Idx)));
+      CUDA_CHECK(cudaMemcpy(d_cols, cols.data(), len*sizeof(Idx), H2D));
+      CUDA_CHECK(cudaMemcpy(d_rows, rows.data(), (N+1)*sizeof(Idx), H2D));
       //
-      cudacheck(cudaMalloc(&d_colsT, len*sizeof(Idx)));
-      cudacheck(cudaMalloc(&d_rowsT, (N+1)*sizeof(Idx)));
-      cudacheck(cudaMemcpy(d_colsT, colsT.data(), len*sizeof(Idx), H2D));
-      cudacheck(cudaMemcpy(d_rowsT, rowsT.data(), (N+1)*sizeof(Idx), H2D));
+      CUDA_CHECK(cudaMalloc(&d_colsT, len*sizeof(Idx)));
+      CUDA_CHECK(cudaMalloc(&d_rowsT, (N+1)*sizeof(Idx)));
+      CUDA_CHECK(cudaMemcpy(d_colsT, colsT.data(), len*sizeof(Idx), H2D));
+      CUDA_CHECK(cudaMemcpy(d_rowsT, rowsT.data(), (N+1)*sizeof(Idx), H2D));
       //
-      cudacheck(cudaMalloc(&d_val, len*CD));
-      cudacheck(cudaMalloc(&d_valH, len*CD));
-    }
-
-    v_coo.resize(len);
-    v_csr.resize(len);
-    v_csrH.resize(len);
-
-    is_set = true;
-  }
-
-
-  void set_diag(){
-    len = N;
-
-    // ========= CSR ========= //
-
-    cols_csr.resize(N);
-    for(Idx i=0; i<N; i++){
-      cols_csr[i] = i;
-      rows_csr.push_back( i );
-    }
-    rows_csr.push_back( N );
-
-    cols_csrT = cols_csr;
-    rows_csrT = rows_csr;
-
-    assert( rows_csr.size()==N+1 );
-    assert( rows_csrT.size()==N+1 );
-
-    if(locate_on_gpu){
-      const std::vector<Idx>& cols = cols_csr;
-      const std::vector<Idx>& rows = rows_csr;
-      const std::vector<Idx>& colsT = cols_csrT;
-      const std::vector<Idx>& rowsT = rows_csrT;
-
-      cudacheck(cudaMalloc(&d_cols, len*sizeof(Idx)));
-      cudacheck(cudaMalloc(&d_rows, (N+1)*sizeof(Idx)));
-      cudacheck(cudaMemcpy(d_cols, cols.data(), len*sizeof(Idx), H2D));
-      cudacheck(cudaMemcpy(d_rows, rows.data(), (N+1)*sizeof(Idx), H2D));
-      //
-      cudacheck(cudaMalloc(&d_colsT, len*sizeof(Idx)));
-      cudacheck(cudaMalloc(&d_rowsT, (N+1)*sizeof(Idx)));
-      cudacheck(cudaMemcpy(d_colsT, colsT.data(), len*sizeof(Idx), H2D));
-      cudacheck(cudaMemcpy(d_rowsT, rowsT.data(), (N+1)*sizeof(Idx), H2D));
+      CUDA_CHECK(cudaMalloc(&d_val, len*CD));
+      CUDA_CHECK(cudaMalloc(&d_valH, len*CD));
     }
 
     v_coo.resize(len);
@@ -202,14 +164,45 @@ struct SparseHelper{
     }
   }
 
-  void reset_DU( const Dirac1fonS2& D, const U1onS2& U ){
+  void update( const U1onS2& U ){
     D.coo_format( v_coo.data(), U );
     coo2csr_csrH<Complex>( v_csr.data(), v_csrH.data(), v_coo.data() );
 
     if(locate_on_gpu){
-      cudacheck(cudaMemcpy(d_val, reinterpret_cast<const CuC*>(v_csr.data()), len*CD, H2D));
-      cudacheck(cudaMemcpy(d_valH, reinterpret_cast<const CuC*>(v_csrH.data()), len*CD, H2D));
+      CUDA_CHECK(cudaMemcpy(d_val, reinterpret_cast<const CuC*>(v_csr.data()), len*CD, H2D));
+      CUDA_CHECK(cudaMemcpy(d_valH, reinterpret_cast<const CuC*>(v_csrH.data()), len*CD, H2D));
     }
   }
+
+  // ugliness
+  void associate( SparseMatrix<Complex>& M, const bool is_transpose=false ){
+    assert(!locate_on_gpu);
+    M.on_gpu = false;
+    if(!is_transpose){
+      M.cols = this->cols_csr.data();
+      M.rows = this->rows_csr.data();
+      M.val = this->v_csr.data();
+    }
+    else{
+      M.cols = this->cols_csrT.data();
+      M.rows = this->rows_csrT.data();
+      M.val = this->v_csrH.data();
+    }
+  }
+
+  void associate( SparseMatrix<CuC>& M, const bool is_transpose=false ){
+    assert(locate_on_gpu);
+    M.on_gpu = true;
+    if(!is_transpose){
+      M.cols = this->d_cols;
+      M.rows = this->d_rows;
+      M.val = this->d_val;
+    }
+    else{
+      M.cols = this->d_colsT;
+      M.rows = this->d_rowsT;
+      M.val = this->d_valH;
+    }
+  }    
   
 };

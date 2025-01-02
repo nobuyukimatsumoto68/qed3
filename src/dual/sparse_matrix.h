@@ -7,35 +7,7 @@ struct SparseMatrix{
   Idx* cols;
   Idx* rows;
 
-  void assign_from_helper_DW_gpu( const SparseHelper& H_DW ){
-    on_gpu = true;
-    cols = H_DW.d_cols;
-    rows = H_DW.d_rows;
-    val = H_DW.d_val;
-  }
-
-  void assign_from_helper_DWH_gpu( const SparseHelper& H_DW ){
-    on_gpu = true;
-    cols = H_DW.d_colsT;
-    rows = H_DW.d_rowsT;
-    val = H_DW.d_valH;
-  }
-
-  void assign_from_helper_DW_cpu( SparseHelper& H_DW ){
-    on_gpu = false;
-    cols = H_DW.cols_csr.data();
-    rows = H_DW.rows_csr.data();
-    val = H_DW.v_csr.data();
-  }
-
-  void assign_from_helper_DWH_cpu( SparseHelper& H_DW ){
-    on_gpu = false;
-    cols = H_DW.cols_csrT.data();
-    rows = H_DW.rows_csrT.data();
-    val = H_DW.v_csrH.data();
-  }
-
-  void act_cpu( std::vector<Complex>& res, const std::vector<Complex>& v ) const {
+  void act_cpu( std::vector<T>& res, const std::vector<T>& v ) const {
     assert( !on_gpu );
 
     constexpr Idx N = CompilationConst::N;
@@ -46,6 +18,20 @@ struct SparseMatrix{
       for(int jj=row_start; jj<row_end; jj++) res[i] = res[i] + val[jj] * v[ cols[jj] ];
     }
   }
+
+
+  void act_gpu( T* d_res, const T* d_v ) const {
+    assert( on_gpu );
+
+    constexpr Idx N = CompilationConst::N;
+    mult<T,N><<<NBlocks, NThreadsPerBlock>>>(d_res,
+					     d_v,
+					     this->val,
+					     this->cols,
+					     this->rows);
+  }
+
+
 
 };
 

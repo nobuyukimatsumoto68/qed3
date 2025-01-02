@@ -1650,3 +1650,136 @@ void matmulgam5( T* res, T* v, const int Nx) {
 
 
     
+
+
+  // gpu
+  SparseHelper H_DW(lattice, true);
+  H_DW.set_dirac();
+  SparseMatrix<CuC> M_DW, M_DWH;
+  H_DW.reset_DU( DW, U );
+  M_DW.assign_from_helper_DW_gpu(H_DW);
+  M_DWH.assign_from_helper_DWH_gpu(H_DW);
+
+  // LinOp<CuC> Op_DW;
+  // Op_DW.set_coeff ( 0,    cplx(1.0) );
+  // Op_DW.set_matrix( 0, 0, &M_DW );
+
+  // LinOp<CuC> Op_DWHDW({2});
+  // Op_DWHDW.set_coeff ( 0,    cplx(1.0) );
+  // Op_DWHDW.set_matrix( 0, 0, &M_DW );
+  // Op_DWHDW.set_matrix( 0, 1, &M_DWH );
+
+  LinOp<CuC> Op_DWHDW_const({2, 0});
+  const CuC a = cplx(-2.0);
+  Op_DWHDW_const.set_coeff ( 0,    cplx(1.0) );
+  Op_DWHDW_const.set_matrix( 0, 0, &M_DW );
+  Op_DWHDW_const.set_matrix( 0, 1, &M_DWH );
+  Op_DWHDW_const.set_coeff ( 1,    a );
+
+  constexpr Idx N = CompilationConst::N;
+  Eigen::MatrixXcd mat(N, N);
+  {
+    // auto mat = Dov.D.matrix_form();
+    // auto mat = DW.matrix_form();
+
+    double lambda_max = 6.0;
+
+    for(Idx i=0; i<N; i++){
+      Eigen::VectorXcd e = Eigen::VectorXcd::Zero(N);
+      e(i) = 1.0;
+      std::vector<Complex> xi(e.data(), e.data()+N);
+      std::vector<Complex> Dxi(N);
+
+      // H_DW.reset_DU( DW, U );
+      // Op_DW.from_cpu<N>( Dxi, xi );
+      // Op_DWHDW.from_cpu<N>( Dxi, xi );
+      Op_DWHDW_const.from_cpu<N>( Dxi, xi );
+      // Op_DW.on_cpu<N>( Dxi, xi );
+      
+      // Dov.multHW( Dxi, xi, U, lambda_max );
+      // matmulgam5<Complex>( Dxi.data(), Dxi.data(), int(N/2) );
+      // mult_a<Complex>( Dxi.data(), 6.0, N );
+
+      // Dov.H( Dxi.data(), xi.data(), U, 6.0 );
+      // mult_a<Complex>( Dxi.data(), 6.0, N );
+
+      mat.block(0,i,N,1) = Eigen::Map<Eigen::MatrixXcd>(Dxi.data(), N, 1);
+    }
+  }
+
+
+  // void set_diag(){
+  //   len = N;
+
+  //   // ========= CSR ========= //
+
+  //   cols_csr.resize(N);
+  //   for(Idx i=0; i<N; i++){
+  //     cols_csr[i] = i;
+  //     rows_csr.push_back( i );
+  //   }
+  //   rows_csr.push_back( N );
+
+  //   cols_csrT = cols_csr;
+  //   rows_csrT = rows_csr;
+
+  //   assert( rows_csr.size()==N+1 );
+  //   assert( rows_csrT.size()==N+1 );
+
+  //   if(locate_on_gpu){
+  //     const std::vector<Idx>& cols = cols_csr;
+  //     const std::vector<Idx>& rows = rows_csr;
+  //     const std::vector<Idx>& colsT = cols_csrT;
+  //     const std::vector<Idx>& rowsT = rows_csrT;
+
+  //     cudacheck(cudaMalloc(&d_cols, len*sizeof(Idx)));
+  //     cudacheck(cudaMalloc(&d_rows, (N+1)*sizeof(Idx)));
+  //     cudacheck(cudaMemcpy(d_cols, cols.data(), len*sizeof(Idx), H2D));
+  //     cudacheck(cudaMemcpy(d_rows, rows.data(), (N+1)*sizeof(Idx), H2D));
+  //     //
+  //     cudacheck(cudaMalloc(&d_colsT, len*sizeof(Idx)));
+  //     cudacheck(cudaMalloc(&d_rowsT, (N+1)*sizeof(Idx)));
+  //     cudacheck(cudaMemcpy(d_colsT, colsT.data(), len*sizeof(Idx), H2D));
+  //     cudacheck(cudaMemcpy(d_rowsT, rowsT.data(), (N+1)*sizeof(Idx), H2D));
+  //   }
+
+  //   v_coo.resize(len);
+  //   v_csr.resize(len);
+  //   v_csrH.resize(len);
+
+  //   is_set = true;
+  // }
+  const double M5 = -2.0;
+  WilsonDirac DW(lattice, M5);
+
+  SparseMatrix<CuC> M_DW, M_DWH;
+
+  // double lambda_max = 10.0;
+  // MatPoly<CuC> Op;
+  // // Op.push_back ( cplx(1.0/(lambda_max)), {&M_DW} );
+  // const CuC a = cplx(-0.5);
+  // Op.push_back ( cplx(1.0/(lambda_max*lambda_max)), {&M_DW, &M_DWH} );
+  // Op.push_back ( a/(lambda_max*lambda_max), {} );
+
+
+  Overlap Dov;
+
+
+  constexpr Idx N = CompilationConst::N;
+  Eigen::MatrixXcd mat(N, N);
+  {
+    for(Idx i=0; i<N; i++){
+      Eigen::VectorXcd e = Eigen::VectorXcd::Zero(N);
+      e(i) = 1.0;
+      std::vector<Complex> xi(e.data(), e.data()+N);
+      std::vector<Complex> Dxi(N);
+
+      // Op.solve<N>( Dxi, xi );
+      // xi = Dxi;
+      // Op.from_cpu<N>( Dxi, xi );
+      Dov( Dxi, xi, &M_DW, &M_DWH );
+
+      mat.block(0,i,N,1) = Eigen::Map<Eigen::MatrixXcd>(Dxi.data(), N, 1);
+    }
+  }
+

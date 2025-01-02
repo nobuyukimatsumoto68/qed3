@@ -21,8 +21,13 @@ namespace CompilationConst{
 
 #define IsVerbose
 
-#include "gpu_header.h"
+#include <cuComplex.h>
+#include <cuda_runtime.h>
+#include <cublas_v2.h>
+#include <cublas_api.h>
+#include <cusolverDn.h>
 using CuC = cuDoubleComplex;
+#include "gpu_header.h"
 
 // ======================================
 
@@ -32,21 +37,22 @@ using CuC = cuDoubleComplex;
 #include "action.h"
 #include "dirac.h"
 
-#include "sparse_helper.h"
 #include "sparse_matrix.h"
-#include "linop.h"
-// #include "gpu_code.h"
-
+#include "sparse_dirac.h"
+#include "matpoly.h"
 // #include "pseudofermion.h"
-
-// #include "cg_cuda.h"
-
-// #include "overlap.h"
+#include "overlap.h"
 
 // #include "hmc.h"
 // #include "dirac_s2_dual.h"
-#include "header_cusolver.hpp"
+// #include "header_cusolver.hpp"
 
+
+// TO DO: Cusparse for SparseMatrix::act_gpu, probably defining handle in matpoly.h
+// all the operation on GPU in Overlap::operator()
+// gradient of Dov (Overlap class, in parallel to Dirac)
+// pseudofermion
+// 3d
 
 
 int main(int argc, char* argv[]){
@@ -55,11 +61,11 @@ int main(int argc, char* argv[]){
 
 
   int device;
-  cudacheck(cudaGetDeviceCount(&device));
+  CUDA_CHECK(cudaGetDeviceCount(&device));
   cudaDeviceProp device_prop[device];
   cudaGetDeviceProperties(&device_prop[0], 0);
   std::cout << "# dev = " << device_prop[0].name << std::endl;
-  cudacheck(cudaSetDevice(0));// "TITAN V"
+  CUDA_CHECK(cudaSetDevice(0));// "TITAN V"
   std::cout << "# (GPU device is set.)" << std::endl;
 
   // ---------------------------------------
@@ -70,77 +76,36 @@ int main(int argc, char* argv[]){
   // using Fermion=Dirac1fonS2;
   // using HMC=HMC<Force,Gauge,Action,Fermion>;
   using Rng=ParallelRng;
-  // using CuC=cuDoubleComplex;
 
   Lattice lattice(CompilationConst::N_REFINE);
   // Dirac1fonS2 D(lattice, 0.0, 1.0);
 
   using WilsonDirac=Dirac1fonS2;
-
-  const double M5 = -1.0;
-  WilsonDirac DW(lattice, M5);
-
   // using Overlap=OverlapPseudoFermion;
-  // Overlap Dov( DW );
+
 
   Gauge U(lattice);
-  // Rng rng(lattice);
-  // // U.gaussian( rng );
+  Rng rng(lattice);
+  U.gaussian( rng );
 
-  // // cpu
-  // SparseHelper H_DW(lattice, false);
-  // H_DW.set_dirac();
-  // SparseMatrix<Complex> M_DW, M_DWH;
-  // H_DW.reset_DU( DW, U );
-  // M_DW.assign_from_helper_DW_cpu(H_DW);
-  // M_DWH.assign_from_helper_DWH_cpu(H_DW);
+  const double M5 = -2.0;
+  WilsonDirac DW(lattice, M5);
+  Overlap Dov(DW);
+  Dov.compute(U);
 
-  // LinOp<Complex> Op_DW;
-  // Op_DW.set_coeff ( 0,    1.0);
-  // Op_DW.set_matrix( 0, 0, &M_DW );
-
-  // gpu
-  SparseHelper H_DW(lattice, true);
-  H_DW.set_dirac();
-  SparseMatrix<CuC> M_DW, M_DWH;
-  H_DW.reset_DU( DW, U );
-  M_DW.assign_from_helper_DW_gpu(H_DW);
-  M_DWH.assign_from_helper_DWH_gpu(H_DW);
-
-  LinOp<CuC> Op_DW;
-  Op_DW.set_coeff ( 0,    cplx(1.0) );
-  Op_DW.set_matrix( 0, 0, &M_DW );
 
   constexpr Idx N = CompilationConst::N;
   Eigen::MatrixXcd mat(N, N);
   {
-    // auto mat = Dov.D.matrix_form();
-    // auto mat = DW.matrix_form();
-
-    double lambda_max = 6.0;
-
     for(Idx i=0; i<N; i++){
       Eigen::VectorXcd e = Eigen::VectorXcd::Zero(N);
       e(i) = 1.0;
       std::vector<Complex> xi(e.data(), e.data()+N);
       std::vector<Complex> Dxi(N);
-
-      // H_DW.reset_DU( DW, U );
-      Op_DW.from_cpu<N>( Dxi, xi );
-      // Op_DW.on_cpu<N>( Dxi, xi );
-      
-      // Dov.multHW( Dxi, xi, U, lambda_max );
-      // matmulgam5<Complex>( Dxi.data(), Dxi.data(), int(N/2) );
-      // mult_a<Complex>( Dxi.data(), 6.0, N );
-
-      // Dov.H( Dxi.data(), xi.data(), U, 6.0 );
-      // mult_a<Complex>( Dxi.data(), 6.0, N );
-
+      Dov( Dxi, xi );
       mat.block(0,i,N,1) = Eigen::Map<Eigen::MatrixXcd>(Dxi.data(), N, 1);
     }
   }
-
-  // std::cout << mat << std::endl;
 
   // =========================================
   // cusolver
@@ -172,77 +137,77 @@ int main(int argc, char* argv[]){
   void *h_work = nullptr;              /* host workspace for */
 
   /* step 1: create cusolver handle, bind a stream */
-  cudacheck(cusolverDnCreate(&handle));
-  cudacheck(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
-  cudacheck(cusolverDnSetStream(handle, stream));
-  cudacheck(cusolverDnCreateParams(&params));
+  CUSOLVER_CHECK(cusolverDnCreate(&handle));
+  CUDA_CHECK(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
+  CUSOLVER_CHECK(cusolverDnSetStream(handle, stream));
+  CUSOLVER_CHECK(cusolverDnCreateParams(&params));
 
-  cudacheck(cudaMalloc( &d_A, CD * n*n ));
-  cudacheck(cudaMalloc( &d_W, CD * n ));
-  cudacheck(cudaMalloc( &d_VL, CD * n*n ));
-  cudacheck(cudaMalloc( &d_VR, CD * n*n ));
-  cudacheck(cudaMalloc( &d_info, sizeof(int)));
+  CUDA_CHECK(cudaMalloc( &d_A, CD * n*n ));
+  CUDA_CHECK(cudaMalloc( &d_W, CD * n ));
+  CUDA_CHECK(cudaMalloc( &d_VL, CD * n*n ));
+  CUDA_CHECK(cudaMalloc( &d_VR, CD * n*n ));
+  CUDA_CHECK(cudaMalloc( &d_info, sizeof(int)));
 
-  cudacheck( cudaMemcpy(d_A, A, CD*n*n, H2D) );
+  CUDA_CHECK( cudaMemcpy(d_A, A, CD*n*n, H2D) );
 
   // step 3: query working space of syevd
   cusolverEigMode_t jobvl = CUSOLVER_EIG_MODE_NOVECTOR;
   cusolverEigMode_t jobvr = CUSOLVER_EIG_MODE_NOVECTOR;
   cublasFillMode_t uplo = CUBLAS_FILL_MODE_LOWER;
 
-  cudacheck( cusolverDnXgeev_bufferSize( handle,
-					 params,
-					 jobvl,
-					 jobvr,
-					 n,
-					 CUDA_C_64F,
-					 d_A, // device
-					 lda,
-					 CUDA_C_64F,
-					 d_W, // Array holding the computed eigenvalues of A
-					 CUDA_C_64F,
-					 d_VL,
-					 ldvl,
-					 CUDA_C_64F,
-					 d_VR,
-					 ldvr,
-					 CUDA_C_64F,
-					 &workspaceInBytesOnDevice,
-					 &workspaceInBytesOnHost)
-	     );
+  CUSOLVER_CHECK( cusolverDnXgeev_bufferSize( handle,
+					      params,
+					      jobvl,
+					      jobvr,
+					      n,
+					      CUDA_C_64F,
+					      d_A, // device
+					      lda,
+					      CUDA_C_64F,
+					      d_W, // Array holding the computed eigenvalues of A
+					      CUDA_C_64F,
+					      d_VL,
+					      ldvl,
+					      CUDA_C_64F,
+					      d_VR,
+					      ldvr,
+					      CUDA_C_64F,
+					      &workspaceInBytesOnDevice,
+					      &workspaceInBytesOnHost)
+		  );
 
-  cudacheck(cudaMalloc( &d_work, workspaceInBytesOnDevice ) );
+  CUDA_CHECK(cudaMalloc( &d_work, workspaceInBytesOnDevice ) );
   h_work = malloc(workspaceInBytesOnHost);
 
   // step 4: compute spectrum
-  cudacheck( cusolverDnXgeev( handle,
-			      params,
-			      jobvl,
-			      jobvr,
-			      n,
-			      CUDA_C_64F,
-			      d_A,
-			      lda,
-			      CUDA_C_64F,
-			      d_W,
-			      CUDA_C_64F,
-			      d_VL,
-			      ldvl,
-			      CUDA_C_64F,
-			      d_VR,
-			      ldvr,
-			      CUDA_C_64F,
-			      d_work, // void *bufferOnDevice,
-			      workspaceInBytesOnDevice,
-			      h_work, // void *bufferOnHost,
-			      workspaceInBytesOnHost,
-			      d_info)
-	     );
+  CUSOLVER_CHECK( cusolverDnXgeev( handle,
+				   params,
+				   jobvl,
+				   jobvr,
+				   n,
+				   CUDA_C_64F,
+				   d_A,
+				   lda,
+				   CUDA_C_64F,
+				   d_W,
+				   CUDA_C_64F,
+				   d_VL,
+				   ldvl,
+				   CUDA_C_64F,
+				   d_VR,
+				   ldvr,
+				   CUDA_C_64F,
+				   d_work, // void *bufferOnDevice,
+				   workspaceInBytesOnDevice,
+				   h_work, // void *bufferOnHost,
+				   workspaceInBytesOnHost,
+				   d_info)
+		  );
 
   // ---------------------------------------------
 
-  cudacheck(cudaMemcpy( W, d_W, CD*n, D2H) );
-  cudacheck(cudaMemcpy( &info, d_info, sizeof(int), D2H ));
+  CUDA_CHECK(cudaMemcpy( W, d_W, CD*n, D2H) );
+  CUDA_CHECK(cudaMemcpy( &info, d_info, sizeof(int), D2H ));
 
   std::cout << "# info (0=success) = " << info << std::endl;
   assert( info==0 );
@@ -254,27 +219,27 @@ int main(int argc, char* argv[]){
   // 				   << res[i] << " "
   // 				   << Dov.sgn(res[i]) << std::endl;
 
-  for(int i=0; i<n; i++) std::cout << real(W[i]) << " " << imag(W[i]) << std::endl;
+  for(int i=0; i<n; i++) std::cout << real(W[i]) << " " << imag(W[i]) << " " << abs(W[i]) << std::endl;
 
   /* free resources */
   free(A);
   free(h_work);
 
-  cudacheck(cudaFree(d_A));
-  cudacheck(cudaFree(d_W));
-  cudacheck(cudaFree(d_VL));
-  cudacheck(cudaFree(d_VR));
-  cudacheck(cudaFree(d_info));
-  cudacheck(cudaFree(d_work));
+  CUDA_CHECK(cudaFree(d_A));
+  CUDA_CHECK(cudaFree(d_W));
+  CUDA_CHECK(cudaFree(d_VL));
+  CUDA_CHECK(cudaFree(d_VR));
+  CUDA_CHECK(cudaFree(d_info));
+  CUDA_CHECK(cudaFree(d_work));
 
-  cudacheck(cusolverDnDestroyParams(params));
-  cudacheck(cusolverDnDestroy(handle));
-  cudacheck(cudaStreamDestroy(stream));
+  CUSOLVER_CHECK(cusolverDnDestroyParams(params));
+  CUSOLVER_CHECK(cusolverDnDestroy(handle));
+  CUDA_CHECK(cudaStreamDestroy(stream));
 
 
   return 0; // EXIT_SUCCESS;
 
-  // cudacheck(cudaDeviceReset());
+  // CUDA_CHECK(cudaDeviceReset());
 
 
 

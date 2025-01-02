@@ -121,173 +121,224 @@ struct Zolotarev{
 
 
 
+struct Overlap : private Zolotarev {
+  using Gauge=U1onS2;
+  using WilsonDirac=Dirac1fonS2;
 
+  static constexpr Idx N = CompilationConst::N;
 
-struct OverlapPseudoFermion {
-  using Complex = std::complex<double>;
-  using Link = std::array<int,2>; // <int,int>;
-  using Face = std::vector<int>;
-  using Gauge = U1onS2;
-  using Force=U1onS2;
-  using Rng = ParallelRng;
-  using Idx = long int;
+  SparseDW SDW; // actual data used in M_DW, M_DWH
+  SparseMatrix<CuC> M_DW;
+  SparseMatrix<CuC> M_DWH;
+  const double lambda_max;
 
-  static constexpr Complex I = Complex(0.0, 1.0);
-  const int NS=2;
+  Overlap( const WilsonDirac& DW,
+	   const double lambda_max_=12.0,
+	   const double k_=0.01,
+	   const int n_=21,
+	   const bool locate_on_gpu=true)
+    : Zolotarev(k_, n_)
+    , SDW(DW, locate_on_gpu)
+    , lambda_max(lambda_max_)
+  {
+    SDW.associate( M_DW, false );
+    SDW.associate( M_DWH, true );
+  }
 
-  const Dirac1fonS2& D;
-  const CGCUDA cg;
-  const Sparse& sparse;
-  Zolotarev sgn;
+  void compute( const Gauge& U ) { SDW.update( U ); }
 
-  std::vector<Complex> phi;
-  std::vector<Complex> eta;
+  void operator()(std::vector<Complex>& res, const std::vector<Complex>& xi) const {
+    res = xi;
+    std::vector<Complex> tmp(xi.size());
 
-  OverlapPseudoFermion()=delete;
-
-  OverlapPseudoFermion(const Dirac1fonS2& D_, const double k_=0.01, const int n_=21)
-    : D(D_)
-    , cg(D)
-    , sparse(cg.sparse)
-    , sgn(k_, n_)
-    , phi(D.lattice.n_sites*NS, 0.0)
-    , eta(D.lattice.n_sites*NS, 0.0)
-  {}
-
-  Complex operator[](const int i) const { return phi[i]; }
-  Complex& operator[](const int i) { return phi[i]; }
-
-  Complex operator()(const int ix, const int a) const { return phi[NS*ix+a]; }
-  Complex& operator()(const int ix, const int a) { return phi[NS*ix+a]; }
-
-  void H( Complex* res, const Complex* v, const U1onS2& U,
-	  const double lambda_max = 1.0) const {
-    for(Idx i=0; i<sparse.N; i++) res[i] = v[i];
-
-    for(int m=1; m<sgn.size; m++) {
-      std::vector<Complex> tmp(sparse.N);
-      // cg.general_op_inv( tmp.data(), v, U, 1.0/(lambda_max*lambda_max), sgn.k*sgn.k/sgn.cp[m] );
-      cg.generalH_op_inv( tmp.data(), v, U, 1.0, sgn.k*sgn.k/sgn.cp[m], lambda_max );
-      for(Idx i=0; i<sparse.N; i++) res[i] += sgn.A[m]*tmp[i];
+    for(int m=1; m<size; m++) {
+      MatPoly<CuC> Op;
+      Op.push_back ( cplx(1.0/(lambda_max*lambda_max)), {&M_DW, &M_DWH} );
+      const CuC a = cplx(-k*k/cp[m]);
+      Op.push_back ( a, {} );
+      Op.solve<N>( tmp, xi );
+      for(Idx i=0; i<res.size(); i++) res[i] += A[m] * tmp[i];
     }
 
-    std::vector<Complex> tmp(sparse.N);
-    std::vector<Complex> tmp2(sparse.N);
-    for(Idx i=0; i<sparse.N; i++) tmp[i] = res[i];
-    multHW( tmp2, tmp, U, lambda_max );
-    const double aa = sgn.E * 2.0 / (1.0+sgn.lambda_inv) / (sgn.k*sgn.M);
-    for(Idx i=0; i<sparse.N; i++) res[i] = aa*tmp2[i];
+    for(Idx i=0; i<res.size(); i++) tmp[i] = E * 2.0 / (1.0+lambda_inv) / (k*M) * res[i];
+    MatPoly<CuC> Op;
+    Op.push_back ( cplx(1.0/(lambda_max)), {&M_DW} );
+    Op.from_cpu<N>( res, tmp );
+
+    for(Idx i=0; i<res.size(); i++) res[i] += xi[i];
   }
-
-
-  void multD( std::vector<Complex>& Dxi, const std::vector<Complex>& xi, const Gauge& U ) const {
-    assert( Dxi.size()==D.lattice.n_sites*NS );
-    assert( xi.size()==D.lattice.n_sites*NS );
-
-    Complex D_coo[sparse.len], D_csr[sparse.len];
-    D.coo_format(D_coo, U);
-    sparse.coo2csr( D_csr, D_coo );
-    sparse.mult<Complex>( Dxi.data(), xi.data(), D_csr );
-  }
-
-  void multHW( std::vector<Complex>& Dxi, const std::vector<Complex>& xi, const Gauge& U,
-	       const double lambda_max ) const {
-    assert( Dxi.size()==D.lattice.n_sites*NS );
-    assert( xi.size()==D.lattice.n_sites*NS );
-
-    Complex D_coo[sparse.len], D_csr[sparse.len];
-    D.H_coo_format(D_coo, U, lambda_max);
-    sparse.coo2csr( D_csr, D_coo );
-    sparse.mult<Complex>( Dxi.data(), xi.data(), D_csr );
-  }
-
-
-  void multDH( std::vector<Complex>& DHxi, const std::vector<Complex>& xi, const Gauge& U ) const {
-    assert( DHxi.size()==D.lattice.n_sites*NS );
-    assert( xi.size()==D.lattice.n_sites*NS );
-
-    Complex D_coo[sparse.len], D_csrH[sparse.len];
-    D.coo_format(D_coo, U);
-    sparse.coo2csrH( D_csrH, D_coo );
-    sparse.multT<Complex>( DHxi.data(), xi.data(), D_csrH );    
-  }
-
-
-  void multDHD( std::vector<Complex>& DHDxi, const std::vector<Complex>& xi, const Gauge& U ) const {
-    assert( DHDxi.size()==D.lattice.n_sites*NS );
-    assert( xi.size()==D.lattice.n_sites*NS );
-
-    Complex D_coo[sparse.len], D_csr[sparse.len], D_csrH[sparse.len];
-    D.coo_format(D_coo, U);
-    sparse.coo2csr_csrH( D_csr, D_csrH, D_coo );
-
-    std::vector<Complex> tmp( D.lattice.n_sites*NS );
-    sparse.mult<Complex>( tmp.data(), xi.data(), D_csr );
-    sparse.multT<Complex>( DHDxi.data(), tmp.data(), D_csrH );    
-  }
-
-
-//   void gen( const Gauge& U, Rng& rng ) {
-//     const int N = D.lattice.n_sites*NS;
-//     std::vector<Complex> xi(N, 0.0);
-
-//     for(int ix=0; ix<D.lattice.n_sites; ix++) for(int a=0; a<NS; a++) xi[NS*ix+a] = ( rng.gaussian_site(ix) + I*rng.gaussian_site(ix) ) / std::sqrt(2.0);
-
-//     multDH( phi, xi, U );
-
-//     update_eta(U);
-//   }
-
-
-//   void update_eta( const Gauge& U ) { cg( eta.data(), phi.data(), U ); }
-
-
-//   auto begin(){ return phi.begin(); }
-//   auto end(){ return phi.end(); }
-//   auto begin() const { return phi.begin(); }
-//   auto end() const { return phi.end(); }
-
-
-//   Complex dot( const std::vector<Complex>& eta1, const std::vector<Complex>& xi) const {
-//     assert( eta1.size()==xi.size() );
-//     Complex res = 0.0;
-//     for(int i=0; i<eta1.size(); i++) res += std::conj(eta1[i]) * xi[i];
-//     return res;
-//   }
-
-//   Complex dot( const std::vector<Complex>& eta1 ) const {
-//     return dot(this->phi, eta1);
-//   }
-
-//   double S() const { return dot( eta ).real(); }
-
-
-//   double get_force( const Gauge& U, const Link& ell ) const {
-//     const int N = D.lattice.n_sites*NS;
-
-//     std::vector<Complex> dD;
-//     std::vector<int> is;
-//     std::vector<int> js;
-//     D.d_coo_format( dD, is, js, U, ell );
-
-//     std::vector<Complex> dD_eta(N);
-//     cg.sparse.multcoo( dD_eta, eta, dD, is, js );
-
-//     std::vector<Complex> DH_dD_eta(N);
-//     multDH( DH_dD_eta, dD_eta, U );
-
-//     return -2.0 * dot( eta, DH_dD_eta ).real();
-//   }
-
-
-//   Force dS( const Gauge& U ) const {
-//     Force pi( U.lattice ); // 0 initialized
-// #ifdef _OPENMP
-// #pragma omp parallel for num_threads(nparallel)
-// #endif
-//     for(int ell=0; ell<U.lattice.n_links; ell++) pi[ell] = get_force( U, U.lattice.links[ell] );
-//     return pi;
-//   }
 
 
 };
+
+
+
+
+// struct OverlapPseudoFermion {
+//   using Complex = std::complex<double>;
+//   using Link = std::array<int,2>; // <int,int>;
+//   using Face = std::vector<int>;
+//   using Gauge = U1onS2;
+//   using Force=U1onS2;
+//   using Rng = ParallelRng;
+//   using Idx = long int;
+
+//   static constexpr Complex I = Complex(0.0, 1.0);
+//   const int NS=2;
+
+//   const Dirac1fonS2& D;
+//   const CGCUDA cg;
+//   const Sparse& sparse;
+//   Zolotarev sgn;
+
+//   std::vector<Complex> phi;
+//   std::vector<Complex> eta;
+
+//   OverlapPseudoFermion()=delete;
+
+//   OverlapPseudoFermion(const Dirac1fonS2& D_, const double k_=0.01, const int n_=21)
+//     : D(D_)
+//     , cg(D)
+//     , sparse(cg.sparse)
+//     , sgn(k_, n_)
+//     , phi(D.lattice.n_sites*NS, 0.0)
+//     , eta(D.lattice.n_sites*NS, 0.0)
+//   {}
+
+//   Complex operator[](const int i) const { return phi[i]; }
+//   Complex& operator[](const int i) { return phi[i]; }
+
+//   Complex operator()(const int ix, const int a) const { return phi[NS*ix+a]; }
+//   Complex& operator()(const int ix, const int a) { return phi[NS*ix+a]; }
+
+//   void H( Complex* res, const Complex* v, const U1onS2& U,
+// 	  const double lambda_max = 1.0) const {
+//     for(Idx i=0; i<sparse.N; i++) res[i] = v[i];
+
+//     for(int m=1; m<sgn.size; m++) {
+//       std::vector<Complex> tmp(sparse.N);
+//       // cg.general_op_inv( tmp.data(), v, U, 1.0/(lambda_max*lambda_max), sgn.k*sgn.k/sgn.cp[m] );
+//       cg.generalH_op_inv( tmp.data(), v, U, 1.0, sgn.k*sgn.k/sgn.cp[m], lambda_max );
+//       for(Idx i=0; i<sparse.N; i++) res[i] += sgn.A[m]*tmp[i];
+//     }
+
+//     std::vector<Complex> tmp(sparse.N);
+//     std::vector<Complex> tmp2(sparse.N);
+//     for(Idx i=0; i<sparse.N; i++) tmp[i] = res[i];
+//     multHW( tmp2, tmp, U, lambda_max );
+//     const double aa = sgn.E * 2.0 / (1.0+sgn.lambda_inv) / (sgn.k*sgn.M);
+//     for(Idx i=0; i<sparse.N; i++) res[i] = aa*tmp2[i];
+//   }
+
+
+//   void multD( std::vector<Complex>& Dxi, const std::vector<Complex>& xi, const Gauge& U ) const {
+//     assert( Dxi.size()==D.lattice.n_sites*NS );
+//     assert( xi.size()==D.lattice.n_sites*NS );
+
+//     Complex D_coo[sparse.len], D_csr[sparse.len];
+//     D.coo_format(D_coo, U);
+//     sparse.coo2csr( D_csr, D_coo );
+//     sparse.mult<Complex>( Dxi.data(), xi.data(), D_csr );
+//   }
+
+//   void multHW( std::vector<Complex>& Dxi, const std::vector<Complex>& xi, const Gauge& U,
+// 	       const double lambda_max ) const {
+//     assert( Dxi.size()==D.lattice.n_sites*NS );
+//     assert( xi.size()==D.lattice.n_sites*NS );
+
+//     Complex D_coo[sparse.len], D_csr[sparse.len];
+//     D.H_coo_format(D_coo, U, lambda_max);
+//     sparse.coo2csr( D_csr, D_coo );
+//     sparse.mult<Complex>( Dxi.data(), xi.data(), D_csr );
+//   }
+
+
+//   void multDH( std::vector<Complex>& DHxi, const std::vector<Complex>& xi, const Gauge& U ) const {
+//     assert( DHxi.size()==D.lattice.n_sites*NS );
+//     assert( xi.size()==D.lattice.n_sites*NS );
+
+//     Complex D_coo[sparse.len], D_csrH[sparse.len];
+//     D.coo_format(D_coo, U);
+//     sparse.coo2csrH( D_csrH, D_coo );
+//     sparse.multT<Complex>( DHxi.data(), xi.data(), D_csrH );    
+//   }
+
+
+//   void multDHD( std::vector<Complex>& DHDxi, const std::vector<Complex>& xi, const Gauge& U ) const {
+//     assert( DHDxi.size()==D.lattice.n_sites*NS );
+//     assert( xi.size()==D.lattice.n_sites*NS );
+
+//     Complex D_coo[sparse.len], D_csr[sparse.len], D_csrH[sparse.len];
+//     D.coo_format(D_coo, U);
+//     sparse.coo2csr_csrH( D_csr, D_csrH, D_coo );
+
+//     std::vector<Complex> tmp( D.lattice.n_sites*NS );
+//     sparse.mult<Complex>( tmp.data(), xi.data(), D_csr );
+//     sparse.multT<Complex>( DHDxi.data(), tmp.data(), D_csrH );    
+//   }
+
+
+// //   void gen( const Gauge& U, Rng& rng ) {
+// //     const int N = D.lattice.n_sites*NS;
+// //     std::vector<Complex> xi(N, 0.0);
+
+// //     for(int ix=0; ix<D.lattice.n_sites; ix++) for(int a=0; a<NS; a++) xi[NS*ix+a] = ( rng.gaussian_site(ix) + I*rng.gaussian_site(ix) ) / std::sqrt(2.0);
+
+// //     multDH( phi, xi, U );
+
+// //     update_eta(U);
+// //   }
+
+
+// //   void update_eta( const Gauge& U ) { cg( eta.data(), phi.data(), U ); }
+
+
+// //   auto begin(){ return phi.begin(); }
+// //   auto end(){ return phi.end(); }
+// //   auto begin() const { return phi.begin(); }
+// //   auto end() const { return phi.end(); }
+
+
+// //   Complex dot( const std::vector<Complex>& eta1, const std::vector<Complex>& xi) const {
+// //     assert( eta1.size()==xi.size() );
+// //     Complex res = 0.0;
+// //     for(int i=0; i<eta1.size(); i++) res += std::conj(eta1[i]) * xi[i];
+// //     return res;
+// //   }
+
+// //   Complex dot( const std::vector<Complex>& eta1 ) const {
+// //     return dot(this->phi, eta1);
+// //   }
+
+// //   double S() const { return dot( eta ).real(); }
+
+
+// //   double get_force( const Gauge& U, const Link& ell ) const {
+// //     const int N = D.lattice.n_sites*NS;
+
+// //     std::vector<Complex> dD;
+// //     std::vector<int> is;
+// //     std::vector<int> js;
+// //     D.d_coo_format( dD, is, js, U, ell );
+
+// //     std::vector<Complex> dD_eta(N);
+// //     cg.sparse.multcoo( dD_eta, eta, dD, is, js );
+
+// //     std::vector<Complex> DH_dD_eta(N);
+// //     multDH( DH_dD_eta, dD_eta, U );
+
+// //     return -2.0 * dot( eta, DH_dD_eta ).real();
+// //   }
+
+
+// //   Force dS( const Gauge& U ) const {
+// //     Force pi( U.lattice ); // 0 initialized
+// // #ifdef _OPENMP
+// // #pragma omp parallel for num_threads(nparallel)
+// // #endif
+// //     for(int ell=0; ell<U.lattice.n_links; ell++) pi[ell] = get_force( U, U.lattice.links[ell] );
+// //     return pi;
+// //   }
+
+
+// };
