@@ -48,11 +48,12 @@ using CuC = cuDoubleComplex;
 // #include "header_cusolver.hpp"
 
 
-// TO DO: Cusparse for SparseMatrix::act_gpu, probably defining handle in matpoly.h
+// TODO: Cusparse for SparseMatrix::act_gpu, probably defining handle in matpoly.h
 // all the operation on GPU in Overlap::operator()
 // gradient of Dov (Overlap class, in parallel to Dirac)
 // pseudofermion
 // 3d
+// __m256 to vectorize with AVX2
 
 
 int main(int argc, char* argv[]){
