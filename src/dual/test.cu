@@ -2,7 +2,7 @@
 #include <iomanip>
 
 #include <omp.h>
-constexpr int nparallel=10;
+// constexpr int nparallel=1;
 #define IsVerbose
 
 

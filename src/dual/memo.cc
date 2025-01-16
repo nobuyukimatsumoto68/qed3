@@ -1783,3 +1783,269 @@ void matmulgam5( T* res, T* v, const int Nx) {
     }
   }
 
+
+
+
+  std::vector<Complex> q(N, 0.0);
+  std::vector<Complex> x(N, 0.0);
+  // std::vector<Complex> eta(N, 0.0);
+  // xi[0] = 0.4;
+  // xi[1] = -0.2;
+  // #ifdef _OPENMP
+  // #pragma omp parallel for num_threads(CompilationConst::NPARALLEL)
+  // #endif
+  for(int i=0; i<N; i++) {
+    std::cout << "i = " << i << std::endl;
+    // xi[i] = rng.gaussian_site(i);
+    q[i] = rng.gaussian();
+    // x[i] = rng.gaussian();
+  }
+
+  std::cout << "init set." << std::endl;
+
+  {
+    MatPoly<CuC> Op;
+    Op.push_back ( cplx(1.0), {&(Dov.M_DW), &(Dov.M_DWH)} );
+
+    CuC *d_x; // , *d_tmp, *d_tmp2;
+    CUDA_CHECK(cudaMalloc(&d_x, N*CD));
+    CuC *d_q; // , *d_tmp, *d_tmp2;
+    CUDA_CHECK(cudaMalloc(&d_q, N*CD));
+    CuC *d_scalar;
+    CUDA_CHECK(cudaMalloc(&d_scalar, CD));
+
+    Complex dot;
+    double norm=1.0, mu_0=1.0, mu_m1=1.0, mu_m2=1.0;
+
+    CUDA_CHECK(cudaMemcpy(d_q, reinterpret_cast<const CuC*>(q.data()), N*CD, H2D));
+    Op.dot2self<N>(norm, d_scalar, d_q);
+    for(int i=0; i<N; i++) q[i] = q[i]/std::sqrt(norm);
+
+    double TOL=1.0e-4;
+
+    double lambda=100.0, lambda_old=1000.0;
+
+    for(int i=0; i<200; i++){
+      std::vector<Complex> DHDxi(N);
+
+      Op.from_cpu<N>( x, q );
+      CUDA_CHECK(cudaMemcpy(d_x, reinterpret_cast<const CuC*>(x.data()), N*CD, H2D));
+
+      //
+
+      Op.dot2self<N>(norm, d_scalar, d_x);
+      for(int i=0; i<N; i++) q[i] = x[i]/std::sqrt(norm);
+      CUDA_CHECK(cudaMemcpy(d_q, reinterpret_cast<const CuC*>(q.data()), N*CD, H2D));
+      
+      Op.dot<N>(reinterpret_cast<CuC&>(dot), d_scalar, d_x, d_q);
+      // CUDA_CHECK(cudaMemcpy(d_Dxi, reinterpret_cast<const CuC*>(DHDxi.data()), N*CD, H2D));
+
+      // std::cout << std::sqrt(norm) << ", " << DHDxi[0] << std::endl;
+      mu_m2=mu_m1;
+      mu_m1=mu_0;
+      mu_0=dot.real();
+      // std::cout << dot.real() << std::endl;
+      double r = (mu_0-mu_m1)/(mu_m1-mu_m2);
+      double a = (mu_0-mu_m1)/std::pow(r,i-1)/(r-1);
+      lambda_old = lambda;
+      lambda = mu_0 - a*std::pow(r,i);
+      std::cout << i << " " << dot.real() << " " << lambda << std::endl;
+
+      if(std::abs(lambda_old-lambda)/lambda<TOL) break;
+      // std::cout << dot.real() << std::endl;
+      // dot_old = dot;
+
+      // for(int i=0; i<N; i++) xi[i] = DHDxi[i];
+      // for(int i=0; i<N; i++) xi[i] = DHDxi[i]/dot;
+      // double norm;
+      // CUDA_CHECK(cudaMemcpy(d_Dxi, reinterpret_cast<const CuC*>(xi.data()), N*CD, H2D));
+      // Op.dot2self<N>(norm, d_scalar, d_Dxi);
+      //std::cout << norm << ", " << DHDxi[0] << std::endl;
+    }
+
+    CUDA_CHECK(cudaFree(d_x));
+    CUDA_CHECK(cudaFree(d_q));
+    CUDA_CHECK(cudaFree(d_scalar));
+  }  
+
+
+
+  // void act_gpu2( T* d_res, const T* d_v ) const {
+  //   assert( on_gpu );
+
+  //   cusparseHandle_t handle = NULL;
+
+  //   const cusparseDirection_t dirA = CUSPARSE_DIRECTION_COLUMN;
+  //   constexpr Idx blockDim = ComilationConst::N;
+  //   constexpr int mb = 1;
+  //   constexpr int nb = 1;
+  //   constexpr int nnzb = 1;
+
+  //   int* bsrRowPtr;
+  //   cudaMalloc((void**)&bsrRowPtrC, sizeof(int) *(mb+1));
+
+  //   CuC* descrA
+  //   cusparseXcsr2bsrNnz(handle, dirA, m, n,
+
+  // 			descrA, csrRowPtrA, csrColIndA, blockDim,
+  // 			descrC, bsrRowPtrC, &nnzb);
+
+  //   cudaMalloc((void**)&bsrColIndC, sizeof(int)*nnzb);
+  //   cudaMalloc((void**)&bsrValC, sizeof(float)*(blockDim*blockDim)*nnzb);
+  //   cusparseScsr2bsr(handle, dirA, m, n,
+  // 		     descrA, csrValA, csrRowPtrA, csrColIndA, blockDim,
+  // 		     descrC, bsrValC, bsrRowPtrC, bsrColIndC);
+  //   // step 2: allocate vector x and vector y large enough for bsrmv
+  //   cudaMalloc((void**)&x, sizeof(float)*(nb*blockDim));
+  //   cudaMalloc((void**)&y, sizeof(float)*(mb*blockDim));
+  //   cudaMemcpy(x, hx, sizeof(float)*n, cudaMemcpyHostToDevice);
+  //   cudaMemcpy(y, hy, sizeof(float)*m, cudaMemcpyHostToDevice);
+  //   // step 3: perform bsrmv
+  //   cusparseSbsrmv(handle, dirA, transA, mb, nb, nnzb, &alpha,
+  // 		   descrC, bsrValC, bsrRowPtrC, bsrColIndC, blockDim, x, &beta, y);
+
+  //     cusparseZbsrmv(cusparseHandle_t         handle,
+  //              cusparseDirection_t      dir,
+  //              cusparseOperation_t      trans,
+  //              int                      mb,
+  //              int                      nb,
+  //              int                      nnzb,
+  //              const cuDoubleComplex*   alpha,
+  //              const cusparseMatDescr_t descr,
+  //              const cuDoubleComplex*   bsrVal,
+  //              const int*               bsrRowPtr,
+  //              const int*               bsrColInd,
+  //              int                      blockDim,
+  //              const cuDoubleComplex*   x,
+  //              const cuDoubleComplex*   beta,
+  //              cuDoubleComplex*         y)
+
+
+  //   constexpr Idx N = CompilationConst::N;
+  //   mult<T,N><<<NBlocks, NThreadsPerBlock>>>(d_res,
+  // 					     d_v,
+  // 					     this->val,
+  // 					     this->cols,
+  // 					     this->rows);
+  // }
+
+
+
+
+
+  using Link = std::array<Idx,2>; // <int,int>;
+
+  const Idx ix=2;
+  const Idx iy=lattice.nns[ix][0];
+  const Link ell{ix,iy};
+
+  std::vector<COOEntry> en;
+  DW.d_coo_format(en, U, ell);
+
+  std::vector<Complex> Dxi(N), xi(N);
+  for(int i=0; i<N; i++) {
+    xi[i] = rng.gaussian();
+  }
+  matmulcoo<N>(reinterpret_cast<CuC*>(Dxi.data()),
+               reinterpret_cast<CuC*>(xi.data()),
+               en
+               );
+
+  std::cout << "Dxi = " << std::endl;
+  for(auto elem:Dxi) std::cout << elem << std::endl;
+  // std::cout << "is = " << std::endl;
+  // for(auto elem:is) std::cout << elem << std::endl;
+  // std::cout << "js = " << std::endl;
+  // for(auto elem:js) std::cout << elem << std::endl;
+  {
+    // for(auto elem:en) std::cout << elem << std::endl;
+    std::sort( en.begin(), en.end() );
+    // for(auto elem:en) std::cout << elem << std::endl;
+
+    Idx len=en.size();
+    std::vector<CuC> v(len);
+    std::vector<Idx> cols(len);
+    std::vector<Idx> rows;
+
+    for(Idx k=0; k<len; k++){
+      v[k] = en[k].v;
+      cols[k] = en[k].j;
+    }
+
+    Idx k=0;
+    rows.push_back(k);
+    for(Idx i=0; i<N; i++){
+      while(en[k].i == i) k++;
+      rows.push_back(k);
+    }
+
+    matmul<N>(reinterpret_cast<CuC*>(Dxi.data()),
+              reinterpret_cast<CuC*>(xi.data()),
+              v, cols, rows
+              );
+
+    std::cout << "Dxi = " << std::endl;
+    for(auto elem:Dxi) std::cout << elem << std::endl;
+
+
+    // rows.push_back(N);
+
+    // std::cout << "v = " << std::endl;
+    // for(auto elem:v) std::cout << real(elem) << " " << imag(elem) << std::endl;
+    // std::cout << "is = " << std::endl;
+    // for(auto elem:cols) std::cout << elem << std::endl;
+    // std::cout << "js = " << std::endl;
+    // for(auto elem:rows) std::cout << elem << std::endl;
+
+    // std::cout << v.size() << " "
+    //           << cols.size() << " "
+    //           << rows.size() << std::endl;
+
+    // std::cout << len << " " << N << std::endl;
+  }
+
+
+  // bool on_gpu = false;
+  // T* val;
+  // Idx* cols;
+  // Idx* rows;
+  // SparseMatrix();
+
+  // void act_cpu( std::vector<T>& res, const std::vector<T>& v ) const {
+  //   assert( !on_gpu );
+
+  //   constexpr Idx N = CompilationConst::N;
+  //   for(Idx i=0; i<N; i++) {
+  //     res[i] = cplx(0.0);
+  //     const int row_start = rows[i];
+  //     const int row_end = rows[i+1];
+  //     for(int jj=row_start; jj<row_end; jj++) res[i] = res[i] + val[jj] * v[ cols[jj] ];
+  //   }
+  // }
+
+
+  COO coo;
+  DW.d_coo_format(coo.en, U, ell);
+  coo.set();
+
+  std::vector<Complex> Dxi(N), xi(N);
+  for(int i=0; i<N; i++) {
+    xi[i] = rng.gaussian();
+  }
+
+  {
+    CuC *d_Dxi, *d_xi;
+    CUDA_CHECK(cudaMalloc(&d_Dxi, N*CD));
+    CUDA_CHECK(cudaMalloc(&d_xi, N*CD));
+    CUDA_CHECK(cudaMemcpy(d_xi, reinterpret_cast<const CuC*>(xi.data()), N*CD, H2D));
+
+    coo( d_Dxi, d_xi );
+
+    CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(Dxi.data()), d_Dxi, N*CD, D2H));
+
+    CUDA_CHECK(cudaFree(d_Dxi));
+    CUDA_CHECK(cudaFree(d_xi));
+  }
+
+  std::cout << "Dxi = " << std::endl;
+  for(auto elem:Dxi) std::cout << elem << std::endl;

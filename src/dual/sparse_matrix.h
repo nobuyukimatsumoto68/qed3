@@ -1,28 +1,21 @@
 #pragma once
 
-template<typename T>
+
 struct SparseMatrix{
-  bool on_gpu = false;
+  using T = CuC;
+
+  virtual void operator()( T* d_res, const T* d_v ) const = 0;
+};
+
+
+struct CSR : public SparseMatrix {
+  using T = CuC;
+
   T* val;
   Idx* cols;
   Idx* rows;
 
-  void act_cpu( std::vector<T>& res, const std::vector<T>& v ) const {
-    assert( !on_gpu );
-
-    constexpr Idx N = CompilationConst::N;
-    for(Idx i=0; i<N; i++) {
-      res[i] = 0.0;
-      const int row_start = rows[i];
-      const int row_end = rows[i+1];
-      for(int jj=row_start; jj<row_end; jj++) res[i] = res[i] + val[jj] * v[ cols[jj] ];
-    }
-  }
-
-
-  void act_gpu( T* d_res, const T* d_v ) const {
-    assert( on_gpu );
-
+  void operator()( T* d_res, const T* d_v ) const {
     constexpr Idx N = CompilationConst::N;
     mult<T,N><<<NBlocks, NThreadsPerBlock>>>(d_res,
 					     d_v,
@@ -31,66 +24,146 @@ struct SparseMatrix{
 					     this->rows);
   }
 
-  // void act_gpu2( T* d_res, const T* d_v ) const {
-  //   assert( on_gpu );
-
-  //   cusparseHandle_t handle = NULL;
-
-  //   const cusparseDirection_t dirA = CUSPARSE_DIRECTION_COLUMN;
-  //   constexpr Idx blockDim = ComilationConst::N;
-  //   constexpr int mb = 1;
-  //   constexpr int nb = 1;
-  //   constexpr int nnzb = 1;
-
-  //   int* bsrRowPtr;
-  //   cudaMalloc((void**)&bsrRowPtrC, sizeof(int) *(mb+1));
-
-  //   CuC* descrA
-  //   cusparseXcsr2bsrNnz(handle, dirA, m, n,
-
-  // 			descrA, csrRowPtrA, csrColIndA, blockDim,
-  // 			descrC, bsrRowPtrC, &nnzb);
-
-  //   cudaMalloc((void**)&bsrColIndC, sizeof(int)*nnzb);
-  //   cudaMalloc((void**)&bsrValC, sizeof(float)*(blockDim*blockDim)*nnzb);
-  //   cusparseScsr2bsr(handle, dirA, m, n,
-  // 		     descrA, csrValA, csrRowPtrA, csrColIndA, blockDim,
-  // 		     descrC, bsrValC, bsrRowPtrC, bsrColIndC);
-  //   // step 2: allocate vector x and vector y large enough for bsrmv
-  //   cudaMalloc((void**)&x, sizeof(float)*(nb*blockDim));
-  //   cudaMalloc((void**)&y, sizeof(float)*(mb*blockDim));
-  //   cudaMemcpy(x, hx, sizeof(float)*n, cudaMemcpyHostToDevice);
-  //   cudaMemcpy(y, hy, sizeof(float)*m, cudaMemcpyHostToDevice);
-  //   // step 3: perform bsrmv
-  //   cusparseSbsrmv(handle, dirA, transA, mb, nb, nnzb, &alpha,
-  // 		   descrC, bsrValC, bsrRowPtrC, bsrColIndC, blockDim, x, &beta, y);
-
-  //     cusparseZbsrmv(cusparseHandle_t         handle,
-  //              cusparseDirection_t      dir,
-  //              cusparseOperation_t      trans,
-  //              int                      mb,
-  //              int                      nb,
-  //              int                      nnzb,
-  //              const cuDoubleComplex*   alpha,
-  //              const cusparseMatDescr_t descr,
-  //              const cuDoubleComplex*   bsrVal,
-  //              const int*               bsrRowPtr,
-  //              const int*               bsrColInd,
-  //              int                      blockDim,
-  //              const cuDoubleComplex*   x,
-  //              const cuDoubleComplex*   beta,
-  //              cuDoubleComplex*         y)
+};
 
 
-  //   constexpr Idx N = CompilationConst::N;
-  //   mult<T,N><<<NBlocks, NThreadsPerBlock>>>(d_res,
-  // 					     d_v,
-  // 					     this->val,
-  // 					     this->cols,
-  // 					     this->rows);
-  // }
+struct COOEntry {
+  using T = CuC;
+  T v;
+  Idx i;
+  Idx j;
 
+  // COOEntry() = delete;
+  COOEntry( const T v, const Idx i, const Idx j )
+    : v(v)
+    , i(i)
+    , j(j)
+  {}
 
+  COOEntry( const Complex v_, const Idx i, const Idx j )
+    : v(cplx(v_))
+    , i(i)
+    , j(j)
+  {}
+
+  bool operator<(const COOEntry& other) const {
+    bool res = false;
+
+    if(this->i < other.i) {
+      res = true;
+      return res;
+    }
+    else if(this->j == other.j){
+      if(this->j < other.j) {
+        res = true;
+        return res;
+      }
+    }
+    return res;
+  }
+
+  friend std::ostream& operator<<(std::ostream& stream, const COOEntry& obj) {
+    stream << real(obj.v) << " "<< imag(obj.v) << " " << obj.i << " " << obj.j << std::flush; // << std::endl
+    return stream;
+  }
 
 };
+
+
+// for gradients
+struct COO : public SparseMatrix {
+  using T = CuC;
+  static constexpr Idx N = CompilationConst::N;
+
+  std::vector<COOEntry> en;
+
+  T* d_val;
+  Idx* d_cols;
+  Idx* d_rows;
+
+  bool is_set;
+
+  COO()
+    : is_set(true)
+  {}
+
+  ~COO()
+  {
+    if(is_set){
+      CUDA_CHECK(cudaFree(d_val));
+      CUDA_CHECK(cudaFree(d_cols));
+      CUDA_CHECK(cudaFree(d_rows));
+    }
+  }
+
+  void set(){
+    std::sort( en.begin(), en.end() );
+
+    Idx len=en.size();
+    std::vector<CuC> v(len);
+    std::vector<Idx> cols(len);
+    std::vector<Idx> rows;
+
+    for(Idx k=0; k<len; k++){
+      v[k] = en[k].v;
+      cols[k] = en[k].j;
+    }
+
+    Idx k=0;
+    rows.push_back(k);
+    for(Idx i=0; i<N; i++){
+      while(en[k].i == i) k++;
+      rows.push_back(k);
+    }
+
+    CUDA_CHECK(cudaMalloc(&d_cols, len*sizeof(Idx)));
+    CUDA_CHECK(cudaMalloc(&d_rows, (N+1)*sizeof(Idx)));
+    CUDA_CHECK(cudaMalloc(&d_val, len*CD));
+
+    CUDA_CHECK(cudaMemcpy(d_cols, cols.data(), len*sizeof(Idx), H2D));
+    CUDA_CHECK(cudaMemcpy(d_rows, rows.data(), (N+1)*sizeof(Idx), H2D));
+    CUDA_CHECK(cudaMemcpy(d_val, reinterpret_cast<const CuC*>(v.data()), len*CD, H2D));
+
+    is_set = true;
+  }
+
+
+  void operator()( T* d_res, const T* d_v ) const {
+    constexpr Idx N = CompilationConst::N;
+    mult<T,N><<<NBlocks, NThreadsPerBlock>>>(d_res,
+					     d_v,
+					     this->d_val,
+					     this->d_cols,
+					     this->d_rows);
+  }
+
+};
+
+
+
+template <Idx N>
+void matmulcoo( CuC* res, CuC* v,
+		const std::vector<COOEntry>& coo) {
+  // assert( val.size()==cols.size() );
+  // assert( val.size()==rows.size() );
+
+  for(int i=0; i<N; i++) res[i] = cplx(0.0);
+  for(int k=0; k<coo.size(); k++) res[coo[k].i] = res[coo[k].i] + coo[k].v * v[coo[k].j];
+}
+
+
+template <Idx N>
+void matmul( CuC* res, CuC* v,
+	     const std::vector<CuC>& val,
+	     const std::vector<Idx>& cols,
+	     const std::vector<Idx>& rows ) {
+  for(int i=0; i<N; i++){
+    res[i] = cplx(0.0);
+    const int row_start = rows[i];
+    const int row_end = rows[i+1];
+    for(int jj=row_start; jj<row_end; jj++){
+      res[i] = res[i] + val[jj] * v[cols[jj]];
+    }
+  }
+}
 

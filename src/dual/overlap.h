@@ -128,31 +128,95 @@ struct Overlap : private Zolotarev {
   static constexpr Idx N = CompilationConst::N;
 
   SparseDW SDW; // actual data used in M_DW, M_DWH
-  SparseMatrix<CuC> M_DW;
-  SparseMatrix<CuC> M_DWH;
-  const double lambda_max;
+  CSR M_DW;
+  CSR M_DWH;
+  double lambda_max;
 
   Overlap( const WilsonDirac& DW,
-	   const double lambda_max_=12.0,
+	   // const double lambda_max_=12.0,
 	   const double k_=0.01,
 	   const int n_=21,
 	   const bool locate_on_gpu=true)
     : Zolotarev(k_, n_)
-    , SDW(DW, locate_on_gpu)
-    , lambda_max(lambda_max_)
+    , SDW(DW)
+      // , lambda_max(lambda_max_)
   {
     SDW.associate( M_DW, false );
     SDW.associate( M_DWH, true );
   }
 
-  void compute( const Gauge& U ) { SDW.update( U ); }
+  void compute( const Gauge& U ) {
+    SDW.update( U );
+    compute_lambda_max();
+  }
+
+  void compute_lambda_max( const double TOL=1.0e-4, const int MAXITER=500 ) {
+    std::vector<Complex> q(N, 0.0);
+    std::vector<Complex> x(N, 0.0);
+
+    for(int i=0; i<N; i++) q[i] = (1.0*i+1.0)/N;
+
+    MatPoly Op;
+    Op.push_back ( cplx(1.0), {&M_DW, &M_DWH} );
+
+    CuC *d_x, *d_q, *d_scalar; // , *d_tmp, *d_tmp2;
+    CUDA_CHECK(cudaMalloc(&d_x, N*CD));
+    CUDA_CHECK(cudaMalloc(&d_q, N*CD));
+    CUDA_CHECK(cudaMalloc(&d_scalar, CD));
+    
+    CUDA_CHECK(cudaMemset(d_x, 0, N*CD));
+    CUDA_CHECK(cudaMemset(d_q, 0, N*CD));
+    CUDA_CHECK(cudaMemset(d_scalar, 0, CD));
+
+    Complex dot;
+    double norm=1.0, mu_0=1.0, mu_m1=1.0, mu_m2=1.0;
+
+    CUDA_CHECK(cudaMemcpy(d_q, reinterpret_cast<const CuC*>(q.data()), N*CD, H2D));
+    Op.dot2self<N>(norm, d_scalar, d_q);
+    for(int i=0; i<N; i++) q[i] = q[i]/std::sqrt(norm);
+
+    double lambda=100.0, lambda_old=1000.0;
+
+    for(int i=0; i<MAXITER; i++){
+      Op.from_cpu<N>( x, q );
+      CUDA_CHECK(cudaMemcpy(d_x, reinterpret_cast<const CuC*>(x.data()), N*CD, H2D));
+      //
+      Op.dot2self<N>(norm, d_scalar, d_x);
+      for(int i=0; i<N; i++) q[i] = x[i]/std::sqrt(norm);
+      CUDA_CHECK(cudaMemcpy(d_q, reinterpret_cast<const CuC*>(q.data()), N*CD, H2D));
+      
+      Op.dot<N>(reinterpret_cast<CuC&>(dot), d_scalar, d_x, d_q);
+      mu_m2=mu_m1;
+      mu_m1=mu_0;
+      mu_0=dot.real();
+
+      const double r = (mu_0-mu_m1)/(mu_m1-mu_m2);
+      const double a = (mu_0-mu_m1)/std::pow(r,i-1)/(r-1);
+      lambda_old = lambda;
+      lambda = mu_0 - a*std::pow(r,i);
+
+      if(std::abs(lambda_old-lambda)/lambda<TOL) {
+#ifdef IsVerbose
+	std::clog << "# lambda_max estimate escaped in i = " << i << std::endl;
+#endif
+	break;
+      }
+    }
+
+    CUDA_CHECK(cudaFree(d_x));
+    CUDA_CHECK(cudaFree(d_q));
+    CUDA_CHECK(cudaFree(d_scalar));
+
+    lambda_max = std::sqrt( (1.0+100.0*TOL)*lambda );
+  }
+
 
   void operator()(std::vector<Complex>& res, const std::vector<Complex>& xi) const {
     res = xi;
     std::vector<Complex> tmp(xi.size());
 
     for(int m=1; m<size; m++) {
-      MatPoly<CuC> Op;
+      MatPoly Op;
       Op.push_back ( cplx(1.0/(lambda_max*lambda_max)), {&M_DW, &M_DWH} );
       const CuC a = cplx(-k*k/cp[m]);
       Op.push_back ( a, {} );
@@ -161,7 +225,7 @@ struct Overlap : private Zolotarev {
     }
 
     for(Idx i=0; i<res.size(); i++) tmp[i] = E * 2.0 / (1.0+lambda_inv) / (k*M) * res[i];
-    MatPoly<CuC> Op;
+    MatPoly Op;
     Op.push_back ( cplx(1.0/(lambda_max)), {&M_DW} );
     Op.from_cpu<N>( res, tmp );
 

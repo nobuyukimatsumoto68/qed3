@@ -131,7 +131,7 @@ struct PseudoFermion {
   Force dS( const Gauge& U ) const {
     Force pi( U.lattice ); // 0 initialized
 #ifdef _OPENMP
-#pragma omp parallel for num_threads(nparallel)
+#pragma omp parallel for num_threads(CompilationConst::NPARALLEL)
 #endif
     for(int ell=0; ell<U.lattice.n_links; ell++) pi[ell] = get_force( U, U.lattice.links[ell] );
     return pi;

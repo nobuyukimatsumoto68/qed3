@@ -1,8 +1,10 @@
 #pragma once
 
-template<typename T>
+// template<typename T>
 struct MatPoly{
-  std::vector<std::vector<const SparseMatrix<T>*>> vec_mats;
+  using T = CuC;
+
+  std::vector<std::vector<const SparseMatrix*>> vec_mats;
   std::vector<T> coeffs;
 
   cublasHandle_t handle;
@@ -42,38 +44,38 @@ struct MatPoly{
   }
 
   int size() const { return vec_mats.size(); }
-  std::vector<const SparseMatrix<T>*> operator[](const int i) const { return vec_mats[i]; }
+  std::vector<const SparseMatrix*> operator[](const int i) const { return vec_mats[i]; }
 
   void set_coeff( const int i, const T coeff ){ coeffs[i] = coeff; }
 
   void set_matrix( const int i, const int j,
-		   const SparseMatrix<T>* mat_ptr ){
+		   const SparseMatrix* mat_ptr ){
     vec_mats[i][j] = mat_ptr;
   }
   
   void push_back( const T coeff,
-		  const std::initializer_list<const SparseMatrix<T>*> struc={} ){
+		  const std::initializer_list<const SparseMatrix*> struc={} ){
     coeffs.push_back(coeff);
-    vec_mats.push_back(std::vector<const SparseMatrix<T>*>(0));
+    vec_mats.push_back(std::vector<const SparseMatrix*>(0));
     for( auto itr=struc.begin(); itr!=struc.end(); ++itr ) vec_mats.back().push_back( *itr );
   }
 
 
-  template<Idx N>
-  void on_cpu( std::vector<Complex>& v, const std::vector<Complex>& v0 ) const {
-    for(Idx j=0; j<N; j++) v[j] = 0.0;
-    std::vector<Complex> tmp(N), Mv0(N);
+  // template<Idx N>
+  // void on_cpu( std::vector<Complex>& v, const std::vector<Complex>& v0 ) const {
+  //   for(Idx j=0; j<N; j++) v[j] = 0.0;
+  //   std::vector<Complex> tmp(N), Mv0(N);
 
-    for(int i=0; i<vec_mats.size(); i++){
-      tmp = v0;
-      Mv0 = v0;
-      for(int j=0; j<vec_mats[i].size(); j++){
-	vec_mats[i][j]->act_cpu( Mv0, tmp );
-	tmp = Mv0;
-      }
-      for(Idx j=0; j<N; j++) v[j] += coeffs[i] * Mv0[j];
-    }
-  }
+  //   for(int i=0; i<vec_mats.size(); i++){
+  //     tmp = v0;
+  //     Mv0 = v0;
+  //     for(int j=0; j<vec_mats[i].size(); j++){
+  //       vec_mats[i][j]->act_cpu( Mv0, tmp );
+  //       tmp = Mv0;
+  //     }
+  //     for(Idx j=0; j<N; j++) v[j] += coeffs[i] * Mv0[j];
+  //   }
+  // }
 
 
   template<Idx N>
@@ -84,7 +86,7 @@ struct MatPoly{
 
     CUDA_CHECK(cudaMemcpy(d_v0, reinterpret_cast<const CuC*>(v0.data()), N*CD, H2D));
     CUDA_CHECK(cudaMemset(d_v, 0, N*CD));
-    
+
     on_gpu<N>( d_v, d_v0 );
 
     CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(v.data()), d_v, N*CD, D2H));
@@ -103,13 +105,14 @@ struct MatPoly{
     CUDA_CHECK(cudaMemset(d_v, 0, N*CD));
     CUDA_CHECK(cudaMemset(d_tmp, 0, N*CD));
     CUDA_CHECK(cudaMemset(d_Mv0, 0, N*CD));
+    CUDA_CHECK(cudaMemset(d_coeffs, 0, coeffs.size()*CD));
     CUDA_CHECK(cudaMemcpy(d_coeffs, coeffs.data(), coeffs.size()*CD, H2D));
 
     for(int i=0; i<vec_mats.size(); i++){
       CUDA_CHECK(cudaMemcpy(d_tmp, d_v0, N*CD, D2D));
       CUDA_CHECK(cudaMemcpy(d_Mv0, d_v0, N*CD, D2D));
       for(int j=0; j<vec_mats[i].size(); j++){
-	vec_mats[i][j]->act_gpu(d_Mv0, d_tmp);
+	vec_mats[i][j]->operator()(d_Mv0, d_tmp);
 	CUDA_CHECK(cudaMemcpy(d_tmp, d_Mv0, N*CD, D2D));
       }
       Taxpy<CuC, N><<<NBlocks, NThreadsPerBlock>>>(d_v,
@@ -124,17 +127,17 @@ struct MatPoly{
     CUDA_CHECK(cudaFree(d_coeffs));
   }
 
-  __host__
-  void zaxpy( const CuC a,
-	      const CuC* x, CuC* y) const {
-    // std::cout << "debug 1." << std::endl;
-    const int incx=1, incy=1;
-    CUBLAS_CHECK( cublasZaxpy(handle, CompilationConst::N,
-			      &a,
-			      x, incx,
-			      y, incy) );
-    // std::cout << "debug 2." << std::endl;
-  }
+  // __host__ // use taxpy
+  // void zaxpy( const CuC a,
+  // 	      const CuC* x, CuC* y) const {
+  //   // std::cout << "debug 1." << std::endl;
+  //   const int incx=1, incy=1;
+  //   CUBLAS_CHECK( cublasZaxpy(handle, CompilationConst::N,
+  // 			      &a,
+  // 			      x, incx,
+  // 			      y, incy) );
+  //   // std::cout << "debug 2." << std::endl;
+  // }
 
 
   template<Idx N> __host__
@@ -155,7 +158,11 @@ struct MatPoly{
 		d_scalar);
     CuC dummy;
     CUDA_CHECK(cudaMemcpy(&dummy, d_scalar, CD, D2H));
-    // std::cout << "debig" << abs( imag(dummy) ) << std::endl;
+#ifdef IsVerbose
+    if(abs( imag(dummy)/real(dummy) )>=TOL*std::sqrt(N)){
+      std::clog << abs( imag(dummy)/real(dummy) ) << std::endl;
+    }
+#endif
     assert( abs( imag(dummy)/real(dummy) )<TOL*std::sqrt(N) );
     result = real(dummy);
   }

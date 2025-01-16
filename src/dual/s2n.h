@@ -13,8 +13,8 @@
 
 
 struct Lattice {
-  using Link = std::array<int,2>; // <int,int>;
-  using Face = std::vector<int>;
+  using Link = std::array<Idx,2>; // <Idx,Idx>;
+  using Face = std::vector<Idx>;
   using MS=Eigen::Matrix2cd;
   using VD=Eigen::Vector2d;
   using VE=Eigen::Vector3d;
@@ -24,7 +24,7 @@ struct Lattice {
 
   std::vector<VE> simp_sites;
   std::vector<VE> sites;
-  std::vector<std::vector<int> > nns;
+  std::vector<std::vector<Idx> > nns;
   std::vector<Link> links;
 
   std::vector<std::array<double, 3>> u; // site, M=A,B,C
@@ -34,7 +34,7 @@ struct Lattice {
   std::vector<Face> faces;
   std::vector<double> vps; // face
 
-  std::map<const Link, const int> map2il;
+  std::map<const Link, const Idx> map2il;
   std::map<const Link, const int> map2sign;
 
   double mean_vol;
@@ -83,11 +83,11 @@ struct Lattice {
       std::string str;
       while (std::getline(file, str)){
 	std::istringstream iss(str);
-	int v1, v2, v3;
+	Idx v1, v2, v3;
 	iss >> v1;
 	iss >> v2;
 	iss >> v3;
-	nns.push_back( std::vector<int>{v1,v2,v3} );
+	nns.push_back( std::vector<Idx>{v1,v2,v3} );
       }
     }
     {
@@ -97,7 +97,7 @@ struct Lattice {
       std::string str;
       while (std::getline(file, str)){
 	std::istringstream iss(str);
-	int v1, v2;
+	Idx v1, v2;
 	iss >> v1;
 	iss >> v2;
 	links.push_back( Link{v1,v2} );
@@ -162,7 +162,7 @@ struct Lattice {
       assert( vol.size()==n_sites );
     }
     {
-      int counter=0;
+      Idx counter=0;
       for(double elem : vol){
 	mean_vol += elem;
 	counter++;
@@ -177,8 +177,8 @@ struct Lattice {
       std::string str;
       while (std::getline(file, str)){
 	std::istringstream iss(str);
-	int v;
-	std::vector<int> face;
+	Idx v;
+	std::vector<Idx> face;
 	while( iss >> v ) face.push_back( v );
 	faces.push_back( face );
       }
@@ -186,19 +186,19 @@ struct Lattice {
     }
 
     {
-      for(int il=0; il<n_links; il++) {
+      for(Idx il=0; il<n_links; il++) {
 	const Link link = links[il];
-	const int i = link[0];
-	const int j = link[1];
+	const Idx i = link[0];
+	const Idx j = link[1];
 
 	map2il.insert( { Link{i,j}, il } );
 	map2il.insert( { Link{j,i}, il } );
       }
 
-      for(int il=0; il<n_links; il++) {
+      for(Idx il=0; il<n_links; il++) {
 	const auto link = links[il];
-	const int i = link[0];
-	const int j = link[1];
+	const Idx i = link[0];
+	const Idx j = link[1];
 
 	map2sign.insert( { Link{i,j}, +1 } );
 	map2sign.insert( { Link{j,i}, -1 } );
@@ -206,7 +206,7 @@ struct Lattice {
     }
 
     {
-      for(int i=0; i<n_faces; i++) vps.push_back(vp(i));
+      for(Idx i=0; i<n_faces; i++) vps.push_back(vp(i));
 
       double sum = 0.0;
       for(auto elem : vps) sum += elem;
@@ -215,15 +215,15 @@ struct Lattice {
   }
 
 
-  double vp(const int i_face) const {
+  double vp(const Idx i_face) const {
     double res = 0.0;
 
     const auto face = faces[i_face];
-    const int n = face.size();
+    const Idx n = face.size();
 
     const VE r0 = sites[face[0]];
-    for(int j=1; j<n-1; j++){
-      const int k=j+1;
+    for(Idx j=1; j<n-1; j++){
+      const Idx k=j+1;
 
       const VE r1 = sites[face[j]];
       const VE r2 = sites[face[k]];

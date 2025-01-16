@@ -11,7 +11,7 @@ using Idx = std::int32_t;
 using Complex = std::complex<double>;
 
 namespace CompilationConst{
-  constexpr int NPARALLEL=1;
+  constexpr int NPARALLEL=10;
 
   constexpr int N_REFINE=2;
   constexpr int NS=2;
@@ -35,12 +35,15 @@ using CuC = cuDoubleComplex;
 #include "rng.h"
 #include "gauge.h"
 #include "action.h"
-#include "dirac.h"
 
 #include "sparse_matrix.h"
+// #include "pseudofermion.h"
+
+#include "dirac.h"
+
 #include "sparse_dirac.h"
 #include "matpoly.h"
-// #include "pseudofermion.h"
+
 #include "overlap.h"
 
 // #include "hmc.h"
@@ -84,7 +87,6 @@ int main(int argc, char* argv[]){
   using WilsonDirac=Dirac1fonS2;
   // using Overlap=OverlapPseudoFermion;
 
-
   Gauge U(lattice);
   Rng rng(lattice);
   U.gaussian( rng );
@@ -94,155 +96,68 @@ int main(int argc, char* argv[]){
   Overlap Dov(DW);
   Dov.compute(U);
 
-  MatPoly<CuC> Op;
-  Op.push_back ( cplx(1.0), {&(Dov.M_DW), &(Dov.M_DWH)} );
-
   constexpr Idx N = CompilationConst::N;
-  Eigen::MatrixXcd mat(N, N);
-  {
-    for(Idx i=0; i<N; i++){
-      Eigen::VectorXcd e = Eigen::VectorXcd::Zero(N);
-      e(i) = 1.0;
-      std::vector<Complex> xi(e.data(), e.data()+N);
-      std::vector<Complex> Dxi(N);
-      // Dov( Dxi, xi );
-      // std::cout << "debug. i=" << i << std::endl;
-      Op.from_cpu<N>( Dxi, xi );
-      mat.block(0,i,N,1) = Eigen::Map<Eigen::MatrixXcd>(Dxi.data(), N, 1);
-    }
+
+  std::cout << Dov.lambda_max << std::endl;
+
+
+  using Link = std::array<Idx,2>; // <int,int>;
+
+  const Idx ix=2;
+  const Idx iy=lattice.nns[ix][0];
+  const Link ell{ix,iy};
+
+
+  COO coo;
+  DW.d_coo_format(coo.en, U, ell);
+  coo.set();
+
+  std::vector<Complex> Dxi(N), xi(N);
+  for(int i=0; i<N; i++) {
+    xi[i] = rng.gaussian();
   }
 
-  // =========================================
-  // cusolver
-  cusolverDnHandle_t handle = NULL;
-  cudaStream_t stream = NULL;
-  cusolverDnParams_t params = NULL;
+  {
+    CuC *d_Dxi, *d_xi;
+    CUDA_CHECK(cudaMalloc(&d_Dxi, N*CD));
+    CUDA_CHECK(cudaMalloc(&d_xi, N*CD));
+    CUDA_CHECK(cudaMemcpy(d_xi, reinterpret_cast<const CuC*>(xi.data()), N*CD, H2D));
 
-  const int n = mat.cols(); // Number of rows (or columns) of matrix A.
-  const int lda = n;
+    coo( d_Dxi, d_xi );
 
-  CuC *A, *W;
-  A = (CuC*)malloc(n*n*CD);
-  W = (CuC*)malloc(n*CD);
-  for(int j=0; j<n; j++) for(int i=0; i<n; i++) A[n*j+i] = cplx(mat(i,j));
-  // for(int j=0; j<n; j++) for(int i=0; i<n; i++) A[n*j+i] = reinterpret_cast<CuC*>(&mat(i,j));
-  // for(int j=0; j<n; j++) for(int i=0; i<n; i++) A[n*j+i] = cplxmat(i,j));
-  for(int i=0; i<n; i++) W[i] = cplx(0.);
+    CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(Dxi.data()), d_Dxi, N*CD, D2H));
 
-  CuC *d_A, *d_W, *d_VL, *d_VR;
-  int ldvl = n;
-  int ldvr = n;
-  //
-  int info = 0;
-  int *d_info = nullptr;
-  
-  size_t workspaceInBytesOnDevice = 0; /* size of workspace */
-  void *d_work = nullptr;              /* device workspace */
-  size_t workspaceInBytesOnHost = 0;   /* size of workspace */
-  void *h_work = nullptr;              /* host workspace for */
+    CUDA_CHECK(cudaFree(d_Dxi));
+    CUDA_CHECK(cudaFree(d_xi));
+  }
 
-  /* step 1: create cusolver handle, bind a stream */
-  CUSOLVER_CHECK(cusolverDnCreate(&handle));
-  CUDA_CHECK(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
-  CUSOLVER_CHECK(cusolverDnSetStream(handle, stream));
-  CUSOLVER_CHECK(cusolverDnCreateParams(&params));
-
-  CUDA_CHECK(cudaMalloc( &d_A, CD * n*n ));
-  CUDA_CHECK(cudaMalloc( &d_W, CD * n ));
-  CUDA_CHECK(cudaMalloc( &d_VL, CD * n*n ));
-  CUDA_CHECK(cudaMalloc( &d_VR, CD * n*n ));
-  CUDA_CHECK(cudaMalloc( &d_info, sizeof(int)));
-
-  CUDA_CHECK( cudaMemcpy(d_A, A, CD*n*n, H2D) );
-
-  // step 3: query working space of syevd
-  cusolverEigMode_t jobvl = CUSOLVER_EIG_MODE_NOVECTOR;
-  cusolverEigMode_t jobvr = CUSOLVER_EIG_MODE_NOVECTOR;
-  cublasFillMode_t uplo = CUBLAS_FILL_MODE_LOWER;
-
-  CUSOLVER_CHECK( cusolverDnXgeev_bufferSize( handle,
-					      params,
-					      jobvl,
-					      jobvr,
-					      n,
-					      CUDA_C_64F,
-					      d_A, // device
-					      lda,
-					      CUDA_C_64F,
-					      d_W, // Array holding the computed eigenvalues of A
-					      CUDA_C_64F,
-					      d_VL,
-					      ldvl,
-					      CUDA_C_64F,
-					      d_VR,
-					      ldvr,
-					      CUDA_C_64F,
-					      &workspaceInBytesOnDevice,
-					      &workspaceInBytesOnHost)
-		  );
-
-  CUDA_CHECK(cudaMalloc( &d_work, workspaceInBytesOnDevice ) );
-  h_work = malloc(workspaceInBytesOnHost);
-
-  // step 4: compute spectrum
-  CUSOLVER_CHECK( cusolverDnXgeev( handle,
-				   params,
-				   jobvl,
-				   jobvr,
-				   n,
-				   CUDA_C_64F,
-				   d_A,
-				   lda,
-				   CUDA_C_64F,
-				   d_W,
-				   CUDA_C_64F,
-				   d_VL,
-				   ldvl,
-				   CUDA_C_64F,
-				   d_VR,
-				   ldvr,
-				   CUDA_C_64F,
-				   d_work, // void *bufferOnDevice,
-				   workspaceInBytesOnDevice,
-				   h_work, // void *bufferOnHost,
-				   workspaceInBytesOnHost,
-				   d_info)
-		  );
-
-  // ---------------------------------------------
-
-  CUDA_CHECK(cudaMemcpy( W, d_W, CD*n, D2H) );
-  CUDA_CHECK(cudaMemcpy( &info, d_info, sizeof(int), D2H ));
-
-  std::cout << "# info (0=success) = " << info << std::endl;
-  assert( info==0 );
-
-  // std::vector<double> res(n);
-  // for(int i=0; i<n; i++) res[i] = real(W[i]);
-  // std::sort(res.begin(), res.end());
-  // for(int i=0; i<n; i++) std::cout << i << " "
-  // 				   << res[i] << " "
-  // 				   << Dov.sgn(res[i]) << std::endl;
-
-  for(int i=0; i<n; i++) std::cout << real(W[i]) << " " << imag(W[i]) << " " << abs(W[i]) << std::endl;
-
-  /* free resources */
-  free(A);
-  free(h_work);
-
-  CUDA_CHECK(cudaFree(d_A));
-  CUDA_CHECK(cudaFree(d_W));
-  CUDA_CHECK(cudaFree(d_VL));
-  CUDA_CHECK(cudaFree(d_VR));
-  CUDA_CHECK(cudaFree(d_info));
-  CUDA_CHECK(cudaFree(d_work));
-
-  CUSOLVER_CHECK(cusolverDnDestroyParams(params));
-  CUSOLVER_CHECK(cusolverDnDestroy(handle));
-  CUDA_CHECK(cudaStreamDestroy(stream));
+  std::cout << "Dxi = " << std::endl;
+  for(auto elem:Dxi) std::cout << elem << std::endl;
 
 
-  return 0; // EXIT_SUCCESS;
+
+
+
+
+
+
+
+
+  // Eigen::MatrixXcd mat(N, N);
+  // {
+  //   for(Idx i=0; i<N; i++){
+  //     Eigen::VectorXcd e = Eigen::VectorXcd::Zero(N);
+  //     e(i) = 1.0;
+  //     std::vector<Complex> xi(e.data(), e.data()+N);
+  //     std::vector<Complex> Dxi(N);
+  //     Dov( Dxi, xi );
+  //     mat.block(0,i,N,1) = Eigen::Map<Eigen::MatrixXcd>(Dxi.data(), N, 1);
+  //   }
+  // }
+  // std::cout << Dov.lambda_max << std::endl;
+
+
+  // return 0; // EXIT_SUCCESS;
 
   // CUDA_CHECK(cudaDeviceReset());
 
