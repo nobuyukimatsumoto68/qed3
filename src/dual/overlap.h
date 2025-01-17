@@ -253,7 +253,7 @@ struct Overlap : private Zolotarev {
   }
 
 
-  void mult(CuC* d_res, const CuC* d_xi) const {
+  void mult_device(CuC* d_res, const CuC* d_xi) const {
     CUDA_CHECK(cudaMemcpy(d_res, d_xi, N*CD, D2D));
 
     CuC* d_tmp;
@@ -307,7 +307,7 @@ struct Overlap : private Zolotarev {
   }
 
 
-  void adj(CuC* d_res, const CuC* d_xi) const {
+  void adj_device(CuC* d_res, const CuC* d_xi) const {
     CuC* d_DHxi;
     CUDA_CHECK(cudaMalloc(&d_DHxi, N*CD));
 
@@ -347,13 +347,13 @@ struct Overlap : private Zolotarev {
   }
 
 
-  void sq( CuC* d_res, const CuC* d_xi) const {
+  void sq_device( CuC* d_res, const CuC* d_xi) const {
     CuC *d_tmp1, *d_tmp2;
     CUDA_CHECK(cudaMalloc(&d_tmp1, N*CD));
     CUDA_CHECK(cudaMalloc(&d_tmp2, N*CD));
 
-    this->mult(d_tmp1, d_xi);
-    this->adj(d_tmp2, d_xi);
+    this->mult_device(d_tmp1, d_xi);
+    this->adj_device(d_tmp2, d_xi);
 
     CUDA_CHECK(cudaMemcpy(d_res, d_tmp1, N*CD, D2D));
     Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, d_A, d_tmp2, d_res); // A[0]=1.0

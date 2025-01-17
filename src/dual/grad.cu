@@ -1,3 +1,4 @@
+#include <typeinfo>
 #include <iostream>
 #include <iomanip>
 #include <fstream>
@@ -105,6 +106,43 @@ int main(int argc, char* argv[]){
   // COO coo;
   // DW.d_coo_format(coo.en, U, ell);
   // coo.do_it();
+
+
+
+
+  {
+    Overlap Dov(DW);
+    Dov.compute(U);
+
+    std::vector<Complex> xi(N), Dxi(N), Dxi2(N);
+    for(int i=0; i<N; i++) xi[i] = rng.gaussian();
+
+    Dov.mult( Dxi, xi );
+
+    CuC *d_Dxi2, *d_xi;
+    CUDA_CHECK(cudaMalloc(&d_Dxi2, N*CD));
+    CUDA_CHECK(cudaMalloc(&d_xi, N*CD));
+    CUDA_CHECK(cudaMemcpy(d_xi, reinterpret_cast<const CuC*>(xi.data()), N*CD, H2D));
+
+    // Dov.mult_device( d_Dxi2, d_xi );
+    auto f = std::bind(&Overlap::mult_device, &Dov, std::placeholders::_1, std::placeholders::_2);
+    // f( d_Dxi2, d_xi );
+    // std::cout << typeid(f).name() << std::endl;
+
+    // auto f = std::bind<LinOpWrapper::Function**, LinOpWrapper, CuC*, CuC*>(&Overlap::mult, Dov, std::placeholders::_1, std::placeholders::_2);
+    // LinOpWrapper Op( std::bind(&Overlap::mult_device, &Dov, std::placeholders::_1, std::placeholders::_2) );
+    LinOpWrapper Op( f );
+    Op( d_Dxi2, d_xi );
+
+    CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(Dxi2.data()), d_Dxi2, N*CD, D2H));
+    CUDA_CHECK(cudaFree(d_Dxi2));
+    CUDA_CHECK(cudaFree(d_xi));
+
+
+    for(int i=0; i<N; i++) {
+      std::cout << xi[i] << " " << Dxi[i] << " " << Dxi2[i] << std::endl;
+    }
+  }
 
 
 

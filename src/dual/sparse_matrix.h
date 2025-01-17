@@ -26,12 +26,13 @@ struct CSR : public LinOp {
 };
 
 
+template<typename F>
 struct LinOpWrapper : public LinOp {
   using T = CuC;
-  using Function = std::function<void(T*, const T*)>;
-  const Function& f;
+  // using Function = std::function<void(T*, const T*)>;
+  const F& f;
 
-  LinOpWrapper(const Function& f_ )
+  LinOpWrapper(const F& f_ )
     : f(f_)
   {}
 
