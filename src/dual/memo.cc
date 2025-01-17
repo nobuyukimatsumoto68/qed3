@@ -2049,3 +2049,174 @@ void matmulgam5( T* res, T* v, const int Nx) {
 
   std::cout << "Dxi = " << std::endl;
   for(auto elem:Dxi) std::cout << elem << std::endl;
+
+
+
+  //   void d_coo_format( std::vector<Complex>& v,
+  //       	     std::vector<Idx>& is,
+  //       	     std::vector<Idx>& js,
+  //       	     const Gauge& U,
+  //       	     const Link& ell ) const {
+  //   const Idx ix0 = ell[0];
+  //   const Idx iy0 = ell[1];
+
+  //   v.clear();
+  //   is.clear();
+  //   js.clear();
+
+  //   {
+  //     // pos
+  //     const Idx ix = ix0;
+  //     for(int jj=0; jj<3; jj++){
+  //       const Idx iy = lattice.nns[ix][jj];
+  //       if(iy!=iy0) continue;
+  //       const MS tmp = lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj]*sigma[0] - gamma(ix, jj)) * I*std::exp( I* U(Link{ix,iy})) * Omega(ix, iy);
+
+  //       // res[NS*ix] += -tmp(0,0)*v[NS*iy] - tmp(0,1)*v[NS*iy+1];
+  //       v.push_back(-tmp(0,0)); is.push_back(NS*ix); js.push_back(NS*iy);
+  //       v.push_back(-tmp(0,1)); is.push_back(NS*ix); js.push_back(NS*iy+1);
+
+  //       // res[NS*ix+1] += -tmp(1,0)*v[NS*iy] - tmp(1,1)*v[NS*iy+1];
+  //       v.push_back(-tmp(1,0)); is.push_back(NS*ix+1); js.push_back(NS*iy);
+  //       v.push_back(-tmp(1,1)); is.push_back(NS*ix+1); js.push_back(NS*iy+1);
+  //     }
+  //   }
+
+  //   {
+  //     // neg
+  //     const Idx iy = iy0;
+  //     for(int jj=0; jj<3; jj++){
+  //       const Idx ix = lattice.nns[iy0][jj];
+  //       if(ix!=ix0) continue;
+  //       const MS tmp = -lattice.vol[iy]/lattice.mean_vol * (r*lattice.u[iy][jj]*sigma[0] - gamma(iy, jj)) * I*std::exp( I* U(Link{iy,ix})) * Omega(iy, ix);
+
+  //       // res[NS*iy] += -tmp(0,0)*v[NS*ix] - tmp(0,1)*v[NS*ix+1];
+  //       v.push_back(-tmp(0,0)); is.push_back(NS*iy); js.push_back(NS*ix);
+  //       v.push_back(-tmp(0,1)); is.push_back(NS*iy); js.push_back(NS*ix+1);
+
+  //       // res[NS*iy+1] += -tmp(1,0)*v[NS*ix] - tmp(1,1)*v[NS*ix+1];
+  //       v.push_back(-tmp(1,0)); is.push_back(NS*iy+1); js.push_back(NS*ix);
+  //       v.push_back(-tmp(1,1)); is.push_back(NS*iy+1); js.push_back(NS*ix+1);
+  //     }
+  //   }
+  // }
+
+
+  {
+    Overlap Dov(DW);
+    Dov.compute(U);
+
+    std::vector<Complex> xi(N), Dxi(N), DHDxi(N), DHDxi2(N);
+    for(int i=0; i<N; i++) xi[i] = rng.gaussian();
+
+    Dov( Dxi, xi );
+    Dov.adj( DHDxi, Dxi );
+    Dov.sq( DHDxi2, xi );
+
+    for(int i=0; i<N; i++) {
+      std::cout << xi[i] << " " << DHDxi[i] << " " << DHDxi2[i] << std::endl;
+    }
+
+  }
+
+
+
+  // {
+  //   Overlap Dov(DW);
+  //   Dov.compute(U);
+
+  //   std::vector<Complex> xi(N), Dxi(N), DHDxi(N), DHDxi2(N);
+  //   for(int i=0; i<N; i++) xi[i] = rng.gaussian();
+
+  //   Dov.mult( Dxi, xi );
+  //   Dov.adj( DHDxi, Dxi );
+  //   Dov.sq( DHDxi2, xi );
+
+  //   for(int i=0; i<N; i++) {
+  //     std::cout << xi[i] << " " << DHDxi[i] << " " << DHDxi2[i] << std::endl;
+  //   }
+  // }
+
+
+  // {
+  //   Overlap Dov(DW);
+  //   Dov.compute(U);
+
+  //   std::vector<Complex> xi(N), Dxi(N), Dxi2(N);
+  //   for(int i=0; i<N; i++) xi[i] = rng.gaussian();
+
+  //   Dov.mult( Dxi, xi );
+
+  //   CuC *d_Dxi2, *d_xi;
+  //   CUDA_CHECK(cudaMalloc(&d_Dxi2, N*CD));
+  //   CUDA_CHECK(cudaMalloc(&d_xi, N*CD));
+  //   CUDA_CHECK(cudaMemcpy(d_xi, reinterpret_cast<const CuC*>(xi.data()), N*CD, H2D));
+
+  //   Dov.mult( d_Dxi2, d_xi );
+
+  //   CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(Dxi2.data()), d_Dxi2, N*CD, D2H));
+
+  //   CUDA_CHECK(cudaFree(d_Dxi2));
+  //   CUDA_CHECK(cudaFree(d_xi));
+
+
+  //   for(int i=0; i<N; i++) {
+  //     std::cout << xi[i] << " " << Dxi[i] << " " << Dxi2[i] << std::endl;
+  //   }
+  // }
+
+
+  // {
+  //   Overlap Dov(DW);
+  //   Dov.compute(U);
+
+  //   std::vector<Complex> xi(N), Dxi(N), Dxi2(N);
+  //   for(int i=0; i<N; i++) xi[i] = rng.gaussian();
+
+  //   Dov.adj( Dxi, xi );
+
+  //   CuC *d_Dxi2, *d_xi;
+  //   CUDA_CHECK(cudaMalloc(&d_Dxi2, N*CD));
+  //   CUDA_CHECK(cudaMalloc(&d_xi, N*CD));
+  //   CUDA_CHECK(cudaMemcpy(d_xi, reinterpret_cast<const CuC*>(xi.data()), N*CD, H2D));
+
+  //   Dov.adj( d_Dxi2, d_xi );
+
+  //   CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(Dxi2.data()), d_Dxi2, N*CD, D2H));
+
+  //   CUDA_CHECK(cudaFree(d_Dxi2));
+  //   CUDA_CHECK(cudaFree(d_xi));
+
+
+  //   for(int i=0; i<N; i++) {
+  //     std::cout << xi[i] << " " << Dxi[i] << " " << Dxi2[i] << std::endl;
+  //   }
+  // }
+
+
+  // {
+  //   Overlap Dov(DW);
+  //   Dov.compute(U);
+
+  //   std::vector<Complex> xi(N), Dxi(N), Dxi2(N);
+  //   for(int i=0; i<N; i++) xi[i] = rng.gaussian();
+
+  //   Dov.sq( Dxi, xi );
+
+  //   CuC *d_Dxi2, *d_xi;
+  //   CUDA_CHECK(cudaMalloc(&d_Dxi2, N*CD));
+  //   CUDA_CHECK(cudaMalloc(&d_xi, N*CD));
+  //   CUDA_CHECK(cudaMemcpy(d_xi, reinterpret_cast<const CuC*>(xi.data()), N*CD, H2D));
+
+  //   Dov.sq( d_Dxi2, d_xi );
+
+  //   CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(Dxi2.data()), d_Dxi2, N*CD, D2H));
+
+  //   CUDA_CHECK(cudaFree(d_Dxi2));
+  //   CUDA_CHECK(cudaFree(d_xi));
+
+
+  //   for(int i=0; i<N; i++) {
+  //     std::cout << xi[i] << " " << Dxi[i] << " " << Dxi2[i] << std::endl;
+  //   }
+  // }

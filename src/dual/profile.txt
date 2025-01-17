@@ -1,7 +1,0 @@
-/usr/local/cuda-12.6/bin/nvvp -vm /usr/lib/jvm/java-8-openjdk-amd64/jre/bin/java
-
-/usr/local/cuda-12.6/bin/nvprof -f --export-profile out.nvprof ./a.out
-
-gprof ./a.out gmon.out
-
-

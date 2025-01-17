@@ -1,6 +1,7 @@
 #pragma once
 
-struct SparseDW{
+struct DWDevice{
+  using T = CuC;
   using WilsonDirac=Dirac1fonS2;
 
   const WilsonDirac& D;
@@ -28,7 +29,7 @@ struct SparseDW{
   Idx *d_cols, *d_rows, *d_colsT, *d_rowsT;
   CuC *d_val, *d_valH;
 
-  SparseDW(const WilsonDirac& D_)
+  DWDevice(const WilsonDirac& D_)
     : D(D_)
     , lattice(D.lattice)
     , N(NS*lattice.n_sites)
@@ -39,7 +40,7 @@ struct SparseDW{
   } // end of constructor
 
 
-  ~SparseDW()
+  ~DWDevice()
   {
     CUDA_CHECK(cudaFree(d_cols));
     CUDA_CHECK(cudaFree(d_rows));
@@ -132,28 +133,28 @@ struct SparseDW{
     // is_set = true;
   }
 
-  template<typename T>
-  void coo2csr( T* v_csr,
-	        const T* v_coo) const {
-    for(Idx ell=0; ell<len; ell++) v_csr[ ell2em[ell] ] = v_coo[ell];
-  }
+  // // template<typename T>
+  // void coo2csr( T* v_csr,
+  //               const T* v_coo) const {
+  //   for(Idx ell=0; ell<len; ell++) v_csr[ ell2em[ell] ] = v_coo[ell];
+  // }
 
-  template<typename T>
-  void coo2csrT( T* v_csrT,
-		 const T* v_coo) const {
-    for(Idx ell=0; ell<len; ell++) v_csrT[ ell2emT[ell] ] = v_coo[ell];
-  }
+  // // template<typename T>
+  // void coo2csrT( T* v_csrT,
+  //       	 const T* v_coo) const {
+  //   for(Idx ell=0; ell<len; ell++) v_csrT[ ell2emT[ell] ] = v_coo[ell];
+  // }
 
-  template<typename T>
-  void coo2csrH( T* v_csrH,
-		 const T* v_coo) const {
-    for(Idx ell=0; ell<len; ell++) v_csrH[ ell2emT[ell] ] = std::conj( v_coo[ell] );
-  }
+  // // template<typename T>
+  // void coo2csrH( T* v_csrH,
+  //       	 const T* v_coo) const {
+  //   for(Idx ell=0; ell<len; ell++) v_csrH[ ell2emT[ell] ] = conj( v_coo[ell] );
+  // }
 
-  template<typename T>
-  void coo2csr_csrH( T* v_csr,
-		     T* v_csrH,
-		     const T* v_coo) const {
+  // template<typename T>
+  void coo2csr_csrH( std::vector<Complex>& v_csr,
+		     std::vector<Complex>& v_csrH,
+		     const std::vector<Complex>& v_coo) const {
     for(Idx ell=0; ell<len; ell++) {
       v_csr[ ell2em[ell] ] = v_coo[ell];
       v_csrH[ ell2emT[ell] ] = std::conj( v_coo[ell] );
@@ -161,8 +162,8 @@ struct SparseDW{
   }
 
   void update( const U1onS2& U ){
-    D.coo_format( v_coo.data(), U );
-    coo2csr_csrH<Complex>( v_csr.data(), v_csrH.data(), v_coo.data() );
+    D.coo_format( v_coo, U );
+    coo2csr_csrH( v_csr, v_csrH, v_coo );
 
     CUDA_CHECK(cudaMemcpy(d_val, reinterpret_cast<const CuC*>(v_csr.data()), len*CD, H2D));
     CUDA_CHECK(cudaMemcpy(d_valH, reinterpret_cast<const CuC*>(v_csrH.data()), len*CD, H2D));
@@ -185,7 +186,7 @@ struct SparseDW{
   //   }
   // }
 
-  void associate( CSR& M, const bool is_transpose=false ){
+  void associateCSR( CSR& M, const bool is_transpose=false ){
     // assert(locate_on_gpu);
     // M.on_gpu = true;
     if(!is_transpose){

@@ -35,12 +35,14 @@ using CuC = cuDoubleComplex;
 #include "rng.h"
 #include "gauge.h"
 #include "action.h"
-#include "dirac.h"
 
 #include "sparse_matrix.h"
+// #include "pseudofermion.h"
+#include "dirac.h"
+
 #include "sparse_dirac.h"
 #include "matpoly.h"
-// #include "pseudofermion.h"
+
 #include "overlap.h"
 
 // #include "hmc.h"
@@ -59,7 +61,6 @@ using CuC = cuDoubleComplex;
 int main(int argc, char* argv[]){
   std::cout << std::scientific << std::setprecision(15);
   std::clog << std::scientific << std::setprecision(15);
-
 
   int device;
   CUDA_CHECK(cudaGetDeviceCount(&device));
@@ -87,15 +88,15 @@ int main(int argc, char* argv[]){
 
   Gauge U(lattice);
   Rng rng(lattice);
-  U.gaussian( rng );
+  // U.gaussian( rng );
 
   const double M5 = -2.0;
   WilsonDirac DW(lattice, M5);
   Overlap Dov(DW);
   Dov.compute(U);
 
-  MatPoly<CuC> Op;
-  Op.push_back ( cplx(1.0), {&(Dov.M_DW), &(Dov.M_DWH)} );
+  // MatPoly Op;
+  // Op.push_back ( cplx(1.0), {&(Dov.M_DW), &(Dov.M_DWH)} );
 
   constexpr Idx N = CompilationConst::N;
   Eigen::MatrixXcd mat(N, N);
@@ -105,9 +106,9 @@ int main(int argc, char* argv[]){
       e(i) = 1.0;
       std::vector<Complex> xi(e.data(), e.data()+N);
       std::vector<Complex> Dxi(N);
-      // Dov( Dxi, xi );
+      Dov.adj( Dxi, xi );
       // std::cout << "debug. i=" << i << std::endl;
-      Op.from_cpu<N>( Dxi, xi );
+      // Op.from_cpu<N>( Dxi, xi );
       mat.block(0,i,N,1) = Eigen::Map<Eigen::MatrixXcd>(Dxi.data(), N, 1);
     }
   }

@@ -46,7 +46,6 @@ struct Lattice {
   Lattice(const int n_refine)
     : n_refine( n_refine )
     , n_sites( 20*n_refine*n_refine )
-  
   {
     {
       std::cout << "# reading simplicial points" << std::endl;

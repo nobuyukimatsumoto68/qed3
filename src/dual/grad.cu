@@ -89,54 +89,139 @@ int main(int argc, char* argv[]){
 
   Gauge U(lattice);
   Rng rng(lattice);
-  U.gaussian( rng );
+  // U.gaussian( rng );
 
   const double M5 = -2.0;
   WilsonDirac DW(lattice, M5);
-  Overlap Dov(DW);
-  Dov.compute(U);
 
   constexpr Idx N = CompilationConst::N;
 
-  std::cout << Dov.lambda_max << std::endl;
-
-
   using Link = std::array<Idx,2>; // <int,int>;
 
-  const Idx ix=2;
-  const Idx iy=lattice.nns[ix][0];
-  const Link ell{ix,iy};
+  // const Idx ix=2;
+  // const Idx iy=lattice.nns[ix][0];
+  // const Link ell{ix,iy};
 
-
-  COO coo;
-  DW.d_coo_format(coo.en, U, ell);
-  coo.set();
-
-  std::vector<Complex> Dxi(N), xi(N);
-  for(int i=0; i<N; i++) {
-    xi[i] = rng.gaussian();
-  }
-
-  {
-    CuC *d_Dxi, *d_xi;
-    CUDA_CHECK(cudaMalloc(&d_Dxi, N*CD));
-    CUDA_CHECK(cudaMalloc(&d_xi, N*CD));
-    CUDA_CHECK(cudaMemcpy(d_xi, reinterpret_cast<const CuC*>(xi.data()), N*CD, H2D));
-
-    coo( d_Dxi, d_xi );
-
-    CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(Dxi.data()), d_Dxi, N*CD, D2H));
-
-    CUDA_CHECK(cudaFree(d_Dxi));
-    CUDA_CHECK(cudaFree(d_xi));
-  }
-
-  std::cout << "Dxi = " << std::endl;
-  for(auto elem:Dxi) std::cout << elem << std::endl;
+  // COO coo;
+  // DW.d_coo_format(coo.en, U, ell);
+  // coo.do_it();
 
 
 
 
+
+
+
+
+  // {
+  //   // PseudoFermion phi( D, U, rng );
+  //   // Force exact = phi.dS( U );
+
+  //   Overlap Dov(DW);
+  //   Dov.compute(U);
+
+  //   std::vector<Complex> xi(N);
+  //   for(int i=0; i<N; i++) xi[i] = rng.gaussian();
+
+  //   // -------------
+
+  //   std::vector<Complex> eta(N);
+  //   {
+  //     MatPoly Op;
+  //     Op.push_back ( cplx(1.0), {&(Dov.M_DW), &(Dov.M_DWH)} );
+  //     Op.solve<N>( eta, xi );
+  //   }
+
+  //   double Sf = 0.0;
+  //   for(Idx i=0; i<N; i++) Sf += std::real( std::conj(xi[i]) * eta[i] );
+
+  //   // -------------
+
+  //   Idx il=0;
+
+  //   {
+  //     double dSf = Dov.grad( lattice.links[il], U, eta );
+  //     std::cout << "grad = " << dSf << std::endl;
+  //   }
+
+  //   // -------------
+
+  //   {
+  //     double Sfp = 0.0, Sfm = 0.0;
+  //     const double eps = 1.0e-5;
+
+  //     {
+  //       Gauge UP(U);
+  //       UP[il] += eps;
+  //       Dov.compute(UP);
+
+  //       MatPoly Op;
+  //       Op.push_back ( cplx(1.0), {&(Dov.M_DW), &(Dov.M_DWH)} );
+  //       Op.solve<N>( eta, xi );
+  //       for(Idx i=0; i<N; i++) Sfp += std::real( std::conj(xi[i]) * eta[i] );
+  //     }
+
+  //     {
+  //       Gauge UM(U);
+  //       UM[il] -= eps;
+  //       Dov.compute(UM);
+
+  //       MatPoly Op;
+  //       Op.push_back ( cplx(1.0), {&(Dov.M_DW), &(Dov.M_DWH)} );
+  //       Op.solve<N>( eta, xi );
+  //       for(Idx i=0; i<N; i++) Sfm += std::real( std::conj(xi[i]) * eta[i] );
+  //     }
+
+  //     std::cout << (Sfp-Sfm)/(2.0*eps) << std::endl;
+  //   }
+
+  // }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    // -------------
+
+    // std::vector<Complex> deriv(N);
+    // // for(int il=0; il<U.lattice.n_links; il++){
+    // {
+    //   Idx il=0;
+
+    //   const double eps = 1.0e-5;
+    //   Gauge UP(U);
+    //   Gauge UM(U);
+
+    //   UP[il] += eps;
+    //   UM[il] -= eps;
+
+    //   std::vector<Complex> DxiP(N), DxiM(N);
+    //   Dov.compute(UP);
+    //   Dov( DxiP, xi );
+    //   Dov.compute(UM);
+    //   Dov( DxiM, xi );
+
+    //   for(int i=0; i<N; i++) deriv[i] = (DxiP[i]-DxiM[i])/(2.0*eps);
+
+    //   // double numeric = ( phi.S(UP) - phi.S(UM) ) / (2.0*eps);
+    //   for(int i=0; i<N; i++) {
+    //     std::cout << deriv[i] << std::endl;
+    //   }
+    // }
 
 
 

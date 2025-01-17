@@ -1,14 +1,13 @@
 #pragma once
 
 
-struct SparseMatrix{
+struct LinOp{
   using T = CuC;
-
   virtual void operator()( T* d_res, const T* d_v ) const = 0;
 };
 
 
-struct CSR : public SparseMatrix {
+struct CSR : public LinOp {
   using T = CuC;
 
   T* val;
@@ -24,6 +23,21 @@ struct CSR : public SparseMatrix {
 					     this->rows);
   }
 
+};
+
+
+struct LinOpWrapper : public LinOp {
+  using T = CuC;
+  using Function = std::function<void(T*, const T*)>;
+  const Function& f;
+
+  LinOpWrapper(const Function& f_ )
+    : f(f_)
+  {}
+
+  void operator()( T* d_res, const T* d_v ) const {
+    f( d_res, d_v );
+  }
 };
 
 
@@ -71,11 +85,13 @@ struct COOEntry {
 
 
 // for gradients
-struct COO : public SparseMatrix {
+struct COO : public LinOp {
   using T = CuC;
   static constexpr Idx N = CompilationConst::N;
 
   std::vector<COOEntry> en;
+
+  //
 
   T* d_val;
   Idx* d_cols;
@@ -84,7 +100,7 @@ struct COO : public SparseMatrix {
   bool is_set;
 
   COO()
-    : is_set(true)
+    : is_set(false)
   {}
 
   ~COO()
@@ -96,7 +112,7 @@ struct COO : public SparseMatrix {
     }
   }
 
-  void set(){
+  void do_it(){
     std::sort( en.begin(), en.end() );
 
     Idx len=en.size();
@@ -142,18 +158,15 @@ struct COO : public SparseMatrix {
 
 
 template <Idx N>
-void matmulcoo( CuC* res, CuC* v,
+void matmulcoo( CuC* res, const CuC* v,
 		const std::vector<COOEntry>& coo) {
-  // assert( val.size()==cols.size() );
-  // assert( val.size()==rows.size() );
-
   for(int i=0; i<N; i++) res[i] = cplx(0.0);
   for(int k=0; k<coo.size(); k++) res[coo[k].i] = res[coo[k].i] + coo[k].v * v[coo[k].j];
 }
 
 
 template <Idx N>
-void matmul( CuC* res, CuC* v,
+void matmul( CuC* res, const CuC* v,
 	     const std::vector<CuC>& val,
 	     const std::vector<Idx>& cols,
 	     const std::vector<Idx>& rows ) {

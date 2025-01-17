@@ -130,7 +130,7 @@ struct Dirac1fonS2 : public SpinStructure{
     sigma[2] << 0,-I,I,0;
     sigma[3] << 1,0,0,-1;
   }
-  
+
 
   MS gamma(const Idx ix, const int jj) const { // located at x
     return lattice.v[ix][jj](0) * sigma[1] + lattice.v[ix][jj](1) * sigma[2];
@@ -172,13 +172,12 @@ struct Dirac1fonS2 : public SpinStructure{
 
 
 
-  void coo_format( Complex* v,
+  void coo_format( std::vector<Complex>& v,
 		   const Gauge& U ) const {
     const Idx N = lattice.n_sites * NS;
     // for(Idx i=0; i<N; i++) v[i] = 0.0;
 
     // int counter=0;
-    
 #ifdef _OPENMP
 #pragma omp parallel for num_threads(CompilationConst::NPARALLEL)
 #endif
@@ -208,41 +207,41 @@ struct Dirac1fonS2 : public SpinStructure{
     }
   }
 
-  void H_coo_format( Complex* v,
-		     const Gauge& U,
-		     const double lambda_max=1.0 ) const {
-    const Idx N = lattice.n_sites * NS;
-    // for(Idx i=0; i<N; i++) v[i] = 0.0;
+//   void H_coo_format( Complex* v,
+// 		     const Gauge& U,
+// 		     const double lambda_max=1.0 ) const {
+//     const Idx N = lattice.n_sites * NS;
+//     // for(Idx i=0; i<N; i++) v[i] = 0.0;
 
-    // Idx counter=0;
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(CompilationConst::NPARALLEL)
-#endif
-    for(Idx ix=0; ix<lattice.n_sites; ix++){
-      Idx counter = 3*8*ix;
-      for(int jj=0; jj<3; jj++){
-	Idx iy = lattice.nns[ix][jj];
-	const MS tmp = lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj]*sigma[0] - gamma(ix, jj)) * std::exp( I* U(Link{ix,iy})) * Omega(ix, iy) / lambda_max;
-	const MS tmp2 = lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj] + m/3.0)*sigma[0] / lambda_max;
+//     // Idx counter=0;
+// #ifdef _OPENMP
+// #pragma omp parallel for num_threads(CompilationConst::NPARALLEL)
+// #endif
+//     for(Idx ix=0; ix<lattice.n_sites; ix++){
+//       Idx counter = 3*8*ix;
+//       for(int jj=0; jj<3; jj++){
+// 	Idx iy = lattice.nns[ix][jj];
+// 	const MS tmp = lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj]*sigma[0] - gamma(ix, jj)) * std::exp( I* U(Link{ix,iy})) * Omega(ix, iy) / lambda_max;
+// 	const MS tmp2 = lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj] + m/3.0)*sigma[0] / lambda_max;
 
-	// res[NS*ix] += -tmp(0,0)*v[NS*iy] - tmp(0,1)*v[NS*iy+1];
-	v[counter] = -tmp(0,0); counter++;
-	v[counter] = -tmp(0,1); counter++;
+// 	// res[NS*ix] += -tmp(0,0)*v[NS*iy] - tmp(0,1)*v[NS*iy+1];
+// 	v[counter] = -tmp(0,0); counter++;
+// 	v[counter] = -tmp(0,1); counter++;
 
-	// res[NS*ix] += tmp(0,0)*v[NS*ix] + tmp(0,1)*v[NS*ix+1];
-	v[counter] = tmp2(0,0); counter++;
-	v[counter] = tmp2(0,1); counter++;
+// 	// res[NS*ix] += tmp(0,0)*v[NS*ix] + tmp(0,1)*v[NS*ix+1];
+// 	v[counter] = tmp2(0,0); counter++;
+// 	v[counter] = tmp2(0,1); counter++;
 
-	// res[NS*ix+1] -= -tmp(1,0)*v[NS*iy] - tmp(1,1)*v[NS*iy+1];
-	v[counter] = tmp(1,0); counter++;
-	v[counter] = tmp(1,1); counter++;
+// 	// res[NS*ix+1] -= -tmp(1,0)*v[NS*iy] - tmp(1,1)*v[NS*iy+1];
+// 	v[counter] = tmp(1,0); counter++;
+// 	v[counter] = tmp(1,1); counter++;
 
-	// res[NS*ix+1] -= tmp(1,0)*v[NS*ix] + tmp(1,1)*v[NS*ix+1];
-	v[counter] = -tmp2(1,0); counter++;
-	v[counter] = -tmp2(1,1); counter++;
-      }
-    }
-  }
+// 	// res[NS*ix+1] -= tmp(1,0)*v[NS*ix] + tmp(1,1)*v[NS*ix+1];
+// 	v[counter] = -tmp2(1,0); counter++;
+// 	v[counter] = -tmp2(1,1); counter++;
+//       }
+//     }
+//   }
 
 
   void d_coo_format( std::vector<COOEntry>& elem,
@@ -288,56 +287,6 @@ struct Dirac1fonS2 : public SpinStructure{
       }
     }
   }
-
-
-  //   void d_coo_format( std::vector<Complex>& v,
-  //       	     std::vector<Idx>& is,
-  //       	     std::vector<Idx>& js,
-  //       	     const Gauge& U,
-  //       	     const Link& ell ) const {
-  //   const Idx ix0 = ell[0];
-  //   const Idx iy0 = ell[1];
-
-  //   v.clear();
-  //   is.clear();
-  //   js.clear();
-
-  //   {
-  //     // pos
-  //     const Idx ix = ix0;
-  //     for(int jj=0; jj<3; jj++){
-  //       const Idx iy = lattice.nns[ix][jj];
-  //       if(iy!=iy0) continue;
-  //       const MS tmp = lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj]*sigma[0] - gamma(ix, jj)) * I*std::exp( I* U(Link{ix,iy})) * Omega(ix, iy);
-
-  //       // res[NS*ix] += -tmp(0,0)*v[NS*iy] - tmp(0,1)*v[NS*iy+1];
-  //       v.push_back(-tmp(0,0)); is.push_back(NS*ix); js.push_back(NS*iy);
-  //       v.push_back(-tmp(0,1)); is.push_back(NS*ix); js.push_back(NS*iy+1);
-
-  //       // res[NS*ix+1] += -tmp(1,0)*v[NS*iy] - tmp(1,1)*v[NS*iy+1];
-  //       v.push_back(-tmp(1,0)); is.push_back(NS*ix+1); js.push_back(NS*iy);
-  //       v.push_back(-tmp(1,1)); is.push_back(NS*ix+1); js.push_back(NS*iy+1);
-  //     }
-  //   }
-
-  //   {
-  //     // neg
-  //     const Idx iy = iy0;
-  //     for(int jj=0; jj<3; jj++){
-  //       const Idx ix = lattice.nns[iy0][jj];
-  //       if(ix!=ix0) continue;
-  //       const MS tmp = -lattice.vol[iy]/lattice.mean_vol * (r*lattice.u[iy][jj]*sigma[0] - gamma(iy, jj)) * I*std::exp( I* U(Link{iy,ix})) * Omega(iy, ix);
-
-  //       // res[NS*iy] += -tmp(0,0)*v[NS*ix] - tmp(0,1)*v[NS*ix+1];
-  //       v.push_back(-tmp(0,0)); is.push_back(NS*iy); js.push_back(NS*ix);
-  //       v.push_back(-tmp(0,1)); is.push_back(NS*iy); js.push_back(NS*ix+1);
-
-  //       // res[NS*iy+1] += -tmp(1,0)*v[NS*ix] - tmp(1,1)*v[NS*ix+1];
-  //       v.push_back(-tmp(1,0)); is.push_back(NS*iy+1); js.push_back(NS*ix);
-  //       v.push_back(-tmp(1,1)); is.push_back(NS*iy+1); js.push_back(NS*ix+1);
-  //     }
-  //   }
-  // }
 
 
 };

@@ -47,10 +47,10 @@ dual:
 	# $(CXX) hmc_dirac_dual.cc $(INCLUDES) $(CXXFLAGS)
 	# $(CXX) test_dirac_tim.cc $(INCLUDES) $(CXXFLAGS)
 
-eig: test_dirac.cu header_cusolver.hpp
-	$(NVCC) $< $(NVCCFLAGS) $(INCLUDES_CUDA) -o b.out
-# eig: test_dirac_dual.cu header_cusolver.hpp
+# eig: test_dirac.cu header_cusolver.hpp
 # 	$(NVCC) $< $(NVCCFLAGS) $(INCLUDES_CUDA) -o b.out
+# # eig: test_dirac_dual.cu header_cusolver.hpp
+# # 	$(NVCC) $< $(NVCCFLAGS) $(INCLUDES_CUDA) -o b.out
 
-geometry:
-	$(CXX) get_geometry.cc $(INCLUDES) $(CXXFLAGS)
+# geometry:
+# 	$(CXX) get_geometry.cc $(INCLUDES) $(CXXFLAGS)

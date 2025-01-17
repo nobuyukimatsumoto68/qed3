@@ -4,7 +4,7 @@
 struct MatPoly{
   using T = CuC;
 
-  std::vector<std::vector<const SparseMatrix*>> vec_mats;
+  std::vector<std::vector<const LinOp*>> vec_mats;
   std::vector<T> coeffs;
 
   cublasHandle_t handle;
@@ -44,19 +44,19 @@ struct MatPoly{
   }
 
   int size() const { return vec_mats.size(); }
-  std::vector<const SparseMatrix*> operator[](const int i) const { return vec_mats[i]; }
+  std::vector<const LinOp*> operator[](const int i) const { return vec_mats[i]; }
 
   void set_coeff( const int i, const T coeff ){ coeffs[i] = coeff; }
 
   void set_matrix( const int i, const int j,
-		   const SparseMatrix* mat_ptr ){
+		   const LinOp* mat_ptr ){
     vec_mats[i][j] = mat_ptr;
   }
-  
+
   void push_back( const T coeff,
-		  const std::initializer_list<const SparseMatrix*> struc={} ){
+		  const std::initializer_list<const LinOp*> struc={} ){
     coeffs.push_back(coeff);
-    vec_mats.push_back(std::vector<const SparseMatrix*>(0));
+    vec_mats.push_back(std::vector<const LinOp*>(0));
     for( auto itr=struc.begin(); itr!=struc.end(); ++itr ) vec_mats.back().push_back( *itr );
   }
 
@@ -116,27 +116,44 @@ struct MatPoly{
 	CUDA_CHECK(cudaMemcpy(d_tmp, d_Mv0, N*CD, D2D));
       }
       Taxpy<CuC, N><<<NBlocks, NThreadsPerBlock>>>(d_v,
-						   d_coeffs+i,
-						   d_Mv0,
-						   d_v);
-      // zaxpy( coeffs[i], d_Mv0, d_v );
+        					   d_coeffs+i,
+        					   d_Mv0,
+        					   d_v);
+      // zaxpy<N>( d_coeffs+i, d_Mv0, d_v );
     }
-    
+
     CUDA_CHECK(cudaFree(d_tmp));
     CUDA_CHECK(cudaFree(d_Mv0));
     CUDA_CHECK(cudaFree(d_coeffs));
   }
 
-  // __host__ // use taxpy
-  // void zaxpy( const CuC a,
-  // 	      const CuC* x, CuC* y) const {
-  //   // std::cout << "debug 1." << std::endl;
+  // template<Idx N> __host__ // use taxpy
+  // void zaxpy( const CuC* a,
+  //             const CuC* x, CuC* y) const {
   //   const int incx=1, incy=1;
-  //   CUBLAS_CHECK( cublasZaxpy(handle, CompilationConst::N,
-  // 			      &a,
-  // 			      x, incx,
-  // 			      y, incy) );
-  //   // std::cout << "debug 2." << std::endl;
+  //   CUBLAS_CHECK( cublasZaxpy(handle, N,
+  //       		      a,
+  //       		      x, incx,
+  //       		      y, incy) );
+  // }
+
+  template<Idx N> __host__
+  void Zdscal( const double alpha,
+               CuC* x) const {
+    const int incx=1, incy=1;
+    CUBLAS_CHECK( cublasZdscal(handle, N,
+                               &alpha,
+                               x, incx) );
+  }
+
+
+  // template<Idx N> __host__
+  // void Zdscal( const double alpha,
+  //              CuC* x) const {
+  //   const int incx=1, incy=1;
+  //   CUBLAS_CHECK( cublasZdscal(handle, N,
+  //                              &alpha,
+  //                              x, incx) );
   // }
 
 
@@ -172,8 +189,25 @@ struct MatPoly{
   void solve(std::vector<Complex>& x, const std::vector<Complex>& b,
 	     const double tol=1.0e-13, const int maxiter=1e8) const {
     // CG
-    CuC *d_x, *d_r, *d_p, *d_q; // , *d_tmp, *d_tmp2;
+    CuC *d_x, *d_r; // , *d_tmp, *d_tmp2;
     CUDA_CHECK(cudaMalloc(&d_x, N*CD));
+    CUDA_CHECK(cudaMalloc(&d_r, N*CD));
+    CUDA_CHECK(cudaMemcpy(d_r, reinterpret_cast<const CuC*>(b.data()), N*CD, H2D));
+
+    solve<N>(d_x, d_r, tol, maxiter);
+
+    CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(x.data()), d_x, N*CD, D2H));
+    CUDA_CHECK(cudaFree(d_x));
+    CUDA_CHECK(cudaFree(d_r));
+  }
+
+
+
+  template<Idx N> __host__
+  void solve(CuC* d_x, const CuC* d_b,
+	     const double tol=1.0e-13, const int maxiter=1e8) const {
+    // CG
+    CuC *d_p, *d_q, *d_r; // , *d_tmp, *d_tmp2;
     CUDA_CHECK(cudaMalloc(&d_r, N*CD));
     CUDA_CHECK(cudaMalloc(&d_p, N*CD));
     CUDA_CHECK(cudaMalloc(&d_q, N*CD));
@@ -185,7 +219,7 @@ struct MatPoly{
     CUDA_CHECK(cudaMalloc(&d_scalar, CD));
     CUDA_CHECK(cudaMemset(d_scalar, 0, CD)); // added @@
 
-    CUDA_CHECK(cudaMemcpy(d_r, reinterpret_cast<const CuC*>(b.data()), N*CD, H2D));
+    CUDA_CHECK(cudaMemcpy(d_r, d_b, N*CD, D2D));
     // CUDA_CHECK(cudaMemcpy(d_r, reinterpret_cast<const CuC*>(b), N*CD, H2D));
     CUDA_CHECK(cudaMemcpy(d_p, d_r, N*CD, D2D));
 
@@ -253,10 +287,6 @@ struct MatPoly{
 #endif
     }
 
-    CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(x.data()), d_x, N*CD, D2H));
-    // CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(x), d_x, N*CD, D2H));
-
-    CUDA_CHECK(cudaFree(d_x));
     CUDA_CHECK(cudaFree(d_r));
     CUDA_CHECK(cudaFree(d_p));
     CUDA_CHECK(cudaFree(d_q));

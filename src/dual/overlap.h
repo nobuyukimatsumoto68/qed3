@@ -22,8 +22,10 @@ struct Zolotarev{
   double lambda_inv;
 
   double E;
+  double C;
   std::vector<double> A;
 
+  double *d_c, *d_A, *d_C;
 
   Zolotarev(const double k_=0.01,
 	    const int n_=21 )
@@ -37,6 +39,22 @@ struct Zolotarev{
   {
     get_coeffs();
     partial_fraction();
+    C = E * 2.0 / (1.0+lambda_inv) / (k*M);
+
+    CUDA_CHECK(cudaMalloc(&d_c, size*DB));
+    CUDA_CHECK(cudaMalloc(&d_A, size*DB));
+    CUDA_CHECK(cudaMalloc(&d_C, DB));
+
+    A[0] = 1.0;
+    CUDA_CHECK(cudaMemcpy(d_c, c.data(), size*DB, H2D));
+    CUDA_CHECK(cudaMemcpy(d_A, A.data(), size*DB, H2D));
+    CUDA_CHECK(cudaMemcpy(d_C, &C, DB, H2D));
+  }
+
+  ~Zolotarev(){
+    CUDA_CHECK(cudaFree(d_c));
+    CUDA_CHECK(cudaFree(d_A));
+    CUDA_CHECK(cudaFree(d_C));
   }
 
   // A.D.Kennedy 2004; https://arxiv.org/abs/hep-lat/0402038
@@ -110,7 +128,8 @@ struct Zolotarev{
   double operator()( const double x ) const {
     double res = 1.0;
     for(int m=1; m<size; m++) res += A[m] / (x*x - k*k/cp[m]);
-    res *= E * 2.0 / (1.0+lambda_inv) * x / (k*M);
+    // res *= E * 2.0 / (1.0+lambda_inv) * x / (k*M);
+    res *= C * x;
     return res;
   }
 
@@ -127,34 +146,38 @@ struct Overlap : private Zolotarev {
 
   static constexpr Idx N = CompilationConst::N;
 
-  SparseDW SDW; // actual data used in M_DW, M_DWH
+  const WilsonDirac& DW;
+  DWDevice d_DW; // actual data used in M_DW, M_DWH
   CSR M_DW;
   CSR M_DWH;
   double lambda_max;
 
-  Overlap( const WilsonDirac& DW,
+  Overlap( const WilsonDirac& DW_,
 	   // const double lambda_max_=12.0,
 	   const double k_=0.01,
 	   const int n_=21,
 	   const bool locate_on_gpu=true)
     : Zolotarev(k_, n_)
-    , SDW(DW)
+    , DW(DW_)
+    , d_DW(DW)
       // , lambda_max(lambda_max_)
   {
-    SDW.associate( M_DW, false );
-    SDW.associate( M_DWH, true );
+    d_DW.associateCSR( M_DW, false );
+    d_DW.associateCSR( M_DWH, true );
   }
 
   void compute( const Gauge& U ) {
-    SDW.update( U );
+    d_DW.update( U );
     compute_lambda_max();
   }
 
   void compute_lambda_max( const double TOL=1.0e-4, const int MAXITER=500 ) {
     std::vector<Complex> q(N, 0.0);
-    std::vector<Complex> x(N, 0.0);
+    // std::vector<Complex> x(N, 0.0);
 
-    for(int i=0; i<N; i++) q[i] = (1.0*i+1.0)/N;
+    // for(int i=0; i<N; i++) q[i] = (1.0*i+1.0)/N;
+    q[0] = std::sqrt(1.0/2.0);
+    q[1] = std::sqrt(1.0/2.0);
 
     MatPoly Op;
     Op.push_back ( cplx(1.0), {&M_DW, &M_DWH} );
@@ -163,28 +186,25 @@ struct Overlap : private Zolotarev {
     CUDA_CHECK(cudaMalloc(&d_x, N*CD));
     CUDA_CHECK(cudaMalloc(&d_q, N*CD));
     CUDA_CHECK(cudaMalloc(&d_scalar, CD));
-    
+
     CUDA_CHECK(cudaMemset(d_x, 0, N*CD));
-    CUDA_CHECK(cudaMemset(d_q, 0, N*CD));
+    // CUDA_CHECK(cudaMemset(d_q, 0, N*CD));
     CUDA_CHECK(cudaMemset(d_scalar, 0, CD));
 
     Complex dot;
     double norm=1.0, mu_0=1.0, mu_m1=1.0, mu_m2=1.0;
 
     CUDA_CHECK(cudaMemcpy(d_q, reinterpret_cast<const CuC*>(q.data()), N*CD, H2D));
-    Op.dot2self<N>(norm, d_scalar, d_q);
-    for(int i=0; i<N; i++) q[i] = q[i]/std::sqrt(norm);
 
     double lambda=100.0, lambda_old=1000.0;
 
     for(int i=0; i<MAXITER; i++){
-      Op.from_cpu<N>( x, q );
-      CUDA_CHECK(cudaMemcpy(d_x, reinterpret_cast<const CuC*>(x.data()), N*CD, H2D));
+      Op.on_gpu<N>( d_x, d_q );
       //
       Op.dot2self<N>(norm, d_scalar, d_x);
-      for(int i=0; i<N; i++) q[i] = x[i]/std::sqrt(norm);
-      CUDA_CHECK(cudaMemcpy(d_q, reinterpret_cast<const CuC*>(q.data()), N*CD, H2D));
-      
+      CUDA_CHECK(cudaMemcpy(d_q, d_x, N*CD, H2D));
+      Op.Zdscal<N>( 1.0/std::sqrt(norm), d_q );
+
       Op.dot<N>(reinterpret_cast<CuC&>(dot), d_scalar, d_x, d_q);
       mu_m2=mu_m1;
       mu_m1=mu_0;
@@ -211,7 +231,7 @@ struct Overlap : private Zolotarev {
   }
 
 
-  void operator()(std::vector<Complex>& res, const std::vector<Complex>& xi) const {
+  void mult(std::vector<Complex>& res, const std::vector<Complex>& xi) const {
     res = xi;
     std::vector<Complex> tmp(xi.size());
 
@@ -230,6 +250,192 @@ struct Overlap : private Zolotarev {
     Op.from_cpu<N>( res, tmp );
 
     for(Idx i=0; i<res.size(); i++) res[i] += xi[i];
+  }
+
+
+  void mult(CuC* d_res, const CuC* d_xi) const {
+    CUDA_CHECK(cudaMemcpy(d_res, d_xi, N*CD, D2D));
+
+    CuC* d_tmp;
+    CUDA_CHECK(cudaMalloc(&d_tmp, N*CD));
+
+    for(int m=1; m<size; m++) {
+      MatPoly Op;
+      Op.push_back ( cplx(1.0/(lambda_max*lambda_max)), {&M_DW, &M_DWH} );
+      const CuC a = cplx(-k*k/cp[m]);
+      Op.push_back ( a, {} );
+      Op.solve<N>( d_tmp, d_xi );
+      Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, d_A+m, d_tmp, d_res);
+    }
+
+    CUDA_CHECK(cudaMemcpy(d_tmp, d_res, N*CD, D2D));
+    MatPoly Op;
+    Op.Zdscal<N>(C, d_tmp);
+
+    Op.push_back ( cplx(1.0/(lambda_max)), {&M_DW} );
+    Op.on_gpu<N>( d_res, d_tmp );
+
+    Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, d_A, d_xi, d_res); // A[0]=1.0
+
+    CUDA_CHECK(cudaFree(d_tmp));
+  }
+
+
+  void adj(std::vector<Complex>& res, const std::vector<Complex>& xi) const {
+    std::vector<Complex> DHxi(xi.size());
+
+    {
+      MatPoly Op;
+      Op.push_back ( cplx(1.0/(lambda_max)), {&M_DWH} );
+      Op.from_cpu<N>( DHxi, xi );
+      for(Idx i=0; i<res.size(); i++) DHxi[i] *= C;
+    }
+
+    res = DHxi;
+
+    std::vector<Complex> tmp(xi.size());
+    for(int m=1; m<size; m++) {
+      MatPoly Op;
+      Op.push_back ( cplx(1.0/(lambda_max*lambda_max)), {&M_DW, &M_DWH} );
+      const CuC a = cplx(-k*k/cp[m]);
+      Op.push_back ( a, {} );
+      Op.solve<N>( tmp, DHxi );
+      for(Idx i=0; i<res.size(); i++) res[i] += A[m] * tmp[i];
+    }
+
+    for(Idx i=0; i<res.size(); i++) res[i] += xi[i];
+  }
+
+
+  void adj(CuC* d_res, const CuC* d_xi) const {
+    CuC* d_DHxi;
+    CUDA_CHECK(cudaMalloc(&d_DHxi, N*CD));
+
+    {
+      MatPoly Op;
+      Op.push_back ( cplx(1.0/(lambda_max)), {&M_DWH} );
+      Op.on_gpu<N>( d_DHxi, d_xi );
+      Op.Zdscal<N>( C, d_DHxi );
+    }
+
+    CUDA_CHECK(cudaMemcpy(d_res, d_DHxi, N*CD, D2D));
+
+    CuC* d_tmp;
+    CUDA_CHECK(cudaMalloc(&d_tmp, N*CD));
+
+    for(int m=1; m<size; m++) {
+      MatPoly Op;
+      Op.push_back ( cplx(1.0/(lambda_max*lambda_max)), {&M_DW, &M_DWH} );
+      const CuC a = cplx(-k*k/cp[m]);
+      Op.push_back ( a, {} );
+      Op.solve<N>( d_tmp, d_DHxi );
+      Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, d_A+m, d_tmp, d_res);
+    }
+
+    Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, d_A, d_xi, d_res); // A[0]=1.0
+
+    CUDA_CHECK(cudaFree(d_tmp));
+    CUDA_CHECK(cudaFree(d_DHxi));
+  }
+
+
+  void sq(std::vector<Complex>& res, const std::vector<Complex>& xi) const {
+    std::vector<Complex> tmp1(xi.size()), tmp2(xi.size());
+    this->mult(tmp1, xi);
+    this->adj(tmp2, xi);
+    for(Idx i=0; i<res.size(); i++) res[i] = tmp1[i] + tmp2[i];
+  }
+
+
+  void sq( CuC* d_res, const CuC* d_xi) const {
+    CuC *d_tmp1, *d_tmp2;
+    CUDA_CHECK(cudaMalloc(&d_tmp1, N*CD));
+    CUDA_CHECK(cudaMalloc(&d_tmp2, N*CD));
+
+    this->mult(d_tmp1, d_xi);
+    this->adj(d_tmp2, d_xi);
+
+    CUDA_CHECK(cudaMemcpy(d_res, d_tmp1, N*CD, D2D));
+    Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, d_A, d_tmp2, d_res); // A[0]=1.0
+
+    CUDA_CHECK(cudaFree(d_tmp1));
+    CUDA_CHECK(cudaFree(d_tmp2));
+  }
+
+
+  using Link = std::array<Idx,2>; // <int,int>;
+  double grad( const Link& link, const Gauge& U, const std::vector<Complex>& eta ) const {
+    double res = 0.0;
+
+    std::vector<Complex> Xdag_eta(eta.size());
+    {
+      MatPoly Op;
+      Op.push_back ( cplx(1.0/(lambda_max)), {&M_DWH} );
+      Op.from_cpu<N>(Xdag_eta, eta);
+    }
+
+    std::vector<std::vector<Complex>> Zs(size, std::vector<Complex>(eta.size()) );
+    std::vector<std::vector<Complex>> Ys(size, std::vector<Complex>(eta.size()) );
+
+    for(int m=1; m<size; m++) {
+      MatPoly Op;
+      Op.push_back ( cplx(1.0/(lambda_max*lambda_max)), {&M_DW, &M_DWH} );
+
+      const CuC a = cplx(-k*k/cp[m]);
+      Op.push_back ( a, {} );
+      Op.solve<N>( Zs[m], eta );
+      Op.solve<N>( Ys[m], Xdag_eta );
+    }
+
+    COO coo;
+    DW.d_coo_format(coo.en, U, link);
+    coo.do_it();
+
+    {
+      std::vector<Complex> sum(eta.size(), 0.0);
+      for(int m=1; m<size; m++) {
+        for(Idx i=0; i<eta.size(); i++) sum[i] += Zs[m][i];
+      }
+      std::vector<Complex> dD_sum(eta.size(), 0.0);
+      matmulcoo<N>( reinterpret_cast<CuC*>(dD_sum.data()),
+                    reinterpret_cast<const CuC*>(sum.data()),
+                     coo.en );
+      for(Idx i=0; i<eta.size(); i++) res += std::real( std::conj(eta[i]) * dD_sum[i] );
+    }
+    {
+      for(int m=1; m<size; m++) {
+        std::vector<Complex> XZm(eta.size(), 0.0);
+        {
+          MatPoly Op;
+          Op.push_back ( cplx(1.0/(lambda_max)), {&M_DW} );
+          Op.from_cpu<N>(XZm, Zs[m]);
+        }
+        std::vector<Complex> dD_Ym(eta.size(), 0.0);
+        matmulcoo<N>( reinterpret_cast<CuC*>(dD_Ym.data()),
+                      reinterpret_cast<const CuC*>(Ys[m].data()),
+                      coo.en );
+        for(Idx i=0; i<eta.size(); i++) res -= std::real( std::conj(XZm[i]) * dD_Ym[i] );
+      }
+    }
+    {
+      for(int m=1; m<size; m++) {
+        std::vector<Complex> XYm(eta.size(), 0.0);
+        {
+          MatPoly Op;
+          Op.push_back ( cplx(1.0/(lambda_max)), {&M_DW} );
+          Op.from_cpu<N>(XYm, Ys[m]);
+        }
+        std::vector<Complex> dD_Zm(eta.size(), 0.0);
+        matmulcoo<N>( reinterpret_cast<CuC*>(dD_Zm.data()),
+                      reinterpret_cast<const CuC*>(Zs[m].data()),
+                      coo.en );
+        for(Idx i=0; i<eta.size(); i++) res -= std::real( std::conj(XYm[i]) * dD_Zm[i] );
+      }
+    }
+
+    res *= -2.0 * E * 2.0 / (1.0+lambda_inv) / (k*M);
+
+    return res;
   }
 
 
