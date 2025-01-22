@@ -13,13 +13,13 @@ using Complex = std::complex<double>;
 namespace CompilationConst{
   constexpr int NPARALLEL=1;
 
-  constexpr int N_REFINE=2;
+  constexpr int N_REFINE=4;
   constexpr int NS=2;
   constexpr Idx N_SITES=20*N_REFINE*N_REFINE;
   constexpr Idx N=NS*N_SITES; // matrix size of DW
 }
 
-#define IsVerbose
+// #define IsVerbose
 
 #include <cuComplex.h>
 #include <cuda_runtime.h>
@@ -85,18 +85,32 @@ int main(int argc, char* argv[]){
   using WilsonDirac=Dirac1fonS2;
   // using Overlap=OverlapPseudoFermion;
 
-
   Gauge U(lattice);
   Rng rng(lattice);
-  // U.gaussian( rng );
+  U.gaussian( rng, 0.2 );
 
-  const double M5 = -2.0;
+  const double M5 = -1.8;
   WilsonDirac DW(lattice, M5);
-  Overlap Dov(DW);
+  // Overlap Dov(DW);
+  Overlap Dov(DW, 1.0e-4, 21);
   Dov.compute(U);
+  std::cout << "# min max ratio: "
+            << Dov.lambda_min << " "
+            << Dov.lambda_max << " "
+            << Dov.lambda_min/Dov.lambda_max << std::endl;
+  std::cout << "# delta = " << Dov.Delta() << std::endl;
+
 
   // MatPoly Op;
   // Op.push_back ( cplx(1.0), {&(Dov.M_DW), &(Dov.M_DWH)} );
+  // auto f_Op = std::bind(&Overlap::sq_device, &Dov, std::placeholders::_1, std::placeholders::_2);
+  // auto f_Op = std::bind(&Overlap::sq_device, &Dov, std::placeholders::_1, std::placeholders::_2);
+  auto f_Op = std::bind(&Overlap::mult_device, &Dov, std::placeholders::_1, std::placeholders::_2);
+  LinOpWrapper M_Op( f_Op );
+
+  MatPoly Op;
+  Op.push_back ( cplx(1.0), {&M_Op} );
+  // Op.push_back ( cplx(1.0), {&Dov.M_DW} );
 
   constexpr Idx N = CompilationConst::N;
   Eigen::MatrixXcd mat(N, N);
@@ -106,7 +120,12 @@ int main(int argc, char* argv[]){
       e(i) = 1.0;
       std::vector<Complex> xi(e.data(), e.data()+N);
       std::vector<Complex> Dxi(N);
-      Dov.adj( Dxi, xi );
+
+      //   // Op.solve<N>( d_eta, d_xi );
+      Op.from_cpu<N>( Dxi, xi );
+
+      for(Idx j=0; j<N; j++) Dxi[j] -= xi[j];
+      // for(Idx j=0; j<N; j++) Dxi[j] -= M5*xi[j];
       // std::cout << "debug. i=" << i << std::endl;
       // Op.from_cpu<N>( Dxi, xi );
       mat.block(0,i,N,1) = Eigen::Map<Eigen::MatrixXcd>(Dxi.data(), N, 1);

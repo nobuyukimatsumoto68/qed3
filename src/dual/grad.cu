@@ -20,7 +20,7 @@ namespace CompilationConst{
   constexpr Idx N=NS*N_SITES; // matrix size of DW
 }
 
-#define IsVerbose
+// #define IsVerbose
 
 #include <cuComplex.h>
 #include <cuda_runtime.h>
@@ -90,9 +90,9 @@ int main(int argc, char* argv[]){
 
   Gauge U(lattice);
   Rng rng(lattice);
-  U.gaussian( rng );
+  U.gaussian( rng, 0.2 );
 
-  const double M5 = -2.0;
+  const double M5 = -1.8;
   WilsonDirac DW(lattice, M5);
 
   constexpr Idx N = CompilationConst::N;
@@ -107,7 +107,7 @@ int main(int argc, char* argv[]){
   for(int i=0; i<N; i++) xi[i] = rng.gaussian() + 1.0*Complex(0.0,1.0)*rng.gaussian();
 
 
-  Overlap Dov(DW, 0.0001, 11);
+  Overlap Dov(DW, 1.0e-4, 11);
 
   // CuC Sf, Sfp, Sfm;
   CuC Sf, Sfp, Sfm, grad;
@@ -138,6 +138,12 @@ int main(int argc, char* argv[]){
 
   {
     Dov.compute(U);
+    std::cout << "# min max ratio: "
+              << Dov.lambda_min << " "
+              << Dov.lambda_max << " "
+              << Dov.lambda_min/Dov.lambda_max << std::endl;
+    std::cout << "# delta = " << Dov.Delta() << std::endl;
+
     OpDHDov.solve<N>( d_eta, d_xi );
     OpDHDov.dot<N>( &Sf, d_xi, d_eta );
     std::cout << "S = " << real(Sf) << " " << imag(Sf) << std::endl;
@@ -154,7 +160,6 @@ int main(int argc, char* argv[]){
     OpDHDov.dot<N>( &Sfp, d_xi, d_eta );
     std::cout << "Sp = " << real(Sfp) << " " << imag(Sfp) << std::endl;
   }
-
   {
     Dov.compute(UM);
     OpDHDov.solve<N>( d_eta, d_xi );

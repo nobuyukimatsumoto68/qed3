@@ -8,21 +8,30 @@ struct MatPoly{
   std::vector<T> coeffs;
 
   cublasHandle_t handle;
-  // cudaStream_t stream;
+  cudaStream_t stream;
+  const bool is_external;
 
   MatPoly()
+    : is_external(false)
   {
-    // handle = NULL;
-    // stream = NULL;
-
+    handle = NULL;
+    stream = 0;
     CUBLAS_CHECK(cublasCreate(&handle));
     // CUDA_CHECK(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
-    // CUBLAS_CHECK(cublasSetStream(handle, stream));
+    CUBLAS_CHECK(cublasSetStream(handle, stream));
   }
+
+  MatPoly( cublasHandle_t handle_, cudaStream_t stream_ )
+    : handle(handle_)
+    , stream(stream_)
+    , is_external(true)
+  {}
+
 
   MatPoly( const std::initializer_list<int> struc )
     : vec_mats(struc.size())
     , coeffs(struc.size())
+    , is_external(false)
   {
     auto itr = struc.begin();
     for(int i=0; i<struc.size(); i++) {
@@ -30,17 +39,14 @@ struct MatPoly{
       ++itr;
     }
 
-    // handle = NULL;
-    // stream = NULL;
-
+    handle = NULL;
+    stream = 0;
     CUBLAS_CHECK(cublasCreate(&handle));
-    // CUDA_CHECK(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
-    // CUBLAS_CHECK(cublasSetStream(handle, stream));
+    CUBLAS_CHECK(cublasSetStream(handle, stream));
   }
 
   ~MatPoly(){
-    CUBLAS_CHECK(cublasDestroy(handle));
-    // CUDA_CHECK(cudaStreamDestroy(stream));
+    if(!is_external) CUBLAS_CHECK(cublasDestroy(handle));
   }
 
   int size() const { return vec_mats.size(); }
@@ -85,7 +91,6 @@ struct MatPoly{
     CUDA_CHECK(cudaMalloc(&d_v0, N*CD));
 
     CUDA_CHECK(cudaMemcpy(d_v0, reinterpret_cast<const CuC*>(v0.data()), N*CD, H2D));
-    CUDA_CHECK(cudaMemset(d_v, 0, N*CD));
 
     on_gpu<N>( d_v, d_v0 );
 
@@ -103,9 +108,6 @@ struct MatPoly{
     CUDA_CHECK(cudaMalloc(&d_coeffs, coeffs.size()*CD));
 
     CUDA_CHECK(cudaMemset(d_v, 0, N*CD));
-    CUDA_CHECK(cudaMemset(d_tmp, 0, N*CD));
-    CUDA_CHECK(cudaMemset(d_Mv0, 0, N*CD));
-    CUDA_CHECK(cudaMemset(d_coeffs, 0, coeffs.size()*CD));
     CUDA_CHECK(cudaMemcpy(d_coeffs, coeffs.data(), coeffs.size()*CD, H2D));
 
     for(int i=0; i<vec_mats.size(); i++){
@@ -146,26 +148,12 @@ struct MatPoly{
                                x, incx) );
   }
 
-
-  // template<Idx N> __host__
-  // void Zdscal( const double alpha,
-  //              CuC* x) const {
-  //   const int incx=1, incy=1;
-  //   CUBLAS_CHECK( cublasZdscal(handle, N,
-  //                              &alpha,
-  //                              x, incx) );
-  // }
-
-
   template<Idx N> __host__
-  void dot( CuC* result, // CuC* d_scalar,
-	    const CuC* x, const CuC* y) const {
+  void dot( CuC* result, const CuC* x, const CuC* y) const {
     CUBLAS_CHECK( cublasZdotc(handle, N,
 			      x, 1,
 			      y, 1,
                               result) );
-    // d_scalar) );
-    // CUDA_CHECK(cudaMemcpy(&result, d_scalar, CD, D2H));
   }
 
   template<Idx N> __host__
@@ -176,20 +164,17 @@ struct MatPoly{
 		x, 1,
 		x, 1,
 		&dummy );
-    // CUDA_CHECK(cudaMemcpy(&dummy, d_scalar, CD, D2H));
-    // cublasZdotc(handle, N,
-    //     	x, 1,
-    //     	x, 1,
-    //     	d_scalar);
-    // CuC dummy;
-    // CUDA_CHECK(cudaMemcpy(&dummy, d_scalar, CD, D2H));
-#ifdef IsVerbose
-    if(abs( imag(dummy)/real(dummy) )>=TOL*std::sqrt(N)){
-      std::clog << abs( imag(dummy)/real(dummy) ) << std::endl;
+
+    double crit = abs( imag(dummy)/real(dummy) );
+    if( isnan(crit) || isinf(crit)  ){
+      crit = abs( imag(dummy) );
     }
-    assert( abs( imag(dummy)/real(dummy) )<TOL*std::sqrt(N) );
+#ifdef IsVerbose
+    if( crit >= TOL*std::sqrt(N) || isnan(crit) || isinf(crit)  ){
+      std::clog << crit << std::endl;
+    }
 #endif
-    assert( abs( imag(dummy)/real(dummy) )<TOL*std::sqrt(N) );
+    assert( crit<TOL*std::sqrt(N) );
     *result = real(dummy);
   }
 
@@ -221,8 +206,8 @@ struct MatPoly{
     CUDA_CHECK(cudaMalloc(&d_p, N*CD));
     CUDA_CHECK(cudaMalloc(&d_q, N*CD));
     //
-    CUDA_CHECK(cudaMemset(d_x, 0, N*CD)); // added @@
-    CUDA_CHECK(cudaMemset(d_q, 0, N*CD)); // added @@
+    CUDA_CHECK(cudaMemset(d_x, 0, N*CD));
+    CUDA_CHECK(cudaMemset(d_q, 0, N*CD));
 
     CUDA_CHECK(cudaMemcpy(d_r, d_b, N*CD, D2D));
     CUDA_CHECK(cudaMemcpy(d_p, d_r, N*CD, D2D));
@@ -233,9 +218,7 @@ struct MatPoly{
     double mu_old = mu;
 
     double b_norm_sq;
-    // dot2self_normalized_wrapper<N>(b_norm_sq, d_scalar, d_r);
-    dot2self<N>(&b_norm_sq, // d_scalar,
-                d_r);
+    dot2self<N>(&b_norm_sq, d_r);
     assert(b_norm_sq>=0.0);
     double mu_crit = tol*tol*b_norm_sq;
 
@@ -251,38 +234,22 @@ struct MatPoly{
       for(; k<maxiter; ++k){
 	this->on_gpu<N>(d_q, d_p);
 
-	// dot_normalized_wrapper<N>(gam, d_scalar, d_p, d_q);
-	dot<N>(&gam, // d_scalar,
-               d_p, d_q);
+	dot<N>(&gam, d_p, d_q);
 
 	CuC al = mu/gam;
-	// CUDA_CHECK(cudaMemcpy(d_scalar, &al, CD, H2D));
-	// Taxpy<CuC,N><<<NBlocks, NThreadsPerBlock>>>(d_x, d_scalar, d_p, d_x);
         Taxpy<CuC,N><<<NBlocks, NThreadsPerBlock>>>(d_x, al, d_p, d_x);
-	// Zaxpy<N>( d_scalar, d_p, d_x );
 
-	al = -al;
-	// CUDA_CHECK(cudaMemcpy(d_scalar, &al, CD, H2D));
-	// Taxpy<CuC,N><<<NBlocks, NThreadsPerBlock>>>(d_r, d_scalar, d_q, d_r);
-        Taxpy<CuC,N><<<NBlocks, NThreadsPerBlock>>>(d_r, al, d_q, d_r);
-	// Zaxpy<N>( d_scalar, d_q, d_r );
+	// al = -al;
+        Taxpy<CuC,N><<<NBlocks, NThreadsPerBlock>>>(d_r, -al, d_q, d_r);
 
-	// dot2self_normalized_wrapper<N>(mu, d_scalar, d_r);
-	dot2self<N>(&mu, // d_scalar,
-                    d_r);
+	dot2self<N>(&mu, d_r);
 	assert(mu>=0.0);
 
 	if(mu<mu_crit || std::isnan(mu)) break;
 	CuC bet = cplx(mu/mu_old);
 	mu_old = mu;
 
-	// CUDA_CHECK(cudaMemcpy(d_scalar, &bet, CD, H2D));
-	// Taxpy<CuC,N><<<NBlocks, NThreadsPerBlock>>>(d_p, d_scalar, d_p, d_r);
         Taxpy<CuC,N><<<NBlocks, NThreadsPerBlock>>>(d_p, bet, d_p, d_r);
-	// Zaxpy<N>( d_scalar, d_p, d_r );
-	// CUBLAS_CHECK(cublasZswap(handle, N,
-	// 			 d_p, 1,
-	// 			 d_r, 1));
 
 	if(k%100==0) {
 #ifdef IsVerbose
@@ -299,8 +266,6 @@ struct MatPoly{
     CUDA_CHECK(cudaFree(d_r));
     CUDA_CHECK(cudaFree(d_p));
     CUDA_CHECK(cudaFree(d_q));
-    //
-    // CUDA_CHECK(cudaFree(d_scalar));
   }
 
 

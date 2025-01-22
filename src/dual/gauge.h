@@ -115,8 +115,8 @@ struct U1onS2 {
     square /= lattice.n_faces;
   }
 
-  void gaussian(ParallelRng& rng) {
-    for(int il=0; il<lattice.n_links; il++) field[il] = rng.gaussian_link(il);
+  void gaussian(ParallelRng& rng, const double width=1.0) {
+    for(int il=0; il<lattice.n_links; il++) field[il] = width*rng.gaussian_link(il);
   }
 
 };
