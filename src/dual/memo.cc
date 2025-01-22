@@ -2220,3 +2220,730 @@ void matmulgam5( T* res, T* v, const int Nx) {
   //     std::cout << xi[i] << " " << Dxi[i] << " " << Dxi2[i] << std::endl;
   //   }
   // }
+
+
+
+  {
+    Overlap Dov(DW);
+    Dov.compute(U);
+
+    std::vector<Complex> xi(N), Dxi(N), Dxi2(N);
+    for(int i=0; i<N; i++) xi[i] = rng.gaussian();
+
+    Dov.mult( Dxi, xi );
+
+    CuC *d_Dxi2, *d_xi;
+    CUDA_CHECK(cudaMalloc(&d_Dxi2, N*CD));
+    CUDA_CHECK(cudaMalloc(&d_xi, N*CD));
+    CUDA_CHECK(cudaMemcpy(d_xi, reinterpret_cast<const CuC*>(xi.data()), N*CD, H2D));
+
+    // Dov.mult_device( d_Dxi2, d_xi );
+    auto f = std::bind(&Overlap::mult_device, &Dov, std::placeholders::_1, std::placeholders::_2);
+    // f( d_Dxi2, d_xi );
+    // std::cout << typeid(f).name() << std::endl;
+
+    // auto f = std::bind<LinOpWrapper::Function**, LinOpWrapper, CuC*, CuC*>(&Overlap::mult, Dov, std::placeholders::_1, std::placeholders::_2);
+    // LinOpWrapper Op( std::bind(&Overlap::mult_device, &Dov, std::placeholders::_1, std::placeholders::_2) );
+    LinOpWrapper Op( f );
+    Op( d_Dxi2, d_xi );
+
+    std::vector<Complex> eta(N);
+    {
+      MatPoly Op;
+      Op.push_back ( cplx(1.0), {&(Dov.M_DW), &(Dov.M_DWH)} );
+      Op.solve<N>( eta, xi );
+    }
+
+
+    CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(Dxi2.data()), d_Dxi2, N*CD, D2H));
+    CUDA_CHECK(cudaFree(d_Dxi2));
+    CUDA_CHECK(cudaFree(d_xi));
+
+    for(int i=0; i<N; i++) {
+      std::cout << xi[i] << " " << Dxi[i] << " " << Dxi2[i] << std::endl;
+    }
+  }
+
+
+
+  {
+    Overlap Dov(DW);
+    Dov.compute(U);
+
+    std::vector<Complex> xi(N), xi2(N); // , Dxi(N), Dxi2(N);
+    for(int i=0; i<N; i++) xi[i] = rng.gaussian();
+
+    // Dov.mult( Dxi, xi );
+
+    CuC *d_xi, *d_eta;
+    CUDA_CHECK(cudaMalloc(&d_xi, N*CD));
+    CUDA_CHECK(cudaMalloc(&d_eta, N*CD));
+    CUDA_CHECK(cudaMemcpy(d_xi, reinterpret_cast<const CuC*>(xi.data()), N*CD, H2D));
+
+    auto f = std::bind(&Overlap::sq_device, &Dov, std::placeholders::_1, std::placeholders::_2);
+    LinOpWrapper Op( f );
+
+    // for(int i=0; i<100; i++) Op( d_eta, d_xi );
+
+    std::vector<Complex> eta(N);
+    {
+      MatPoly Poly;
+      Poly.push_back ( cplx(1.0), {&Op} );
+      Poly.solve<N>( d_eta, d_xi );
+    }
+
+    f( d_xi, d_eta );
+
+    // CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(eta.data()), d_eta, N*CD, D2H));
+    CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(xi2.data()), d_xi, N*CD, D2H));
+    CUDA_CHECK(cudaFree(d_xi));
+    CUDA_CHECK(cudaFree(d_eta));
+
+    for(int i=0; i<N; i++) {
+      std::cout << xi[i] - xi2[i] << std::endl;
+    }
+  }
+
+
+
+
+  // {
+  //   Dov.compute(U);
+
+  //   CuC *d_Z, *d_xi;
+  //   CUDA_CHECK(cudaMalloc(&d_Z, N*CD));
+  //   CUDA_CHECK(cudaMalloc(&d_xi, N*CD));
+  //   CUDA_CHECK(cudaMemcpy(d_xi, reinterpret_cast<const CuC*>(xi.data()), N*CD, H2D));
+
+  //   int m=1;
+  //   MatPoly Op;
+  //   Op.push_back ( cplx(1.0/(Dov.lambda_max*Dov.lambda_max)), {&Dov.M_DW, &Dov.M_DWH} );
+  //   const CuC a = cplx(-Dov.k*Dov.k/Dov.cp[m]);
+  //   Op.push_back ( a, {} );
+  //   Op.solve<N>( d_Z, d_xi );
+  //   Op.Zdscal<N>( Dov.A[m], d_Z );
+
+  //   Dummy.dot<N>( &Sf, d_xi, d_Z );
+  //   std::cout << "S = " << real(Sf) << " " << imag(Sf) << std::endl;
+
+  //   CUDA_CHECK(cudaFree(d_Z));
+  //   CUDA_CHECK(cudaFree(d_xi));
+  // }
+
+  // {
+  //   Dov.compute(U);
+
+  //   CuC *d_Z, *d_xi;
+  //   CUDA_CHECK(cudaMalloc(&d_Z, N*CD));
+  //   CUDA_CHECK(cudaMalloc(&d_xi, N*CD));
+  //   CUDA_CHECK(cudaMemcpy(d_xi, reinterpret_cast<const CuC*>(xi.data()), N*CD, H2D));
+
+  //   int m=1;
+  //   MatPoly Op;
+  //   Op.push_back ( cplx(1.0/(Dov.lambda_max*Dov.lambda_max)), {&Dov.M_DW, &Dov.M_DWH} );
+  //   const CuC a = cplx(-Dov.k*Dov.k/Dov.cp[m]);
+  //   Op.push_back ( a, {} );
+  //   Op.solve<N>( d_Z, d_xi );
+
+  //   // --------------
+
+  //   COO coo;
+  //   DW.d_coo_format(coo.en, U, ell);
+  //   coo.do_it();
+
+  //   CuC *d_tmp1, *d_tmp2;
+  //   CUDA_CHECK(cudaMalloc(&d_tmp1, N*CD));
+  //   CUDA_CHECK(cudaMalloc(&d_tmp2, N*CD));
+
+  //   coo( d_tmp1, d_Z ); // DH
+  //   Dov.M_DWH( d_tmp2, d_tmp1 );
+
+  //   Op.Zdscal<N>( Dov.A[m], d_Z );
+
+  //   Dummy.dot<N>( &grad, d_Z, d_tmp2 );
+
+  //   CUDA_CHECK(cudaFree(d_tmp1));
+  //   CUDA_CHECK(cudaFree(d_tmp2));
+
+  //   // --------------
+
+  //   grad = -2.0 * grad * cplx(1.0/(Dov.lambda_max*Dov.lambda_max));
+  //   std::cout << "grad = " << real(grad) << " " << imag(grad) << std::endl;
+
+  //   CUDA_CHECK(cudaFree(d_Z));
+  //   CUDA_CHECK(cudaFree(d_xi));
+  // }
+
+
+  // {
+  //   Dov.compute(UP);
+
+  //   CuC *d_Z, *d_xi;
+  //   CUDA_CHECK(cudaMalloc(&d_Z, N*CD));
+  //   CUDA_CHECK(cudaMalloc(&d_xi, N*CD));
+  //   CUDA_CHECK(cudaMemcpy(d_xi, reinterpret_cast<const CuC*>(xi.data()), N*CD, H2D));
+
+  //   int m=1;
+  //   MatPoly Op;
+  //   Op.push_back ( cplx(1.0/(Dov.lambda_max*Dov.lambda_max)), {&Dov.M_DW, &Dov.M_DWH} );
+  //   const CuC a = cplx(-Dov.k*Dov.k/Dov.cp[m]);
+  //   Op.push_back ( a, {} );
+  //   Op.solve<N>( d_Z, d_xi );
+  //   Op.Zdscal<N>( Dov.A[m], d_Z );
+
+  //   Dummy.dot<N>( &Sfp, d_xi, d_Z );
+  //   std::cout << "Sp = " << real(Sfp) << " " << imag(Sfp) << std::endl;
+
+  //   CUDA_CHECK(cudaFree(d_Z));
+  //   CUDA_CHECK(cudaFree(d_xi));
+  // }
+
+
+  // {
+  //   Dov.compute(UM);
+
+  //   CuC *d_Z, *d_xi;
+  //   CUDA_CHECK(cudaMalloc(&d_Z, N*CD));
+  //   CUDA_CHECK(cudaMalloc(&d_xi, N*CD));
+  //   CUDA_CHECK(cudaMemcpy(d_xi, reinterpret_cast<const CuC*>(xi.data()), N*CD, H2D));
+
+  //   int m=1;
+  //   MatPoly Op;
+  //   Op.push_back ( cplx(1.0/(Dov.lambda_max*Dov.lambda_max)), {&Dov.M_DW, &Dov.M_DWH} );
+  //   const CuC a = cplx(-Dov.k*Dov.k/Dov.cp[m]);
+  //   Op.push_back ( a, {} );
+  //   Op.solve<N>( d_Z, d_xi );
+  //   Op.Zdscal<N>( Dov.A[m], d_Z );
+
+  //   Dummy.dot<N>( &Sfm, d_xi, d_Z );
+  //   std::cout << "Sm = " << real(Sfm) << " " << imag(Sfm) << std::endl;
+
+  //   CUDA_CHECK(cudaFree(d_Z));
+  //   CUDA_CHECK(cudaFree(d_xi));
+  // }
+
+  // CuC check = (Sfp-Sfm)/(2.0*eps);
+  // std::cout << "grad = " << real(grad) << " " << imag(grad) << std::endl;
+  // std::cout << "check = " << real(check) << " " << imag(check) << std::endl;
+
+
+
+  // std::cout << std::endl << std::endl << std::endl << std::endl;
+
+
+
+
+  // // auto f_Dov = std::bind(&Overlap::mult_device2, &Dov, std::placeholders::_1, std::placeholders::_2);
+  // // auto f_Dov = std::bind(&Overlap::mult_device3, &Dov, std::placeholders::_1, std::placeholders::_2);
+  // auto f_Dov = std::bind(&Overlap::mult_device, &Dov, std::placeholders::_1, std::placeholders::_2);
+  // LinOpWrapper M_Dov( f_Dov );
+
+  // {
+  //   Dov.compute(U);
+
+  //   CuC *d_eta, *d_xi;
+  //   CUDA_CHECK(cudaMalloc(&d_eta, N*CD));
+  //   CUDA_CHECK(cudaMalloc(&d_xi, N*CD));
+  //   CUDA_CHECK(cudaMemcpy(d_xi, reinterpret_cast<const CuC*>(xi.data()), N*CD, H2D));
+
+  //   M_Dov( d_eta, d_xi );
+
+  //   Dummy.dot<N>( &Sf, d_xi, d_eta );
+  //   std::cout << "S = " << real(Sf) << " " << imag(Sf) << std::endl;
+
+  //   CUDA_CHECK(cudaFree(d_eta));
+  //   CUDA_CHECK(cudaFree(d_xi));
+  // }
+
+  // {
+  //   Dov.compute(U);
+
+  //   CuC *d_xi;
+  //   CUDA_CHECK(cudaMalloc(&d_xi, N*CD));
+  //   CUDA_CHECK(cudaMemcpy(d_xi, reinterpret_cast<const CuC*>(xi.data()), N*CD, H2D));
+  //   // grad_d = Dov.grad2( ell, U, d_xi ); // DH
+  //   grad_d = Dov.grad3( ell, U, d_xi ); // DH
+  //   CUDA_CHECK(cudaFree(d_xi));
+  // }
+
+  // {
+  //   Dov.compute(UP);
+
+  //   CuC *d_eta, *d_xi;
+  //   CUDA_CHECK(cudaMalloc(&d_eta, N*CD));
+  //   CUDA_CHECK(cudaMalloc(&d_xi, N*CD));
+  //   CUDA_CHECK(cudaMemcpy(d_xi, reinterpret_cast<const CuC*>(xi.data()), N*CD, H2D));
+
+  //   M_Dov( d_eta, d_xi );
+
+  //   Dummy.dot<N>( &Sfp, d_xi, d_eta );
+  //   std::cout << "Sp = " << real(Sfp) << " " << imag(Sfp) << std::endl;
+
+  //   CUDA_CHECK(cudaFree(d_eta));
+  //   CUDA_CHECK(cudaFree(d_xi));
+  // }
+
+  // {
+  //   Dov.compute(UM);
+
+  //   CuC *d_eta, *d_xi;
+  //   CUDA_CHECK(cudaMalloc(&d_eta, N*CD));
+  //   CUDA_CHECK(cudaMalloc(&d_xi, N*CD));
+  //   CUDA_CHECK(cudaMemcpy(d_xi, reinterpret_cast<const CuC*>(xi.data()), N*CD, H2D));
+
+  //   M_Dov( d_eta, d_xi );
+
+  //   Dummy.dot<N>( &Sfm, d_xi, d_eta );
+  //   std::cout << "Sm = " << real(Sfm) << " " << imag(Sfm) << std::endl;
+
+  //   CUDA_CHECK(cudaFree(d_eta));
+  //   CUDA_CHECK(cudaFree(d_xi));
+  // }
+
+
+  // CuC check2 = (Sfp-Sfm)/(2.0*eps);
+  // std::cout << "grad = " << 0.5 * grad_d << std::endl;
+  // // std::cout << "grad = " << real(grad) << " " << imag(grad) << std::endl;
+  // std::cout << "check = " << real(check2) << " " << imag(check2) << std::endl;
+
+
+
+
+
+
+
+  // {
+  //   CuC *d_Dxi, *d_xi;
+  //   CUDA_CHECK(cudaMalloc(&d_Dxi, N*CD));
+  //   CUDA_CHECK(cudaMalloc(&d_xi, N*CD));
+  //   CUDA_CHECK(cudaMemcpy(d_xi, reinterpret_cast<const CuC*>(xi.data()), N*CD, H2D));
+
+  //   COO coo;
+  //   MatPoly Dummy;
+  //   DW.d_coo_format(coo.en, U, ell);
+  //   CuC dS;
+
+  //   coo.do_it();
+  //   coo( d_Dxi, d_xi );
+  //   Dummy.dot<N>( &dS, d_xi, d_Dxi );
+  //   std::cout << "dS = " << real(dS) << " " << imag(dS) << std::endl;
+
+  //   coo.do_conjugate();
+  //   coo( d_Dxi, d_xi ); // DH
+  //   Dummy.dot<N>( &dS, d_Dxi, d_xi );
+  //   std::cout << "dS = " << real(dS) << " " << imag(dS) << std::endl;
+
+  //   // -----------------------
+
+  //   CSR M_DW;
+  //   DWDevice d_DW(DW); // actual data used in M_DW, M_DWH
+  //   d_DW.associateCSR( M_DW, false );
+
+  //   CuC Sfp, Sfm;
+  //   const double eps = 1.0e-5;
+
+  //   Gauge UP(U);
+  //   UP[il] += eps;
+  //   d_DW.update( UP );
+  //   M_DW( d_Dxi, d_xi );
+  //   Dummy.dot<N>( &Sfp, d_xi, d_Dxi );
+
+  //   Gauge UM(U);
+  //   UM[il] -= eps;
+  //   d_DW.update( UM );
+  //   M_DW( d_Dxi, d_xi );
+  //   Dummy.dot<N>( &Sfm, d_xi, d_Dxi );
+
+  //   CUDA_CHECK(cudaFree(d_Dxi));
+  //   CUDA_CHECK(cudaFree(d_xi));
+
+  //   CuC num = (Sfp-Sfm)/(2.0*eps);
+  //   std::cout << "dS = " << real(num) << " " << imag(num) << std::endl;
+  // }
+
+
+
+  // const Idx ix=2;
+  // const Idx iy=lattice.nns[ix][0];
+  // const Link ell{ix,iy};
+
+  // COO coo;
+  // DW.d_coo_format(coo.en, U, ell);
+  // coo.do_it();
+
+
+
+
+  // {
+  //   Overlap Dov(DW);
+  //   Dov.compute(U);
+
+  //   std::vector<Complex> xi(N), xi2(N); // , Dxi(N), Dxi2(N);
+  //   for(int i=0; i<N; i++) xi[i] = rng.gaussian();
+
+  //   // Dov.mult( Dxi, xi );
+
+  //   CuC *d_xi, *d_eta;
+  //   CUDA_CHECK(cudaMalloc(&d_xi, N*CD));
+  //   CUDA_CHECK(cudaMalloc(&d_eta, N*CD));
+  //   CUDA_CHECK(cudaMemcpy(d_xi, reinterpret_cast<const CuC*>(xi.data()), N*CD, H2D));
+
+  //   auto f = std::bind(&Overlap::sq_device, &Dov, std::placeholders::_1, std::placeholders::_2);
+  //   LinOpWrapper Op( f );
+
+  //   // for(int i=0; i<100; i++) Op( d_eta, d_xi );
+
+  //   std::vector<Complex> eta(N);
+  //   {
+  //     MatPoly Poly;
+  //     Poly.push_back ( cplx(1.0), {&Op} );
+  //     Poly.solve<N>( d_eta, d_xi );
+  //   }
+
+  //   f( d_xi, d_eta );
+
+  //   // CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(eta.data()), d_eta, N*CD, D2H));
+  //   CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(xi2.data()), d_xi, N*CD, D2H));
+  //   CUDA_CHECK(cudaFree(d_xi));
+  //   CUDA_CHECK(cudaFree(d_eta));
+
+  //   for(int i=0; i<N; i++) {
+  //     std::cout << xi[i] << " " << xi2[i] << " " << xi[i] - xi2[i] << std::endl;
+  //   }
+  // }
+
+
+
+
+
+  //   auto f_Dov = std::bind(&Overlap::mult_device, &Dov, std::placeholders::_1, std::placeholders::_2);
+  // LinOpWrapper M_Dov( f_Dov );
+
+
+  // {
+  //   Dov.compute(U);
+
+  //   CuC *d_eta, *d_xi;
+  //   CUDA_CHECK(cudaMalloc(&d_eta, N*CD));
+  //   CUDA_CHECK(cudaMalloc(&d_xi, N*CD));
+  //   CUDA_CHECK(cudaMemcpy(d_xi, reinterpret_cast<const CuC*>(xi.data()), N*CD, H2D));
+
+  //   MatPoly Op;
+  //   Op.push_back ( cplx(1.0), {&M_Dov} );
+  //   Op.solve<N>( d_eta, d_xi );
+
+  //   Dummy.dot<N>( &Sf, d_xi, d_eta );
+  //   std::cout << "S = " << real(Sf) << " " << imag(Sf) << std::endl;
+
+  //   CUDA_CHECK(cudaFree(d_eta));
+  //   CUDA_CHECK(cudaFree(d_xi));
+  // }
+
+  // {
+  //   Dov.compute(U);
+
+  //   CuC *d_xi;
+  //   CUDA_CHECK(cudaMalloc(&d_xi, N*CD));
+  //   CUDA_CHECK(cudaMemcpy(d_xi, reinterpret_cast<const CuC*>(xi.data()), N*CD, H2D));
+  //   grad = Dov.grad( ell, U, d_xi ); // DH
+
+  //   // --------------
+
+  //   // std::cout << "grad = " << real(grad) << " " << imag(grad) << std::endl;
+  //   std::cout << "grad = " << grad << std::endl;
+
+  //   CUDA_CHECK(cudaFree(d_xi));
+  // }
+
+
+
+  // {
+  //   Dov.compute(UP);
+
+  //   CuC *d_eta, *d_xi;
+  //   CUDA_CHECK(cudaMalloc(&d_eta, N*CD));
+  //   CUDA_CHECK(cudaMalloc(&d_xi, N*CD));
+  //   CUDA_CHECK(cudaMemcpy(d_xi, reinterpret_cast<const CuC*>(xi.data()), N*CD, H2D));
+
+  //   MatPoly Op;
+  //   Op.push_back ( cplx(1.0), {&M_Dov} );
+  //   Op.solve<N>( d_eta, d_xi );
+
+  //   Dummy.dot<N>( &Sfp, d_xi, d_eta );
+  //   std::cout << "Sp = " << real(Sfp) << " " << imag(Sfp) << std::endl;
+
+  //   CUDA_CHECK(cudaFree(d_eta));
+  //   CUDA_CHECK(cudaFree(d_xi));
+  // }
+
+  // {
+  //   Dov.compute(UM);
+
+  //   CuC *d_eta, *d_xi;
+  //   CUDA_CHECK(cudaMalloc(&d_eta, N*CD));
+  //   CUDA_CHECK(cudaMalloc(&d_xi, N*CD));
+  //   CUDA_CHECK(cudaMemcpy(d_xi, reinterpret_cast<const CuC*>(xi.data()), N*CD, H2D));
+
+  //   MatPoly Op;
+  //   Op.push_back ( cplx(1.0), {&M_Dov} );
+  //   Op.solve<N>( d_eta, d_xi );
+
+  //   Dummy.dot<N>( &Sfm, d_xi, d_eta );
+  //   std::cout << "Sm = " << real(Sfm) << " " << imag(Sfm) << std::endl;
+
+  //   CUDA_CHECK(cudaFree(d_eta));
+  //   CUDA_CHECK(cudaFree(d_xi));
+  // }
+
+
+  // CuC check = (Sfp-Sfm)/(2.0*eps);
+  // std::cout << "grad = " << grad << std::endl;
+  // // std::cout << "grad = " << real(grad) << " " << imag(grad) << std::endl;
+  // std::cout << "check = " << real(check) << " " << imag(check) << std::endl;
+
+
+
+
+
+
+  
+
+
+
+
+  //   COO coo;
+  //   MatPoly Dummy;
+  //   DW.d_coo_format(coo.en, U, ell);
+  //   CuC dS;
+
+
+  //   coo.do_it();
+  //   coo( d_Dxi, d_xi );
+  //   Dummy.dot<N>( &dS, d_xi, d_Dxi );
+  //   std::cout << "dS = " << real(dS) << " " << imag(dS) << std::endl;
+
+  //   coo.do_conjugate();
+  //   coo( d_Dxi, d_xi ); // DH
+  //   Dummy.dot<N>( &dS, d_Dxi, d_xi );
+  //   std::cout << "dS = " << real(dS) << " " << imag(dS) << std::endl;
+
+  //   // -----------------------
+
+  //   CSR M_DW;
+  //   DWDevice d_DW(DW); // actual data used in M_DW, M_DWH
+  //   d_DW.associateCSR( M_DW, false );
+
+  //   CuC Sfp, Sfm;
+
+  //   d_DW.update( UP );
+  //   M_DW( d_Dxi, d_xi );
+  //   Dummy.dot<N>( &Sfp, d_xi, d_Dxi );
+
+  //   d_DW.update( UM );
+  //   M_DW( d_Dxi, d_xi );
+  //   Dummy.dot<N>( &Sfm, d_xi, d_Dxi );
+
+  //   CUDA_CHECK(cudaFree(d_Dxi));
+  //   CUDA_CHECK(cudaFree(d_xi));
+
+  //   CuC num = (Sfp-Sfm)/(2.0*eps);
+  //   std::cout << "dS = " << real(num) << " " << imag(num) << std::endl;
+  // }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  // {
+  //   Overlap Dov(DW, 0.0001, 21);
+  //   Dov.compute(U);
+
+  //   // std::vector<Complex> xi(N), eta(N);
+  //   // for(int i=0; i<N; i++) xi[i] = rng.gaussian();
+
+  //   // -------------
+
+  //   CuC *d_xi, *d_eta, *d_dummy;
+  //   CUDA_CHECK(cudaMalloc(&d_xi, N*CD));
+  //   CUDA_CHECK(cudaMalloc(&d_eta, N*CD));
+  //   CUDA_CHECK(cudaMalloc(&d_dummy, N*CD));
+  //   CUDA_CHECK(cudaMemcpy(d_xi, reinterpret_cast<const CuC*>(xi.data()), N*CD, H2D));
+
+  //   // auto f_DovH_Dov = std::bind(&Overlap::sq_device, &Dov, std::placeholders::_1, std::placeholders::_2);
+  //   auto f_DovH_Dov = std::bind(&Overlap::sq_device, &Dov, std::placeholders::_1, std::placeholders::_2);
+  //   LinOpWrapper M_DovH_Dov( f_DovH_Dov );
+
+  //   double TOL=1.0e-12;
+  //   // double Sf = 0.0;
+  //   // {
+  //   //   MatPoly Op;
+  //   //   Op.push_back ( cplx(1.0), {&M_DovH_Dov} );
+
+  //   //   // Op.solve<N>( d_eta, d_xi );
+  //   //   Op.on_gpu<N>( d_eta, d_xi );
+
+  //   //   Complex tmp;
+  //   //   Op.dot<N>( reinterpret_cast<CuC*>(&tmp), d_xi, d_eta );
+  //   //   assert( std::abs(tmp.imag()/tmp.real()) < TOL );
+  //   //   Sf = tmp.real();
+  //   // }
+
+  //   // // CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(xi.data()), d_xi, N*CD, D2H));
+  //   // // CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(eta.data()), d_eta, N*CD, D2H));
+  //   // // for(int i=0; i<N; i++) {free
+  //   // //   std::cout << xi[i] << " " << eta[i] << std::endl;
+  //   // // }
+  //   // std::cout << Sf << std::endl;
+
+  //   // -------------
+
+  //   // Idx il=0;
+
+  //   std::cout << "######## calculating grad. " << std::endl;
+  //   double dSf = Dov.grad3( lattice.links[il], U, d_xi );
+  //   // std::cout << "grad = " << dSf << std::endl;
+
+  //   // std::cout << "######## calculating mult. " << std::endl;
+  //   // Dov.mult_device( d_dummy, d_phi );
+  //   // std::cout << "######## . " << std::endl;
+
+  //   // -------------
+
+  //   double Sfp = 0.0, Sfm = 0.0;
+  //   const double eps = 1.0e-5;
+
+  //   {
+  //     {
+  //       // Gauge UP(U);
+  //       // UP[il] += eps;
+  //       Dov.compute(UP);
+
+  //       MatPoly Op;
+  //       // Op.push_back ( cplx(1.0), {&(Dov.M_DW), &(Dov.M_DWH)} );
+  //       // Op.solve<N>( eta, xi );
+  //       // for(Idx i=0; i<N; i++) Sfp += std::real( std::conj(xi[i]) * eta[i] );
+  //       Op.push_back ( cplx(1.0), {&M_DovH_Dov} );
+  //       // Op.solve<N>( d_eta, d_xi );
+  //       Op.on_gpu<N>( d_eta, d_xi );
+
+  //       Complex tmp;
+  //       Op.dot<N>( reinterpret_cast<CuC*>(&tmp), d_xi, d_eta );
+  //       assert( std::abs(tmp.imag()/tmp.real()) < TOL );
+  //       Sfp = tmp.real();
+  //     }
+
+  //     {
+  //       Gauge UM(U);
+  //       UM[il] -= eps;
+  //       Dov.compute(UM);
+
+  //       MatPoly Op;
+  //       // Op.push_back ( cplx(1.0), {&(Dov.M_DW), &(Dov.M_DWH)} );
+  //       // Op.solve<N>( eta, xi );
+  //       // for(Idx i=0; i<N; i++) Sfm += std::real( std::conj(xi[i]) * eta[i] );
+  //       Op.push_back ( cplx(1.0), {&M_DovH_Dov} );
+  //       // Op.solve<N>( d_eta, d_xi );
+  //       Op.on_gpu<N>( d_eta, d_xi );
+
+  //       Complex tmp;
+  //       Op.dot<N>( reinterpret_cast<CuC*>(&tmp), d_xi, d_eta );
+  //       assert( std::abs(tmp.imag()/tmp.real()) < TOL );
+  //       Sfm = tmp.real();
+  //     }
+
+  //   }
+
+  //   std::cout << "grad = " << dSf << std::endl;
+  //   std::cout << "check = " << (Sfp-Sfm)/(2.0*eps) << std::endl;
+
+  //   CUDA_CHECK(cudaFree(d_xi));
+  //   CUDA_CHECK(cudaFree(d_eta));
+  //   CUDA_CHECK(cudaFree(d_dummy));
+  // }
+
+
+
+  Idx il=0;
+  Link ell = lattice.links[il];
+
+  std::vector<Complex> Dxi(N), xi(N);
+  for(int i=0; i<N; i++) xi[i] = rng.gaussian() + 1.0*Complex(0.0,1.0)*rng.gaussian();
+
+
+  Overlap Dov(DW, 0.0001, 11);
+
+  // CuC Sf, Sfp, Sfm;
+  CuC Sf, Sfp, Sfm, grad;
+  double grad_d;
+
+  MatPoly Dummy;
+  CuC dS;
+
+  const double eps = 1.0e-5;
+  Gauge UP(U);
+  UP[il] += eps;
+  Gauge UM(U);
+  UM[il] -= eps;
+
+  // auto f_Dov = std::bind(&Overlap::mult_device2, &Dov, std::placeholders::_1, std::placeholders::_2);
+  // auto f_Dov = std::bind(&Overlap::mult_device3, &Dov, std::placeholders::_1, std::placeholders::_2);
+  // auto f_Dov = std::bind(&Overlap::mult_device, &Dov, std::placeholders::_1, std::placeholders::_2);
+  auto f_DHDov = std::bind(&Overlap::sq_device, &Dov, std::placeholders::_1, std::placeholders::_2);
+  LinOpWrapper M_DHDov( f_DHDov );
+
+  MatPoly OpDHDov;
+  OpDHDov.push_back ( cplx(1.0), {&M_DHDov} );
+
+  CuC *d_eta, *d_xi;
+  CUDA_CHECK(cudaMalloc(&d_eta, N*CD));
+  CUDA_CHECK(cudaMalloc(&d_xi, N*CD));
+  CUDA_CHECK(cudaMemcpy(d_xi, reinterpret_cast<const CuC*>(xi.data()), N*CD, H2D));
+
+  {
+    Dov.compute(U);
+    OpDHDov.solve<N>( d_eta, d_xi );
+    OpDHDov.dot<N>( &Sf, d_xi, d_eta );
+    std::cout << "S = " << real(Sf) << " " << imag(Sf) << std::endl;
+  }
+
+  {
+    Dov.compute(U);
+    grad_d = Dov.grad_device( ell, U, d_eta ); // DH
+  }
+
+  {
+    Dov.compute(UP);
+    OpDHDov.solve<N>( d_eta, d_xi );
+    OpDHDov.dot<N>( &Sfp, d_xi, d_eta );
+    std::cout << "Sp = " << real(Sfp) << " " << imag(Sfp) << std::endl;
+  }
+
+  {
+    Dov.compute(UM);
+    OpDHDov.solve<N>( d_eta, d_xi );
+    OpDHDov.dot<N>( &Sfm, d_xi, d_eta );
+    std::cout << "Sm = " << real(Sfm) << " " << imag(Sfm) << std::endl;
+  }
+
+  CuC check2 = (Sfp-Sfm)/(2.0*eps);
+  std::cout << "grad = " << grad_d << std::endl;
+  // std::cout << "grad = " << real(grad) << " " << imag(grad) << std::endl;
+  std::cout << "check = " << real(check2) << " " << imag(check2) << std::endl;
+
+
+  CUDA_CHECK(cudaFree(d_eta));
+  CUDA_CHECK(cudaFree(d_xi));
+
+
+

@@ -144,6 +144,41 @@ struct COO : public LinOp {
     is_set = true;
   }
 
+  void do_conjugate(){
+    Idx len=en.size();
+
+    std::vector<COOEntry> enH;
+    for(Idx k=0; k<len; k++) enH.push_back( COOEntry( conj(en[k].v), en[k].j, en[k].i ) );
+
+    std::sort( enH.begin(), enH.end() );
+
+    std::vector<CuC> v(len);
+    std::vector<Idx> cols(len);
+    std::vector<Idx> rows;
+
+    for(Idx k=0; k<len; k++){
+      v[k] = enH[k].v;
+      cols[k] = enH[k].j;
+    }
+
+    Idx k=0;
+    rows.push_back(k);
+    for(Idx i=0; i<N; i++){
+      while(enH[k].i == i) k++;
+      rows.push_back(k);
+    }
+
+    CUDA_CHECK(cudaMalloc(&d_cols, len*sizeof(Idx)));
+    CUDA_CHECK(cudaMalloc(&d_rows, (N+1)*sizeof(Idx)));
+    CUDA_CHECK(cudaMalloc(&d_val, len*CD));
+
+    CUDA_CHECK(cudaMemcpy(d_cols, cols.data(), len*sizeof(Idx), H2D));
+    CUDA_CHECK(cudaMemcpy(d_rows, rows.data(), (N+1)*sizeof(Idx), H2D));
+    CUDA_CHECK(cudaMemcpy(d_val, reinterpret_cast<const CuC*>(v.data()), len*CD, H2D));
+
+    is_set = true;
+  }
+
 
   void operator()( T* d_res, const T* d_v ) const {
     constexpr Idx N = CompilationConst::N;

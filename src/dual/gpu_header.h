@@ -122,10 +122,23 @@ void Taxpy(T* d_res, const T* d_a, const T* d_x, const T* d_y){
   if(i<N) d_res[i] = *d_a * d_x[i] + d_y[i];
 }
 
+template<typename T, Idx N> __global__
+void Taxpy(T* d_res, const T d_a, const T* d_x, const T* d_y){
+  Idx i = blockIdx.x*blockDim.x + threadIdx.x;
+  if(i<N) d_res[i] = d_a * d_x[i] + d_y[i];
+}
+
+
 template<typename T, typename T2, Idx N> __global__
 void Taxpy_gen(T* d_res, const T2* d_a, const T* d_x, const T* d_y){
   Idx i = blockIdx.x*blockDim.x + threadIdx.x;
   if(i<N) d_res[i] = *d_a * d_x[i] + d_y[i];
+}
+
+template<typename T, typename T2, Idx N> __global__
+void Taxpy_gen(T* d_res, const T2 d_a, const T* d_x, const T* d_y){
+  Idx i = blockIdx.x*blockDim.x + threadIdx.x;
+  if(i<N) d_res[i] = d_a * d_x[i] + d_y[i];
 }
 
 
