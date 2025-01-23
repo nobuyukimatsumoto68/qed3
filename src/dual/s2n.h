@@ -12,13 +12,15 @@
 
 
 
-struct Lattice {
+struct S2Trivalent {
   using Link = std::array<Idx,2>; // <Idx,Idx>;
   using Face = std::vector<Idx>;
   using MS=Eigen::Matrix2cd;
   using VD=Eigen::Vector2d;
   using VE=Eigen::Vector3d;
   using VC=Eigen::VectorXcd;
+
+  using Lattice=S2Trivalent;
 
   const int n_refine;
 
@@ -43,7 +45,7 @@ struct Lattice {
   Idx n_links;
   Idx n_faces;
 
-  Lattice(const int n_refine)
+  S2Trivalent(const int n_refine)
     : n_refine( n_refine )
     , n_sites( 20*n_refine*n_refine )
   {

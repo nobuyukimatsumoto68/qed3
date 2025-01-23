@@ -139,7 +139,7 @@ struct Zolotarev{
 
 
 struct Overlap : public Zolotarev {
-  using Gauge=U1onS2;
+  using Gauge=U1onS2<false>;
   using WilsonDirac=Dirac1fonS2;
   using Link = std::array<Idx,2>; // <int,int>;
 
@@ -165,7 +165,7 @@ struct Overlap : public Zolotarev {
     d_DW.associateCSR( M_DWH, true );
   }
 
-  void compute( const Gauge& U ) {
+  void update( const Gauge& U ) {
     d_DW.update( U );
     compute_lambda_max();
     Zolotarev::update(lambda_min/lambda_max);

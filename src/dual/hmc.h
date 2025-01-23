@@ -21,135 +21,100 @@
 
 
 
-template <class Force, class Gauge, class Action>
-struct HMCPureGauge {
-  ParallelRng& rng;
-  const Action& S;
-  const double stot;
-  const int nsteps;
-  const double tau;
-
-  HMCPureGauge(ParallelRng& rng, const Action& S_, const double stot_=1.0, const int nsteps_=10)
-    : rng(rng)
-    , S(S_)
-    , stot(stot_)
-    , nsteps(nsteps_)
-    , tau(stot/nsteps)
-  {}
-
-  double H( const Force& pi, const Gauge& W ) const {
-    double res = 0.0;
-    for(const auto elem : pi ) res += elem*elem;
-    res *= 0.5;
-    res += S(W);
-    return res;
-  }
-
-  void leapfrog_explicit_singlestep( Force& pi, Gauge& W ) const {
-    pi += -0.5*tau * S.d(W);
-    W += tau * pi;
-    pi += -0.5*tau * S.d(W);
-  }
-
-  void leapfrog_explicit( Force& pi, Gauge& W ) const {
-    for(int n=0; n<nsteps; n++) leapfrog_explicit_singlestep(pi,W);
-  }
-
-  void run( Gauge& W0,
-	    double& r,
-	    double& dH,
-	    bool& is_accept,
-	    const bool no_reject = false ) const {
-    Force pi( W0.lattice );
-    pi.gaussian( rng );
-    Gauge W( W0 );
-    const double h0 = H(pi, W);
-    leapfrog_explicit( pi, W );
-    const double h1 = H(pi, W);
-
-    dH = h1-h0;
-    r = std::min( 1.0, std::exp(-dH) );
-    const double a = rng.uniform();
-    if( a < r || no_reject ){
-      W0 = W;
-      is_accept=true;
-    }
-    else is_accept=false;
-  }
-
-};
 
 
-
-
-
-template <class Force, class Gauge, class Action, class Fermion>
+template <typename Rng, typename Action, typename Fermion,
+          typename Gauge, typename Force, typename PseudoFermion>
 struct HMC {
-  ParallelRng& rng;
-  const Action& S;
-  const Fermion& D;
+  Rng& rng;
+  Action& Sg;
+  Fermion& fermion; // on device; need .update( Gauge& U )
+
+  Gauge& U;
+  Force& pi;
+  PseudoFermion& pf;
+
   const double stot;
   const int nsteps;
   const double tau;
 
-  PseudoFermion phi;
+  HMC()=delete;
 
-  HMC(ParallelRng& rng, const Action& S_, const Fermion& D_,
-      const double stot_=1.0, const int nsteps_=10)
-    : rng(rng)
-    , S(S_)
-    , D(D_)
+  explicit HMC(Rng& rng_,
+               Action& Sg_,
+               Fermion& fermion_,
+               Gauge& U_,
+               Force& pi_,
+               PseudoFermion& pf_,
+               const double stot_=1.0, const int nsteps_=10)
+    : rng(rng_)
+    , Sg(Sg_)
+    , fermion(fermion_)
+    , U(U_)
+    , pi(pi_)
+    , pf(pf_)
     , stot(stot_)
     , nsteps(nsteps_)
     , tau(stot/nsteps)
-    , phi(D)
   {}
 
-  double H( const Force& pi, const Gauge& U ) {
+  double H() {
     double res = 0.0;
     for(const auto elem : pi ) res += elem*elem;
     res *= 0.5;
-    res += S(U);
-    res += phi.S();
+    res += Sg(U);
+    res += pf.S();
     return res;
   }
 
-  void leapfrog_explicit_singlestep( Force& pi, Gauge& U ) {
-    pi += -0.5*tau * ( S.d(U) + phi.dS(U) );
+  void leapfrog_explicit_singlestep() {
+    Force dSg(U.lattice), dSf(U.lattice);
+
+    Sg.get_force( dSg, U ); pf.get_force( dSf, U );
+#ifdef InfoForce
+    dSg.print2log_norm( "# Sg : " );
+    dSf.print2log_norm( "# Sf : " );
+#endif
+    pi += -0.5*tau * ( dSg + dSf );
 
     U += tau * pi;
-    phi.update_eta( U );
+    fermion.update( U ); pf.update_eta();
 
-    pi += -0.5*tau * ( S.d(U) + phi.dS(U) );
+    Sg.get_force( dSg, U ); pf.get_force( dSf, U );
+#ifdef InfoForce
+    dSg.print2log_norm( "# Sg : " );
+    dSf.print2log_norm( "# Sf : " );
+#endif
+    pi += -0.5*tau * ( dSg + dSf );
   }
 
-  void leapfrog_explicit( Force& pi, Gauge& U ) {
-    for(int n=0; n<nsteps; n++) leapfrog_explicit_singlestep(pi, U );
+  void leapfrog_explicit() {
+    for(int n=0; n<nsteps; n++) leapfrog_explicit_singlestep();
   }
 
-  void run( Gauge& U0,
-	    double& r,
-	    double& dH,
-	    bool& is_accept,
-	    const bool no_reject = false ) {
-    Force pi( U0.lattice );
+  void run( double& r,
+            double& dH,
+            bool& is_accept,
+            const bool no_reject = false ) {
     pi.gaussian( rng );
 
-    Gauge U( U0 );
-    phi.gen( U, rng );
+    Gauge U0( U );
+    pf.gen( rng );
 
-    const double h0 = H(pi, U);
-    leapfrog_explicit( pi, U );
-    const double h1 = H(pi, U);
+    const double h0 = H();
+    leapfrog_explicit();
+    const double h1 = H();
 
     dH = h1-h0;
     r = std::min( 1.0, std::exp(-dH) );
     const double a = rng.uniform();
     if( a < r || no_reject ){
-      U0 = U;
       is_accept=true;
     }
-    else is_accept=false;
+    else {
+      is_accept=false;
+      U = U0;
+    }
   }
 
 };

@@ -3,6 +3,7 @@
 struct DWDevice{
   using T = CuC;
   using WilsonDirac=Dirac1fonS2;
+  using Lattice=S2Trivalent;
 
   const WilsonDirac& D;
   const Lattice& lattice;
@@ -161,7 +162,8 @@ struct DWDevice{
     }
   }
 
-  void update( const U1onS2& U ){
+  template<typename Gauge>
+  void update( const Gauge& U ){
     D.coo_format( v_coo, U );
     coo2csr_csrH( v_csr, v_csrH, v_coo );
 
@@ -187,8 +189,6 @@ struct DWDevice{
   // }
 
   void associateCSR( CSR& M, const bool is_transpose=false ){
-    // assert(locate_on_gpu);
-    // M.on_gpu = true;
     if(!is_transpose){
       M.cols = this->d_cols;
       M.rows = this->d_rows;

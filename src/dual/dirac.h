@@ -68,7 +68,8 @@ struct SpinStructure{
 
 
 struct Dirac1fonS2 : public SpinStructure{
-  using Gauge=U1onS2;
+  using Gauge=U1onS2<false>;
+  using Lattice=S2Trivalent;
 
   using MS=Eigen::Matrix2cd;
   using VD=Eigen::Vector2d;

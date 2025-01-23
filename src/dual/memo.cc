@@ -3574,3 +3574,66 @@ void matmulgam5( T* res, T* v, const int Nx) {
   double chck = (sfp-sfm)/(2.0*eps);
   std::cout << "grad = " << grad_d << std::endl;
   std::cout << "check = " << chck << std::endl;
+
+
+
+// template <class Force, class Gauge, class Action>
+// struct HMCPureGauge {
+//   ParallelRng& rng;
+//   const Action& S;
+//   const double stot;
+//   const int nsteps;
+//   const double tau;
+
+//   HMCPureGauge(ParallelRng& rng, const Action& S_, const double stot_=1.0, const int nsteps_=10)
+//     : rng(rng)
+//     , S(S_)
+//     , stot(stot_)
+//     , nsteps(nsteps_)
+//     , tau(stot/nsteps)
+//   {}
+
+//   double H( const Force& pi, const Gauge& W ) const {
+//     double res = 0.0;
+//     for(const auto elem : pi ) res += elem*elem;
+//     res *= 0.5;
+//     res += S(W);
+//     return res;
+//   }
+
+//   void leapfrog_explicit_singlestep( Force& pi, Gauge& W ) const {
+//     pi += -0.5*tau * S.d(W);
+//     W += tau * pi;
+//     pi += -0.5*tau * S.d(W);
+//   }
+
+//   void leapfrog_explicit( Force& pi, Gauge& W ) const {
+//     for(int n=0; n<nsteps; n++) leapfrog_explicit_singlestep(pi,W);
+//   }
+
+//   void run( Gauge& W0,
+// 	    double& r,
+// 	    double& dH,
+// 	    bool& is_accept,
+// 	    const bool no_reject = false ) const {
+//     Force pi( W0.lattice );
+//     pi.gaussian( rng );
+//     Gauge W( W0 );
+//     const double h0 = H(pi, W);
+//     leapfrog_explicit( pi, W );
+//     const double h1 = H(pi, W);
+
+//     dH = h1-h0;
+//     r = std::min( 1.0, std::exp(-dH) );
+//     const double a = rng.uniform();
+//     if( a < r || no_reject ){
+//       W0 = W;
+//       is_accept=true;
+//     }
+//     else is_accept=false;
+//   }
+
+// };
+
+
+

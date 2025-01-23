@@ -21,6 +21,7 @@ namespace CompilationConst{
 }
 
 // #define IsVerbose
+#define InfoForce
 
 #include <cuComplex.h>
 #include <cuda_runtime.h>
@@ -35,6 +36,7 @@ using CuC = cuDoubleComplex;
 #include "s2n.h"
 #include "rng.h"
 #include "gauge.h"
+#include "force.h"
 #include "action.h"
 #include "sparse_matrix.h"
 #include "dirac.h"
@@ -43,14 +45,14 @@ using CuC = cuDoubleComplex;
 #include "overlap.h"
 #include "pseudofermion.h"
 
-// #include "hmc.h"
+#include "hmc.h"
 // #include "dirac_s2_dual.h"
 // #include "header_cusolver.hpp"
 
 
 // TODO: Cusparse for SparseMatrix::act_gpu, probably defining handle in matpoly.h
+// make 2 streams in V Vdag in square in Overlap
 // all the operation on GPU in Overlap::operator()
-// gradient of Dov (Overlap class, in parallel to Dirac)
 // pseudofermion
 // 3d
 // __m256 to vectorize with AVX2
@@ -71,15 +73,15 @@ int main(int argc, char* argv[]){
 
   // ---------------------------------------
 
-  using Gauge=U1onS2;
-  using Force=U1onS2;
-  // using Action=U1Wilson;
-  // using Fermion=Dirac1fonS2;
-  // using HMC=HMC<Force,Gauge,Action,Fermion>;
-  using Rng=ParallelRng;
-  using Link = std::array<Idx,2>; // <int,int>;
+  using Lattice=S2Trivalent;
+  using Gauge=U1onS2<false>;
+  using Force=U1onS2<false>;
+  using Action=U1Wilson;
+  using Fermion=Overlap;
+  using Rng=ParallelRng<Lattice>;
   using WilsonDirac=Dirac1fonS2;
 
+  using Link = std::array<Idx,2>; // <int,int>;
   constexpr Idx N = CompilationConst::N;
 
   // ----------------------
@@ -91,47 +93,75 @@ int main(int argc, char* argv[]){
 
   // ------------------
 
+  const double gR = 0.4;
+  Action SW(gR);
+
+  // -----------------
+
   const double M5 = -1.8;
   WilsonDirac DW(lattice, M5);
 
-  Overlap Dov(DW, 11);
+  Fermion Dov(DW, 11);
 
-  const auto f_DHDov = std::bind(&Overlap::sq_device, &Dov, std::placeholders::_1, std::placeholders::_2);
+  const auto f_DHDov = std::bind(&Overlap::sq_device, &Dov,
+                                 std::placeholders::_1, std::placeholders::_2);
   LinOpWrapper M_DHDov( f_DHDov );
   MatPoly Op_DHDov; Op_DHDov.push_back ( cplx(1.0), {&M_DHDov} );
-  auto f_DHov = std::bind(&Overlap::adj_device, &Dov, std::placeholders::_1, std::placeholders::_2);
-  auto f_mgrad_DHDov = std::bind(&Overlap::grad_device, &Dov, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
+  auto f_DHov = std::bind(&Overlap::adj_device, &Dov,
+                          std::placeholders::_1, std::placeholders::_2);
+  auto f_mgrad_DHDov = std::bind(&Overlap::grad_device, &Dov,
+                                 std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
 
   PseudoFermion pf( Op_DHDov, f_DHov, f_mgrad_DHDov );
 
   // ------------------
 
-  Idx il=2;
-  Link ell = lattice.links[il];
+  // Idx il=2;
+  // Link ell = lattice.links[il];
 
-  const double eps = 1.0e-5;
-  Gauge UP(U);
-  UP[il] += eps;
-  Gauge UM(U);
-  UM[il] -= eps;
+  // const double eps = 1.0e-5;
+  // Gauge UP(U);
+  // UP[il] += eps;
+  // Gauge UM(U);
+  // UM[il] -= eps;
 
-  Dov.compute(U);
-  pf.gen( rng );
-  Force grad = pf.dS<Gauge,Force>( U );
+  // Dov.update(U);
+  // pf.gen( rng );
+  // Force grad(lattice);
+  // pf.get_force( grad, U );
 
-  Dov.compute(UP);
-  pf.update_eta();
-  double sfp = pf.S();
+  // Dov.update(UP);
+  // pf.update_eta();
+  // double sfp = pf.S();
 
-  Dov.compute(UM);
-  pf.update_eta();
-  double sfm = pf.S();
+  // Dov.update(UM);
+  // pf.update_eta();
+  // double sfm = pf.S();
 
-  double chck = (sfp-sfm)/(2.0*eps);
-  std::cout << "grad = " << grad[il] << std::endl;
-  std::cout << "check = " << chck << std::endl;
+  // double chck = (sfp-sfm)/(2.0*eps);
+  // std::cout << "grad = " << grad[il] << std::endl;
+  // std::cout << "check = " << chck << std::endl;
 
+  // -----------------
 
+  Force pi( lattice );
+  pi.gaussian( rng );
+  Force pi0=pi;
+
+  double tmax = 0.4;
+  Gauge U0=U;
+  for(int nsteps=4; nsteps<=24; nsteps+=4){
+    HMC hmc(rng, SW, Dov, U, pi, pf, tmax, nsteps);
+    pi = pi0;
+    U = U0;
+    Dov.update(U);
+    pf.gen( rng );
+    const double h0 = hmc.H();
+    hmc.leapfrog_explicit();
+    const double h1 = hmc.H();
+    double dH = h1-h0;
+    std::cout << tmax/nsteps << " " << dH << std::endl;
+  }
 
 
 

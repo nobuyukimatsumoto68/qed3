@@ -149,7 +149,7 @@ struct MatPoly{
   }
 
   template<Idx N> __host__
-  void dot( CuC* result, const CuC* x, const CuC* y) const {
+  inline void dot( CuC* result, const CuC* x, const CuC* y) const {
     CUBLAS_CHECK( cublasZdotc(handle, N,
 			      x, 1,
 			      y, 1,
@@ -166,15 +166,15 @@ struct MatPoly{
 		&dummy );
 
     double crit = abs( imag(dummy)/real(dummy) );
-    if( isnan(crit) || isinf(crit)  ){
+    if( isnan(crit) || isinf(crit) ){
       crit = abs( imag(dummy) );
     }
-#ifdef IsVerbose
+    //#ifdef IsVerbose
     if( crit >= TOL*std::sqrt(N) || isnan(crit) || isinf(crit)  ){
       std::clog << crit << std::endl;
     }
-#endif
-    assert( crit<TOL*std::sqrt(N) );
+    // #endif
+    assert( crit < TOL*std::sqrt(N) );
     *result = real(dummy);
   }
 

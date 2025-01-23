@@ -1,38 +1,36 @@
 #pragma once
 
+
 struct U1Wilson {
   using Link = std::array<int,2>; // <int,int>;
   using Face = std::vector<int>;
-  using Gauge=U1onS2;
-  using Force=U1onS2;
   using Action=U1Wilson;
 
   const double gR;
-  const bool is_compact;
 
   U1Wilson() = delete;
   U1Wilson(const U1Wilson&) = delete;
 
-  U1Wilson(const double gR_, const bool is_compact_)
+  U1Wilson(const double gR_)
     : gR(gR_)
-    , is_compact(is_compact_)
   {}
 
   Action & operator=(const Action&) = delete;
 
+  template <typename Gauge>
   double operator()( const Gauge& U ) const {
     double res = 0.0;
     for(int i=0; i<U.lattice.n_faces; i++) {
-      if(is_compact) res += - 1.0/U.lattice.vps[i] *  std::cos( U.plaquette_angle(i) );
+      if constexpr(U.is_compact) res += - 1.0/U.lattice.vps[i] *  std::cos( U.plaquette_angle(i) );
       else res += 0.5/U.lattice.vps[i] * std::pow( U.plaquette_angle(i), 2 );
     }
     res /= gR*gR;
     return res;
   }
 
-  Force d( const Gauge& U ) const {
-    Force pi( U.lattice ); // 0 initialized
-    assert(!is_compact);
+  template <typename Force, typename Gauge>
+  void get_force( Force& pi, const Gauge& U ) const {
+    for(auto& elem : pi) elem=0.0;
 
     for(int i_face=0; i_face<U.lattice.n_faces; i_face++){
       const Face& face = U.lattice.faces[i_face];
@@ -47,8 +45,6 @@ struct U1Wilson {
     }
 
     pi /= gR*gR;
-
-    return pi;
   }
 
   // !! need debug ?

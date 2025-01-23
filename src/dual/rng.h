@@ -20,6 +20,7 @@ struct SingleRng {
 };
 
 
+template<typename Lattice>
 struct ParallelRng {
   const Lattice& lattice;
   const int seed;
@@ -27,8 +28,8 @@ struct ParallelRng {
   std::vector<std::mt19937_64> mt_link;
   std::vector<std::mt19937_64> mt_site;
 
-  ParallelRng(const Lattice lattice, const int seed=0 )
-    : lattice(lattice)
+  explicit ParallelRng(const Lattice& lattice_, const int seed=0 )
+    : lattice(lattice_)
     , seed(seed)
     , mt_link( lattice.n_links )
     , mt_site( lattice.n_sites )

@@ -100,21 +100,16 @@ struct PseudoFermion {
                                                                 + I*rng.gaussian_site(ix) ) / std::sqrt(2.0);
     }
 
-    {
-      CuC *d_xi;
-      CUDA_CHECK(cudaMalloc(&d_xi, N*CD));
-      CUDA_CHECK(cudaMemcpy(d_xi, reinterpret_cast<const CuC*>(xi.data()), N*CD, H2D));
-      f_DH( d_phi, d_xi );
-      CUDA_CHECK(cudaFree(d_xi));
-    }
+    CuC *d_xi;
+    CUDA_CHECK(cudaMalloc(&d_xi, N*CD));
+    CUDA_CHECK(cudaMemcpy(d_xi, reinterpret_cast<const CuC*>(xi.data()), N*CD, H2D));
+    f_DH( d_phi, d_xi );
+    CUDA_CHECK(cudaFree(d_xi));
 
-    // Op_DHD.solve<N>( d_eta, d_phi );
     update_eta();
   }
 
-  void update_eta() {
-    Op_DHD.solve<N>( d_eta, d_phi );
-  }
+  inline void update_eta() { Op_DHD.solve<N>( d_eta, d_phi ); }
 
   // auto begin(){ return phi.begin(); }
   // auto end(){ return phi.end(); }
@@ -138,6 +133,7 @@ struct PseudoFermion {
     return real(tmp);
   }
 
+
   template<class Gauge>
   inline double get_force( const Gauge& U, const Link& ell ) const {
     // const int N = D.lattice.n_sites*NS;
@@ -149,19 +145,18 @@ struct PseudoFermion {
     // cg.sparse.multcoo( dD_eta, eta, dD, is, js );
     // std::vector<Complex> DH_dD_eta(N);
     // multDH( DH_dD_eta, dD_eta, U );
-    double res = f_mgrad_DHD( ell, U, d_eta );
-    return res;
+    return f_mgrad_DHD( ell, U, d_eta );
   }
 
 
-  template<class Gauge, class Force>
-  Force dS( const Gauge& U ) const {
-    Force pi( U.lattice ); // 0 initialized
+  template<typename Gauge, typename Force>
+  void get_force( Force& pi, const Gauge& U ) const {
+    // Force pi( U.lattice ); // 0 initialized
 #ifdef _OPENMP
 #pragma omp parallel for num_threads(CompilationConst::NPARALLEL)
 #endif
     for(int ell=0; ell<U.lattice.n_links; ell++) pi[ell] = get_force( U, U.lattice.links[ell] );
-    return pi;
+    // return pi;
   }
 
 

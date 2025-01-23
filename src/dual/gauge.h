@@ -4,11 +4,13 @@
 #include <cmath>
 
 
+template<bool is_compact_=false>
 struct U1onS2 {
   using Link = std::array<int,2>; // <int,int>;
   using Face = std::vector<int>;
-  using Gauge=U1onS2;
-  using Force=U1onS2;
+  using Lattice = S2Trivalent;
+
+  static constexpr bool is_compact = is_compact_;
 
   Lattice& lattice;
   std::vector<double> field;
@@ -47,30 +49,42 @@ struct U1onS2 {
     return sign * field[il];
   }
 
-  Gauge& operator+=(const Gauge& rhs){
+  template <typename Force>
+  U1onS2& operator+=(const Force& rhs){
     for(int i=0; i<field.size(); i++) field[i] += rhs.field[i];
     return *this;
   }
-  friend Force operator+(Force v, const Force& w) { v += w; return v; }
+  template <typename Force>
+  friend Force operator+(U1onS2 v, const Force& w) { v += w; return v; }
 
-  Gauge& operator*=(const double rhs){
+  U1onS2& operator*=(const double rhs){
     for(int i=0; i<field.size(); i++) field[i] *= rhs;
     return *this;
   }
 
-  Gauge& operator/=(const double rhs){
+  U1onS2& operator/=(const double rhs){
     for(int i=0; i<field.size(); i++) field[i] /= rhs;
     return *this;
   }
 
-  friend Gauge operator*(Gauge v, const double a) {
+  friend U1onS2 operator*(U1onS2 v, const double a) {
     for(int i=0; i<v.field.size(); i++) v.field[i] *= a;
     return v;
   }
 
-  friend Gauge operator*(const double a, Gauge v) {
+  friend U1onS2 operator*(const double a, U1onS2 v) {
     for(int i=0; i<v.field.size(); i++) v.field[i] *= a;
     return v;
+  }
+
+  double norm() const {
+    double sum = 0.0;
+    for(const auto elem : field) sum += elem*elem;
+    return std::sqrt( sum );
+  }
+
+  void print2log_norm(const std::string comment=" : ") const {
+    std::clog << comment << norm() << std::endl;
   }
 
   double plaquette_angle(const Face& face) const {
@@ -95,13 +109,12 @@ struct U1onS2 {
     return sum/lattice.n_faces;
   }
 
-  void dist_plaqsq( double& mean, double& square,
-		    const bool is_compact=false ) const {
+  void dist_plaqsq( double& mean, double& square) const {
     mean = 0.0;
     square = 0.0;
     for(int i=0; i<lattice.n_faces; i++) {
       double val = plaquette_angle(i);
-      if(is_compact){
+      if constexpr(is_compact){
 	while(val>M_PI) val -= 2.0*M_PI;
 	while(val<-M_PI) val += 2.0*M_PI;
       }
@@ -115,7 +128,8 @@ struct U1onS2 {
     square /= lattice.n_faces;
   }
 
-  void gaussian(ParallelRng& rng, const double width=1.0) {
+  template <typename Rng>
+  void gaussian(Rng& rng, const double width=1.0) {
     for(int il=0; il<lattice.n_links; il++) field[il] = width*rng.gaussian_link(il);
   }
 
