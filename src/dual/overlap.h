@@ -153,8 +153,8 @@ struct Overlap : public Zolotarev {
 
   Overlap( const WilsonDirac& DW_,
 	   // const double lambda_max_=12.0,
+           const int n_=21,
 	   const double k_=0.01,
-	   const int n_=21,
 	   const bool locate_on_gpu=true)
     : Zolotarev(k_, n_)
     , DW(DW_)

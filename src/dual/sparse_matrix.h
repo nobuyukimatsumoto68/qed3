@@ -29,7 +29,6 @@ struct CSR : public LinOp {
 template<typename F>
 struct LinOpWrapper : public LinOp {
   using T = CuC;
-  // using Function = std::function<void(T*, const T*)>;
   const F& f;
 
   LinOpWrapper(const F& f_ )

@@ -38,7 +38,6 @@ using CuC = cuDoubleComplex;
 #include "action.h"
 
 #include "sparse_matrix.h"
-// #include "pseudofermion.h"
 
 #include "dirac.h"
 
@@ -46,6 +45,8 @@ using CuC = cuDoubleComplex;
 #include "matpoly.h"
 
 #include "overlap.h"
+
+#include "pseudofermion.h"
 
 // #include "hmc.h"
 // #include "dirac_s2_dual.h"
@@ -76,45 +77,42 @@ int main(int argc, char* argv[]){
   // ---------------------------------------
 
   using Gauge=U1onS2;
-  // using Force=U1onS2;
+  using Force=U1onS2;
   // using Action=U1Wilson;
   // using Fermion=Dirac1fonS2;
   // using HMC=HMC<Force,Gauge,Action,Fermion>;
   using Rng=ParallelRng;
+  using Link = std::array<Idx,2>; // <int,int>;
+  using WilsonDirac=Dirac1fonS2;
+
+  constexpr Idx N = CompilationConst::N;
+
+  // ----------------------
 
   Lattice lattice(CompilationConst::N_REFINE);
-  // Dirac1fonS2 D(lattice, 0.0, 1.0);
-
-  using WilsonDirac=Dirac1fonS2;
-  // using Overlap=OverlapPseudoFermion;
-
   Gauge U(lattice);
   Rng rng(lattice);
   U.gaussian( rng, 0.2 );
 
+  // ------------------
+
   const double M5 = -1.8;
   WilsonDirac DW(lattice, M5);
 
-  constexpr Idx N = CompilationConst::N;
+  Overlap Dov(DW, 11);
 
-  using Link = std::array<Idx,2>; // <int,int>;
+  const auto f_DHDov = std::bind(&Overlap::sq_device, &Dov, std::placeholders::_1, std::placeholders::_2);
+  LinOpWrapper M_DHDov( f_DHDov );
+  MatPoly Op_DHDov; Op_DHDov.push_back ( cplx(1.0), {&M_DHDov} );
+  auto f_DHov = std::bind(&Overlap::adj_device, &Dov, std::placeholders::_1, std::placeholders::_2);
+  auto f_mgrad_DHDov = std::bind(&Overlap::grad_device, &Dov, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
 
+  PseudoFermion pf( Op_DHDov, f_DHov, f_mgrad_DHDov );
+
+  // ------------------
 
   Idx il=2;
   Link ell = lattice.links[il];
-
-  std::vector<Complex> Dxi(N), xi(N);
-  for(int i=0; i<N; i++) xi[i] = rng.gaussian() + 1.0*Complex(0.0,1.0)*rng.gaussian();
-
-
-  Overlap Dov(DW, 1.0e-4, 11);
-
-  // CuC Sf, Sfp, Sfm;
-  CuC Sf, Sfp, Sfm, grad;
-  double grad_d;
-
-  MatPoly Dummy;
-  CuC dS;
 
   const double eps = 1.0e-5;
   Gauge UP(U);
@@ -122,110 +120,25 @@ int main(int argc, char* argv[]){
   Gauge UM(U);
   UM[il] -= eps;
 
-  // auto f_Dov = std::bind(&Overlap::mult_device2, &Dov, std::placeholders::_1, std::placeholders::_2);
-  // auto f_Dov = std::bind(&Overlap::mult_device3, &Dov, std::placeholders::_1, std::placeholders::_2);
-  // auto f_Dov = std::bind(&Overlap::mult_device, &Dov, std::placeholders::_1, std::placeholders::_2);
-  auto f_DHDov = std::bind(&Overlap::sq_device, &Dov, std::placeholders::_1, std::placeholders::_2);
-  LinOpWrapper M_DHDov( f_DHDov );
+  Dov.compute(U);
+  pf.gen( rng );
+  double grad_d = pf.get_force( U, ell );
 
-  MatPoly OpDHDov;
-  OpDHDov.push_back ( cplx(1.0), {&M_DHDov} );
+  Dov.compute(UP);
+  pf.update_eta();
+  double sfp = pf.S();
 
-  CuC *d_eta, *d_xi;
-  CUDA_CHECK(cudaMalloc(&d_eta, N*CD));
-  CUDA_CHECK(cudaMalloc(&d_xi, N*CD));
-  CUDA_CHECK(cudaMemcpy(d_xi, reinterpret_cast<const CuC*>(xi.data()), N*CD, H2D));
+  Dov.compute(UM);
+  pf.update_eta();
+  double sfm = pf.S();
 
-  {
-    Dov.compute(U);
-    std::cout << "# min max ratio: "
-              << Dov.lambda_min << " "
-              << Dov.lambda_max << " "
-              << Dov.lambda_min/Dov.lambda_max << std::endl;
-    std::cout << "# delta = " << Dov.Delta() << std::endl;
-
-    OpDHDov.solve<N>( d_eta, d_xi );
-    OpDHDov.dot<N>( &Sf, d_xi, d_eta );
-    std::cout << "S = " << real(Sf) << " " << imag(Sf) << std::endl;
-  }
-
-  {
-    Dov.compute(U);
-    grad_d = Dov.grad_device( ell, U, d_eta ); // DH
-  }
-
-  {
-    Dov.compute(UP);
-    OpDHDov.solve<N>( d_eta, d_xi );
-    OpDHDov.dot<N>( &Sfp, d_xi, d_eta );
-    std::cout << "Sp = " << real(Sfp) << " " << imag(Sfp) << std::endl;
-  }
-  {
-    Dov.compute(UM);
-    OpDHDov.solve<N>( d_eta, d_xi );
-    OpDHDov.dot<N>( &Sfm, d_xi, d_eta );
-    std::cout << "Sm = " << real(Sfm) << " " << imag(Sfm) << std::endl;
-  }
-
-  CuC check2 = (Sfp-Sfm)/(2.0*eps);
+  double chck = (sfp-sfm)/(2.0*eps);
   std::cout << "grad = " << grad_d << std::endl;
-  // std::cout << "grad = " << real(grad) << " " << imag(grad) << std::endl;
-  std::cout << "check = " << real(check2) << " " << imag(check2) << std::endl;
-
-
-  CUDA_CHECK(cudaFree(d_eta));
-  CUDA_CHECK(cudaFree(d_xi));
+  std::cout << "check = " << chck << std::endl;
 
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    // -------------
-
-    // std::vector<Complex> deriv(N);
-    // // for(int il=0; il<U.lattice.n_links; il++){
-    // {
-    //   Idx il=0;
-
-    //   const double eps = 1.0e-5;
-    //   Gauge UP(U);
-    //   Gauge UM(U);
-
-    //   UP[il] += eps;
-    //   UM[il] -= eps;
-
-    //   std::vector<Complex> DxiP(N), DxiM(N);
-    //   Dov.compute(UP);
-    //   Dov( DxiP, xi );
-    //   Dov.compute(UM);
-    //   Dov( DxiM, xi );
-
-    //   for(int i=0; i<N; i++) deriv[i] = (DxiP[i]-DxiM[i])/(2.0*eps);
-
-    //   // double numeric = ( phi.S(UP) - phi.S(UM) ) / (2.0*eps);
-    //   for(int i=0; i<N; i++) {
-    //     std::cout << deriv[i] << std::endl;
-    //   }
-    // }
 
 
 
