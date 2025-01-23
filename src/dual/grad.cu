@@ -36,16 +36,11 @@ using CuC = cuDoubleComplex;
 #include "rng.h"
 #include "gauge.h"
 #include "action.h"
-
 #include "sparse_matrix.h"
-
 #include "dirac.h"
-
 #include "sparse_dirac.h"
 #include "matpoly.h"
-
 #include "overlap.h"
-
 #include "pseudofermion.h"
 
 // #include "hmc.h"
@@ -122,7 +117,7 @@ int main(int argc, char* argv[]){
 
   Dov.compute(U);
   pf.gen( rng );
-  double grad_d = pf.get_force( U, ell );
+  Force grad = pf.dS<Gauge,Force>( U );
 
   Dov.compute(UP);
   pf.update_eta();
@@ -133,7 +128,7 @@ int main(int argc, char* argv[]){
   double sfm = pf.S();
 
   double chck = (sfp-sfm)/(2.0*eps);
-  std::cout << "grad = " << grad_d << std::endl;
+  std::cout << "grad = " << grad[il] << std::endl;
   std::cout << "check = " << chck << std::endl;
 
 
