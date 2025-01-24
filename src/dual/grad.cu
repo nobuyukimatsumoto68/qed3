@@ -11,7 +11,7 @@
 using Idx = std::int32_t;
 using Complex = std::complex<double>;
 
-namespace CompilationConst{
+namespace Comp{
   constexpr int NPARALLEL=10;
 
   constexpr int N_REFINE=2;
@@ -21,7 +21,8 @@ namespace CompilationConst{
 }
 
 // #define IsVerbose
-#define InfoForce
+// #define InfoForce
+#define InfoDelta
 
 #include <cuComplex.h>
 #include <cuda_runtime.h>
@@ -83,27 +84,27 @@ int main(int argc, char* argv[]){
   using WilsonDirac=Dirac1fonS2;
 
   using Link = std::array<Idx,2>; // <int,int>;
-  constexpr Idx N = CompilationConst::N;
+  constexpr Idx N = Comp::N;
 
   // ----------------------
 
-  Lattice lattice(CompilationConst::N_REFINE);
+  Lattice lattice(Comp::N_REFINE);
   Gauge U(lattice);
   Rng rng(lattice);
   U.gaussian( rng, 0.2 );
 
   // ------------------
 
-  // const double gR = 0.4;
-  // beta = 1.0/(gR*gR);
-  Action SW(6.25);
+  const double gR = 0.4;
+  const double beta = 1.0/(gR*gR);
+  Action SW(beta);
 
   // -----------------
 
   const double M5 = -1.8;
   WilsonDirac DW(lattice, M5);
 
-  Fermion Dov(DW, 11);
+  Fermion Dov(DW, 15);
 
   const auto f_DHDov = std::bind(&Overlap::sq_device, &Dov,
                                  std::placeholders::_1, std::placeholders::_2);
@@ -148,29 +149,40 @@ int main(int argc, char* argv[]){
   pi.gaussian( rng );
   Force pi0=pi;
 
-  double tmax = 0.1;
   Gauge U0=U;
   Dov.update(U);
 
   PseudoFermion pf( Op_DHDov, f_DHov, f_mgrad_DHDov );
   pf.gen( rng );
 
-  for(int nsteps=1; nsteps<=4; nsteps+=1){
-    // ExplicitLeapfrog integrator( tmax, nsteps );
-    ExplicitLeapfrogML integrator( tmax, nsteps, 10 );
-    HMC hmc(rng, &SW, &Dov, U, pi, &pf, &integrator);
-    pi = pi0;
-    U = U0;
-    Dov.update( U ); pf.update_eta();
-    const double h0 = hmc.H();
-    hmc.integrate();
-    const double h1 = hmc.H();
-    double dH = h1-h0;
-    std::cout << tmax/nsteps << " " << dH << std::endl;
+  double tmax = 1.0; // 0.1
+  // for(int nsteps=1; nsteps<=1; nsteps+=1){
+  const int nsteps=4;
+  // ExplicitLeapfrog integrator( tmax, nsteps );
+  ExplicitLeapfrogML integrator( tmax, nsteps, 100 );
+  HMC hmc(rng, &SW, &Dov, U, pi, &pf, &integrator);
+  // pi = pi0;
+  // U = U0;
+  // Dov.update( U ); pf.update_eta();
+  //     const double h0 = hmc.H();
+  //   hmc.integrate();
+  //   const double h1 = hmc.H();
+  //   double dH = h1-h0;
+  //   std::cout << tmax/nsteps << " " << dH << std::endl;
+  // }
+
+  double r, dH;
+  bool is_accept;
+  for(int k=0; k<20; k++){
+    hmc.run( r, dH, is_accept, true);
+    std::cout << "# dH : " << dH
+              << " is_accept : " << is_accept << std::endl;
   }
-
-
-
+  for(int k=0; k<20; k++){
+    hmc.run( r, dH, is_accept);
+    std::cout << "# dH : " << dH
+              << " is_accept : " << is_accept << std::endl;
+  }
 
   // CUDA_CHECK(cudaDeviceReset());
   return 0;

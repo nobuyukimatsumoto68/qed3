@@ -29,7 +29,7 @@ struct PseudoFermion {
   // std::vector<Complex> phi;
   CuC *d_phi, *d_eta;
   // std::vector<Complex> eta;
-  static constexpr Idx N = CompilationConst::N;
+  static constexpr Idx N = Comp::N;
 
   PseudoFermion()=delete;
 
@@ -95,8 +95,8 @@ struct PseudoFermion {
   void gen( Rng& rng ) {
     std::vector<Complex> xi(N, 0.0);
 
-    for(Idx ix=0; ix<CompilationConst::N_SITES; ix++) {
-      for(int a=0; a<CompilationConst::NS; a++) xi[NS*ix+a] = ( rng.gaussian_site(ix)
+    for(Idx ix=0; ix<Comp::N_SITES; ix++) {
+      for(int a=0; a<Comp::NS; a++) xi[NS*ix+a] = ( rng.gaussian_site(ix)
                                                                 + I*rng.gaussian_site(ix) ) / std::sqrt(2.0);
     }
 
@@ -153,7 +153,7 @@ struct PseudoFermion {
   void get_force( Force& pi, const Gauge& U ) const {
     // Force pi( U.lattice ); // 0 initialized
 #ifdef _OPENMP
-#pragma omp parallel for num_threads(CompilationConst::NPARALLEL)
+#pragma omp parallel for num_threads(Comp::NPARALLEL)
 #endif
     for(int ell=0; ell<U.lattice.n_links; ell++) pi[ell] = get_force( U, U.lattice.links[ell] );
     // return pi;

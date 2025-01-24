@@ -153,38 +153,37 @@ void Taxpy_gen(T* d_res, const T2 d_a, const T* d_x, const T* d_y){
 
 
 
+// // https://forums.developer.nvidia.com/t/atomic-add-for-complex-numbers/39757
+// __device__
+// void atomicAddCuC(CuC* a, const CuC b){
+//   //transform the addresses of real and imag. parts to double pointers
+//   double *x = reinterpret_cast<double*>(a);
+//   double *y = x+1;
+//   //use atomicAdd for double variables
+//   atomicAdd(x, real(b));
+//   atomicAdd(y, imag(b));
+// }
 
 
-// https://forums.developer.nvidia.com/t/atomic-add-for-complex-numbers/39757
-__device__
-void atomicAddCuC(CuC* a, const CuC b){
-  //transform the addresses of real and imag. parts to double pointers
-  double *x = reinterpret_cast<double*>(a);
-  double *y = x+1;
-  //use atomicAdd for double variables
-  atomicAdd(x, real(b));
-  atomicAdd(y, imag(b));
-}
+// template<Idx N> __global__
+// void dot_normalized(CuC* d_res, CuC* d_p, CuC* d_q){
+//   __shared__ CuC tmp[NThreadsPerBlock];
+//   if (threadIdx.x == 0) for(int j=0; j<NThreadsPerBlock; j++) tmp[j] = cplx(0.0);
+//   __syncthreads();
 
+//   int i = blockIdx.x*blockDim.x + threadIdx.x;
+//   if(i<N){
+//     tmp[threadIdx.x] = conj(d_p[i])*d_q[i]/N;
+//     __syncthreads();
 
-template<Idx N> __global__
-void dot_normalized(CuC* d_res, CuC* d_p, CuC* d_q){
-  __shared__ CuC tmp[NThreadsPerBlock];
-  if (threadIdx.x == 0) for(int j=0; j<NThreadsPerBlock; j++) tmp[j] = cplx(0.0);
-  __syncthreads();
+//     if(threadIdx.x == 0){
+//       CuC sum = cplx(0.0);
+//       for(int j=0; j<NThreadsPerBlock; j++) sum = sum+tmp[j];
+//       atomicAddCuC(d_res, sum);
+//     }
+//   }
+// }
 
-  int i = blockIdx.x*blockDim.x + threadIdx.x;
-  if(i<N){
-    tmp[threadIdx.x] = conj(d_p[i])*d_q[i]/N;
-    __syncthreads();
-
-    if(threadIdx.x == 0){
-      CuC sum = cplx(0.0);
-      for(int j=0; j<NThreadsPerBlock; j++) sum = sum+tmp[j];
-      atomicAddCuC(d_res, sum);
-    }
-  }
-}
 
 // template<Idx N> __global__
 // void dot_normalized(CuC* a, CuC* b, CuC* c) {
@@ -217,24 +216,24 @@ void dot_normalized(CuC* d_res, CuC* d_p, CuC* d_q){
 // }
 
 
-template<Idx N> __host__
-void dot_normalized_wrapper(CuC& scalar, CuC* d_scalar, CuC* d_p, CuC* d_q){
-  scalar = cplx(0.0);
-  CUDA_CHECK(cudaMemcpy(d_scalar, &scalar, CD, H2D));
-  dot_normalized<N><<<NBlocks, NThreadsPerBlock>>>(d_scalar, d_p, d_q);
-  CUDA_CHECK(cudaMemcpy(&scalar, d_scalar, CD, D2H));
-}
+// template<Idx N> __host__
+// void dot_normalized_wrapper(CuC& scalar, CuC* d_scalar, CuC* d_p, CuC* d_q){
+//   scalar = cplx(0.0);
+//   CUDA_CHECK(cudaMemcpy(d_scalar, &scalar, CD, H2D));
+//   dot_normalized<N><<<NBlocks, NThreadsPerBlock>>>(d_scalar, d_p, d_q);
+//   CUDA_CHECK(cudaMemcpy(&scalar, d_scalar, CD, D2H));
+// }
 
 
-template<Idx N> __host__
-void dot2self_normalized_wrapper(double& scalar, CuC* d_scalar, CuC* d_p, const double TOL=1.0e-12){
-  scalar = 0.0;
-  CuC dummy = cplx(scalar);
-  CUDA_CHECK(cudaMemcpy(d_scalar, &dummy, CD, H2D));
-  dot_normalized<N><<<NBlocks, NThreadsPerBlock>>>(d_scalar, d_p, d_p);
-  CUDA_CHECK(cudaMemcpy(&dummy, d_scalar, CD, D2H));
-  assert( abs( imag(dummy) )<TOL*std::sqrt(N) );
-  scalar = real(dummy);
-}
+// template<Idx N> __host__
+// void dot2self_normalized_wrapper(double& scalar, CuC* d_scalar, CuC* d_p, const double TOL=1.0e-12){
+//   scalar = 0.0;
+//   CuC dummy = cplx(scalar);
+//   CUDA_CHECK(cudaMemcpy(d_scalar, &dummy, CD, H2D));
+//   dot_normalized<N><<<NBlocks, NThreadsPerBlock>>>(d_scalar, d_p, d_p);
+//   CUDA_CHECK(cudaMemcpy(&dummy, d_scalar, CD, D2H));
+//   assert( abs( imag(dummy) )<TOL*std::sqrt(N) );
+//   scalar = real(dummy);
+// }
 
 

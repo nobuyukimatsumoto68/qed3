@@ -180,7 +180,7 @@ struct Dirac1fonS2 : public SpinStructure{
 
     // int counter=0;
 #ifdef _OPENMP
-#pragma omp parallel for num_threads(CompilationConst::NPARALLEL)
+#pragma omp parallel for num_threads(Comp::NPARALLEL)
 #endif
     for(Idx ix=0; ix<lattice.n_sites; ix++){
       Idx counter = 3*8*ix;

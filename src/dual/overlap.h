@@ -143,7 +143,7 @@ struct Overlap : public Zolotarev {
   using WilsonDirac=Dirac1fonS2;
   using Link = std::array<Idx,2>; // <int,int>;
 
-  static constexpr Idx N = CompilationConst::N;
+  static constexpr Idx N = Comp::N;
 
   const WilsonDirac& DW;
   DWDevice d_DW; // actual data used in M_DW, M_DWH
@@ -169,6 +169,9 @@ struct Overlap : public Zolotarev {
     d_DW.update( U );
     compute_lambda_max();
     Zolotarev::update(lambda_min/lambda_max);
+#ifdef InfoDelta
+    std::cout << "# Delta : " << Delta() << std::endl;
+#endif
   }
 
   void compute_lambda_max( const double TOL=1.0e-8, const int MAXITER=500 ) {
@@ -193,8 +196,9 @@ struct Overlap : public Zolotarev {
     for(int i=0; i<MAXITER; i++){
       Op.on_gpu<N>( d_x, d_q );
       //
-      Op.dot2self<N>(&norm, d_x);
-      CUDA_CHECK(cudaMemcpy(d_q, d_x, N*CD, D2D));
+      Op.dot2self<N>(&norm, d_x); // stream 1
+      CUDA_CHECK(cudaMemcpy(d_q, d_x, N*CD, D2D)); // stream 2
+      //
       Op.Zdscal<N>( 1.0/std::sqrt(norm), d_q );
 
       Op.dot<N>(reinterpret_cast<CuC*>(&dot), d_x, d_q);
@@ -265,60 +269,55 @@ struct Overlap : public Zolotarev {
 
 
   void mult_device(CuC* d_res, const CuC* d_xi) const {
-    CUDA_CHECK(cudaMemcpy(d_res, d_xi, N*CD, D2D));
+    std::vector<CuC*> d_Xs(size);
+    for(int m=0; m<size; m++) CUDA_CHECK(cudaMalloc(&d_Xs[m], N*CD));
+    CUDA_CHECK(cudaMemcpy(d_Xs[0], d_xi, N*CD, D2D)); // E(1+Z)
 
-    CuC* d_tmp;
-    CUDA_CHECK(cudaMalloc(&d_tmp, N*CD));
-
+    // can parallelize
     for(int m=1; m<size; m++) {
       MatPoly Op;
       Op.push_back ( cplx(1.0/(lambda_max*lambda_max)), {&M_DW, &M_DWH} );
       const CuC a = cplx(-k*k/cp[m]);
       Op.push_back ( a, {} );
-      Op.solve<N>( d_tmp, d_xi );
-      Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, A[m], d_tmp, d_res);
+      Op.solve<N>( d_Xs[m], d_xi );
     }
+    for(int m=1; m<size; m++) Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_Xs[0], A[m], d_Xs[m], d_Xs[0]);
 
     MatPoly Op;
-    CUDA_CHECK(cudaMemcpy(d_tmp, d_res, N*CD, D2D));
-    Op.Zdscal<N>(C, d_tmp);
+    Op.Zdscal<N>(C, d_Xs[0]);
 
     Op.push_back ( cplx(1.0/(lambda_max)), {&M_DW} );
-    Op.on_gpu<N>( d_res, d_tmp );
-    Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, 1.0, d_xi, d_res); // A[0]=1.0
+    Op.on_gpu<N>( d_res, d_Xs[0] );
+    Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, 1.0, d_xi, d_res); // 1+V
 
-    CUDA_CHECK(cudaFree(d_tmp));
+    for(int m=0; m<size; m++) CUDA_CHECK(cudaFree(d_Xs[m]));
   }
 
 
   void adj_device(CuC* d_res, const CuC* d_xi) const {
-    CuC* d_DHxi;
-    CUDA_CHECK(cudaMalloc(&d_DHxi, N*CD));
-    CUDA_CHECK(cudaMemcpy(d_DHxi, d_xi, N*CD, D2D));
-    {
-      MatPoly Op;
-      Op.push_back ( cplx(1.0/(lambda_max)), {&M_DWH} );
-      Op.on_gpu<N>( d_DHxi, d_xi );
-      Op.Zdscal<N>( C, d_DHxi );
-    }
-    CUDA_CHECK(cudaMemcpy(d_res, d_DHxi, N*CD, D2D));
+    std::vector<CuC*> d_Ys(size);
+    for(int m=0; m<size; m++) CUDA_CHECK(cudaMalloc(&d_Ys[m], N*CD));
+    CUDA_CHECK(cudaMemcpy(d_Ys[0], d_xi, N*CD, D2D)); // E(1+Y)
 
-    CuC* d_tmp;
-    CUDA_CHECK(cudaMalloc(&d_tmp, N*CD));
+    MatPoly OpGlob;
+    OpGlob.push_back ( cplx(1.0/(lambda_max)), {&M_DWH} );
+    OpGlob.on_gpu<N>( d_Ys[0], d_xi );
+    CUDA_CHECK(cudaMemcpy(d_res, d_Ys[0], N*CD, D2D));
 
+    // can parallelize
     for(int m=1; m<size; m++) {
       MatPoly Op;
       Op.push_back ( cplx(1.0/(lambda_max*lambda_max)), {&M_DW, &M_DWH} );
       const CuC a = cplx(-k*k/cp[m]);
       Op.push_back ( a, {} );
-      Op.solve<N>( d_tmp, d_DHxi );
-      Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, A[m], d_tmp, d_res);
+      Op.solve<N>( d_Ys[m], d_Ys[0] );
     }
 
+    for(int m=1; m<size; m++) Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, A[m], d_Ys[m], d_res);
+    OpGlob.Zdscal<N>( C, d_res );
     Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, 1.0, d_xi, d_res); // A[0]=1.0
 
-    CUDA_CHECK(cudaFree(d_tmp));
-    CUDA_CHECK(cudaFree(d_DHxi));
+    for(int m=0; m<size; m++) CUDA_CHECK(cudaFree(d_Ys[m]));
   }
 
 
@@ -339,95 +338,62 @@ struct Overlap : public Zolotarev {
 
 
   double grad_device( const Link& link, const Gauge& U, CuC* d_eta ) const {
-    CuC inner;
-    double res = 0.0;
-
     std::vector<CuC*> d_Ys(size), d_Zs(size);
-    for(int m=1; m<size; m++) {
+    for(int m=0; m<size; m++) {
       CUDA_CHECK(cudaMalloc(&d_Zs[m], N*CD));
       CUDA_CHECK(cudaMalloc(&d_Ys[m], N*CD));
     }
-
-    CuC* d_Xdag_eta; CUDA_CHECK(cudaMalloc(&d_Xdag_eta, N*CD));
     {
       MatPoly XH;   XH.push_back ( cplx(1.0/(lambda_max)), {&M_DWH} );
-      CUDA_CHECK(cudaMemcpy(d_Xdag_eta, d_eta, N*CD, D2D)); // @@@@@@
-      XH.on_gpu<N>(d_Xdag_eta, d_eta);
+      XH.on_gpu<N>(d_Ys[0], d_eta);
     }
 
+    // can parallelize omp parallel nparallel=nstreams static assert(nparallel>=nstreams)
     for(int m=1; m<size; m++) {
       MatPoly Op;
       Op.push_back ( cplx(1.0/(lambda_max*lambda_max)), {&M_DW, &M_DWH} );
       const CuC a = cplx(-k*k/cp[m]); Op.push_back ( a, {} );
 
       Op.solve<N>( d_Zs[m], d_eta );
-      Op.solve<N>( d_Ys[m], d_Xdag_eta );
+      Op.solve<N>( d_Ys[m], d_Ys[0] );
     }
 
     COO coo;
     DW.d_coo_format(coo.en, U, link);
     coo.do_it();
 
+    CuC inner;
+    double res = 0.0;
+
     MatPoly X; X.push_back ( cplx(1.0/(lambda_max)), {&M_DW} );
-    {
-      CuC *d_XZm, *d_dD_Ym;
-      CUDA_CHECK(cudaMalloc(&d_XZm, N*CD));
-      CUDA_CHECK(cudaMalloc(&d_dD_Ym, N*CD));
-
-      for(int m=1; m<size; m++) {
-        X.on_gpu<N>(d_XZm, d_Zs[m]);
-        coo( d_dD_Ym, d_Ys[m] );
-
-        X.Zdscal<N>( A[m], d_XZm );
-        X.dot<N>( &inner, d_XZm, d_dD_Ym );
-        res -= real(inner);
-      }
-
-      CUDA_CHECK(cudaFree(d_XZm));
-      CUDA_CHECK(cudaFree(d_dD_Ym));
-    }
-    {
-      CuC *d_XYm, *d_dD_Zm;
-      CUDA_CHECK(cudaMalloc(&d_XYm, N*CD));
-      CUDA_CHECK(cudaMalloc(&d_dD_Zm, N*CD));
-
-      for(int m=1; m<size; m++) {
-        X.on_gpu<N>(d_XYm, d_Ys[m]);
-        coo( d_dD_Zm, d_Zs[m] );
-
-        X.Zdscal<N>( A[m], d_XYm );
-        X.dot<N>( &inner, d_XYm, d_dD_Zm );
-        res -= real(inner);
-      }
-
-      CUDA_CHECK(cudaFree(d_XYm));
-      CUDA_CHECK(cudaFree(d_dD_Zm));
-    }
-    {
-      CuC *d_sum, *d_dD_sum;
-      CUDA_CHECK(cudaMalloc(&d_sum, N*CD));
-      CUDA_CHECK(cudaMalloc(&d_dD_sum, N*CD));
-
-      CUDA_CHECK(cudaMemcpy(d_sum, d_eta, N*CD, D2D));
-      for(int m=1; m<size; m++) Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_sum, A[m], d_Zs[m], d_sum);
-
-      coo( d_dD_sum, d_sum );
-
-      X.dot<N>( &inner, d_eta, d_dD_sum );
-      res += real(inner);
-
-      CUDA_CHECK(cudaFree(d_sum));
-      CUDA_CHECK(cudaFree(d_dD_sum));
-    }
-
-    CUDA_CHECK(cudaFree(d_Xdag_eta));
     for(int m=1; m<size; m++) {
+      X.on_gpu<N>(d_Zs[0], d_Zs[m]);
+      coo( d_Ys[0], d_Ys[m] );
+
+      X.Zdscal<N>( A[m], d_Zs[0] );
+      X.dot<N>( &inner, d_Zs[0], d_Ys[0] );
+      res -= real(inner);
+    }
+    for(int m=1; m<size; m++) {
+      X.on_gpu<N>(d_Ys[0], d_Ys[m]);
+      coo( d_Zs[0], d_Zs[m] );
+
+      X.Zdscal<N>( A[m], d_Ys[0] );
+      X.dot<N>( &inner, d_Ys[0], d_Zs[0] );
+      res -= real(inner);
+    }
+
+    CUDA_CHECK(cudaMemcpy(d_Zs[0], d_eta, N*CD, D2D));
+    for(int m=1; m<size; m++) Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_Zs[0], A[m], d_Zs[m], d_Zs[0]);
+    coo( d_Ys[0], d_Zs[0] );
+    X.dot<N>( &inner, d_eta, d_Ys[0] );
+    res += real(inner);
+
+    for(int m=0; m<size; m++) {
       CUDA_CHECK(cudaFree(d_Zs[m]));
       CUDA_CHECK(cudaFree(d_Ys[m]));
     }
-
     res *= -2.0*C/lambda_max;
-
     return res;
   }
 

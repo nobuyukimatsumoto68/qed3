@@ -9,44 +9,43 @@ struct MatPoly{
 
   cublasHandle_t handle;
   cudaStream_t stream;
-  const bool is_external;
 
   MatPoly()
-    : is_external(false)
   {
     handle = NULL;
-    stream = 0;
+    stream = NULL;
     CUBLAS_CHECK(cublasCreate(&handle));
+    CUBLAS_CHECK(cublasSetStream(handle, stream));
+  }
+
+  MatPoly( cudaStream_t stream_ )
+  {
+    handle = NULL;
+    stream = stream_; // pointer
     // CUDA_CHECK(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
-    CUBLAS_CHECK(cublasSetStream(handle, stream));
-  }
-
-  MatPoly( cublasHandle_t handle_, cudaStream_t stream_ )
-    : handle(handle_)
-    , stream(stream_)
-    , is_external(true)
-  {}
-
-
-  MatPoly( const std::initializer_list<int> struc )
-    : vec_mats(struc.size())
-    , coeffs(struc.size())
-    , is_external(false)
-  {
-    auto itr = struc.begin();
-    for(int i=0; i<struc.size(); i++) {
-      vec_mats[i].resize( *itr );
-      ++itr;
-    }
-
-    handle = NULL;
-    stream = 0;
     CUBLAS_CHECK(cublasCreate(&handle));
     CUBLAS_CHECK(cublasSetStream(handle, stream));
   }
+
+  // MatPoly( const std::initializer_list<int> struc )
+  //   : vec_mats(struc.size())
+  //   , coeffs(struc.size())
+  //   , is_external(false)
+  // {
+  //   auto itr = struc.begin();
+  //   for(int i=0; i<struc.size(); i++) {
+  //     vec_mats[i].resize( *itr );
+  //     ++itr;
+  //   }
+
+  //   handle = NULL;
+  //   stream = 0;
+  //   CUBLAS_CHECK(cublasCreate(&handle));
+  //   CUBLAS_CHECK(cublasSetStream(handle, stream));
+  // }
 
   ~MatPoly(){
-    if(!is_external) CUBLAS_CHECK(cublasDestroy(handle));
+    CUBLAS_CHECK(cublasDestroy(handle));
   }
 
   int size() const { return vec_mats.size(); }
@@ -141,12 +140,11 @@ struct MatPoly{
   // }
 
   template<Idx N> __host__
-  void Zdscal( const double alpha,
-               CuC* x) const {
-    const int incx=1;
+  inline void Zdscal( const double alpha,
+                      CuC* x) const {
     CUBLAS_CHECK( cublasZdscal(handle, N,
                                &alpha,
-                               x, incx) );
+                               x, 1) );
   }
 
   template<Idx N> __host__
@@ -170,31 +168,27 @@ struct MatPoly{
     if( isnan(crit) || isinf(crit) ){
       crit = abs( imag(dummy) );
     }
-    //#ifdef IsVerbose
-    if( crit >= TOL*std::sqrt(N) || isnan(crit) || isinf(crit)  ){
-      std::clog << crit << std::endl;
-    }
-    // #endif
+    if( crit >= TOL*std::sqrt(N) || isnan(crit) || isinf(crit)  ) std::clog << "CRIT = " << crit << std::endl;
     assert( crit < TOL*std::sqrt(N) );
     *result = real(dummy);
   }
 
 
-  template<Idx N> __host__
-  void solve(std::vector<Complex>& x, const std::vector<Complex>& b,
-	     const double tol=1.0e-13, const int maxiter=1e8) const {
-    // CG
-    CuC *d_x, *d_r; // , *d_tmp, *d_tmp2;
-    CUDA_CHECK(cudaMalloc(&d_x, N*CD));
-    CUDA_CHECK(cudaMalloc(&d_r, N*CD));
-    CUDA_CHECK(cudaMemcpy(d_r, reinterpret_cast<const CuC*>(b.data()), N*CD, H2D));
+  // template<Idx N> __host__
+  // void solve(std::vector<Complex>& x, const std::vector<Complex>& b,
+  //            const double tol=1.0e-13, const int maxiter=1e8) const {
+  //   // CG
+  //   CuC *d_x, *d_r; // , *d_tmp, *d_tmp2;
+  //   CUDA_CHECK(cudaMalloc(&d_x, N*CD));
+  //   CUDA_CHECK(cudaMalloc(&d_r, N*CD));
+  //   CUDA_CHECK(cudaMemcpy(d_r, reinterpret_cast<const CuC*>(b.data()), N*CD, H2D));
 
-    solve<N>(d_x, d_r, tol, maxiter);
+  //   solve<N>(d_x, d_r, tol, maxiter);
 
-    CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(x.data()), d_x, N*CD, D2H));
-    CUDA_CHECK(cudaFree(d_x));
-    CUDA_CHECK(cudaFree(d_r));
-  }
+  //   CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(x.data()), d_x, N*CD, D2H));
+  //   CUDA_CHECK(cudaFree(d_x));
+  //   CUDA_CHECK(cudaFree(d_r));
+  // }
 
 
 
@@ -230,24 +224,18 @@ struct MatPoly{
     }
     else{
       int k=0;
-      CuC gam;
-
       for(; k<maxiter; ++k){
 	this->on_gpu<N>(d_q, d_p);
 
-	dot<N>(&gam, d_p, d_q);
-
-	CuC al = mu/gam;
+        CuC gam; dot<N>(&gam, d_p, d_q);
+	const CuC al = mu/gam;
         Taxpy<CuC,N><<<NBlocks, NThreadsPerBlock>>>(d_x, al, d_p, d_x);
-
-	// al = -al;
         Taxpy<CuC,N><<<NBlocks, NThreadsPerBlock>>>(d_r, -al, d_q, d_r);
 
 	dot2self<N>(&mu, d_r);
-	assert(mu>=0.0);
-
+        assert(mu>=0.0);
 	if(mu<mu_crit || std::isnan(mu)) break;
-	CuC bet = cplx(mu/mu_old);
+	const CuC bet = cplx(mu/mu_old);
 	mu_old = mu;
 
         Taxpy<CuC,N><<<NBlocks, NThreadsPerBlock>>>(d_p, bet, d_p, d_r);

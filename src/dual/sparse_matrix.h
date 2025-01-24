@@ -15,7 +15,7 @@ struct CSR : public LinOp {
   Idx* rows;
 
   void operator()( T* d_res, const T* d_v ) const {
-    constexpr Idx N = CompilationConst::N;
+    constexpr Idx N = Comp::N;
     mult<T,N><<<NBlocks, NThreadsPerBlock>>>(d_res,
 					     d_v,
 					     this->val,
@@ -87,7 +87,6 @@ struct COOEntry {
 // for gradients
 struct COO : public LinOp {
   using T = CuC;
-  static constexpr Idx N = CompilationConst::N;
 
   std::vector<COOEntry> en;
 
@@ -113,9 +112,10 @@ struct COO : public LinOp {
   }
 
   void do_it(){
+    constexpr Idx N = Comp::N;
     std::sort( en.begin(), en.end() );
 
-    Idx len=en.size();
+    const Idx len=en.size();
     std::vector<CuC> v(len);
     std::vector<Idx> cols(len);
     std::vector<Idx> rows;
@@ -144,7 +144,8 @@ struct COO : public LinOp {
   }
 
   void do_conjugate(){
-    Idx len=en.size();
+    constexpr Idx N = Comp::N;
+    const Idx len=en.size();
 
     std::vector<COOEntry> enH;
     for(Idx k=0; k<len; k++) enH.push_back( COOEntry( conj(en[k].v), en[k].j, en[k].i ) );
@@ -180,7 +181,7 @@ struct COO : public LinOp {
 
 
   void operator()( T* d_res, const T* d_v ) const {
-    constexpr Idx N = CompilationConst::N;
+    constexpr Idx N = Comp::N;
     mult<T,N><<<NBlocks, NThreadsPerBlock>>>(d_res,
 					     d_v,
 					     this->d_val,

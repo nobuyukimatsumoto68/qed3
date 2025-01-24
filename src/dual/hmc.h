@@ -92,6 +92,7 @@ struct HMC {
     else {
       is_accept=false;
       U = U0;
+      fermion->update( U ); pf->update_eta();
     }
   }
 
