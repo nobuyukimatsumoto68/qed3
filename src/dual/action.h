@@ -6,13 +6,13 @@ struct U1Wilson {
   using Face = std::vector<int>;
   using Action=U1Wilson;
 
-  const double gR;
+  const double beta;
 
   U1Wilson() = delete;
   U1Wilson(const U1Wilson&) = delete;
 
-  U1Wilson(const double gR_)
-    : gR(gR_)
+  U1Wilson(const double beta_)
+    : beta(beta_)
   {}
 
   Action & operator=(const Action&) = delete;
@@ -24,7 +24,7 @@ struct U1Wilson {
       if constexpr(U.is_compact) res += - 1.0/U.lattice.vps[i] *  std::cos( U.plaquette_angle(i) );
       else res += 0.5/U.lattice.vps[i] * std::pow( U.plaquette_angle(i), 2 );
     }
-    res /= gR*gR;
+    res *= beta;
     return res;
   }
 
@@ -44,7 +44,7 @@ struct U1Wilson {
       }
     }
 
-    pi /= gR*gR;
+    pi *= beta;
   }
 
   // !! need debug ?

@@ -100,6 +100,7 @@ struct MatPoly{
     CUDA_CHECK(cudaFree(d_v0));
   }
 
+
   template<Idx N> __host__
   void on_gpu(CuC* d_v, const CuC* d_v0) const {
     CuC *d_tmp, *d_Mv0, *d_coeffs;
@@ -142,7 +143,7 @@ struct MatPoly{
   template<Idx N> __host__
   void Zdscal( const double alpha,
                CuC* x) const {
-    const int incx=1, incy=1;
+    const int incx=1;
     CUBLAS_CHECK( cublasZdscal(handle, N,
                                &alpha,
                                x, incx) );

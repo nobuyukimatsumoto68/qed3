@@ -15,7 +15,8 @@
 
 
 __device__ __host__ cuDoubleComplex cplx(const double c) { return make_cuDoubleComplex(c, 0.0); }
-__device__ __host__ cuDoubleComplex cplx(const std::complex<double> c) { return make_cuDoubleComplex(c.real(), c.imag()); }
+// __device__ __host__ cuDoubleComplex cplx(const std::complex<double> c) { return make_cuDoubleComplex(c.real(), c.imag()); }
+__host__ cuDoubleComplex cplx(const std::complex<double> c) { return make_cuDoubleComplex(c.real(), c.imag()); }
 __device__ __host__ cuDoubleComplex  operator+(cuDoubleComplex a, cuDoubleComplex b) { return cuCadd(a,b); }
 __device__ __host__ cuDoubleComplex  operator+(cuDoubleComplex a, double b) { return cuCadd(a,cplx(b)); }
 __device__ __host__ cuDoubleComplex  operator+(double a, cuDoubleComplex b) { return cuCadd(cplx(a),b); }

@@ -24,72 +24,50 @@
 
 
 template <typename Rng, typename Action, typename Fermion,
-          typename Gauge, typename Force, typename PseudoFermion>
+          typename Gauge, typename Force, typename PseudoFermion,
+          typename Integrator>
 struct HMC {
   Rng& rng;
-  Action& Sg;
-  Fermion& fermion; // on device; need .update( Gauge& U )
+  Action* Sg;
+  Fermion* fermion; // on device; need .update( Gauge& U )
 
   Gauge& U;
   Force& pi;
-  PseudoFermion& pf;
+  PseudoFermion* pf;
 
-  const double stot;
-  const int nsteps;
-  const double tau;
+  Integrator* integrator;
 
   HMC()=delete;
 
   explicit HMC(Rng& rng_,
-               Action& Sg_,
-               Fermion& fermion_,
+               Action* Sg_,
+               Fermion* fermion_,
                Gauge& U_,
                Force& pi_,
-               PseudoFermion& pf_,
-               const double stot_=1.0, const int nsteps_=10)
+               PseudoFermion* pf_,
+               Integrator* integrator_)
     : rng(rng_)
     , Sg(Sg_)
     , fermion(fermion_)
     , U(U_)
     , pi(pi_)
     , pf(pf_)
-    , stot(stot_)
-    , nsteps(nsteps_)
-    , tau(stot/nsteps)
+    , integrator(integrator_)
   {}
+
+  ~HMC(){}
 
   double H() {
     double res = 0.0;
     for(const auto elem : pi ) res += elem*elem;
     res *= 0.5;
-    res += Sg(U);
-    res += pf.S();
+    res += Sg->operator()(U);
+    res += pf->S();
     return res;
   }
 
-  void leapfrog_explicit_singlestep() {
-    Force dSg(U.lattice), dSf(U.lattice);
-
-    Sg.get_force( dSg, U ); pf.get_force( dSf, U );
-#ifdef InfoForce
-    dSg.print2log_norm( "# Sg : " );
-    dSf.print2log_norm( "# Sf : " );
-#endif
-    pi += -0.5*tau * ( dSg + dSf );
-
-    U += tau * pi;
-    fermion.update( U ); pf.update_eta();
-
-    Sg.get_force( dSg, U ); pf.get_force( dSf, U );
-#ifdef InfoForce
-    dSg.print2log_norm( "# Sg : " );
-    dSf.print2log_norm( "# Sf : " );
-#endif
-    pi += -0.5*tau * ( dSg + dSf );
-  }
-
-  void leapfrog_explicit() {
-    for(int n=0; n<nsteps; n++) leapfrog_explicit_singlestep();
+  inline void integrate() {
+    integrator->integrate( U, pi, Sg, fermion, pf );
   }
 
   void run( double& r,
@@ -99,10 +77,10 @@ struct HMC {
     pi.gaussian( rng );
 
     Gauge U0( U );
-    pf.gen( rng );
+    pf->gen( rng );
 
     const double h0 = H();
-    leapfrog_explicit();
+    integrate();
     const double h1 = H();
 
     dH = h1-h0;

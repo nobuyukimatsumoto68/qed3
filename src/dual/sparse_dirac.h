@@ -34,8 +34,6 @@ struct DWDevice{
     : D(D_)
     , lattice(D.lattice)
     , N(NS*lattice.n_sites)
-    // , locate_on_gpu(locate_on_gpu_)
-    // , is_set(false)
   {
     initialize();
   } // end of constructor

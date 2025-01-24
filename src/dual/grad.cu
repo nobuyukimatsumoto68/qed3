@@ -45,6 +45,7 @@ using CuC = cuDoubleComplex;
 #include "overlap.h"
 #include "pseudofermion.h"
 
+# include "integrator.h"
 #include "hmc.h"
 // #include "dirac_s2_dual.h"
 // #include "header_cusolver.hpp"
@@ -93,8 +94,9 @@ int main(int argc, char* argv[]){
 
   // ------------------
 
-  const double gR = 0.4;
-  Action SW(gR);
+  // const double gR = 0.4;
+  // beta = 1.0/(gR*gR);
+  Action SW(6.25);
 
   // -----------------
 
@@ -112,9 +114,7 @@ int main(int argc, char* argv[]){
   auto f_mgrad_DHDov = std::bind(&Overlap::grad_device, &Dov,
                                  std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
 
-  PseudoFermion pf( Op_DHDov, f_DHov, f_mgrad_DHDov );
-
-  // ------------------
+  // // ------------------
 
   // Idx il=2;
   // Link ell = lattice.links[il];
@@ -142,22 +142,28 @@ int main(int argc, char* argv[]){
   // std::cout << "grad = " << grad[il] << std::endl;
   // std::cout << "check = " << chck << std::endl;
 
-  // -----------------
+  // // -----------------
 
   Force pi( lattice );
   pi.gaussian( rng );
   Force pi0=pi;
 
-  double tmax = 0.4;
+  double tmax = 0.1;
   Gauge U0=U;
-  for(int nsteps=4; nsteps<=24; nsteps+=4){
-    HMC hmc(rng, SW, Dov, U, pi, pf, tmax, nsteps);
+  Dov.update(U);
+
+  PseudoFermion pf( Op_DHDov, f_DHov, f_mgrad_DHDov );
+  pf.gen( rng );
+
+  for(int nsteps=1; nsteps<=4; nsteps+=1){
+    // ExplicitLeapfrog integrator( tmax, nsteps );
+    ExplicitLeapfrogML integrator( tmax, nsteps, 10 );
+    HMC hmc(rng, &SW, &Dov, U, pi, &pf, &integrator);
     pi = pi0;
     U = U0;
-    Dov.update(U);
-    pf.gen( rng );
+    Dov.update( U ); pf.update_eta();
     const double h0 = hmc.H();
-    hmc.leapfrog_explicit();
+    hmc.integrate();
     const double h1 = hmc.H();
     double dH = h1-h0;
     std::cout << tmax/nsteps << " " << dH << std::endl;
@@ -166,98 +172,8 @@ int main(int argc, char* argv[]){
 
 
 
-
-
-
-
-  // Eigen::MatrixXcd mat(N, N);
-  // {
-  //   for(Idx i=0; i<N; i++){
-  //     Eigen::VectorXcd e = Eigen::VectorXcd::Zero(N);
-  //     e(i) = 1.0;
-  //     std::vector<Complex> xi(e.data(), e.data()+N);
-  //     std::vector<Complex> Dxi(N);
-  //     Dov( Dxi, xi );
-  //     mat.block(0,i,N,1) = Eigen::Map<Eigen::MatrixXcd>(Dxi.data(), N, 1);
-  //   }
-  // }
-  // std::cout << Dov.lambda_max << std::endl;
-
-
-  // return 0; // EXIT_SUCCESS;
-
   // CUDA_CHECK(cudaDeviceReset());
+  return 0;
 
-
-
-  // // 2.4.5.7. cusolverDnXgeev()
-  // cusolverStatus_t
-  //   cusolverDnXgeev_bufferSize(
-  // 			       cusolverDnHandle_t handle,
-  // 			       cusolverDnParams_t params,
-  // 			       cusolverEigMode_t jobvl,
-  // 			       cusolverEigMode_t jobvr,
-  // 			       int64_t n,
-  // 			       cudaDataType dataTypeA,
-  // 			       const void *A,
-  // 			       int64_t lda,
-  // 			       cudaDataType dataTypeW,
-  // 			       const void *W,
-  // 			       cudaDataType dataTypeVL,
-  // 			       const void *VL,
-  // 			       int64_t ldvl,
-  // 			       cudaDataType dataTypeVR,
-  // 			       const void *VR,
-  // 			       int64_t ldvr,
-  // 			       cudaDataType computeType,
-  // 			       size_t *workspaceInBytesOnDevice,
-  // 			       size_t *workspaceInBytesOnHost);
-
-  // // ss. 2.5.2.5. cusolverSp<t>csreigvsi()
-  // cusolverSpZcsreigvsi(cusolverSpHandle_t handle,
-  // 		       int m,
-  // 		       int nnz,
-  // 		       const cusparseMatDescr_t descrA,
-  // 		       const cuDoubleCuC *csrValA,
-  // 		       const int *csrRowPtrA,
-  // 		       const int *csrColIndA,
-  // 		       cuDoubleCuC mu0,
-  // 		       const cuDoubleCuC *x0,
-  // 		       int maxite,
-  // 		       double tol,
-  // 		       cuDoubleCuC *mu,
-  // 		       cuDoubleCuC *x);
-
-  // Eigen::CuCEigenSolver<Eigen::MatrixXcd> solver( mat );
-  // const Eigen::MatrixXcd evec = solver.eigenvectors();
-  // Eigen::VectorXcd ev = solver.eigenvalues();
-  // for(int i=0; i<evec.rows(); i++){
-  //   const Eigen::VectorXcd check1 = sq * evec.col(i);
-  //   const Eigen::VectorXcd check2 = eval[i] * evec.col(i);
-  //   assert( (check1-check2).norm() < 1.0e-8 );
-
-  //   const Eigen::VectorXcd MV = mat * evec.col(i);
-  //   std::cout << ( MV.array() / evec.col(i).array() - 1.0).abs().maxCoeff() << std::endl;
-  // }
-
-  // auto ev = mat.eigenvalues();
-  // for(int i=0; i<ev.size(); i++){
-  //   std::cout << ev[i].real() << " " << ev[i].imag() << std::endl;
-  // }
-
-  // ----------------------------------
-
-    // return 0;
 }
 
-
-
-  // for(int ix=0; ix<lattice.n_sites; ix++){
-  //   for(int jj=0; jj<lattice.sites[ix].nn; jj++){
-  //     const int iy = lattice.sites[ix].neighbors[jj];
-  //     auto mat1 = ( D.sigma[0] - D.gamma(ix, iy) ) * D.Omega(ix, iy);
-  //     auto mat2 = D.Omega(ix, iy) * ( D.sigma[0] - D.gamma(iy, ix, M_PI) );
-  //     std::cout << mat1-mat2 << std::endl;
-  //   }}
-
-  // ----------------------------------
