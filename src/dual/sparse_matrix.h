@@ -4,6 +4,8 @@
 struct LinOp{
   using T = CuC;
   virtual void operator()( T* d_res, const T* d_v ) const = 0;
+  virtual void Async( T* d_res, const T* d_v,
+                      const cudaStream_t stream) const = 0;
 };
 
 
@@ -23,6 +25,17 @@ struct CSR : public LinOp {
 					     this->rows);
   }
 
+  void Async( T* d_res, const T* d_v,
+              const cudaStream_t stream) const {
+    constexpr Idx N = Comp::N;
+    mult<T,N><<<NBlocks, NThreadsPerBlock, 0, stream>>>(d_res,
+                                                        d_v,
+                                                        this->val,
+                                                        this->cols,
+                                                        this->rows);
+    CUDA_CHECK( cudaStreamSynchronize(stream) );
+  }
+
 };
 
 
@@ -37,6 +50,11 @@ struct LinOpWrapper : public LinOp {
 
   void operator()( T* d_res, const T* d_v ) const {
     f( d_res, d_v );
+  }
+
+  void Async( T* d_res, const T* d_v, const cudaStream_t stream ) const {
+    f( d_res, d_v, stream );
+    CUDA_CHECK( cudaStreamSynchronize(stream) );
   }
 };
 
@@ -188,6 +206,17 @@ struct COO : public LinOp {
 					     this->d_cols,
 					     this->d_rows);
   }
+
+  void Async( T* d_res, const T* d_v, const cudaStream_t stream ) const {
+    constexpr Idx N = Comp::N;
+    mult<T,N><<<NBlocks, NThreadsPerBlock, 0, stream>>>(d_res,
+                                                        d_v,
+                                                        this->d_val,
+                                                        this->d_cols,
+                                                        this->d_rows);
+    CUDA_CHECK( cudaStreamSynchronize(stream) );
+  }
+
 
 };
 

@@ -97,7 +97,7 @@ struct PseudoFermion {
 
     for(Idx ix=0; ix<Comp::N_SITES; ix++) {
       for(int a=0; a<Comp::NS; a++) xi[NS*ix+a] = ( rng.gaussian_site(ix)
-                                                                + I*rng.gaussian_site(ix) ) / std::sqrt(2.0);
+                                                    + I*rng.gaussian_site(ix) ) / std::sqrt(2.0);
     }
 
     CuC *d_xi;
@@ -109,7 +109,7 @@ struct PseudoFermion {
     update_eta();
   }
 
-  inline void update_eta() { Op_DHD.solve<N>( d_eta, d_phi ); }
+  inline void update_eta() { Op_DHD.solve<N>( d_eta, d_phi ); } // outer CG
 
   // auto begin(){ return phi.begin(); }
   // auto end(){ return phi.end(); }
@@ -152,9 +152,9 @@ struct PseudoFermion {
   template<typename Gauge, typename Force>
   void get_force( Force& pi, const Gauge& U ) const {
     // Force pi( U.lattice ); // 0 initialized
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(Comp::NPARALLEL)
-#endif
+// #ifdef _OPENMP
+// #pragma omp parallel for num_threads(Comp::NPARALLEL)
+// #endif
     for(int ell=0; ell<U.lattice.n_links; ell++) pi[ell] = get_force( U, U.lattice.links[ell] );
     // return pi;
   }

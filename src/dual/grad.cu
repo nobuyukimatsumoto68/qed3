@@ -4,7 +4,9 @@
 #include <fstream>
 #include <cstdlib>
 #include <cassert>
+
 #include <algorithm>
+
 
 #include <cstdint>
 #include <complex>
@@ -13,11 +15,15 @@ using Complex = std::complex<double>;
 
 namespace Comp{
   constexpr int NPARALLEL=10;
+  constexpr int NSTREAMS=2;
 
-  constexpr int N_REFINE=2;
+  constexpr int N_REFINE=4;
   constexpr int NS=2;
   constexpr Idx N_SITES=20*N_REFINE*N_REFINE;
   constexpr Idx N=NS*N_SITES; // matrix size of DW
+
+  // const double TOL=1.0e-9;
+  const double TOL=1.0e-13;
 }
 
 // #define IsVerbose
@@ -33,6 +39,8 @@ using CuC = cuDoubleComplex;
 #include "gpu_header.h"
 
 // ======================================
+
+#include "timer.h"
 
 #include "s2n.h"
 #include "rng.h"
@@ -63,7 +71,6 @@ using CuC = cuDoubleComplex;
 int main(int argc, char* argv[]){
   std::cout << std::scientific << std::setprecision(15);
   std::clog << std::scientific << std::setprecision(15);
-
 
   int device;
   CUDA_CHECK(cudaGetDeviceCount(&device));
@@ -101,88 +108,112 @@ int main(int argc, char* argv[]){
 
   // -----------------
 
+  Timer timer;
+
   const double M5 = -1.8;
   WilsonDirac DW(lattice, M5);
 
   Fermion Dov(DW, 15);
+  // Fermion Dov(DW, 5);
 
-  const auto f_DHDov = std::bind(&Overlap::sq_device, &Dov,
+  const auto f_DHDov = std::bind(&Overlap::sq_deviceAsyncLaunch, &Dov,
                                  std::placeholders::_1, std::placeholders::_2);
   LinOpWrapper M_DHDov( f_DHDov );
+  // const auto f_DHDov = std::bind(&Overlap::sq_device, &Dov,
+  //                                std::placeholders::_1, std::placeholders::_2);
+  // LinOpWrapper M_DHDov( f_DHDov );
   MatPoly Op_DHDov; Op_DHDov.push_back ( cplx(1.0), {&M_DHDov} );
-  auto f_DHov = std::bind(&Overlap::adj_device, &Dov,
+  // auto f_DHov = std::bind(&Overlap::adj_device, &Dov,
+  //                         std::placeholders::_1, std::placeholders::_2);
+  auto f_DHov = std::bind(&Overlap::adj_deviceAsyncLaunch, &Dov,
                           std::placeholders::_1, std::placeholders::_2);
-  auto f_mgrad_DHDov = std::bind(&Overlap::grad_device, &Dov,
+
+  // auto f_mgrad_DHDov = std::bind(&Overlap::grad_device, &Dov,
+  //                                std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
+  auto f_mgrad_DHDov = std::bind(&Overlap::grad_deviceAsyncLaunch, &Dov,
                                  std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
 
-  // // ------------------
-
-  // Idx il=2;
-  // Link ell = lattice.links[il];
-
-  // const double eps = 1.0e-5;
-  // Gauge UP(U);
-  // UP[il] += eps;
-  // Gauge UM(U);
-  // UM[il] -= eps;
-
-  // Dov.update(U);
-  // pf.gen( rng );
-  // Force grad(lattice);
-  // pf.get_force( grad, U );
-
-  // Dov.update(UP);
-  // pf.update_eta();
-  // double sfp = pf.S();
-
-  // Dov.update(UM);
-  // pf.update_eta();
-  // double sfm = pf.S();
-
-  // double chck = (sfp-sfm)/(2.0*eps);
-  // std::cout << "grad = " << grad[il] << std::endl;
-  // std::cout << "check = " << chck << std::endl;
-
-  // // -----------------
-
-  Force pi( lattice );
-  pi.gaussian( rng );
-  Force pi0=pi;
-
-  Gauge U0=U;
-  Dov.update(U);
-
   PseudoFermion pf( Op_DHDov, f_DHov, f_mgrad_DHDov );
+
+  std::cout << "variables set : " << timer.currentSeconds() << std::endl;
+
+  // ------------------
+
+  Idx il=2;
+  Link ell = lattice.links[il];
+
+  const double eps = 1.0e-5;
+  Gauge UP(U);
+  UP[il] += eps;
+  Gauge UM(U);
+  UM[il] -= eps;
+
+  std::cout << " --- Dov.update : " << timer.currentSeconds() << std::endl;
+  Dov.update(U);
+  std::cout << " --- pf.gen : " << timer.currentSeconds() << std::endl;
   pf.gen( rng );
 
-  double tmax = 1.0; // 0.1
-  // for(int nsteps=1; nsteps<=1; nsteps+=1){
-  const int nsteps=4;
-  // ExplicitLeapfrog integrator( tmax, nsteps );
-  ExplicitLeapfrogML integrator( tmax, nsteps, 100 );
-  HMC hmc(rng, &SW, &Dov, U, pi, &pf, &integrator);
-  // pi = pi0;
-  // U = U0;
-  // Dov.update( U ); pf.update_eta();
-  //     const double h0 = hmc.H();
-  //   hmc.integrate();
-  //   const double h1 = hmc.H();
-  //   double dH = h1-h0;
-  //   std::cout << tmax/nsteps << " " << dH << std::endl;
+  std::cout << " --- grad constructor : " << timer.currentSeconds() << std::endl;
+  Force grad(lattice);
+
+  std::cout << " --- get force : " << timer.currentSeconds() << std::endl;
+  pf.get_force( grad, U );
+
+  std::cout << " --- fin : " << timer.currentSeconds() << std::endl;
+
+  Dov.update(UP);
+  pf.update_eta();
+  double sfp = pf.S();
+
+  Dov.update(UM);
+  pf.update_eta();
+  double sfm = pf.S();
+
+  double chck = (sfp-sfm)/(2.0*eps);
+  std::cout << "grad = " << grad[il] << std::endl;
+  std::cout << "check = " << chck << std::endl;
+
+  // -----------------
+
+  // Force pi( lattice );
+  // pi.gaussian( rng );
+  // Force pi0=pi;
+
+  // Gauge U0=U;
+  // Dov.update(U);
+
+  // pf.gen( rng );
+
+  // double tmax = 1.0; // 0.1
+  // // for(int nsteps=1; nsteps<=1; nsteps+=1){
+  // const int nsteps=5;
+  // // ExplicitLeapfrog integrator( tmax, nsteps );
+  // ExplicitLeapfrogML integrator( tmax, nsteps, 100 );
+  // HMC hmc(rng, &SW, &Dov, U, pi, &pf, &integrator);
+  // // pi = pi0;
+  // // U = U0;
+  // // Dov.update( U ); pf.update_eta();
+  // //     const double h0 = hmc.H();
+  // //   hmc.integrate();
+  // //   const double h1 = hmc.H();
+  // //   double dH = h1-h0;
+  // //   std::cout << tmax/nsteps << " " << dH << std::endl;
+  // // }
+
+  // double r, dH;
+  // bool is_accept;
+  // for(int k=0; k<20; k++){
+  //   hmc.run( r, dH, is_accept, true);
+  //   std::cout << "# dH : " << dH
+  //             << " is_accept : " << is_accept << std::endl;
+  // }
+  // for(int k=0; k<20; k++){
+  //   hmc.run( r, dH, is_accept);
+  //   std::cout << "# dH : " << dH
+  //             << " is_accept : " << is_accept << std::endl;
   // }
 
-  double r, dH;
-  bool is_accept;
-  for(int k=0; k<20; k++){
-    hmc.run( r, dH, is_accept, true);
-    std::cout << "# dH : " << dH
-              << " is_accept : " << is_accept << std::endl;
-  }
-  for(int k=0; k<20; k++){
-    hmc.run( r, dH, is_accept);
-    std::cout << "# dH : " << dH
-              << " is_accept : " << is_accept << std::endl;
-  }
+
 
   // CUDA_CHECK(cudaDeviceReset());
   return 0;
