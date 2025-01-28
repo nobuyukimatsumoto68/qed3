@@ -2,7 +2,7 @@
 
 
 
-#define NThreadsPerBlock (512) // 256, 1024
+#define NThreadsPerBlock (256) // 256, 1024
 #define NBlocks (N+NThreadsPerBlock)/NThreadsPerBlock
 #define H2D (cudaMemcpyHostToDevice)
 #define D2H (cudaMemcpyDeviceToHost)

@@ -170,6 +170,15 @@ struct MatPoly{
   }
 
   template<Idx N> __host__
+  inline void ZdscalAsync( const double alpha,
+                      CuC* x) const {
+    CUBLAS_CHECK( cublasZdscal(handle, N,
+                               &alpha,
+                               x, 1) );
+    CUDA_CHECK(cudaStreamSynchronize(stream));
+  }
+
+  template<Idx N> __host__
   inline void dot( CuC* result, const CuC* x, const CuC* y) const {
     CUBLAS_CHECK( cublasZdotc(handle, N,
 			      x, 1,
@@ -246,7 +255,7 @@ struct MatPoly{
 
   template<Idx N> __host__
   void solve(CuC* d_x, const CuC* d_b,
-	     const double tol=Comp::TOL, const int maxiter=1e8) const {
+	     const double tol=1.0e-13, const int maxiter=1e8) const {
     // CG
     CuC *d_p, *d_q, *d_r; // , *d_tmp, *d_tmp2;
     CUDA_CHECK(cudaMalloc(&d_r, N*CD));
@@ -313,7 +322,7 @@ struct MatPoly{
 
   template<Idx N> __host__
   void solveAsync(CuC* d_x, const CuC* d_b,
-                  const double tol=Comp::TOL, const int maxiter=1e8) const {
+                  const double tol=1.0e-13, const int maxiter=1e8) const {
     // CG
     CuC *d_p, *d_q, *d_r; // , *d_tmp, *d_tmp2;
     CUDA_CHECK(cudaMallocAsync(&d_r, N*CD, stream));

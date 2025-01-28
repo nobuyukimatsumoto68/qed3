@@ -17,13 +17,14 @@ namespace Comp{
   constexpr int NPARALLEL=10;
   constexpr int NSTREAMS=2;
 
-  constexpr int N_REFINE=4;
+  constexpr int N_REFINE=2;
   constexpr int NS=2;
   constexpr Idx N_SITES=20*N_REFINE*N_REFINE;
   constexpr Idx N=NS*N_SITES; // matrix size of DW
 
   // const double TOL=1.0e-9;
-  const double TOL=1.0e-13;
+  const double TOL_INNER=1.0e-10;
+  const double TOL_OUTER=1.0e-9;
 }
 
 // #define IsVerbose
@@ -108,12 +109,10 @@ int main(int argc, char* argv[]){
 
   // -----------------
 
-  Timer timer;
-
   const double M5 = -1.8;
   WilsonDirac DW(lattice, M5);
 
-  Fermion Dov(DW, 15);
+  Fermion Dov(DW, 11);
   // Fermion Dov(DW, 5);
 
   const auto f_DHDov = std::bind(&Overlap::sq_deviceAsyncLaunch, &Dov,
@@ -135,83 +134,93 @@ int main(int argc, char* argv[]){
 
   PseudoFermion pf( Op_DHDov, f_DHov, f_mgrad_DHDov );
 
-  std::cout << "variables set : " << timer.currentSeconds() << std::endl;
 
   // ------------------
 
-  Idx il=2;
-  Link ell = lattice.links[il];
+  // Idx il=2;
+  // Link ell = lattice.links[il];
 
-  const double eps = 1.0e-5;
-  Gauge UP(U);
-  UP[il] += eps;
-  Gauge UM(U);
-  UM[il] -= eps;
+  // const double eps = 1.0e-5;
+  // Gauge UP(U);
+  // UP[il] += eps;
+  // Gauge UM(U);
+  // UM[il] -= eps;
 
-  std::cout << " --- Dov.update : " << timer.currentSeconds() << std::endl;
-  Dov.update(U);
-  std::cout << " --- pf.gen : " << timer.currentSeconds() << std::endl;
-  pf.gen( rng );
+  // std::cout << " --- Dov.update : " << timer.currentSeconds() << std::endl;
+  // Dov.update(U);
+  // std::cout << " --- pf.gen : " << timer.currentSeconds() << std::endl;
+  // pf.gen( rng );
 
-  std::cout << " --- grad constructor : " << timer.currentSeconds() << std::endl;
-  Force grad(lattice);
+  // std::cout << " --- grad constructor : " << timer.currentSeconds() << std::endl;
+  // Force grad(lattice);
 
-  std::cout << " --- get force : " << timer.currentSeconds() << std::endl;
-  pf.get_force( grad, U );
+  // std::cout << " --- get force : " << timer.currentSeconds() << std::endl;
+  // Dov.precalc_grad_deviceAsyncLaunch( U, pf.d_eta );
+  // pf.get_force( grad, U );
 
-  std::cout << " --- fin : " << timer.currentSeconds() << std::endl;
+  // std::cout << " --- fin : " << timer.currentSeconds() << std::endl;
 
-  Dov.update(UP);
-  pf.update_eta();
-  double sfp = pf.S();
+  // std::cout << "grad = " << grad[il] << std::endl;
+  // Dov.update(UP);
+  // pf.update_eta();
+  // double sfp = pf.S();
 
-  Dov.update(UM);
-  pf.update_eta();
-  double sfm = pf.S();
+  // Dov.update(UM);
+  // pf.update_eta();
+  // double sfm = pf.S();
 
-  double chck = (sfp-sfm)/(2.0*eps);
-  std::cout << "grad = " << grad[il] << std::endl;
-  std::cout << "check = " << chck << std::endl;
+  // double chck = (sfp-sfm)/(2.0*eps);
+  // std::cout << "check = " << chck << std::endl;
 
   // -----------------
 
-  // Force pi( lattice );
-  // pi.gaussian( rng );
-  // Force pi0=pi;
+  Force pi( lattice );
+  pi.gaussian( rng );
+  Force pi0=pi;
 
-  // Gauge U0=U;
-  // Dov.update(U);
+  Gauge U0=U;
+  Dov.update(U);
+  pf.gen( rng );
+  Dov.precalc_grad_deviceAsyncLaunch( U, pf.d_eta );
 
-  // pf.gen( rng );
-
-  // double tmax = 1.0; // 0.1
-  // // for(int nsteps=1; nsteps<=1; nsteps+=1){
-  // const int nsteps=5;
-  // // ExplicitLeapfrog integrator( tmax, nsteps );
-  // ExplicitLeapfrogML integrator( tmax, nsteps, 100 );
-  // HMC hmc(rng, &SW, &Dov, U, pi, &pf, &integrator);
-  // // pi = pi0;
-  // // U = U0;
-  // // Dov.update( U ); pf.update_eta();
-  // //     const double h0 = hmc.H();
-  // //   hmc.integrate();
-  // //   const double h1 = hmc.H();
-  // //   double dH = h1-h0;
-  // //   std::cout << tmax/nsteps << " " << dH << std::endl;
-  // // }
-
-  // double r, dH;
-  // bool is_accept;
-  // for(int k=0; k<20; k++){
-  //   hmc.run( r, dH, is_accept, true);
-  //   std::cout << "# dH : " << dH
-  //             << " is_accept : " << is_accept << std::endl;
+  double tmax = 1.0; // 0.1
+  // for(int nsteps=1; nsteps<=1; nsteps+=1){
+  const int nsteps=5;
+  // ExplicitLeapfrog integrator( tmax, nsteps );
+  ExplicitLeapfrogML integrator( tmax, nsteps, 100 );
+  HMC hmc(rng, &SW, &Dov, U, pi, &pf, &integrator);
+  // pi = pi0;
+  // U = U0;
+  // Dov.update( U ); pf.update_eta();
+  //     const double h0 = hmc.H();
+  //   hmc.integrate();
+  //   const double h1 = hmc.H();
+  //   double dH = h1-h0;
+  //   std::cout << tmax/nsteps << " " << dH << std::endl;
   // }
-  // for(int k=0; k<20; k++){
-  //   hmc.run( r, dH, is_accept);
-  //   std::cout << "# dH : " << dH
-  //             << " is_accept : " << is_accept << std::endl;
-  // }
+
+  double r, dH;
+  bool is_accept;
+  for(int k=0; k<20; k++){
+    Timer timer;
+    hmc.run( r, dH, is_accept, true);
+    std::cout << "# dH : " << dH
+              << " is_accept : " << is_accept << std::endl;
+    std::cout << "# HMC : " << timer.currentSeconds() << " sec" << std::endl;
+  }
+
+  double r_mean;
+  const int kmax=50;
+  for(int k=0; k<kmax; k++){
+    Timer timer;
+    hmc.run( r, dH, is_accept);
+    std::cout << "# dH : " << dH
+              << " is_accept : " << is_accept << std::endl;
+    r_mean += r;
+    std::cout << "# HMC : " << timer.currentSeconds() << " sec" << std::endl;
+  }
+  r_mean /= kmax;
+  std::cout << "# r_mean = " << r_mean << std::endl;
 
 
 

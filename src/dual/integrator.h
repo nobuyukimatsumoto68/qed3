@@ -33,6 +33,7 @@ struct ExplicitLeapfrog {
 
     U += tau * pi;
     fermion->update( U ); pf->update_eta();
+    fermion->precalc_grad_deviceAsyncLaunch( U, pf->d_eta );
 
     Sg->get_force( dSg, U ); pf->get_force( dSf, U );
 #ifdef InfoForce
@@ -105,6 +106,7 @@ struct ExplicitLeapfrogML {
         }
       } //------------------
       fermion->update( U ); pf->update_eta();
+      fermion->precalc_grad_deviceAsyncLaunch( U, pf->d_eta );
 
       pf->get_force( dSf, U );
 #ifdef InfoForce

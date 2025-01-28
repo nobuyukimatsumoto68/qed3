@@ -92,7 +92,9 @@ struct HMC {
     else {
       is_accept=false;
       U = U0;
-      fermion->update( U ); pf->update_eta();
+      fermion->update( U );
+      pf->update_eta();
+      fermion->precalc_grad_deviceAsyncLaunch( U, pf->d_eta );
     }
   }
 

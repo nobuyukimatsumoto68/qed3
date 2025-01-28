@@ -15,35 +15,35 @@ struct PseudoFermion {
   // using Gauge = U1onS2;
   // using Force = U1onS2;
   // using Rng = ParallelRng;
+  using Fermion = Overlap;
 
   static constexpr Complex I = Complex(0.0, 1.0);
   const int NS=2;
 
   // const Dirac1fonS2& D;
   // const CGCUDA cg;
+  // Fermion* fermion;
   MatPoly& Op_DHD;
   F& f_DH;
   Grad& f_mgrad_DHD;
 
-  // std::vector<Complex> eta;
-  // std::vector<Complex> phi;
   CuC *d_phi, *d_eta;
-  // std::vector<Complex> eta;
   static constexpr Idx N = Comp::N;
 
   PseudoFermion()=delete;
 
-  explicit PseudoFermion(MatPoly& Op_DHD_,
+  explicit PseudoFermion( // Fermion* fermion_,
+                         MatPoly& Op_DHD_,
                          F& f_DH_,
                          Grad& f_mgrad_DHD_)
-    : Op_DHD(Op_DHD_)
+    : // fermion(fermion_)
+    // ,
+    Op_DHD(Op_DHD_)
     , f_DH(f_DH_)
     , f_mgrad_DHD(f_mgrad_DHD_)
-      // , phi(CompilationConst::N, 0.0)
   {
     CUDA_CHECK(cudaMalloc(&d_phi, N*CD));
     CUDA_CHECK(cudaMalloc(&d_eta, N*CD));
-    // CUDA_CHECK(cudaMemcpy(d_cols, , N*CD, H2D));
   }
 
   ~PseudoFermion(){
@@ -109,7 +109,9 @@ struct PseudoFermion {
     update_eta();
   }
 
-  inline void update_eta() { Op_DHD.solve<N>( d_eta, d_phi ); } // outer CG
+  inline void update_eta() {
+    Op_DHD.solve<N>( d_eta, d_phi, Comp::TOL_OUTER );
+  } // outer CG
 
   // auto begin(){ return phi.begin(); }
   // auto end(){ return phi.end(); }
