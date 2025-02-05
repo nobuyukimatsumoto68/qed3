@@ -34,7 +34,7 @@ struct S2Trivalent {
   std::vector<double> vol; // site
 
   std::vector<Face> faces;
-  std::vector<double> vps; // face
+  std::vector<double> vps; // volumes of dual faces
 
   std::map<const Link, const Idx> map2il;
   std::map<const Link, const int> map2sign;
@@ -212,7 +212,7 @@ struct S2Trivalent {
       double sum = 0.0;
       for(auto elem : vps) sum += elem;
       assert( std::abs(sum-4.0*M_PI)<1.0e-10 );
-    }  
+    }
   }
 
 
@@ -238,7 +238,7 @@ struct S2Trivalent {
       tantan *= std::tan(0.5*(s-a));
       tantan *= std::tan(0.5*(s-b));
       tantan *= std::tan(0.5*(s-c));
-      
+
       const double tmp = 4.0 * std::atan( std::sqrt(tantan) );
       res += tmp;
     }

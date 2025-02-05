@@ -157,7 +157,6 @@ struct Overlap : public Zolotarev {
   bool is_precalc;
 
   Overlap( const WilsonDirac& DW_,
-	   // const double lambda_max_=12.0,
            const int n_=21,
 	   const double k_=0.01,
 	   const bool locate_on_gpu=true)
@@ -236,7 +235,6 @@ struct Overlap : public Zolotarev {
 
     Complex dot;
     double norm=1.0, mu_0=1.0, mu_m1=1.0, mu_m2=1.0;
-
     double lambda=100.0, lambda_old=1000.0;
 
     for(int i=0; i<MAXITER; i++){

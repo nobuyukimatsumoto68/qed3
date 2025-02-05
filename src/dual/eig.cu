@@ -89,7 +89,7 @@ int main(int argc, char* argv[]){
   Rng rng(lattice);
   U.gaussian( rng, 0.2 );
 
-  const double M5 = -1.8;
+  const double M5 = -2.8;
   WilsonDirac DW(lattice, M5);
   // Overlap Dov(DW);
   Overlap Dov(DW, 1.0e-4, 21);

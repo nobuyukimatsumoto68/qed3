@@ -14,8 +14,8 @@ using Idx = std::int32_t;
 using Complex = std::complex<double>;
 
 namespace Comp{
-  constexpr int NPARALLEL=10;
-  constexpr int NSTREAMS=2;
+  constexpr int NPARALLEL=12;
+  constexpr int NSTREAMS=4;
 
   constexpr int N_REFINE=2;
   constexpr int NS=2;

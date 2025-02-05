@@ -37,6 +37,10 @@ struct HMC {
 
   Integrator* integrator;
 
+  CuC *d_eta_saved;
+  static constexpr Idx N = Comp::N;
+
+
   HMC()=delete;
 
   explicit HMC(Rng& rng_,
@@ -53,9 +57,13 @@ struct HMC {
     , pi(pi_)
     , pf(pf_)
     , integrator(integrator_)
-  {}
+  {
+    CUDA_CHECK(cudaMalloc(&d_eta_saved, N*CD));
+  }
 
-  ~HMC(){}
+  ~HMC(){
+    CUDA_CHECK(cudaFree(d_eta_saved));
+  }
 
   double H() {
     double res = 0.0;
@@ -78,6 +86,7 @@ struct HMC {
 
     Gauge U0( U );
     pf->gen( rng );
+    CUDA_CHECK(cudaMemcpy(this->d_eta_saved, pf->d_eta, N*CD, D2D));
 
     const double h0 = H();
     integrate();
@@ -93,7 +102,8 @@ struct HMC {
       is_accept=false;
       U = U0;
       fermion->update( U );
-      pf->update_eta();
+      // pf->update_eta();
+      CUDA_CHECK(cudaMemcpy(pf->d_eta, this->d_eta_saved, N*CD, D2D));
       fermion->precalc_grad_deviceAsyncLaunch( U, pf->d_eta );
     }
   }

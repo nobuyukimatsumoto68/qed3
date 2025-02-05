@@ -3637,3 +3637,73 @@ void matmulgam5( T* res, T* v, const int Nx) {
 
 
 
+
+
+
+
+p  // auto begin(){ return phi.begin(); }
+  // auto end(){ return phi.end(); }
+  // auto begin() const { return phi.begin(); }
+  // auto end() const { return phi.end(); }
+
+  // Complex dot( const std::vector<Complex>& eta1, const std::vector<Complex>& xi) const {
+  //   assert( eta1.size()==xi.size() );
+  //   Complex res = 0.0;
+  //   for(int i=0; i<eta1.size(); i++) res += std::conj(eta1[i]) * xi[i];
+  //   return res;
+  // }
+
+  // Complex dot( const std::vector<Complex>& eta1 ) const {
+  //   return dot(this->phi, eta1);
+  // }
+
+
+  // MatPoly( const std::initializer_list<int> struc )
+  //   : vec_mats(struc.size())
+  //   , coeffs(struc.size())
+  //   , is_external(false)
+  // {
+  //   auto itr = struc.begin();
+  //   for(int i=0; i<struc.size(); i++) {
+  //     vec_mats[i].resize( *itr );
+  //     ++itr;
+  //   }
+
+  //   handle = NULL;
+  //   stream = 0;
+  //   CUBLAS_CHECK(cublasCreate(&handle));
+  //   CUBLAS_CHECK(cublasSetStream(handle, stream));
+  // }
+
+
+  // template<Idx N>
+  // void on_cpu( std::vector<Complex>& v, const std::vector<Complex>& v0 ) const {
+  //   for(Idx j=0; j<N; j++) v[j] = 0.0;
+  //   std::vector<Complex> tmp(N), Mv0(N);
+
+  //   for(int i=0; i<vec_mats.size(); i++){
+  //     tmp = v0;
+  //     Mv0 = v0;
+  //     for(int j=0; j<vec_mats[i].size(); j++){
+  //       vec_mats[i][j]->act_cpu( Mv0, tmp );
+  //       tmp = Mv0;
+  //     }
+  //     for(Idx j=0; j<N; j++) v[j] += coeffs[i] * Mv0[j];
+  //   }
+  // }
+
+  // template<Idx N> __host__ // use taxpy
+  // void zaxpy( const CuC* a,
+  //             const CuC* x, CuC* y) const {
+  //   const int incx=1, incy=1;
+  //   CUBLAS_CHECK( cublasZaxpy(handle, N,
+  //       		      a,
+  //       		      x, incx,
+  //       		      y, incy) );
+  // }
+
+
+  // void set_coeff( const int i, const T coeff ){ coeffs[i] = coeff; }
+  // void set_matrix( const int i, const int j, const LinOp* mat_ptr ){
+  //   vec_mats[i][j] = mat_ptr;
+  // }
