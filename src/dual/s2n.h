@@ -11,6 +11,9 @@
 #include <cmath>
 
 
+std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
+// std::string dir = "/mnt/hdd_barracuda/qed3/dats_save/";
+
 
 struct S2Trivalent {
   using Link = std::array<Idx,2>; // <Idx,Idx>;
@@ -51,7 +54,7 @@ struct S2Trivalent {
   {
     {
       std::cout << "# reading simplicial points" << std::endl;
-      std::ifstream file("../../dats/pts_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      std::ifstream file(dir+"pts_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
       std::string str;
       while (std::getline(file, str)){
@@ -65,7 +68,7 @@ struct S2Trivalent {
     }
     {
       std::cout << "# reading dual points" << std::endl;
-      std::ifstream file("../../dats/pts_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      std::ifstream file(dir+"pts_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
       std::string str;
       while (std::getline(file, str)){
@@ -79,7 +82,7 @@ struct S2Trivalent {
     }
     {
       std::cout << "# reading nns" << std::endl;
-      std::ifstream file("../../dats/nns_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      std::ifstream file(dir+"nns_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
       std::string str;
       while (std::getline(file, str)){
@@ -93,7 +96,7 @@ struct S2Trivalent {
     }
     {
       std::cout << "# reading links" << std::endl;
-      std::ifstream file("../../dats/dual_links_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      std::ifstream file(dir+"dual_links_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
       std::string str;
       while (std::getline(file, str)){
@@ -111,7 +114,7 @@ struct S2Trivalent {
 
     {
       std::cout << "# reading vs" << std::endl;
-      std::ifstream file("../../dats/vs_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      std::ifstream file(dir+"vs_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
       std::string str;
       while (std::getline(file, str)){
@@ -133,7 +136,7 @@ struct S2Trivalent {
 
     {
       std::cout << "# reading us" << std::endl;
-      std::ifstream file("../../dats/us_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      std::ifstream file(dir+"us_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
       std::string str;
       while (std::getline(file, str)){
@@ -150,7 +153,7 @@ struct S2Trivalent {
 
     {
       std::cout << "# reading vols" << std::endl;
-      std::ifstream file("../../dats/dualtriangleareas_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      std::ifstream file(dir+"dualtriangleareas_n"+std::to_string(n_refine)+"_singlepatch.dat");
       assert(file.is_open());
       std::string str;
       while (std::getline(file, str)){
@@ -173,7 +176,7 @@ struct S2Trivalent {
 
     {
       std::cout << "# reading faces" << std::endl;
-      std::ifstream file("../../dats/face_dual_n"+std::to_string(n_refine)+".dat");
+      std::ifstream file(dir+"face_dual_n"+std::to_string(n_refine)+".dat");
       assert(file.is_open());
       std::string str;
       while (std::getline(file, str)){

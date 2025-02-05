@@ -1,4 +1,5 @@
 #include <iostream>
+#include <iomanip>
 #include <fstream>
 #include <cstdlib>
 #include <cmath>
@@ -10,29 +11,41 @@
 // #include "geodesic.h"
 // #include "integral.h"
 
-using Idx = std::int32_t;
-using Complex = std::complex<double>;
-const Complex I = Complex(0.0, 1.0);
-
 #include "geodesic.h"
 #include "integral.h"
 
 
+using Idx = std::int32_t;
+// using Complex = std::complex<double>;
+// const Complex I = Complex(0.0, 1.0);
+
+
+
 using Link = std::array<Idx,2>; // <Idx,Idx>;
 using Face = std::vector<Idx>;
-using MS=Eigen::Matrix2cd;
-using VD=Eigen::Vector2d;
-using VE=Eigen::Vector3d;
-using VC=Eigen::VectorXcd;
+// using MS=Eigen::Matrix2cd;
+// using VD=Eigen::Vector2d;
+// using VE=Eigen::Vector3d;
+// using VC=Eigen::VectorXcd;
+// using MS=Eigen::Matrix<Complex, 2, 2>;
+using VD=Eigen::Matrix<Double, 2, 1>;
+using VE=Eigen::Matrix<Double, 3, 1>;
+// using VC=Eigen::Matrix<Complex, Eigen::Dynamic, 1>;
 
 
-const int n_refine=12;
+
+Double TOL=TOLLOOSE;
+
+std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
+
 
 int main(int argc, char* argv[]){
+  int n_refine=1;
+  if(argc==2) n_refine = atoi(argv[1]);
 
   std::vector<VE> simp_sites;
   {
-    std::ifstream file("dats/pts_n"+std::to_string(n_refine)+"_singlepatch.dat");
+    std::ifstream file(dir+"pts_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
     std::string str;
     // skip the header line
@@ -40,7 +53,7 @@ int main(int argc, char* argv[]){
     // file.ignore(std::numeric_limits<std::streamsize>::max(),'\n');
     while (std::getline(file, str)){
       std::istringstream iss(str);
-      double v1, v2, v3;
+      Double v1, v2, v3;
       iss >> v1;
       iss >> v2;
       iss >> v3;
@@ -50,7 +63,7 @@ int main(int argc, char* argv[]){
 
   std::vector<VE> sites;
   {
-    std::ifstream file("dats/pts_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
+    std::ifstream file(dir+"pts_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
     std::string str;
     // skip the header line
@@ -58,7 +71,7 @@ int main(int argc, char* argv[]){
     // file.ignore(std::numeric_limits<std::streamsize>::max(),'\n');
     while (std::getline(file, str)){
       std::istringstream iss(str);
-      double v1, v2, v3;
+      Double v1, v2, v3;
       iss >> v1;
       iss >> v2;
       iss >> v3;
@@ -68,12 +81,8 @@ int main(int argc, char* argv[]){
 
   std::vector<Link> links;
   {
-    std::ifstream file("dats/dual_links_n"+std::to_string(n_refine)+"_singlepatch.dat");
-
+    std::ifstream file(dir+"dual_links_n"+std::to_string(n_refine)+"_singlepatch.dat");
     std::string str;
-    // skip the header line
-    // https://stackoverflow.com/questions/16068997/how-to-skip-the-header-line-in-a-text-file-and-read-back-the-rest-of-the-data-to
-    // file.ignore(std::numeric_limits<std::streamsize>::max(),'\n');
     while (std::getline(file, str)){
       std::istringstream iss(str);
       Idx v1, v2;
@@ -85,7 +94,7 @@ int main(int argc, char* argv[]){
 
   std::vector<std::vector<Idx>> nns;
   {
-    std::ifstream file("dats/nns_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
+    std::ifstream file(dir+"nns_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
     std::string str;
     while (std::getline(file, str)){
       std::istringstream iss(str);
@@ -99,7 +108,7 @@ int main(int argc, char* argv[]){
 
   std::vector<Face> faces;
   {
-    std::ifstream file("dats/face_dual_n"+std::to_string(n_refine)+".dat");
+    std::ifstream file(dir+"face_dual_n"+std::to_string(n_refine)+".dat");
     assert(file.is_open());
     std::string str;
     while (std::getline(file, str)){
@@ -112,7 +121,7 @@ int main(int argc, char* argv[]){
   }
 
 
-  std::vector<double> omegas;
+  std::vector<Double> omegas;
   std::vector<Sol> sols;
   // int counter=0;
   for(const Link& link : links){
@@ -139,32 +148,37 @@ int main(int argc, char* argv[]){
     Sol sol = SolveGeodesics( x1, x2 );
     gsl_integration_workspace * w = gsl_integration_workspace_alloc (1000);
     double result, error;
+
+    Double epsabs = 1.0e-15; // 0.;
+    Double epsrel = TOLLOOSE; // TOLLOOSE;
+    const int limit = 1000; // 1000;
+    int key = 3;
     if(!sol.is_split){
-      F f1 = [&](double s){ return sol.Dphi(s) * std::cos( sol.theta(s) ); };
+      F f1 = [&](Double s){ return sol.Dphi(s) * cosl( sol.theta(s) ); };
       gsl_function F;
       F.function = &unwrap;
       F.params = &f1;
-      gsl_integration_qag(&F, 0., sol.ell, 0, 1e-7, 1000,
-                          3, w, &result, &error);
+      gsl_integration_qag(&F, 0., sol.ell, epsabs, epsrel, limit,
+                          key, w, &result, &error);
     }
     else{
       double result1, result2;
       double error1, error2;
       {
-        F f1 = [&](double s){ return sol.Dphi(s, 0) * std::cos( sol.theta(s, 0) ); };
+        F f1 = [&](Double s){ return sol.Dphi(s, 0) * cosl( sol.theta(s, 0) ); };
         gsl_function F;
         F.function = &unwrap;
         F.params = &f1;
-        gsl_integration_qag(&F, 0.0, sol.sE, 0, 1e-7, 1000,
-                            3, w, &result1, &error1);
+        gsl_integration_qag(&F, 0.0, sol.sE, epsabs, epsrel, limit,
+                            key, w, &result1, &error1);
       }
       {
-        F f1 = [&](double s){ return sol.Dphi(s, 1) * std::cos( sol.theta(s, 1) ); };
+        F f1 = [&](Double s){ return sol.Dphi(s, 1) * cosl( sol.theta(s, 1) ); };
         gsl_function F;
         F.function = &unwrap;
         F.params = &f1;
-        gsl_integration_qag(&F, sol.sE, sol.ell, 0, 1e-7, 1000,
-                            3, w, &result2, &error2);
+        gsl_integration_qag(&F, sol.sE, sol.ell, epsabs, epsrel, limit,
+                            key, w, &result2, &error2);
       }
       result = result1+result2;
       error=error1+error2;
@@ -176,18 +190,16 @@ int main(int argc, char* argv[]){
   }
 
   {
-    const double phi0 = M_PI/48.0;
-    for(const auto site : sites) assert( std::abs(Mod(Pt(site).xi[1]) - phi0)>TOLLOOSE );
+    const Double phi0 = M_PI/48.0;
+    for(const auto& site : sites) assert( std::abs(Mod(Pt(site).xi[1]) - phi0)>TOLLOOSE );
     std::vector<Idx> section;
     for(Idx il=0; il<links.size(); il++){
       Link link = links[il];
-      const double phi1 = Pt(sites[link[0]]).xi[1];
-      const double phi2 = Pt(sites[link[1]]).xi[1];
-      //if( std::abs(Mod2(phi1-phi0)) + std::abs(Mod2(phi0-phi2)) <= std::abs(Mod2(phi1-phi2)) ){
-      // if( std::abs(std::acos(std::cos(phi1-phi0))) + std::abs(std::acos(std::cos(phi0-phi2))) <= std::abs(std::acos(std::cos(phi1-phi2))) ){
-      double dphi1 = phi1-phi0;
-      double dphi2 = phi2-phi0;
-      double dphi = phi1-phi2;
+      const Double phi1 = Pt(sites[link[0]]).xi[1];
+      const Double phi2 = Pt(sites[link[1]]).xi[1];
+      Double dphi1 = phi1-phi0;
+      Double dphi2 = phi2-phi0;
+      Double dphi = phi1-phi2;
 
       if(dphi1 >= M_PI) dphi1 -= 2.0*M_PI;
       else if(dphi1 < -M_PI) dphi1 += 2.0*M_PI;
@@ -211,7 +223,7 @@ int main(int argc, char* argv[]){
     // std::cout << links.size() << std::endl;
   }
 
-  std::map<const Link, const double> omega;
+  std::map<const Link, const Double> omega;
   for(Idx il=0; il<links.size(); il++){
     Link link = links[il];
     omega.insert( { link, omegas[il] } );
@@ -219,56 +231,56 @@ int main(int argc, char* argv[]){
   }
 
 
-  std::vector<double> alpha0s, alpha1s;
+  std::vector<Double> alpha0s, alpha1s;
   for( auto& sol : sols){
-    double alpha0, alpha1;
+    Double alpha0, alpha1;
     if(!sol.is_split){
-      const double theta0 = sol.theta(0);
-      const double dtheta_ds0 = sol.Dtheta(0);
-      const double dphi_ds0 = sol.Dphi(0);
-      assert( std::abs(dtheta_ds0*dtheta_ds0 + std::sin(theta0)*std::sin(theta0)*dphi_ds0*dphi_ds0-1.0)<TOLLOOSE );
+      const Double theta0 = sol.theta(0);
+      const Double dtheta_ds0 = sol.Dtheta(0);
+      const Double dphi_ds0 = sol.Dphi(0);
+      assert( std::abs(dtheta_ds0*dtheta_ds0 + sinl(theta0)*sinl(theta0)*dphi_ds0*dphi_ds0-1.0)<TOLLOOSE );
 
-      VD e0( dtheta_ds0, std::sin(theta0)*dphi_ds0 );
-      alpha0 = std::acos( e0[0] );
+      VD e0( dtheta_ds0, sinl(theta0)*dphi_ds0 );
+      alpha0 = acosl( e0[0] );
       if(e0[1]<0) alpha0 *= -1.0;
-      assert( std::abs(std::cos(alpha0)-e0[0]) + std::abs(std::sin(alpha0)-e0[1]) < TOLLOOSE );
+      assert( std::abs(cosl(alpha0)-e0[0]) + std::abs(sinl(alpha0)-e0[1]) < TOLLOOSE );
 
-      const double theta1 = sol.theta(sol.ell);
-      const double dtheta_ds1 = sol.Dtheta(sol.ell);
-      const double dphi_ds1 = sol.Dphi(sol.ell);
-      assert( std::abs(dtheta_ds1*dtheta_ds1 + std::sin(theta1)*std::sin(theta1)*dphi_ds1*dphi_ds1-1.0)<TOLLOOSE );
+      const Double theta1 = sol.theta(sol.ell);
+      const Double dtheta_ds1 = sol.Dtheta(sol.ell);
+      const Double dphi_ds1 = sol.Dphi(sol.ell);
+      assert( std::abs(dtheta_ds1*dtheta_ds1 + sinl(theta1)*sinl(theta1)*dphi_ds1*dphi_ds1-1.0)<TOLLOOSE );
 
-      VD e1( dtheta_ds1, std::sin(theta1)*dphi_ds1 );
-      alpha1 = std::acos( e1[0] );
+      VD e1( dtheta_ds1, sinl(theta1)*dphi_ds1 );
+      alpha1 = acosl( e1[0] );
       if(e1[1]<0) alpha1 *= -1.0;
-      assert( std::abs(std::cos(alpha1)-e1[0]) + std::abs(std::sin(alpha1)-e1[1]) < TOLLOOSE );
+      assert( std::abs(cosl(alpha1)-e1[0]) + std::abs(sinl(alpha1)-e1[1]) < TOLLOOSE );
     }
     else{
-      const double theta0 = sol.theta(0, 0);
-      const double dtheta_ds0 = sol.Dtheta(0, 0);
-      const double dphi_ds0 = sol.Dphi(0, 0);
-      assert( std::abs(dtheta_ds0*dtheta_ds0 + std::sin(theta0)*std::sin(theta0)*dphi_ds0*dphi_ds0-1.0)<TOLLOOSE );
+      const Double theta0 = sol.theta(0, 0);
+      const Double dtheta_ds0 = sol.Dtheta(0, 0);
+      const Double dphi_ds0 = sol.Dphi(0, 0);
+      assert( std::abs(dtheta_ds0*dtheta_ds0 + sinl(theta0)*sinl(theta0)*dphi_ds0*dphi_ds0-1.0)<TOLLOOSE );
 
-      VD e0( dtheta_ds0, std::sin(theta0)*dphi_ds0 );
-      alpha0 = std::acos( e0[0] );
+      VD e0( dtheta_ds0, sinl(theta0)*dphi_ds0 );
+      alpha0 = acosl( e0[0] );
       if(e0[1]<0) alpha0 *= -1.0;
-      assert( std::abs(std::cos(alpha0)-e0[0]) + std::abs(std::sin(alpha0)-e0[1]) < TOLLOOSE );
+      assert( std::abs(cosl(alpha0)-e0[0]) + std::abs(sinl(alpha0)-e0[1]) < TOLLOOSE );
 
-      const double theta1 = sol.theta(sol.ell, 1);
-      const double dtheta_ds1 = sol.Dtheta(sol.ell, 1);
-      const double dphi_ds1 = sol.Dphi(sol.ell, 1);
-      assert( std::abs(dtheta_ds1*dtheta_ds1 + std::sin(theta1)*std::sin(theta1)*dphi_ds1*dphi_ds1-1.0)<TOLLOOSE );
+      const Double theta1 = sol.theta(sol.ell, 1);
+      const Double dtheta_ds1 = sol.Dtheta(sol.ell, 1);
+      const Double dphi_ds1 = sol.Dphi(sol.ell, 1);
+      assert( std::abs(dtheta_ds1*dtheta_ds1 + sinl(theta1)*sinl(theta1)*dphi_ds1*dphi_ds1-1.0)<TOLLOOSE );
 
-      VD e1( dtheta_ds1, std::sin(theta1)*dphi_ds1 );
-      alpha1 = std::acos( e1[0] );
+      VD e1( dtheta_ds1, sinl(theta1)*dphi_ds1 );
+      alpha1 = acosl( e1[0] );
       if(e1[1]<0) alpha1 *= -1.0;
-      assert( std::abs(std::cos(alpha1)-e1[0]) + std::abs(std::sin(alpha1)-e1[1]) < TOLLOOSE );
+      assert( std::abs(cosl(alpha1)-e1[0]) + std::abs(sinl(alpha1)-e1[1]) < TOLLOOSE );
     }
     alpha0s.push_back( alpha0 );
-    alpha1s.push_back( alpha1 );
+    alpha1s.push_back( Mod(alpha1 + M_PI) );
   }
 
-  std::map<const Link, const double> alpha;
+  std::map<const Link, const Double> alpha;
   for(Idx il=0; il<links.size(); il++){
     Link link = links[il];
     // std::cout << link[0] << " " << link[1] << std::endl;
@@ -276,24 +288,69 @@ int main(int argc, char* argv[]){
     alpha.insert( { Link{link[1],link[0]}, alpha1s[il] } );
   }
 
-  double TOL=1.0e-6;
   {
-    std::cout << "# checking spin structure" << std::endl;
+    std::clog << "# checking spin structure" << std::endl;
     for(Idx ix=0; ix<sites.size(); ix++){
       for(Idx iy : nns[ix]){
         // std::cout << ix << " " << iy << std::endl;
-        const double alpha1 = alpha.at(Link{ix,iy});
-        double alpha2 = alpha.at(Link{iy,ix});
-        double omega12 = omega.at(Link{ix,iy});
+        const Double alpha1 = alpha.at(Link{ix,iy});
+        Double alpha2 = alpha.at(Link{iy,ix});
+        Double omega12 = omega.at(Link{ix,iy});
 
-        // double diff = (alpha2 + M_PI + omega12) - alpha1;
-        // assert( std::abs(Mod(diff))<TOL );
+        Double diff = (alpha2 + M_PI + omega12) - alpha1;
+        // std::cout << std::abs(Mod(diff)) << std::endl;
+        // std::cout << isModdable(diff, TOL) << std::endl;
+        assert( isModdable(diff, TOL) );
       }}
   }
+
+  // make omegas exact
+  // {
+  //   for(Idx il=0; il<links.size(); il++){
+  //     Link link = links[il];
+  //     Idx ix = link[0];
+  //     Idx iy = link[1];
+
+  //     const Double alpha1 = alpha.at(Link{ix,iy});
+  //     Double alpha2 = alpha.at(Link{iy,ix});
+  //     // Double omega12 = omega.at(Link{ix,iy});
+  //     // Double diff = (alpha2 + M_PI + omega12) - alpha1;
+  //     Double omega12 = alpha1 - alpha2 - M_PI;
+  //     // std::cout << std::abs(Mod(diff)) << std::endl;
+  //     // std::cout << isModdable(diff, TOL) << std::endl;
+  //     // assert( isModdable(diff, TOL) );
+  //     // }
+  //     omegas[il] = omega12;
+  //   }
+  // }
+
+  // omega.clear();
+  // for(Idx il=0; il<links.size(); il++){
+  //   Link link = links[il];
+  //   omega.insert( { link, omegas[il] } );
+  //   omega.insert( { Link{link[1], link[0]}, -omegas[il] } );
+  // }
+
+  // {
+  //   std::clog << "# checking spin structure (2)" << std::endl;
+  //   for(Idx ix=0; ix<sites.size(); ix++){
+  //     for(Idx iy : nns[ix]){
+  //       // std::cout << ix << " " << iy << std::endl;
+  //       const Double alpha1 = alpha.at(Link{ix,iy});
+  //       Double alpha2 = alpha.at(Link{iy,ix});
+  //       Double omega12 = omega.at(Link{ix,iy});
+
+  //       Double diff = (alpha2 + M_PI + omega12) - alpha1;
+  //       // std::cout << std::abs(Mod(diff)) << std::endl;
+  //       // std::cout << isModdable(diff, TOL) << std::endl;
+  //       assert( isModdable(diff, TOL) );
+  //     }}
+  // }
+
   {
-    std::cout << "# checking deficits" << std::endl;
+    std::clog << "# checking deficits" << std::endl;
     int counter=0;
-    for(auto face : faces){
+    for(auto& face : faces){
       int sign = 1;
       {
         VE x0 = simp_sites[counter];
@@ -303,7 +360,7 @@ int main(int argc, char* argv[]){
       }
       // std::cout << "sign = " << sign << std::endl;
 
-      double sum = 0.0;
+      Double sum = 0.0;
       for(int i=0; i<face.size(); i++){
         // std::cout << "face.size() = " << face.size() << std::endl;
         // std::cout << "i = " << i << std::endl;
@@ -317,13 +374,183 @@ int main(int argc, char* argv[]){
       }
       sum *= sign;
       // std::cout << "sum = " << sum << std::endl;
-      double mod = Mod(sum, 4.0*M_PI);
+      Double mod = Mod(sum, 4.0*M_PI);
       // std::cout << "sum (mod4pi) = " << mod << std::endl;
       if(mod>2.0*M_PI) mod -= 4.0*M_PI;
-      std::cout << "sum (mod4pi, repr) = " << mod << std::endl;
+      // std::clog << "# sum (mod4pi, repr) = " << mod << std::endl;
+      assert( -1.5 * 4.0*M_PI/face.size() < mod && mod < 0.0 );
       counter++;
     }
   }
+
+
+
+  {
+    std::ofstream ofs(dir+"omega_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
+    ofs << std::scientific << std::setprecision(15);
+    for(Idx il=0; il<links.size(); il++){
+      Link link = links[il];
+      ofs << std::setw(25) << link[0] << " ";
+      ofs << std::setw(25) << link[1] << " ";
+      ofs << std::setw(25) << omegas[il] << std::endl;
+    }
+  }
+
+  {
+    std::ofstream ofs(dir+"alpha_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
+    ofs << std::scientific << std::setprecision(15);
+    for(Idx il=0; il<links.size(); il++){
+      Link link = links[il];
+      ofs << std::setw(25) << link[0] << " ";
+      ofs << std::setw(25) << link[1] << " ";
+      ofs << std::setw(25) << alpha0s[il] << std::endl;
+
+      ofs << std::setw(25) << link[1] << " ";
+      ofs << std::setw(25) << link[0] << " ";
+      ofs << std::setw(25) << alpha1s[il] << std::endl;
+    }
+  }
+
+  // dualtriangleareas
+  std::vector<Face> simp_faces;
+  {
+    std::ifstream file(dir+"face_n"+std::to_string(n_refine)+"_singlepatch.dat");
+
+    std::string str;
+    // std::cout << "debug file = " << std::endl;
+    while (std::getline(file, str)){
+      std::istringstream iss(str);
+      // std::cout << "debug = " << std::endl;
+      Idx v;
+      Face face;
+      while( iss >> v ) {
+        // std::cout << "face = " << v << std::endl;
+        face.push_back( v );
+      }
+      simp_faces.push_back( face );
+    }
+  }
+  std::vector<Double> triangleareas;
+  for(const Face& face : simp_faces){
+    Double area = sphericalarea( Pt(simp_sites[face[0]]),
+                                 Pt(simp_sites[face[1]]),
+                                 Pt(simp_sites[face[2]]));
+    triangleareas.push_back( area );
+  }
+  assert( simp_faces.size()==triangleareas.size() );
+  std::cout << sites.size() << std::endl;
+  std::cout << simp_faces.size() << std::endl;
+  std::cout << triangleareas.size() << std::endl;
+  assert( sites.size()==triangleareas.size() );
+
+  {
+    std::ofstream ofs(dir+"dualtriangleareas_n"+std::to_string(n_refine)+"_singlepatch.dat");
+    ofs << std::scientific << std::setprecision(15);
+    for(Double elem : triangleareas) ofs << std::setw(25) << elem << std::endl;
+  }
+
+  Double vbar = 0.0;
+  for(const Double& vx : triangleareas) vbar += vx;
+  vbar /= triangleareas.size();
+  const Double alat = sqrtl( 4.0/sqrtl(3.0) * vbar );
+
+  // u, v
+  {
+    std::ofstream ofs(dir+"vs_n"+std::to_string(n_refine)+"_singlepatch.dat");
+    ofs << std::scientific << std::setprecision(15);
+
+    for(Idx ix=0; ix<nns.size(); ix++){
+      Double len1 = geodesicLength( Pt(sites[ix]), Pt(sites[nns[ix][0]]) );
+      Double len2 = geodesicLength( Pt(sites[ix]), Pt(sites[nns[ix][1]]) );
+      Double len3 = geodesicLength( Pt(sites[ix]), Pt(sites[nns[ix][2]]) );
+
+      Double al1 = alpha.at( Link{ix, nns[ix][0]} );
+      Double al2 = alpha.at( Link{ix, nns[ix][1]} );
+      Double al3 = alpha.at( Link{ix, nns[ix][2]} );
+
+      VD e1, e2, e3;
+      e1 << cosl(al1), sinl(al1);
+      e2 << cosl(al2), sinl(al2);
+      e3 << cosl(al3), sinl(al3);
+
+      const VD ell1 = len1 * e1;
+      const VD ell2 = len2 * e2;
+      const VD ell3 = len3 * e3;
+
+      const VD d13 = ell1 - ell3;
+      const VD d23 = ell2 - ell3;
+
+      Eigen::Matrix4d mat;
+      mat <<
+        d13[0], d23[0], 0., 0.,
+        d13[1], d23[1], 0., 0.,
+        0., 0., d13[0], d23[0],
+        0., 0., d13[1], d23[1];
+
+      Eigen::Vector4d b;
+      b << 1.0, 0.0, 0.0, 1.0;
+      b *= alat/sqrtl(3.0);
+
+      Eigen::Vector4d vv = mat.inverse() * b;
+
+      VD v1, v2;
+      v1 << vv[0], vv[2];
+      v2 << vv[1], vv[3];
+      VD v3 = -v1-v2;
+
+      ofs << std::setw(25) << v1[0] << " ";
+      ofs << std::setw(25) << v1[1] << " ";
+      ofs << std::setw(25) << v2[0] << " ";
+      ofs << std::setw(25) << v2[1] << " ";
+      ofs << std::setw(25) << v3[0] << " ";
+      ofs << std::setw(25) << v3[1] << std::endl;
+    }
+  }
+
+
+
+  {
+    std::ofstream ofs(dir+"us_n"+std::to_string(n_refine)+"_singlepatch.dat");
+    ofs << std::scientific << std::setprecision(15);
+
+    for(Idx ix=0; ix<nns.size(); ix++){
+      Double len1 = geodesicLength( Pt(sites[ix]), Pt(sites[nns[ix][0]]) );
+      Double len2 = geodesicLength( Pt(sites[ix]), Pt(sites[nns[ix][1]]) );
+      Double len3 = geodesicLength( Pt(sites[ix]), Pt(sites[nns[ix][2]]) );
+
+      Double al1 = alpha.at( Link{ix, nns[ix][0]} );
+      Double al2 = alpha.at( Link{ix, nns[ix][1]} );
+      Double al3 = alpha.at( Link{ix, nns[ix][2]} );
+
+      VD e1, e2, e3;
+      e1 << cosl(al1), sinl(al1);
+      e2 << cosl(al2), sinl(al2);
+      e3 << cosl(al3), sinl(al3);
+
+      const VD ell1 = len1 * e1;
+      const VD ell2 = len2 * e2;
+      const VD ell3 = len3 * e3;
+
+      Eigen::Matrix2d mat;
+      mat <<
+        ell2[0], ell3[0],
+        ell2[1], ell3[1];
+
+      Eigen::Vector2d b;
+      b << -ell1[0], -ell1[1];
+
+      Eigen::Vector2d vv = mat.inverse() * b;
+
+      VE u;
+      u << 1.0, vv[0], vv[1];
+      u *= 3.0/u.mean();
+
+      ofs << std::setw(25) << u[0] << " ";
+      ofs << std::setw(25) << u[1] << " ";
+      ofs << std::setw(25) << u[2] << std::endl;
+    }
+  }
+
 
 
 

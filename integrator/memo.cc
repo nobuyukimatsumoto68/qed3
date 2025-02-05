@@ -289,3 +289,67 @@
 
 
   }
+void getSign(I2& sign1, I2& sign2,
+             const Pt& x1, const Pt& x2, const double eps=EPSNUMDER){
+  // const Pt& x1, const Pt& x2, const double eps=10.0*TOLLOOSE){
+  const V3 p = x1.x;
+  const V3 q = x2.x;
+
+  V2 deriv1, deriv2;
+  // const V3 p1 = embedding3D(projectionS2(p + TOLLOOSE*(q-p)));
+  // const V3 p2 = embedding3D(projectionS2(p + (TOLLOOSE+eps)*(q-p)));
+  const V3 p2 = embedding3D(projectionS2(p + eps*(q-p)));
+  // std::cout << "debug. p1.xi = " << Pt(p1).xi.transpose() << std::endl;
+  // std::cout << "debug. p2.xi = " << Pt(p2).xi.transpose() << std::endl;
+  // const V3 diff1 = p2-p1;
+  const V3 diff1 = p2-p;
+  deriv1 << diff1.dot( x1.e0() ), diff1.dot( x1.e1() );
+  // deriv1 << diff1.dot( Pt(p1).e0() ), diff1.dot( Pt(p1).e1() );
+  // std::cout << deriv1.transpose() << std::endl;
+
+  // const V3 q2 = embedding3D(projectionS2(q - eps*(q-p)));
+  // const V3 q1 = embedding3D(projectionS2(q - TOLLOOSE*(q-p)));
+  // const V3 q2 = embedding3D(projectionS2(q - (TOLLOOSE+eps)*(q-p)));
+  // std::cout << "debug." << projectionS2( q ) << std::endl;
+  // std::cout << "debug." << projectionS2(q - eps*(q-p)) << std::endl;
+  const V3 q2 = embedding3D(projectionS2(q - eps*(q-p)));
+  // std::cout << "debug. q1.xi = " << Pt(q1).xi.transpose() << std::endl;
+  // std::cout << "debug. q2.xi = " << Pt(q2).xi.transpose() << std::endl;
+
+  // const V3 diff2 = -q2+q;
+  // const V3 diff2 = -q2+q1;
+  // const V3 diff2 = q1-q2;
+  const V3 diff2 = q-q2;
+  deriv2 << diff2.dot( x2.e0() ), diff2.dot( x2.e1() );
+  // deriv2 << diff2.dot( Pt(q2).e0() ), diff2.dot( Pt(q2).e1() );
+
+  // int sgn2 = 0;
+  // const double dphi = x2.xi[1] - x1.xi[1];
+  // if( TOLLOOSE<dphi && dphi<M_PI ) sgn2 = 1;
+  // else if( -M_PI<dphi && dphi<-TOLLOOSE ) sgn2 = -1;
+  // else if( M_PI<dphi ) sgn2 = -1;
+  // else if( dphi<-M_PI ) sgn2 = 1;
+  // else if(std::abs(dphi)<M_PI) sgn2 = 0;
+  // else assert(false);
+  // deriv1[1] = sgn2;
+  // deriv2[1] = sgn2;
+
+  // std::cout << "x2.e0 = " << x2.e0().transpose() << std::endl;
+  // std::cout << "x2.e1 = " << x2.e1().transpose() << std::endl;
+  // std::cout << deriv2.transpose() << std::endl;
+
+  // const V2 deriv1F = ( projectionS2(p + eps*(q-p)) - projectionS2(p) )/eps;
+  // const V2 deriv1B = -( projectionS2(p - eps*(q-p)) - projectionS2(p) )/eps;
+  // V2 deriv1;
+  // if(deriv1F.norm() < deriv1B.norm()) deriv1 = deriv1F;
+  // else deriv1 = deriv1B;
+
+  // const V2 deriv2F = ( projectionS2(q + eps*(q-p)) - projectionS2(q) )/eps;
+  // const V2 deriv2B = -( projectionS2(q - eps*(q-p)) - projectionS2(q) )/eps;
+  // V2 deriv2;
+  // if(deriv2F.norm() < deriv2B.norm()) deriv2 = deriv2F;
+  // else deriv2 = deriv2B;
+
+  sign1 = deriv1.array().sign().matrix().cast<int>();
+  sign2 = deriv2.array().sign().matrix().cast<int>();
+}

@@ -10,16 +10,23 @@
 using Idx = std::int32_t;
 using Complex = std::complex<double>;
 
-namespace CompilationConst{
-  constexpr int NPARALLEL=1;
+namespace Comp{
+  constexpr int NPARALLEL=12;
+  constexpr int NSTREAMS=4;
 
-  constexpr int N_REFINE=4;
+  constexpr int N_REFINE=24;
   constexpr int NS=2;
   constexpr Idx N_SITES=20*N_REFINE*N_REFINE;
   constexpr Idx N=NS*N_SITES; // matrix size of DW
+
+  // const double TOL=1.0e-9;
+  const double TOL_INNER=1.0e-10;
+  const double TOL_OUTER=1.0e-9;
 }
 
 // #define IsVerbose
+// #define InfoForce
+#define InfoDelta
 
 #include <cuComplex.h>
 #include <cuda_runtime.h>
@@ -72,14 +79,16 @@ int main(int argc, char* argv[]){
 
   // ---------------------------------------
 
-  using Gauge=U1onS2;
-  // using Force=U1onS2;
+  using Gauge=U1onS2<false>;
+  // using Force=U1onS2<false>;
   // using Action=U1Wilson;
   // using Fermion=Dirac1fonS2;
   // using HMC=HMC<Force,Gauge,Action,Fermion>;
-  using Rng=ParallelRng;
+  // using Rng=ParallelRng;
+  using Lattice=S2Trivalent;
+  using Rng=ParallelRng<Lattice>;
 
-  Lattice lattice(CompilationConst::N_REFINE);
+  Lattice lattice(Comp::N_REFINE);
   // Dirac1fonS2 D(lattice, 0.0, 1.0);
 
   using WilsonDirac=Dirac1fonS2;
@@ -87,13 +96,15 @@ int main(int argc, char* argv[]){
 
   Gauge U(lattice);
   Rng rng(lattice);
-  U.gaussian( rng, 0.2 );
+  // U.gaussian( rng, 0.2 );
 
   const double M5 = -2.8;
   WilsonDirac DW(lattice, M5);
   // Overlap Dov(DW);
-  Overlap Dov(DW, 1.0e-4, 21);
-  Dov.compute(U);
+  // Overlap Dov(DW, 1.0e-4, 21);
+  Overlap Dov(DW, 11);
+  // Dov.compute(U);
+  Dov.update(U);
   std::cout << "# min max ratio: "
             << Dov.lambda_min << " "
             << Dov.lambda_max << " "
@@ -105,14 +116,15 @@ int main(int argc, char* argv[]){
   // Op.push_back ( cplx(1.0), {&(Dov.M_DW), &(Dov.M_DWH)} );
   // auto f_Op = std::bind(&Overlap::sq_device, &Dov, std::placeholders::_1, std::placeholders::_2);
   // auto f_Op = std::bind(&Overlap::sq_device, &Dov, std::placeholders::_1, std::placeholders::_2);
-  auto f_Op = std::bind(&Overlap::mult_device, &Dov, std::placeholders::_1, std::placeholders::_2);
+  // auto f_Op = std::bind(&Overlap::mult_device, &Dov, std::placeholders::_1, std::placeholders::_2);
+  auto f_Op = std::bind(&Overlap::mult_deviceAsyncLaunch, &Dov, std::placeholders::_1, std::placeholders::_2);
   LinOpWrapper M_Op( f_Op );
 
   MatPoly Op;
   Op.push_back ( cplx(1.0), {&M_Op} );
   // Op.push_back ( cplx(1.0), {&Dov.M_DW} );
 
-  constexpr Idx N = CompilationConst::N;
+  constexpr Idx N = Comp::N;
   Eigen::MatrixXcd mat(N, N);
   {
     for(Idx i=0; i<N; i++){
@@ -124,7 +136,7 @@ int main(int argc, char* argv[]){
       //   // Op.solve<N>( d_eta, d_xi );
       Op.from_cpu<N>( Dxi, xi );
 
-      for(Idx j=0; j<N; j++) Dxi[j] -= xi[j];
+      // for(Idx j=0; j<N; j++) Dxi[j] -= xi[j];
       // for(Idx j=0; j<N; j++) Dxi[j] -= M5*xi[j];
       // std::cout << "debug. i=" << i << std::endl;
       // Op.from_cpu<N>( Dxi, xi );

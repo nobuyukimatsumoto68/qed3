@@ -13,6 +13,11 @@ double Mod(double a, double b=2.0*M_PI){
   return r;
 }
 
+
+// std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
+// std::string dir = "/mnt/hdd_barracuda/qed3/dats_saved2/";
+
+
 struct SpinStructure{
   using Link = std::array<Idx,2>; // <Idx,Idx>;
   using Face = std::vector<Idx>;
@@ -28,7 +33,7 @@ struct SpinStructure{
   {
     {
       std::cout << "# reading omega" << std::endl;
-      std::ifstream file("../../dats/omega_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      std::ifstream file(dir+"omega_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
       assert(file.is_open());
 
       std::string str;
@@ -47,7 +52,7 @@ struct SpinStructure{
 
     {
       std::cout << "# reading alpha" << std::endl;
-      std::ifstream file("../../dats/alpha_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      std::ifstream file(dir+"alpha_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
       assert(file.is_open());
 
       std::string str;
