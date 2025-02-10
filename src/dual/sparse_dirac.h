@@ -154,6 +154,9 @@ struct DWDevice{
   void coo2csr_csrH( std::vector<Complex>& v_csr,
 		     std::vector<Complex>& v_csrH,
 		     const std::vector<Complex>& v_coo) const {
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(Comp::NPARALLEL)
+#endif
     for(Idx ell=0; ell<len; ell++) {
       v_csr[ ell2em[ell] ] = v_coo[ell];
       v_csrH[ ell2emT[ell] ] = std::conj( v_coo[ell] );

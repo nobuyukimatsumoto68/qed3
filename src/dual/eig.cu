@@ -14,7 +14,7 @@ namespace Comp{
   constexpr int NPARALLEL=12;
   constexpr int NSTREAMS=4;
 
-  constexpr int N_REFINE=24;
+  constexpr int N_REFINE=16;
   constexpr int NS=2;
   constexpr Idx N_SITES=20*N_REFINE*N_REFINE;
   constexpr Idx N=NS*N_SITES; // matrix size of DW
@@ -25,6 +25,7 @@ namespace Comp{
 }
 
 // #define IsVerbose
+#define IsVerbose2
 // #define InfoForce
 #define InfoDelta
 
@@ -98,11 +99,13 @@ int main(int argc, char* argv[]){
   Rng rng(lattice);
   // U.gaussian( rng, 0.2 );
 
-  const double M5 = -2.8;
-  WilsonDirac DW(lattice, M5);
+  const double M5 = -1.8;
+  // const double M5 = 0.0;
+  // const double M5 = -2.5;
+  WilsonDirac DW(lattice, M5, 1.0/3.0);
   // Overlap Dov(DW);
   // Overlap Dov(DW, 1.0e-4, 21);
-  Overlap Dov(DW, 11);
+  Overlap Dov(DW, 31);
   // Dov.compute(U);
   Dov.update(U);
   std::cout << "# min max ratio: "
@@ -141,6 +144,7 @@ int main(int argc, char* argv[]){
       // std::cout << "debug. i=" << i << std::endl;
       // Op.from_cpu<N>( Dxi, xi );
       mat.block(0,i,N,1) = Eigen::Map<Eigen::MatrixXcd>(Dxi.data(), N, 1);
+      std::clog << "i = " << i << " finished." << std::endl;
     }
   }
 

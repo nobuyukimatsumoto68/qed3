@@ -181,7 +181,7 @@ struct Dirac1fonS2 : public SpinStructure{
   void coo_format( std::vector<Complex>& v,
 		   const Gauge& U ) const {
     const Idx N = lattice.n_sites * NS;
-    // for(Idx i=0; i<N; i++) v[i] = 0.0;
+    for(Idx i=0; i<N; i++) v[i] = 0.0;
 
     // int counter=0;
 #ifdef _OPENMP

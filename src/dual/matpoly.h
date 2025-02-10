@@ -227,7 +227,7 @@ struct MatPoly{
     double mu_crit = tol*tol*b_norm_sq;
 
     if(mu<mu_crit) {
-#ifdef IsVerbose
+#ifdef IsVerbose2
       std::clog << "NO SOLVE" << std::endl;
 #endif
     }
@@ -250,12 +250,12 @@ struct MatPoly{
         Taxpy<CuC,N><<<NBlocks, NThreadsPerBlock>>>(d_p, bet, d_p, d_r);
 
 	if(k%100==0) {
-#ifdef IsVerbose
+#ifdef IsVerbose2
 	  std::clog << "SOLVER:       #iterations: " << k << ", mu =         " << mu << std::endl;
 #endif
 	}
       }
-#ifdef IsVerbose
+#ifdef IsVerbose2
       std::clog << "SOLVER:       #iterations: " << k << std::endl;
       std::clog << "SOLVER:       mu =         " << mu << std::endl;
 #endif
@@ -336,6 +336,154 @@ struct MatPoly{
     CUDA_CHECK(cudaFreeAsync(d_q, stream));
     CUDA_CHECK( cudaStreamSynchronize(stream) );
   }
+
+
+  template<Idx N>
+  void bicgstab( std::vector<Complex>& v, const std::vector<Complex>& v0,
+                 const std::vector<Complex>& rc,
+                 const double tol=1.0e-6, const int maxiter=1e8,
+                 const double eps=1.0e-8 ) const {
+    CuC *d_v, *d_v0, *d_rc;
+    CUDA_CHECK(cudaMalloc(&d_v, N*CD));
+    CUDA_CHECK(cudaMalloc(&d_v0, N*CD));
+    CUDA_CHECK(cudaMalloc(&d_rc, N*CD));
+
+    CUDA_CHECK(cudaMemcpy(d_v0, reinterpret_cast<const CuC*>(v0.data()), N*CD, H2D));
+    CUDA_CHECK(cudaMemcpy(d_rc, reinterpret_cast<const CuC*>(rc.data()), N*CD, H2D));
+
+    bicgstab<N>( d_v, d_v0, d_rc, tol, maxiter, eps );
+
+    CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(v.data()), d_v, N*CD, D2H));
+
+    CUDA_CHECK(cudaFree(d_v));
+    CUDA_CHECK(cudaFree(d_v0));
+    CUDA_CHECK(cudaFree(d_rc));
+  }
+
+
+
+  template<Idx N> __host__
+  void bicgstab(CuC* d_x, const CuC* d_b, CuC* d_rc,
+                // double& mu=1.0,
+                const double tol=1.0e-4, const int maxiter=1e8,
+                const double eps=1.0e-8 ) const {
+    CuC *d_p, *d_t, *d_Ap, *d_At, *d_r;
+    CUDA_CHECK(cudaMalloc(&d_p, N*CD));
+    CUDA_CHECK(cudaMalloc(&d_t, N*CD));
+    CUDA_CHECK(cudaMalloc(&d_Ap, N*CD));
+    CUDA_CHECK(cudaMalloc(&d_At, N*CD));
+    CUDA_CHECK(cudaMalloc(&d_r, N*CD));
+    // CUDA_CHECK(cudaMalloc(&d_rc, N*CD));
+
+    CUDA_CHECK(cudaMemset(d_x, 0, N*CD));
+    CUDA_CHECK(cudaMemset(d_p, 0, N*CD));
+    CUDA_CHECK(cudaMemset(d_t, 0, N*CD));
+    CUDA_CHECK(cudaMemset(d_Ap, 0, N*CD));
+    CUDA_CHECK(cudaMemset(d_At, 0, N*CD));
+    CUDA_CHECK(cudaMemset(d_r, 0, N*CD));
+    // CUDA_CHECK(cudaMemset(d_rc, 0, N*CD));
+
+    CUDA_CHECK(cudaMemcpy(d_x, d_b, N*CD, D2D));
+    this->on_gpu<N>(d_Ap, d_x);
+    Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock, 0>>>(d_r, -1.0, d_Ap, d_b);
+    CUDA_CHECK(cudaMemcpy(d_rc, d_b, N*CD, D2D));
+    Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock, 0>>>(d_rc, -1.0, d_Ap, d_rc);
+
+    CuC gam;
+    this->dot<N>(&gam, d_rc, d_r);
+    assert( abs(gam)>tol );
+
+    CUDA_CHECK(cudaMemcpy(d_p, d_r, N*CD, D2D));
+
+    double mu;
+    this->dot2self<N>(&mu, d_r);
+    assert(mu>=0.0);
+    double mu_old = mu;
+
+    double nm;
+
+    double b_norm_sq;
+    this->dot2self<N>(&b_norm_sq, d_r);
+    assert(b_norm_sq>=0.0);
+    double mu_crit = tol*tol*b_norm_sq;
+
+    if(mu<mu_crit) {
+#ifdef IsVerbose
+      std::clog << "NO SOLVE" << std::endl;
+#endif
+    }
+    else{
+      int n = 0;
+      for (; n < maxiter; n++) {
+        this->on_gpu<N>(d_Ap, d_p);
+
+        CuC gam1, gam2;
+        this->dot<N>(&gam1, d_rc, d_r);
+        this->dot<N>(&gam2, d_rc, d_Ap);
+        const CuC al = gam1/gam2;
+
+        Taxpy<CuC,N><<<NBlocks, NThreadsPerBlock, 0>>>(d_t, -al, d_Ap, d_r);
+        this->dot2self<N>(&nm, d_t);
+        if(nm<eps) break;
+        this->on_gpu<N>(d_At, d_t);
+
+        this->dot<N>(&gam1, d_t, d_At);
+        this->dot<N>(&gam2, d_At, d_At);
+        const CuC om = gam1/gam2;
+
+        Taxpy<CuC,N><<<NBlocks, NThreadsPerBlock, 0>>>(d_x, al, d_p, d_x);
+        Taxpy<CuC,N><<<NBlocks, NThreadsPerBlock, 0>>>(d_x, om, d_t, d_x);
+
+        this->dot<N>(&gam2, d_rc, d_r);
+        Taxpy<CuC,N><<<NBlocks, NThreadsPerBlock, 0>>>(d_r, -om, d_At, d_t);
+        this->dot<N>(&gam1, d_rc, d_r);
+        const CuC bet = al/om * gam1/gam2;
+
+        this->dot2self<N>(&mu, d_r);
+        assert(mu>=0.0);
+        if(mu<mu_crit || std::isnan(mu)) break;
+        mu_old = mu;
+
+        Taxpy<CuC,N><<<NBlocks, NThreadsPerBlock, 0>>>(d_p, -om, d_Ap, d_p);
+        Taxpy<CuC,N><<<NBlocks, NThreadsPerBlock, 0>>>(d_p, bet, d_p, d_r);
+
+        // restart
+        this->dot<N>(&gam, d_rc, d_r);
+        if( abs(gam)<eps || 2.0*mu_old < mu ){
+          CUDA_CHECK(cudaMemcpy(d_rc, d_r, N*CD, D2D));
+          CUDA_CHECK(cudaMemcpy(d_p, d_r, N*CD, D2D));
+#ifdef IsVerbose2
+	  std::clog << "SOLVER:      restart " << std::endl;
+#endif
+        }
+
+        // std::cout << "debug. mu = " << mu << std::endl;
+
+        if(n%10==0) {
+#ifdef IsVerbose2
+	  std::clog << "SOLVER:       #iterations: " << n << ", mu =         " << mu << std::endl;
+#endif
+	}
+
+      }
+
+      if (n == maxiter) {
+        std::cerr << "BiCGStab iteration did not converge." << std::endl;
+        // std::cerr << "v = " << v << std::endl;
+      }
+    }
+
+    CUDA_CHECK(cudaFree(d_p));
+    CUDA_CHECK(cudaFree(d_Ap));
+    CUDA_CHECK(cudaFree(d_At));
+    CUDA_CHECK(cudaFree(d_r));
+    // CUDA_CHECK(cudaFree(d_rc));
+    CUDA_CHECK(cudaFree(d_t));
+    // CUDA_CH/ECK( cudaStreamSynchronize(stream) );
+
+    // return x;
+  }
+
 
 
 

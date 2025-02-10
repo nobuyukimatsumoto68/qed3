@@ -5,23 +5,20 @@
 #include <cmath>
 #include <map>
 #include <limits>
-#include <stdfloat>
 
 #include <Eigen/Dense>
 
 // #include "geodesic.h"
 // #include "integral.h"
 
-
-using Double = std::float64_t;
-// using Double = std::float128_t;
 #include "geodesic.h"
+// #include "geodesic2.h"
 #include "integral.h"
 
 
 using namespace Geodesic;
 
-using Idx = std::int32_t;
+// using Idx = std::int32_t;
 // using Complex = std::complex<double>;
 // const Complex I = Complex(0.0, 1.0);
 
@@ -32,23 +29,23 @@ using Face = std::vector<Idx>;
 // using MS=Eigen::Matrix2cd;
 // using VD=Eigen::Vector2d;
 // using VE=Eigen::Vector3d;
+using VD=V2;
+using VE=V3;
 // using VC=Eigen::VectorXcd;
 // using MS=Eigen::Matrix<Complex, 2, 2>;
-using VD=Eigen::Matrix<Double, 2, 1>;
-using VE=Eigen::Matrix<Double, 3, 1>;
+// using VD=Eigen::Matrix<Double, 2, 1>;
+
+// using VE=Eigen::Matrix<Double, 3, 1>;
 // using VC=Eigen::Matrix<Complex, Eigen::Dynamic, 1>;
+// using VD=V2;
+// using VE=V3;
+
+// constexpr Double TOLLOOSE=1.0e-12;
 
 
+Double TOL=TOLLOOSE;
 
-Double TOL=1.0e-14;
-
-constexpr Double TOLLOOSE=1.0e-10;
-
-const int limit = 4000; // 1000;
-Double epsabs = 1.0e-15; // 0.;
-Double epsrel = 1.0e-13; // TOLLOOSE;
-int key = 5;
-
+using Double2 = double;
 
 std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
 
@@ -67,7 +64,7 @@ int main(int argc, char* argv[]){
     // file.ignore(std::numeric_limits<std::streamsize>::max(),'\n');
     while (std::getline(file, str)){
       std::istringstream iss(str);
-      Double v1, v2, v3;
+      Double2 v1, v2, v3;
       iss >> v1;
       iss >> v2;
       iss >> v3;
@@ -85,7 +82,7 @@ int main(int argc, char* argv[]){
     // file.ignore(std::numeric_limits<std::streamsize>::max(),'\n');
     while (std::getline(file, str)){
       std::istringstream iss(str);
-      Double v1, v2, v3;
+      Double2 v1, v2, v3;
       iss >> v1;
       iss >> v2;
       iss >> v3;
@@ -160,11 +157,15 @@ int main(int argc, char* argv[]){
     // }
 
     Sol sol = SolveGeodesics( x1, x2 );
-    gsl_integration_workspace * w = gsl_integration_workspace_alloc (limit);
+    gsl_integration_workspace * w = gsl_integration_workspace_alloc (1000);
     double result, error;
 
+    Double epsabs = 1.0e-15; // 0.;
+    Double epsrel = TOLLOOSE; // TOLLOOSE;
+    const int limit = 1000; // 1000;
+    int key = 3;
     if(!sol.is_split){
-      F f1 = [&](Double s){ return sol.Dphi(s) * std::cos( sol.theta(s) ); };
+      F f1 = [&](Double s){ return sol.Dphi(s) * cosl( sol.theta(s) ); };
       gsl_function F;
       F.function = &unwrap;
       F.params = &f1;
@@ -175,7 +176,7 @@ int main(int argc, char* argv[]){
       double result1, result2;
       double error1, error2;
       {
-        F f1 = [&](Double s){ return sol.Dphi(s, 0) * std::cos( sol.theta(s, 0) ); };
+        F f1 = [&](Double s){ return sol.Dphi(s, 0) * cosl( sol.theta(s, 0) ); };
         gsl_function F;
         F.function = &unwrap;
         F.params = &f1;
@@ -183,7 +184,7 @@ int main(int argc, char* argv[]){
                             key, w, &result1, &error1);
       }
       {
-        F f1 = [&](Double s){ return sol.Dphi(s, 1) * std::cos( sol.theta(s, 1) ); };
+        F f1 = [&](Double s){ return sol.Dphi(s, 1) * cosl( sol.theta(s, 1) ); };
         gsl_function F;
         F.function = &unwrap;
         F.params = &f1;
@@ -200,7 +201,7 @@ int main(int argc, char* argv[]){
   }
 
   {
-    const Double phi0 = _M_PI/48.0;
+    const Double phi0 = M_PI/48.0;
     for(const auto& site : sites) assert( std::abs(Mod(Pt(site).xi[1]) - phi0)>TOLLOOSE );
     std::vector<Idx> section;
     for(Idx il=0; il<links.size(); il++){
@@ -211,12 +212,12 @@ int main(int argc, char* argv[]){
       Double dphi2 = phi2-phi0;
       Double dphi = phi1-phi2;
 
-      if(dphi1 >= _M_PI) dphi1 -= 2.0*_M_PI;
-      else if(dphi1 < -_M_PI) dphi1 += 2.0*_M_PI;
-      if(dphi2 >= _M_PI) dphi2 -= 2.0*_M_PI;
-      else if(dphi2 < -_M_PI) dphi2 += 2.0*_M_PI;
-      if(dphi >= _M_PI) dphi -= 2.0*_M_PI;
-      else if(dphi < -_M_PI) dphi += 2.0*_M_PI;
+      if(dphi1 >= M_PI) dphi1 -= 2.0*M_PI;
+      else if(dphi1 < -M_PI) dphi1 += 2.0*M_PI;
+      if(dphi2 >= M_PI) dphi2 -= 2.0*M_PI;
+      else if(dphi2 < -M_PI) dphi2 += 2.0*M_PI;
+      if(dphi >= M_PI) dphi -= 2.0*M_PI;
+      else if(dphi < -M_PI) dphi += 2.0*M_PI;
 
       // std::cout << phi1 << " " << phi2 << " " << phi0 << std::endl;
       // std::cout << std::abs(dphi1) << " " << std::abs(dphi2) << " " << std::abs(dphi) << std::endl;
@@ -226,19 +227,22 @@ int main(int argc, char* argv[]){
         // std::cout << "yes" << std::endl;
       }
     }
-    for(Idx il : section) omegas[il] -= 2.0*_M_PI;
+    for(Idx il : section) omegas[il] -= 2.0*M_PI;
     // for(auto elem : section) std::cout << elem << " ";
     // std::cout << std::endl;
     // std::cout << section.size() << std::endl;
     // std::cout << links.size() << std::endl;
   }
 
+  //  std::map<const Link, const Double> omega;
   std::map<const Link, Double> omega;
   for(Idx il=0; il<links.size(); il++){
     Link link = links[il];
     omega.insert( { link, omegas[il] } );
     omega.insert( { Link{link[1], link[0]}, -omegas[il] } );
   }
+
+
 
 
   std::vector<Double> alpha0s, alpha1s;
@@ -250,10 +254,11 @@ int main(int argc, char* argv[]){
       const Double dphi_ds0 = sol.Dphi(0);
       assert( std::abs(dtheta_ds0*dtheta_ds0 + std::sin(theta0)*std::sin(theta0)*dphi_ds0*dphi_ds0-1.0)<TOLLOOSE );
 
+      // VD e0( dtheta_ds0, std::sin(theta0)*dphi_ds0 );
       VD e0( dtheta_ds0, std::sin(theta0)*dphi_ds0 );
-      alpha0 = std::acos( e0[0] );
+      alpha0 = acosl( e0[0] );
       if(e0[1]<0) alpha0 *= -1.0;
-      assert( std::abs(std::cos(alpha0)-e0[0]) + std::abs(std::sin(alpha0)-e0[1]) < TOLLOOSE );
+      assert( std::abs(cosl(alpha0)-e0[0]) + std::abs(std::sin(alpha0)-e0[1]) < TOLLOOSE );
 
       const Double theta1 = sol.theta(sol.ell);
       const Double dtheta_ds1 = sol.Dtheta(sol.ell);
@@ -261,9 +266,9 @@ int main(int argc, char* argv[]){
       assert( std::abs(dtheta_ds1*dtheta_ds1 + std::sin(theta1)*std::sin(theta1)*dphi_ds1*dphi_ds1-1.0)<TOLLOOSE );
 
       VD e1( dtheta_ds1, std::sin(theta1)*dphi_ds1 );
-      alpha1 = std::acos( e1[0] );
+      alpha1 = acosl( e1[0] );
       if(e1[1]<0) alpha1 *= -1.0;
-      assert( std::abs(std::cos(alpha1)-e1[0]) + std::abs(std::sin(alpha1)-e1[1]) < TOLLOOSE );
+      assert( std::abs(cosl(alpha1)-e1[0]) + std::abs(std::sin(alpha1)-e1[1]) < TOLLOOSE );
     }
     else{
       const Double theta0 = sol.theta(0, 0);
@@ -272,9 +277,9 @@ int main(int argc, char* argv[]){
       assert( std::abs(dtheta_ds0*dtheta_ds0 + std::sin(theta0)*std::sin(theta0)*dphi_ds0*dphi_ds0-1.0)<TOLLOOSE );
 
       VD e0( dtheta_ds0, std::sin(theta0)*dphi_ds0 );
-      alpha0 = std::acos( e0[0] );
+      alpha0 = acosl( e0[0] );
       if(e0[1]<0) alpha0 *= -1.0;
-      assert( std::abs(std::cos(alpha0)-e0[0]) + std::abs(std::sin(alpha0)-e0[1]) < TOLLOOSE );
+      assert( std::abs(cosl(alpha0)-e0[0]) + std::abs(std::sin(alpha0)-e0[1]) < TOLLOOSE );
 
       const Double theta1 = sol.theta(sol.ell, 1);
       const Double dtheta_ds1 = sol.Dtheta(sol.ell, 1);
@@ -282,14 +287,15 @@ int main(int argc, char* argv[]){
       assert( std::abs(dtheta_ds1*dtheta_ds1 + std::sin(theta1)*std::sin(theta1)*dphi_ds1*dphi_ds1-1.0)<TOLLOOSE );
 
       VD e1( dtheta_ds1, std::sin(theta1)*dphi_ds1 );
-      alpha1 = std::acos( e1[0] );
+      alpha1 = acosl( e1[0] );
       if(e1[1]<0) alpha1 *= -1.0;
-      assert( std::abs(std::cos(alpha1)-e1[0]) + std::abs(std::sin(alpha1)-e1[1]) < TOLLOOSE );
+      assert( std::abs(cosl(alpha1)-e1[0]) + std::abs(std::sin(alpha1)-e1[1]) < TOLLOOSE );
     }
     alpha0s.push_back( alpha0 );
-    alpha1s.push_back( Mod(alpha1 + _M_PI) );
+    alpha1s.push_back( Mod(alpha1 + M_PI) );
   }
 
+  // std::map<const Link, const Double> alpha;
   std::map<const Link, Double> alpha;
   for(Idx il=0; il<links.size(); il++){
     Link link = links[il];
@@ -299,8 +305,8 @@ int main(int argc, char* argv[]){
   }
 
   for(Idx ix=0; ix<sites.size(); ix++){
-    const V3 e0x = Pt( sites[ix] ).e0();
-    const V3 e1x = Pt( sites[ix] ).e1();
+    const V3 e0x = Pt( sites[ix] ).ehat0();
+    const V3 e1x = Pt( sites[ix] ).ehat1();
     for(Idx iy : nns[ix]){
       const V3 diff = sites[iy]-sites[ix];
       const Double c0 = e0x.dot(diff);
@@ -308,11 +314,10 @@ int main(int argc, char* argv[]){
       Double al = std::atan(c1/c0);
       // std::cout << "alpha = " << al << std::endl;
       // std::cout << "check = " << alpha.at(Link({ix, iy})) << std::endl;
-      // std::cout << "diff = " << al-alpha.at(Link({ix, iy})) << std::endl;
       // std::cout << "diff = " << isModdable(al-alpha.at(Link({ix, iy})), _M_PI) << std::endl;
       const int br = decide_branch( al-alpha.at(Link({ix, iy})) );
       // // std::cout << "branch = " << br << std::endl;
-      al -= _M_PI*br;
+      al -= M_PI*br;
       // std::cout << "alpha = " << al << std::endl;
       // std::cout << "diff = " << al-alpha.at(Link({ix, iy})) << std::endl;
       alpha[Link({ix, iy})] = al;
@@ -331,15 +336,21 @@ int main(int argc, char* argv[]){
         Double alpha2 = alpha.at(Link{iy,ix});
         Double omega12 = omega.at(Link{ix,iy});
 
-        Double diff = (alpha2 + _M_PI + omega12) - alpha1;
+        Double diff = (alpha2 + M_PI + omega12) - alpha1;
         // std::cout << std::abs(Mod(diff)) << std::endl;
         // std::cout << isModdable(diff, TOL) << std::endl;
         assert( isModdable(diff, TOL) );
 
-        Double om = alpha1 - (alpha2 + _M_PI);
+        Double om = alpha1 - (alpha2 + M_PI);
         const int br = decide_branch( om-omega12 );
-        om -= _M_PI*br;
+        // // std::cout << "branch = " << br << std::endl;
+        om -= M_PI*br;
+        // std::cout << "alpha = " << om << std::endl;
+        //   std::cout << "diff = " << om-omega.at(Link({ix, iy})) << std::endl;
         omega[Link({ix, iy})] = om;
+        // std::cout << "diff = " << al-alpha.at(Link({ix, iy})) << std::endl;
+        // std::cout << "diff = " << isModdable(al-alpha.at(Link({ix, iy}))) << std::endl;
+
       }}
   }
 
@@ -353,8 +364,8 @@ int main(int argc, char* argv[]){
   //     const Double alpha1 = alpha.at(Link{ix,iy});
   //     Double alpha2 = alpha.at(Link{iy,ix});
   //     // Double omega12 = omega.at(Link{ix,iy});
-  //     // Double diff = (alpha2 + _M_PI + omega12) - alpha1;
-  //     Double omega12 = alpha1 - alpha2 - _M_PI;
+  //     // Double diff = (alpha2 + M_PI + omega12) - alpha1;
+  //     Double omega12 = alpha1 - alpha2 - M_PI;
   //     // std::cout << std::abs(Mod(diff)) << std::endl;
   //     // std::cout << isModdable(diff, TOL) << std::endl;
   //     // assert( isModdable(diff, TOL) );
@@ -379,7 +390,7 @@ int main(int argc, char* argv[]){
   //       Double alpha2 = alpha.at(Link{iy,ix});
   //       Double omega12 = omega.at(Link{ix,iy});
 
-  //       Double diff = (alpha2 + _M_PI + omega12) - alpha1;
+  //       Double diff = (alpha2 + M_PI + omega12) - alpha1;
   //       // std::cout << std::abs(Mod(diff)) << std::endl;
   //       // std::cout << isModdable(diff, TOL) << std::endl;
   //       assert( isModdable(diff, TOL) );
@@ -413,11 +424,11 @@ int main(int argc, char* argv[]){
       }
       sum *= sign;
       // std::cout << "sum = " << sum << std::endl;
-      Double mod = Mod(sum, 4.0*_M_PI);
+      Double mod = Mod(sum, 4.0*M_PI);
       // std::cout << "sum (mod4pi) = " << mod << std::endl;
-      if(mod>2.0*_M_PI) mod -= 4.0*_M_PI;
+      if(mod>2.0*M_PI) mod -= 4.0*M_PI;
       // std::clog << "# sum (mod4pi, repr) = " << mod << std::endl;
-      assert( -1.5 * 4.0*_M_PI/face.size() < mod && mod < 0.0 );
+      assert( -1.5 * 4.0*M_PI/face.size() < mod && mod < 0.0 );
       counter++;
     }
   }
@@ -491,7 +502,14 @@ int main(int argc, char* argv[]){
   Double vbar = 0.0;
   for(const Double& vx : triangleareas) vbar += vx;
   vbar /= triangleareas.size();
-  const Double alat = std::sqrt( 4.0/std::sqrt(3.0) * vbar );
+  const Double alat = sqrtl( 4.0/sqrtl(3.0) * vbar );
+
+  {
+    std::ofstream ofs(dir+"alat_n"+std::to_string(n_refine)+"_singlepatch.dat");
+    ofs << std::scientific << std::setprecision(15);
+    ofs << std::setw(25) << alat << std::endl;
+  }
+
 
   // u, v
   {
@@ -508,9 +526,9 @@ int main(int argc, char* argv[]){
       Double al3 = alpha.at( Link{ix, nns[ix][2]} );
 
       VD e1, e2, e3;
-      e1 << std::cos(al1), std::sin(al1);
-      e2 << std::cos(al2), std::sin(al2);
-      e3 << std::cos(al3), std::sin(al3);
+      e1 << cosl(al1), std::sin(al1);
+      e2 << cosl(al2), std::sin(al2);
+      e3 << cosl(al3), std::sin(al3);
 
       const VD ell1 = len1 * e1;
       const VD ell2 = len2 * e2;
@@ -528,7 +546,7 @@ int main(int argc, char* argv[]){
 
       Eigen::Vector4d b;
       b << 1.0, 0.0, 0.0, 1.0;
-      b *= alat/std::sqrt(3.0);
+      b *= alat/sqrtl(3.0);
 
       Eigen::Vector4d vv = mat.inverse() * b;
 
@@ -562,9 +580,9 @@ int main(int argc, char* argv[]){
       Double al3 = alpha.at( Link{ix, nns[ix][2]} );
 
       VD e1, e2, e3;
-      e1 << std::cos(al1), std::sin(al1);
-      e2 << std::cos(al2), std::sin(al2);
-      e3 << std::cos(al3), std::sin(al3);
+      e1 << cosl(al1), std::sin(al1);
+      e2 << cosl(al2), std::sin(al2);
+      e3 << cosl(al3), std::sin(al3);
 
       const VD ell1 = len1 * e1;
       const VD ell2 = len2 * e2;
@@ -583,6 +601,7 @@ int main(int argc, char* argv[]){
       VE u;
       u << 1.0, vv[0], vv[1];
       u *= 3.0/u.mean();
+      // u *= 1.0/u.sum();
 
       ofs << std::setw(25) << u[0] << " ";
       ofs << std::setw(25) << u[1] << " ";

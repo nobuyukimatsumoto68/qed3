@@ -60,6 +60,7 @@ FORBIT=${DORBIT}/q${q}k${k}_orbit.dat
 
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     make -C grp gen_grp_o3
+    # make -C grp gen_grp_o3_V2
 elif [[ "$OSTYPE" == "darwin"* ]]; then
     cd ${dir_qfe}/grp
     cp Makefile Makefile.mac

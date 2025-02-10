@@ -1,11 +1,17 @@
 #include <iostream>
 #include <iomanip>
 #include <fstream>
+#include <vector>
 
 #include <algorithm>
 
-#include "geodesic.h"
+#include <stdfloat>
+// #include "geodesic2.h"
+using Double = std::float64_t;
+# include "geodesic.h"
 #include "s2.h"
+
+using namespace Geodesic;
 
 using Idx = std::int32_t;
 // using Complex = std::complex<double>;
@@ -18,8 +24,10 @@ using Face = std::vector<Idx>;
 // using VE=Eigen::Vector3d;
 // using VC=Eigen::VectorXcd;
 // using MS=Eigen::Matrix<Complex, 2, 2>;
-using VD=Eigen::Matrix<Double, 2, 1>;
-using VE=Eigen::Matrix<Double, 3, 1>;
+// using VD=Eigen::Matrix<Double, 2, 1>;
+// using VE=Eigen::Matrix<Double, 3, 1>;
+using VD=V2;
+using VE=V3;
 // using VC=Eigen::Matrix<Complex, Eigen::Dynamic, 1>;
 
 
@@ -38,8 +46,8 @@ int main(int argc, char* argv[]){
   std::vector<VE> simp_sites;
   {
     for(auto& vec : lattice.r) {
-      VE site;
-      site << vec[0], vec[1], vec[2];
+      // VE site(std::vector<Double>({vec[0], vec[1], vec[2]}));
+      VE site({vec[0], vec[1], vec[2]});
       simp_sites.push_back( site );
     }
   }
@@ -132,8 +140,8 @@ int main(int argc, char* argv[]){
     for(const auto& dual_face_unsorted : dual_faces_unsorted){
 
       std::vector<Link> facelink;
-      for(int i=0; i<dual_face_unsorted.size(); i++){ const Idx ix = dual_face_unsorted[i];
-        for(int j=i+1; j<dual_face_unsorted.size(); j++){ const Idx jx = dual_face_unsorted[j];
+      for(Idx i=0; i<dual_face_unsorted.size(); i++){ const Idx ix = dual_face_unsorted[i];
+        for(Idx j=i+1; j<dual_face_unsorted.size(); j++){ const Idx jx = dual_face_unsorted[j];
           Link link({ix,jx});
           if(std::find(links.begin(), links.end(), link) != links.end()) facelink.push_back(link);
         }
@@ -153,7 +161,7 @@ int main(int argc, char* argv[]){
       std::vector<int> facelinksign;
       std::vector<Link> facelinkorderedsigned;
 
-      int il=0;
+      Idx il=0;
       while(true){
         Link fl = facelink[il];
         facelinkordered.push_back(fl);
@@ -164,7 +172,11 @@ int main(int argc, char* argv[]){
         VE x2 = sites[fl[1]];
 
         int sign = 1;
-        if((x1-x0).cross(x2-x1).dot(x0) < 0) sign = -1;
+        VE x10 = x1-x0;
+        VE x21 = x2-x1;
+        VE tmp = x10.cross(x21);
+        Double tmp2 = tmp.dot(x0);
+        if(tmp2 < 0.0) sign = -1;
         facelinksign.push_back( sign );
 
         Link sgnd({fl[0], fl[1]});
@@ -173,7 +185,7 @@ int main(int argc, char* argv[]){
 
         if(facelink.size()==0) break;
         const Idx next = sgnd[1];
-        for(int jl=0; jl<facelink.size(); jl++){
+        for(Idx jl=0; jl<facelink.size(); jl++){
           Link tmp = facelink[jl];
           if(std::find(tmp.begin(), tmp.end(), next) != tmp.end()) il = jl;
         }
@@ -187,7 +199,7 @@ int main(int argc, char* argv[]){
 
     for(const auto& links : list_facelinkorderedsigned){
       std::vector<Idx> face;
-      for(int il=0; il<links.size(); il++) {
+      for(Idx il=0; il<links.size(); il++) {
         std::cout << links[il][0] << " ";
         face.push_back( links[il][0] );
       }
@@ -199,40 +211,40 @@ int main(int argc, char* argv[]){
 
   {
     std::ofstream ofs(dir+"pts_n"+std::to_string(n_refine)+"_singlepatch.dat");
-    ofs << std::scientific << std::setprecision(15);
+    ofs << std::scientific << std::setprecision(25);
     for(const auto& vec : simp_sites) {
       for(const auto& elem : vec) {
-        ofs << std::setw(25) << elem << " ";
+        ofs << std::setw(50) << elem << " ";
       }
       ofs << std::endl;
     }
   }
   {
     std::ofstream ofs(dir+"pts_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
-    ofs << std::scientific << std::setprecision(15);
+    ofs << std::scientific << std::setprecision(25);
     for(const auto& vec : sites) {
       for(const auto& elem : vec) {
-        ofs << std::setw(25) << elem << " ";
+        ofs << std::setw(50) << elem << " ";
       }
       ofs << std::endl;
     }
   }
   {
     std::ofstream ofs(dir+"nns_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
-    ofs << std::scientific << std::setprecision(15);
+    ofs << std::scientific << std::setprecision(25);
     for(const auto& vec : nns) {
       for(const auto& elem : vec) {
-        ofs << std::setw(25) << elem << " ";
+        ofs << std::setw(50) << elem << " ";
       }
       ofs << std::endl;
     }
   }
   {
     std::ofstream ofs(dir+"dual_links_n"+std::to_string(n_refine)+"_singlepatch.dat");
-    ofs << std::scientific << std::setprecision(15);
+    ofs << std::scientific << std::setprecision(25);
     for(const auto& vec : links) {
       for(const auto& elem : vec) {
-        ofs << std::setw(25) << elem << " ";
+        ofs << std::setw(50) << elem << " ";
       }
       ofs << std::endl;
     }
@@ -241,30 +253,30 @@ int main(int argc, char* argv[]){
   // vs, us, dualtriangleareas
   {
     std::ofstream ofs(dir+"face_n"+std::to_string(n_refine)+"_singlepatch.dat");
-    ofs << std::scientific << std::setprecision(15);
+    ofs << std::scientific << std::setprecision(25);
     for(const auto& vec : simp_faces) {
       for(const auto& elem : vec) {
-        ofs << std::setw(25) << elem << " ";
+        ofs << std::setw(50) << elem << " ";
       }
       ofs << std::endl;
     }
   }
   {
-    std::ofstream ofs(dir+"face_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
-    ofs << std::scientific << std::setprecision(15);
+    std::ofstream ofs(dir+"face_dual_n"+std::to_string(n_refine)+".dat");
+    ofs << std::scientific << std::setprecision(25);
     for(const auto& vec : faces) {
       for(const auto& elem : vec) {
-        ofs << std::setw(25) << elem << " ";
+        ofs << std::setw(50) << elem << " ";
       }
       ofs << std::endl;
     }
   }
   // {
   //   std::ofstream ofs(dir+"facesign_dual_n"+std::to_string(n_refine)+".dat");
-  //   ofs << std::scientific << std::setprecision(15);
+  //   ofs << std::scientific << std::setprecision(25);
   //   for(const auto& vec : faces) {
   //     for(const auto& elem : vec) {
-  //       ofs << std::setw(25) << elem << " ";
+  //       ofs << std::setw(50) << elem << " ";
   //     }
   //     ofs << std::endl;
   //   }
@@ -280,7 +292,7 @@ int main(int argc, char* argv[]){
   //   int counter=0;
   //   std::ofstream ofs("nearest_neighbor_table.dat");
   //   ofs << "# ix iy il" << std::endl;
-  //   ofs << std::scientific << std::setprecision(15);
+  //   ofs << std::scientific << std::setprecision(25);
   //   for(int ix=0; ix<lattice.n_sites; ix++) {
   //     const auto x = lattice.sites[ix];
   //     for(int iw=0; iw<x.nn; iw++){

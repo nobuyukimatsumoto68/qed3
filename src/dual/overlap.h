@@ -213,7 +213,7 @@ struct Overlap : public Zolotarev {
     compute_lambda_max();
     Zolotarev::update(lambda_min/lambda_max);
 #ifdef InfoDelta
-    std::cout << "# Delta : " << Delta() << std::endl;
+    std::clog << "# Delta : " << Delta() << std::endl;
 #endif
     is_precalc = false;
   }

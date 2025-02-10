@@ -77,9 +77,9 @@ struct PseudoFermion {
 
   template<typename Gauge, typename Force>
   void get_force( Force& pi, const Gauge& U ) const {
-    // #ifdef _OPENMP
-    // #pragma omp parallel for num_threads(Comp::NPARALLEL)
-    // #endif
+// #ifdef _OPENMP
+// #pragma omp parallel for num_threads(Comp::NPARALLEL)
+// #endif
     for(int ell=0; ell<U.lattice.n_links; ell++) pi[ell] = get_force( U, U.lattice.links[ell] );
   }
 
