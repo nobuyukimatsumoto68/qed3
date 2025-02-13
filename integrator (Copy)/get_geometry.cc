@@ -1,20 +1,16 @@
 #include <iostream>
 #include <iomanip>
 #include <fstream>
-#include <vector>
 
 #include <algorithm>
 
-#include <stdfloat>
-// #include "geodesic2.h"
-using Double = std::float64_t;
-# include "geodesic.h"
-
+#include "geodesic2.h"
+// #include "geodesic.h"
 #include "s2.h"
 
 using namespace Geodesic;
 
-using Idx = std::int32_t;
+// using Idx = std::int32_t;
 // using Complex = std::complex<double>;
 
 using Link = std::array<Idx,2>; // <Idx,Idx>;

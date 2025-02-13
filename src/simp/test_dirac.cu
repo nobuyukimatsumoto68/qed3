@@ -1,6 +1,13 @@
 #include <iostream>
+#include <iomanip>
 #include <fstream>
 #include <cstdlib>
+
+#include <cstdint>
+#include <complex>
+using Idx = std::int32_t;
+// using Complex = std::complex<double>;
+using Double = double;
 
 #include "dirac_s2.h"
 
@@ -20,13 +27,20 @@ int main(int argc, char* argv[]){
   // ---------------------------------------
 
   const int q=5; // icosahedron
-  int n_refine=2; // no refinement
+  int n_refine=1; // no refinement
 
   if (argc>1) n_refine = atoi(argv[1]);
 
+
+  // std::cout << "debug.1" << std::endl;
   QfeLatticeS2 lattice(q, n_refine);
+  // std::cout << "debug.2" << std::endl;
+
+
   Dirac1fonS2 D(lattice, n_refine, 0.0, 1.0);
+  // std::cout << "debug.3" << std::endl;
   auto mat = D.matrix_form();
+  // std::cout << "debug.4" << std::endl;
 
   // =========================================
   // cusolver
@@ -73,6 +87,8 @@ int main(int argc, char* argv[]){
   // step 3: query working space of syevd
   cusolverEigMode_t jobvl = CUSOLVER_EIG_MODE_NOVECTOR;
   cusolverEigMode_t jobvr = CUSOLVER_EIG_MODE_NOVECTOR;
+  // cusolverEigMode_t jobvl = CUSOLVER_EIG_MODE_VECTOR; //CUSOLVER_EIG_MODE_NOVECTOR;
+  // cusolverEigMode_t jobvr = CUSOLVER_EIG_MODE_VECTOR; // CUSOLVER_EIG_MODE_NOVECTOR;
   cublasFillMode_t uplo = CUBLAS_FILL_MODE_LOWER;
 
   cudacheck( cusolverDnXgeev_bufferSize( handle,
@@ -131,7 +147,7 @@ int main(int argc, char* argv[]){
 
   std::cout << "info (0=success) = " << info << std::endl;
   for(int i=0; i<n; i++){
-    std::clog << real(W[i]) << " " << imag(W[i]) << std::endl;
+    std::clog << std::setprecision(16) << real(W[i]) << " " << imag(W[i]) << std::endl;
   }
 
   /* free resources */

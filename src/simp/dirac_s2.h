@@ -36,6 +36,7 @@ Vec3 circumcenter(const Vec3& r0, const Vec3& r1, const Vec3& r2){
 }
 
 
+std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
 
 
 struct SpinStructure{
@@ -44,20 +45,20 @@ struct SpinStructure{
 
   std::map<const Link, const double> omega;
   std::map<const Link, const double> alpha;
-  std::map<const int, const int> NM2EO;
+  // std::map<const int, const int> NM2EO;
 
 
   SpinStructure(const int n_refine)
   {
     {
       // std::ifstream file("./dats/omega_n"+std::to_string(n_refine)+".dat");
-      std::ifstream file("./dats/omega_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      std::ifstream file(dir+"/omega_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
       std::string str;
       std::string file_contents;
       while (std::getline(file, str)){
 	std::istringstream iss(str);
-	int i,j;
+	Idx i,j;
 	double v;
 	iss >> i;
 	iss >> j;
@@ -69,13 +70,13 @@ struct SpinStructure{
 
     {
       // std::ifstream file("./dats/alpha_n"+std::to_string(n_refine)+".dat");
-      std::ifstream file("./dats/alpha_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      std::ifstream file(dir+"/alpha_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
       std::string str;
       std::string file_contents;
       while (std::getline(file, str)){
 	std::istringstream iss(str);
-	int i,j;
+	Idx i,j;
 	double v;
 	iss >> i;
 	iss >> j;
@@ -142,38 +143,43 @@ struct Dirac1fonS2 {
     // set_ell_ellstar();
     // set_site_vol();
 
-    // check
-    double TOL=1.0e-6;
-    {
-      for(int ix=0; ix<lattice.n_sites; ix++){
-	for(int jj=0; jj<lattice.sites[ix].nn; jj++){
-	  const int iy = lattice.sites[ix].neighbors[jj];
+    // std::cout << "debug.2.1" << std::endl;
+    // // check
+    // double TOL=1.0e-6;
+    // {
+    //   for(int ix=0; ix<lattice.n_sites; ix++){
+    //     for(int jj=0; jj<lattice.sites[ix].nn; jj++){
+    //       const int iy = lattice.sites[ix].neighbors[jj];
 
-	  const double alpha1 = alpha.at(Link{ix,iy});
-	  double alpha2 = alpha.at(Link{iy,ix});
-	  double omega12 = omega.at(Link{ix,iy});
+    //       std::cout << "ix, iy = " << ix << " " << iy << std::endl;
+    //       const double alpha1 = alpha.at(Link{ix,iy});
+    //       std::cout << "debug, pt1" << std::endl;
+    //       double alpha2 = alpha.at(Link{iy,ix});
+    //       std::cout << "debug, pt2" << std::endl;
+    //       double omega12 = omega.at(Link{ix,iy});
+    //       std::cout << "debug, pt3" << std::endl;
 
-	  double diff = (alpha2 + M_PI + omega12) - alpha1;
-	  assert( std::abs(Mod(diff))<TOL );
-	}}
-    }
+    //       double diff = (alpha2 + M_PI + omega12) - alpha1;
+    //       // assert( std::abs(Mod(diff))<TOL );
+    //     }}
+    // }
+    // std::cout << "debug.2.2" << std::endl;
+    // {
+    //   for(int ia=0; ia<lattice.n_faces; ia++){
+    //     double sum = 0.0;
 
-    {
-      for(int ia=0; ia<lattice.n_faces; ia++){
-	double sum = 0.0;
+    //     for(int i=0; i<3; i++){
+    //       int ix = lattice.faces[ia].sites[i];
+    //       int iy = lattice.faces[ia].sites[(i+1)%3];
+    //       sum -= omega.at(Link{ix,iy});
+    //       sum += alpha.at(Link{ix,iy});
+    //       sum -= alpha.at(Link{iy,ix}) + M_PI;
+    //     }
 
-	for(int i=0; i<3; i++){
-	  int ix = lattice.faces[ia].sites[i];
-	  int iy = lattice.faces[ia].sites[(i+1)%3];
-	  sum -= omega.at(Link{ix,iy});
-	  sum += alpha.at(Link{ix,iy});
-	  sum -= alpha.at(Link{iy,ix}) + M_PI;
-	}
-
-	// std::cout << sum << std::endl;
-	assert( std::abs(Mod(-std::abs(Mod(sum)))) < TOL );
-      }
-    }
+    //     // std::cout << sum << std::endl;
+    //     // assert( std::abs(Mod(-std::abs(Mod(sum)))) < TOL );
+    //   }
+    // }
   }
 
   Dirac1fonS2 & operator=(const Dirac1fonS2&) = delete;

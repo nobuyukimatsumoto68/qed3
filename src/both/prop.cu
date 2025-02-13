@@ -25,8 +25,8 @@ namespace Comp{
   // const double TOL=1.0e-9;
   // const double TOL_INNER=1.0e-6;
   // const double TOL_OUTER=1.0e-5;
-  const double TOL_INNER=1.0e-9;
-  const double TOL_OUTER=1.0e-8;
+  const double TOL_INNER=1.0e-10;
+  const double TOL_OUTER=1.0e-9;
   // const double TOL_INNER=1.0e-12;
   // const double TOL_OUTER=1.0e-10;
 }
@@ -119,15 +119,12 @@ int main(int argc, char* argv[]){
 
   // -----------------
 
-  const double r = 1.0/3.0;
+  // const double M5 = -2.8;
   const double M5 = -1.8;
-  // const double r = 1.0;
-  // const double M5 = -1.8;
-  // const double M5 = -1.5;
-  // const double M5 = 0.0;
-  // const double M5 = -2.5;
-  WilsonDirac DW(lattice, 0.0, r, M5);
-  Overlap Dov(DW, 31);
+  // WilsonDirac DW(lattice, M5, 1.0/3.0);
+  WilsonDirac DW(lattice, M5, 1.0/3.0);
+  // Fermion Dov(DW, 21);
+  Fermion Dov(DW, 31);
   Dov.update(U);
 
   // auto f_Op = std::bind(&Overlap::mult_deviceAsyncLaunch, &Dov, std::placeholders::_1, std::placeholders::_2);

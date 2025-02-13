@@ -5,55 +5,111 @@
 #include <cmath>
 #include <map>
 #include <limits>
-#include <stdfloat>
 
 #include <Eigen/Dense>
 
-// #include "geodesic.h"
-// #include "integral.h"
-
-
-using Double = std::float64_t;
-// using Double = std::float128_t;
+// #include "geodesic2.h"
 #include "geodesic.h"
 #include "integral.h"
+
+// #include "geodesic2.h"
+// #include "integral.h"
 
 
 using namespace Geodesic;
 
-using Idx = std::int32_t;
-// using Complex = std::complex<double>;
-// const Complex I = Complex(0.0, 1.0);
+// using Idx = std::int32_t;
+// // using Complex = std::complex<double>;
+// // const Complex I = Complex(0.0, 1.0);
 
+// constexpr Double TOLLOOSE=1.0e-12;
 
+constexpr Double TOLFUNC=1.0e-13;
+
+Double TOLSPIN=1.0e-10;
+
+constexpr Double _M_PI = M_PI;
 
 using Link = std::array<Idx,2>; // <Idx,Idx>;
 using Face = std::vector<Idx>;
-// using MS=Eigen::Matrix2cd;
-// using VD=Eigen::Vector2d;
-// using VE=Eigen::Vector3d;
-// using VC=Eigen::VectorXcd;
-// using MS=Eigen::Matrix<Complex, 2, 2>;
-using VD=Eigen::Matrix<Double, 2, 1>;
-using VE=Eigen::Matrix<Double, 3, 1>;
-// using VC=Eigen::Matrix<Complex, Eigen::Dynamic, 1>;
+using VD=V2;
+using VE=V3;
 
+// // using MS=Eigen::Matrix2cd;
+// // using VD=Eigen::Vector2d;
+// // using VE=Eigen::Vector3d;
+// // using VC=Eigen::VectorXcd;
+// // using MS=Eigen::Matrix<Complex, 2, 2>;
+// using VD=Eigen::Matrix<Double, 2, 1>;
+// using VE=Eigen::Matrix<Double, 3, 1>;
+// // using VC=Eigen::Matrix<Complex, Eigen::Dynamic, 1>;
 
-
-Double TOL=1.0e-14;
-
-constexpr Double TOLLOOSE=1.0e-6;
-
-const int limit = 4000; // 1000;
-Double epsabs = 1.0e-15; // 0.;
-Double epsrel = 1.0e-13; // TOLLOOSE;
-int key = 5;
 
 
 std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
 
 
 int main(int argc, char* argv[]){
+
+
+  // std::cout << "size of double" << sizeof(double) << std::endl;
+  // std::cout << "size of long double" << sizeof(long double) << std::endl;
+  // std::cout << "size of long long" << sizeof(long long) << std::endl;
+  // {
+  //   double angle = 2.5;
+  //   double tmp = std::sin(angle);
+  //   std::cout << std::scientific << std::setprecision(25);
+  //   std::cout << "std::sin = \t" << std::setw(50) << tmp << std::endl;
+  //   tmp = sin(angle);
+  //   std::cout << "sin = \t" << std::setw(50) << tmp << std::endl;
+  //   tmp = std::cos(angle);
+  //   std::cout << "std::cos = \t" << std::setw(50) << tmp << std::endl;
+  //   tmp = cos(angle);
+  //   std::cout << "cos = \t" << std::setw(50) << tmp << std::endl;
+  // }
+  // {
+  //   long double angle = 2.5;
+  //   long double tmp = std::sin(angle);
+  //   std::cout << std::scientific << std::setprecision(25);
+  //   std::cout << "std::sin = \t" << std::setw(50) << tmp << std::endl;
+  //   tmp = sinl(angle);
+  //   std::cout << "sinl = \t" << std::setw(50) << tmp << std::endl;
+  //   tmp = std::cos(angle);
+  //   std::cout << "std::cos = \t" << std::setw(50) << tmp << std::endl;
+  //   tmp = cosl(angle);
+  //   std::cout << "cosl = \t" << std::setw(50) << tmp << std::endl;
+  // }
+  // {
+  //   // double angle = 2.5;
+  //   double angle = 0.8;
+  //   double tmp = std::asin(angle);
+  //   std::cout << std::scientific << std::setprecision(25);
+  //   std::cout << "std::asin = \t" << std::setw(50) << tmp << std::endl;
+  //   tmp = asinl(angle);
+  //   std::cout << "asinl = \t" << std::setw(50) << tmp << std::endl;
+  //   tmp = std::acos(angle);
+  //   std::cout << "std::acos = \t" << std::setw(50) << tmp << std::endl;
+  //   tmp = acosl(angle);
+  //   std::cout << "acosl = \t" << std::setw(50) << tmp << std::endl;
+  // }
+  // {
+  //   // long double angle = 2.5;
+  //   long double angle = 0.8;
+  //   long double tmp = std::asin(angle);
+  //   std::cout << std::scientific << std::setprecision(25);
+  //   std::cout << "std::asin = \t" << std::setw(50) << tmp << std::endl;
+  //   tmp = asinl(angle);
+  //   std::cout << "asinl = \t" << std::setw(50) << tmp << std::endl;
+  //   tmp = std::acos(angle);
+  //   std::cout << "std::acos = \t" << std::setw(50) << tmp << std::endl;
+  //   tmp = acosl(angle);
+  //   std::cout << "acosl = \t" << std::setw(50) << tmp << std::endl;
+  // }
+
+
+
+
+
   int n_refine=1;
   if(argc==2) n_refine = atoi(argv[1]);
 
@@ -71,7 +127,7 @@ int main(int argc, char* argv[]){
       iss >> v1;
       iss >> v2;
       iss >> v3;
-      simp_sites.push_back( VE(v1, v2, v3) );
+      simp_sites.push_back( VE({v1, v2, v3}) );
     }
   }
 
@@ -89,7 +145,7 @@ int main(int argc, char* argv[]){
       iss >> v1;
       iss >> v2;
       iss >> v3;
-      sites.push_back( VE(v1, v2, v3) );
+      sites.push_back( VE({v1, v2, v3}) );
     }
   }
 
@@ -160,9 +216,14 @@ int main(int argc, char* argv[]){
     // }
 
     Sol sol = SolveGeodesics( x1, x2 );
-    gsl_integration_workspace * w = gsl_integration_workspace_alloc (limit);
+    gsl_integration_workspace * w = gsl_integration_workspace_alloc (1000);
     double result, error;
 
+    Double epsabs = 1.0e-15; // 0.;
+    Double epsrel = TOLLOOSE; // TOLFUNC;
+    const int limit = 1000; // 1000;
+    int key = 3;
+    // int key = 6;
     if(!sol.is_split){
       F f1 = [&](Double s){ return sol.Dphi(s) * std::cos( sol.theta(s) ); };
       gsl_function F;
@@ -233,7 +294,8 @@ int main(int argc, char* argv[]){
     // std::cout << links.size() << std::endl;
   }
 
-  std::map<const Link, Double> omega;
+  // std::map<const Link, Double> omega;
+  std::map<const Link, const Double> omega;
   for(Idx il=0; il<links.size(); il++){
     Link link = links[il];
     omega.insert( { link, omegas[il] } );
@@ -250,11 +312,9 @@ int main(int argc, char* argv[]){
       const Double dphi_ds0 = sol.Dphi(0);
       assert( std::abs(dtheta_ds0*dtheta_ds0 + std::sin(theta0)*std::sin(theta0)*dphi_ds0*dphi_ds0-1.0)<TOLLOOSE );
 
-      VD e0( dtheta_ds0, std::sin(theta0)*dphi_ds0 );
-      // alpha0 = std::acos( e0[0] );
+      VD e0( {dtheta_ds0, std::sin(theta0)*dphi_ds0} );
       alpha0 = _acos( e0[0] );
       if(e0[1]<0) alpha0 *= -1.0;
-      std::cout << "debug." << std::abs(std::cos(alpha0)-e0[0]) + std::abs(std::sin(alpha0)-e0[1]) << std::endl;
       assert( std::abs(std::cos(alpha0)-e0[0]) + std::abs(std::sin(alpha0)-e0[1]) < TOLLOOSE );
 
       const Double theta1 = sol.theta(sol.ell);
@@ -262,7 +322,7 @@ int main(int argc, char* argv[]){
       const Double dphi_ds1 = sol.Dphi(sol.ell);
       assert( std::abs(dtheta_ds1*dtheta_ds1 + std::sin(theta1)*std::sin(theta1)*dphi_ds1*dphi_ds1-1.0)<TOLLOOSE );
 
-      VD e1( dtheta_ds1, std::sin(theta1)*dphi_ds1 );
+      VD e1( {dtheta_ds1, std::sin(theta1)*dphi_ds1} );
       alpha1 = _acos( e1[0] );
       if(e1[1]<0) alpha1 *= -1.0;
       assert( std::abs(std::cos(alpha1)-e1[0]) + std::abs(std::sin(alpha1)-e1[1]) < TOLLOOSE );
@@ -273,7 +333,8 @@ int main(int argc, char* argv[]){
       const Double dphi_ds0 = sol.Dphi(0, 0);
       assert( std::abs(dtheta_ds0*dtheta_ds0 + std::sin(theta0)*std::sin(theta0)*dphi_ds0*dphi_ds0-1.0)<TOLLOOSE );
 
-      VD e0( dtheta_ds0, std::sin(theta0)*dphi_ds0 );
+      // VD e0( dtheta_ds0, std::sin(theta0)*dphi_ds0 );
+      VD e0( {dtheta_ds0, std::sin(theta0)*dphi_ds0} );
       alpha0 = _acos( e0[0] );
       if(e0[1]<0) alpha0 *= -1.0;
       assert( std::abs(std::cos(alpha0)-e0[0]) + std::abs(std::sin(alpha0)-e0[1]) < TOLLOOSE );
@@ -283,7 +344,8 @@ int main(int argc, char* argv[]){
       const Double dphi_ds1 = sol.Dphi(sol.ell, 1);
       assert( std::abs(dtheta_ds1*dtheta_ds1 + std::sin(theta1)*std::sin(theta1)*dphi_ds1*dphi_ds1-1.0)<TOLLOOSE );
 
-      VD e1( dtheta_ds1, std::sin(theta1)*dphi_ds1 );
+      // VD e1( dtheta_ds1, std::sin(theta1)*dphi_ds1 );
+      VD e1( {dtheta_ds1, std::sin(theta1)*dphi_ds1} );
       alpha1 = _acos( e1[0] );
       if(e1[1]<0) alpha1 *= -1.0;
       assert( std::abs(std::cos(alpha1)-e1[0]) + std::abs(std::sin(alpha1)-e1[1]) < TOLLOOSE );
@@ -292,7 +354,8 @@ int main(int argc, char* argv[]){
     alpha1s.push_back( Mod(alpha1 + _M_PI) );
   }
 
-  std::map<const Link, Double> alpha;
+  // std::map<const Link, Double> alpha;
+  std::map<const Link, const Double> alpha;
   for(Idx il=0; il<links.size(); il++){
     Link link = links[il];
     // std::cout << link[0] << " " << link[1] << std::endl;
@@ -310,14 +373,13 @@ int main(int argc, char* argv[]){
       Double al = std::atan(c1/c0);
       // std::cout << "alpha = " << al << std::endl;
       // std::cout << "check = " << alpha.at(Link({ix, iy})) << std::endl;
-      // std::cout << "diff = " << al-alpha.at(Link({ix, iy})) << std::endl;
       // std::cout << "diff = " << isModdable(al-alpha.at(Link({ix, iy})), _M_PI) << std::endl;
-      const int br = decide_branch( al-alpha.at(Link({ix, iy})) );
+      // const int br = decide_branch( al-alpha.at(Link({ix, iy})) );
       // // std::cout << "branch = " << br << std::endl;
-      al -= _M_PI*br;
+      // al -= _M_PI*br;
       // std::cout << "alpha = " << al << std::endl;
       // std::cout << "diff = " << al-alpha.at(Link({ix, iy})) << std::endl;
-      alpha[Link({ix, iy})] = al;
+      // alpha[Link({ix, iy})] = al;
       // std::cout << "diff = " << al-alpha.at(Link({ix, iy})) << std::endl;
       // std::cout << "diff = " << isModdable(al-alpha.at(Link({ix, iy}))) << std::endl;
     }
@@ -330,18 +392,24 @@ int main(int argc, char* argv[]){
       for(Idx iy : nns[ix]){
         // std::cout << ix << " " << iy << std::endl;
         const Double alpha1 = alpha.at(Link{ix,iy});
-        Double alpha2 = alpha.at(Link{iy,ix});
+        const Double alpha2 = alpha.at(Link{iy,ix});
         Double omega12 = omega.at(Link{ix,iy});
 
         Double diff = (alpha2 + _M_PI + omega12) - alpha1;
-        // std::cout << std::abs(Mod(diff)) << std::endl;
+        // std::cout << std::abs(diff) << std::endl;
         // std::cout << isModdable(diff, TOL) << std::endl;
-        assert( isModdable(diff, TOL) );
+        assert( isModdable(diff, TOLSPIN) );
 
         Double om = alpha1 - (alpha2 + _M_PI);
-        const int br = decide_branch( om-omega12 );
-        om -= _M_PI*br;
-        omega[Link({ix, iy})] = om;
+        // const int br = decide_branch( om-omega12 );
+        // // std::cout << "branch = " << br << std::endl;
+        // om -= _M_PI*br;
+        // std::cout << "alpha = " << om << std::endl;
+        // std::cout << "diff = " << om-omega.at(Link({ix, iy})) << std::endl;
+        // omega[Link({ix, iy})] = om;
+        // std::cout << "diff = " << al-alpha.at(Link({ix, iy})) << std::endl;
+        // std::cout << "diff = " << isModdable(al-alpha.at(Link({ix, iy}))) << std::endl;
+
       }}
   }
 
@@ -493,7 +561,14 @@ int main(int argc, char* argv[]){
   Double vbar = 0.0;
   for(const Double& vx : triangleareas) vbar += vx;
   vbar /= triangleareas.size();
-  const Double alat = std::sqrt( 4.0/std::sqrt(3.0) * vbar );
+  const Double alat = sqrtl( 4.0/sqrtl(3.0) * vbar );
+
+  {
+    std::ofstream ofs(dir+"alat_n"+std::to_string(n_refine)+"_singlepatch.dat");
+    ofs << std::scientific << std::setprecision(15);
+    ofs << std::setw(25) << alat << std::endl;
+  }
+
 
   // u, v
   {
@@ -509,10 +584,9 @@ int main(int argc, char* argv[]){
       Double al2 = alpha.at( Link{ix, nns[ix][1]} );
       Double al3 = alpha.at( Link{ix, nns[ix][2]} );
 
-      VD e1, e2, e3;
-      e1 << std::cos(al1), std::sin(al1);
-      e2 << std::cos(al2), std::sin(al2);
-      e3 << std::cos(al3), std::sin(al3);
+      VD e1({std::cos(al1), std::sin(al1)});
+      VD e2({std::cos(al2), std::sin(al2)});
+      VD e3({std::cos(al3), std::sin(al3)});
 
       const VD ell1 = len1 * e1;
       const VD ell2 = len2 * e2;
@@ -521,22 +595,21 @@ int main(int argc, char* argv[]){
       const VD d13 = ell1 - ell3;
       const VD d23 = ell2 - ell3;
 
-      Eigen::Matrix4d mat;
+      Eigen::Matrix<Double,4,4> mat;
       mat <<
         d13[0], d23[0], 0., 0.,
         d13[1], d23[1], 0., 0.,
         0., 0., d13[0], d23[0],
         0., 0., d13[1], d23[1];
 
-      Eigen::Vector4d b;
+      Eigen::Matrix<Double,4,1> b;
       b << 1.0, 0.0, 0.0, 1.0;
-      b *= alat/std::sqrt(3.0);
+      b *= alat/sqrtl(3.0);
 
-      Eigen::Vector4d vv = mat.inverse() * b;
+      Eigen::Matrix<Double,4,1> vv = mat.inverse() * b;
 
-      VD v1, v2;
-      v1 << vv[0], vv[2];
-      v2 << vv[1], vv[3];
+      VD v1({vv[0], vv[2]});
+      VD v2({vv[1], vv[3]});
       VD v3 = -v1-v2;
 
       ofs << std::setw(25) << v1[0] << " ";
@@ -563,28 +636,31 @@ int main(int argc, char* argv[]){
       Double al2 = alpha.at( Link{ix, nns[ix][1]} );
       Double al3 = alpha.at( Link{ix, nns[ix][2]} );
 
-      VD e1, e2, e3;
-      e1 << std::cos(al1), std::sin(al1);
-      e2 << std::cos(al2), std::sin(al2);
-      e3 << std::cos(al3), std::sin(al3);
+      VD e1({std::cos(al1), std::sin(al1)});
+      VD e2({std::cos(al2), std::sin(al2)});
+      VD e3({std::cos(al3), std::sin(al3)});
+      // VD e1, e2, e3;
+      // e1 << std::cos(al1), std::sin(al1);
+      // e2 << std::cos(al2), std::sin(al2);
+      // e3 << std::cos(al3), std::sin(al3);
 
       const VD ell1 = len1 * e1;
       const VD ell2 = len2 * e2;
       const VD ell3 = len3 * e3;
 
-      Eigen::Matrix2d mat;
+      Eigen::Matrix<Double,2,2> mat;
       mat <<
         ell2[0], ell3[0],
         ell2[1], ell3[1];
 
-      Eigen::Vector2d b;
+      Eigen::Matrix<Double,2,1> b;
       b << -ell1[0], -ell1[1];
 
-      Eigen::Vector2d vv = mat.inverse() * b;
+      Eigen::Matrix<Double,2,1> vv = mat.inverse() * b;
 
-      VE u;
-      u << 1.0, vv[0], vv[1];
-      u *= 3.0/u.mean();
+      VE u({1.0, vv[0], vv[1]});
+      Double sum = u[0]+u[1]+u[2];
+      u /= sum;
 
       ofs << std::setw(25) << u[0] << " ";
       ofs << std::setw(25) << u[1] << " ";

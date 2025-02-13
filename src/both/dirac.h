@@ -88,7 +88,6 @@ struct Dirac1fonS2 : public SpinStructure{
   const double m;
   const double r;
   double a = 1.0;
-  const double M5;
 
   // SpinStructure spin;
   std::array<MS, 4> sigma;
@@ -101,14 +100,11 @@ struct Dirac1fonS2 : public SpinStructure{
 
   Dirac1fonS2(const Lattice& lattice_,
 	      const double m_=0.0,
-	      const double r_=1.0,
-              const double M5_=0.0
-              )
+	      const double r_=1.0)
     : SpinStructure(lattice_.n_refine)
     , lattice(lattice_)
     , m(m_)
     , r(r_)
-    , M5(M5_)
     , ell(lattice.n_links)
     , link_volume(lattice.n_links)
   {
@@ -159,7 +155,6 @@ struct Dirac1fonS2 : public SpinStructure{
 	Idx iy = lattice.nns[ix][jj];
 	res.block<NS,NS>(NS*ix,NS*iy) -= lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj]*sigma[0] - gamma(ix, jj)) * Omega(ix, iy);
 	res.block<NS,NS>(NS*ix,NS*ix) += lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj] + m/3.0)*sigma[0];
-        res.block<NS,NS>(NS*ix,NS*ix) += M5/3.0*sigma[0];
       }
     }
 
@@ -175,7 +170,6 @@ struct Dirac1fonS2 : public SpinStructure{
 	Idx iy = lattice.nns[ix][jj];
 	res.block<NS,NS>(NS*ix,NS*iy) -= lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj]*sigma[0] - gamma(ix, jj)) * std::exp( I* U(Link{ix,iy})) * Omega(ix, iy);
 	res.block<NS,NS>(NS*ix,NS*ix) += lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj] + m/3.0)*sigma[0];
-        res.block<NS,NS>(NS*ix,NS*ix) += M5/3.0*sigma[0];
       }
     }
 
@@ -198,7 +192,7 @@ struct Dirac1fonS2 : public SpinStructure{
       for(int jj=0; jj<3; jj++){
 	Idx iy = lattice.nns[ix][jj];
 	const MS tmp = lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj]*sigma[0] - gamma(ix, jj)) * std::exp( I* U(Link{ix,iy})) * Omega(ix, iy);
-	const MS tmp2 = lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj] + m/3.0)*sigma[0] + M5/3.0*sigma[0];
+	const MS tmp2 = lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj] + m/3.0)*sigma[0];
 
 	// res[NS*ix] += -tmp(0,0)*v[NS*iy] - tmp(0,1)*v[NS*iy+1];
 	v[counter] = -tmp(0,0); counter++;
@@ -299,6 +293,8 @@ struct Dirac1fonS2 : public SpinStructure{
       }
     }
   }
+
+
 };
 
 

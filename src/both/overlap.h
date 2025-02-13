@@ -299,12 +299,8 @@ struct Overlap : public Zolotarev {
     CUDA_CHECK(cudaFreeAsync(d_x, stream[0]));
     CUDA_CHECK(cudaFreeAsync(d_q, stream[nstreams-1]));
 
-    // lambda_min = 0.5*std::sqrt( 1.0/lambda2 );
-    // lambda_max = 2.0*std::sqrt( lambda );
     lambda_min = std::sqrt( (1.0-100*TOL)/lambda2 );
     lambda_max = std::sqrt( (1.0+100*TOL)*lambda );
-    // lambda_min = 0.01; // std::sqrt( (1.0-100*TOL)/lambda2 );
-    // lambda_max = 16; // std::sqrt( (1.0+100*TOL)*lambda );
 
     CUDA_CHECK(cudaDeviceSynchronize());
   }

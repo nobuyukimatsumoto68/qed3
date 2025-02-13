@@ -13,11 +13,6 @@ double Mod(double a, double b=2.0*M_PI){
   return r;
 }
 
-
-// std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
-// std::string dir = "/mnt/hdd_barracuda/qed3/dats_saved2/";
-
-
 struct SpinStructure{
   using Link = std::array<Idx,2>; // <Idx,Idx>;
   using Face = std::vector<Idx>;
@@ -33,7 +28,7 @@ struct SpinStructure{
   {
     {
       std::cout << "# reading omega" << std::endl;
-      std::ifstream file(dir+"omega_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      std::ifstream file("../../dats/omega_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
       assert(file.is_open());
 
       std::string str;
@@ -52,7 +47,7 @@ struct SpinStructure{
 
     {
       std::cout << "# reading alpha" << std::endl;
-      std::ifstream file(dir+"alpha_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      std::ifstream file("../../dats/alpha_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
       assert(file.is_open());
 
       std::string str;
@@ -88,7 +83,6 @@ struct Dirac1fonS2 : public SpinStructure{
   const double m;
   const double r;
   double a = 1.0;
-  const double M5;
 
   // SpinStructure spin;
   std::array<MS, 4> sigma;
@@ -101,14 +95,11 @@ struct Dirac1fonS2 : public SpinStructure{
 
   Dirac1fonS2(const Lattice& lattice_,
 	      const double m_=0.0,
-	      const double r_=1.0,
-              const double M5_=0.0
-              )
+	      const double r_=1.0)
     : SpinStructure(lattice_.n_refine)
     , lattice(lattice_)
     , m(m_)
     , r(r_)
-    , M5(M5_)
     , ell(lattice.n_links)
     , link_volume(lattice.n_links)
   {
@@ -159,7 +150,6 @@ struct Dirac1fonS2 : public SpinStructure{
 	Idx iy = lattice.nns[ix][jj];
 	res.block<NS,NS>(NS*ix,NS*iy) -= lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj]*sigma[0] - gamma(ix, jj)) * Omega(ix, iy);
 	res.block<NS,NS>(NS*ix,NS*ix) += lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj] + m/3.0)*sigma[0];
-        res.block<NS,NS>(NS*ix,NS*ix) += M5/3.0*sigma[0];
       }
     }
 
@@ -175,7 +165,6 @@ struct Dirac1fonS2 : public SpinStructure{
 	Idx iy = lattice.nns[ix][jj];
 	res.block<NS,NS>(NS*ix,NS*iy) -= lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj]*sigma[0] - gamma(ix, jj)) * std::exp( I* U(Link{ix,iy})) * Omega(ix, iy);
 	res.block<NS,NS>(NS*ix,NS*ix) += lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj] + m/3.0)*sigma[0];
-        res.block<NS,NS>(NS*ix,NS*ix) += M5/3.0*sigma[0];
       }
     }
 
@@ -187,7 +176,7 @@ struct Dirac1fonS2 : public SpinStructure{
   void coo_format( std::vector<Complex>& v,
 		   const Gauge& U ) const {
     const Idx N = lattice.n_sites * NS;
-    for(Idx i=0; i<N; i++) v[i] = 0.0;
+    // for(Idx i=0; i<N; i++) v[i] = 0.0;
 
     // int counter=0;
 #ifdef _OPENMP
@@ -198,7 +187,7 @@ struct Dirac1fonS2 : public SpinStructure{
       for(int jj=0; jj<3; jj++){
 	Idx iy = lattice.nns[ix][jj];
 	const MS tmp = lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj]*sigma[0] - gamma(ix, jj)) * std::exp( I* U(Link{ix,iy})) * Omega(ix, iy);
-	const MS tmp2 = lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj] + m/3.0)*sigma[0] + M5/3.0*sigma[0];
+	const MS tmp2 = lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj] + m/3.0)*sigma[0];
 
 	// res[NS*ix] += -tmp(0,0)*v[NS*iy] - tmp(0,1)*v[NS*iy+1];
 	v[counter] = -tmp(0,0); counter++;
@@ -299,6 +288,8 @@ struct Dirac1fonS2 : public SpinStructure{
       }
     }
   }
+
+
 };
 
 

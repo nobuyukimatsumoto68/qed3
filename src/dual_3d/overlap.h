@@ -156,10 +156,10 @@ struct Overlap : public Zolotarev {
 
   bool is_precalc;
 
-  explicit Overlap( const WilsonDirac& DW_,
-                    const int n_=21,
-                    const double k_=0.01,
-                    const bool locate_on_gpu=true)
+  Overlap( const WilsonDirac& DW_,
+           const int n_=21,
+	   const double k_=0.01,
+	   const bool locate_on_gpu=true)
     : Zolotarev(k_, n_)
     , DW(DW_)
     , d_DW(DW)
@@ -213,7 +213,7 @@ struct Overlap : public Zolotarev {
     compute_lambda_max();
     Zolotarev::update(lambda_min/lambda_max);
 #ifdef InfoDelta
-    std::clog << "# Delta : " << Delta() << std::endl;
+    std::cout << "# Delta : " << Delta() << std::endl;
 #endif
     is_precalc = false;
   }
@@ -299,12 +299,8 @@ struct Overlap : public Zolotarev {
     CUDA_CHECK(cudaFreeAsync(d_x, stream[0]));
     CUDA_CHECK(cudaFreeAsync(d_q, stream[nstreams-1]));
 
-    // lambda_min = 0.5*std::sqrt( 1.0/lambda2 );
-    // lambda_max = 2.0*std::sqrt( lambda );
     lambda_min = std::sqrt( (1.0-100*TOL)/lambda2 );
     lambda_max = std::sqrt( (1.0+100*TOL)*lambda );
-    // lambda_min = 0.01; // std::sqrt( (1.0-100*TOL)/lambda2 );
-    // lambda_max = 16; // std::sqrt( (1.0+100*TOL)*lambda );
 
     CUDA_CHECK(cudaDeviceSynchronize());
   }
