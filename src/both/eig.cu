@@ -1,33 +1,53 @@
+#include <typeinfo>
 #include <iostream>
 #include <iomanip>
 #include <fstream>
 #include <cstdlib>
 #include <cassert>
 #include <algorithm>
-
 #include <cstdint>
 #include <complex>
+
+using Double = double;
 using Idx = std::int32_t;
 using Complex = std::complex<double>;
+
+#define IS_DUAL
+#define IS_OVERLAP
 
 namespace Comp{
   constexpr int NPARALLEL=12;
   constexpr int NSTREAMS=4;
 
-  constexpr int N_REFINE=16;
+  constexpr int N_REFINE=4;
   constexpr int NS=2;
+
+#ifdef IS_DUAL
   constexpr Idx N_SITES=20*N_REFINE*N_REFINE;
+#else
+  constexpr Idx N_SITES=10*N_REFINE*N_REFINE+2;
+#endif
+
   constexpr Idx N=NS*N_SITES; // matrix size of DW
 
   // const double TOL=1.0e-9;
-  const double TOL_INNER=1.0e-10;
-  const double TOL_OUTER=1.0e-9;
+  const double TOL_INNER=1.0e-9;
+  const double TOL_OUTER=1.0e-8;
 }
 
 // #define IsVerbose
 #define IsVerbose2
 // #define InfoForce
 #define InfoDelta
+
+const std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
+
+#include "s2n_dual.h"
+#include "s2n_simp.h"
+#include "rng.h"
+#include "gauge.h"
+#include "action.h"
+
 
 #include <cuComplex.h>
 #include <cuda_runtime.h>
@@ -39,23 +59,40 @@ using CuC = cuDoubleComplex;
 
 // ======================================
 
-#include "s2n.h"
-#include "rng.h"
-#include "gauge.h"
-#include "action.h"
+// #include "timer.h"
+
+// #include "s2n_dual.h"
+// #include "s2n_simp.h"
+// #include "rng.h"
+// #include "gauge.h"
+// #include "force.h"
+// #include "action.h"
+// #include "sparse_matrix.h"
+// #include "dirac_dual.h"
+// #include "dirac_simp.h"
+// #include "sparse_dirac.h"
+// #include "matpoly.h"
+// #include "overlap.h"
+// #include "pseudofermion.h"
+
+// #include "integrator.h"
+// #include "hmc.h"
 
 #include "sparse_matrix.h"
 // #include "pseudofermion.h"
-#include "dirac.h"
+#include "dirac_dual.h"
+#include "dirac_simp.h"
 
 #include "sparse_dirac.h"
 #include "matpoly.h"
 
 #include "overlap.h"
 
-// #include "hmc.h"
-// #include "dirac_s2_dual.h"
-// #include "header_cusolver.hpp"
+
+#include "valence.h"
+
+using Double = double;
+#include "../../integrator/geodesic.h"
 
 
 // TODO: Cusparse for SparseMatrix::act_gpu, probably defining handle in matpoly.h
@@ -80,33 +117,41 @@ int main(int argc, char* argv[]){
 
   // ---------------------------------------
 
-  using Gauge=U1onS2<false>;
-  // using Force=U1onS2<false>;
-  // using Action=U1Wilson;
-  // using Fermion=Dirac1fonS2;
-  // using HMC=HMC<Force,Gauge,Action,Fermion>;
-  // using Rng=ParallelRng;
+#ifdef IS_DUAL
   using Lattice=S2Trivalent;
+  using Gauge=U1onS2<Lattice,false>;
+  using WilsonDirac=DiracS2Dual<Gauge>;
+#else
+  using Lattice=S2Simp;
+  using Gauge=U1onS2<Lattice,false>;
+  using WilsonDirac=DiracS2Simp<Gauge>;
+#endif
   using Rng=ParallelRng<Lattice>;
+  using Overlap=Overlap<Gauge,WilsonDirac,Lattice>;
 
   Lattice lattice(Comp::N_REFINE);
-  // Dirac1fonS2 D(lattice, 0.0, 1.0);
 
-  using WilsonDirac=Dirac1fonS2;
-  // using Overlap=OverlapPseudoFermion;
+  using Link = std::array<Idx,2>; // <int,int>;
+  constexpr Idx N = Comp::N;
+
+  // ----------------------
+
+#ifdef IS_OVERLAP
+  const double r = 1.0;
+  const double M5 = -1.0;
+#else
+  const double r = 1.0;
+  const double M5 = 0.0;
+#endif
+  WilsonDirac DW(lattice, 0.0, r, M5);
 
   Gauge U(lattice);
   Rng rng(lattice);
   // U.gaussian( rng, 0.2 );
 
-  const double M5 = -1.8;
-  // const double M5 = 0.0;
-  // const double M5 = -2.5;
-  WilsonDirac DW(lattice, M5, 1.0/3.0);
-  // Overlap Dov(DW);
-  // Overlap Dov(DW, 1.0e-4, 21);
+  // ---------------------
+
   Overlap Dov(DW, 31);
-  // Dov.compute(U);
   Dov.update(U);
   std::cout << "# min max ratio: "
             << Dov.lambda_min << " "
@@ -114,20 +159,16 @@ int main(int argc, char* argv[]){
             << Dov.lambda_min/Dov.lambda_max << std::endl;
   std::cout << "# delta = " << Dov.Delta() << std::endl;
 
-
-  // MatPoly Op;
-  // Op.push_back ( cplx(1.0), {&(Dov.M_DW), &(Dov.M_DWH)} );
-  // auto f_Op = std::bind(&Overlap::sq_device, &Dov, std::placeholders::_1, std::placeholders::_2);
-  // auto f_Op = std::bind(&Overlap::sq_device, &Dov, std::placeholders::_1, std::placeholders::_2);
-  // auto f_Op = std::bind(&Overlap::mult_device, &Dov, std::placeholders::_1, std::placeholders::_2);
+  MatPoly Op;
+#ifdef IS_OVERLAP
   auto f_Op = std::bind(&Overlap::mult_deviceAsyncLaunch, &Dov, std::placeholders::_1, std::placeholders::_2);
   LinOpWrapper M_Op( f_Op );
-
-  MatPoly Op;
   Op.push_back ( cplx(1.0), {&M_Op} );
-  // Op.push_back ( cplx(1.0), {&Dov.M_DW} );
+#else
+  Op.push_back ( cplx(1.0), {&Dov.M_DW} );
+#endif
 
-  constexpr Idx N = Comp::N;
+  // constexpr Idx N = Comp::N;
   Eigen::MatrixXcd mat(N, N);
   {
     for(Idx i=0; i<N; i++){
@@ -136,7 +177,6 @@ int main(int argc, char* argv[]){
       std::vector<Complex> xi(e.data(), e.data()+N);
       std::vector<Complex> Dxi(N);
 
-      //   // Op.solve<N>( d_eta, d_xi );
       Op.from_cpu<N>( Dxi, xi );
 
       // for(Idx j=0; j<N; j++) Dxi[j] -= xi[j];
@@ -144,7 +184,7 @@ int main(int argc, char* argv[]){
       // std::cout << "debug. i=" << i << std::endl;
       // Op.from_cpu<N>( Dxi, xi );
       mat.block(0,i,N,1) = Eigen::Map<Eigen::MatrixXcd>(Dxi.data(), N, 1);
-      std::clog << "i = " << i << " finished." << std::endl;
+      std::cout << "# i = " << i << " finished." << std::endl;
     }
   }
 
@@ -260,7 +300,7 @@ int main(int argc, char* argv[]){
   // 				   << res[i] << " "
   // 				   << Dov.sgn(res[i]) << std::endl;
 
-  for(int i=0; i<n; i++) std::cout << real(W[i]) << " " << imag(W[i]) << " " << abs(W[i]) << std::endl;
+  for(int i=0; i<n; i++) std::clog << real(W[i]) << " " << imag(W[i]) << " " << abs(W[i]) << std::endl;
 
   /* free resources */
   free(A);

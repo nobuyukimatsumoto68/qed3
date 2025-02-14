@@ -134,17 +134,17 @@ struct Zolotarev{
 };
 
 
-
+template<typename Gauge, typename WilsonDirac, typename Lattice>
 struct Overlap : public Zolotarev {
-  using Gauge=U1onS2<false>;
-  using WilsonDirac=Dirac1fonS2;
+  // using Gauge=U1onS2<false>;
+  // using WilsonDirac=Dirac1fonS2;
   using Link = std::array<Idx,2>; // <int,int>;
 
   static constexpr Idx N = Comp::N;
   static constexpr int nstreams = Comp::NSTREAMS;
 
   const WilsonDirac& DW;
-  DWDevice d_DW; // actual data used in M_DW, M_DWH
+  DWDevice<WilsonDirac,Lattice> d_DW; // actual data used in M_DW, M_DWH
   CSR M_DW;
   CSR M_DWH;
   double lambda_max, lambda_min;
@@ -299,8 +299,12 @@ struct Overlap : public Zolotarev {
     CUDA_CHECK(cudaFreeAsync(d_x, stream[0]));
     CUDA_CHECK(cudaFreeAsync(d_q, stream[nstreams-1]));
 
+    // lambda_min = 0.5*std::sqrt( 1.0/lambda2 );
+    // lambda_max = 2.0*std::sqrt( lambda );
     lambda_min = std::sqrt( (1.0-100*TOL)/lambda2 );
     lambda_max = std::sqrt( (1.0+100*TOL)*lambda );
+    // lambda_min = 0.01; // std::sqrt( (1.0-100*TOL)/lambda2 );
+    // lambda_max = 16; // std::sqrt( (1.0+100*TOL)*lambda );
 
     CUDA_CHECK(cudaDeviceSynchronize());
   }

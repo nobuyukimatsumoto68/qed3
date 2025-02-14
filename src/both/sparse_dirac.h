@@ -1,16 +1,14 @@
 #pragma once
 
+template<class WilsonDirac, class Lattice>
 struct DWDevice{
   using T = CuC;
-  using WilsonDirac=Dirac1fonS2;
-  using Lattice=S2Trivalent;
+  // using WilsonDirac=Dirac1fonS2;
+  // using Lattice=S2Trivalent;
 
   const WilsonDirac& D;
   const Lattice& lattice;
   const Idx N;
-
-  // const bool locate_on_gpu;
-  // bool is_set;
 
   static constexpr int NS = 2;
 
@@ -56,7 +54,7 @@ struct DWDevice{
 
     // ========= COO ========= //
     for(Idx ix=0; ix<lattice.n_sites; ix++){
-      for(int jj=0; jj<3; jj++){
+      for(int jj=0; jj<lattice.nn(ix); jj++){
 	Idx iy = lattice.nns[ix][jj];
 
 	is.push_back( NS*ix ); js.push_back( NS*iy );

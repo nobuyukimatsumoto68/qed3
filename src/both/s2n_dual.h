@@ -9,9 +9,10 @@
 #include <sstream>
 #include <string>
 #include <cmath>
+#include <algorithm>
 
 
-std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
+// std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
 // std::string dir = "/mnt/hdd_barracuda/qed3/dats_save/";
 
 
@@ -30,14 +31,16 @@ struct S2Trivalent {
   std::vector<VE> simp_sites;
   std::vector<VE> sites;
   std::vector<std::vector<Idx> > nns;
-  std::vector<Link> links;
+  // std::vector<int> nn;
+  std::vector<Link> _links;
+  std::vector<Link> simp_links; // dual to _link
 
   std::vector<std::array<double, 3>> u; // site, M=A,B,C
   std::vector<std::array<VD, 3>> v; // site, M=A,B,C
-  std::vector<double> vol; // site
+  std::vector<double> vol; // triangular vol
 
   std::vector<Face> faces;
-  std::vector<double> vps; // volumes of dual faces
+  std::vector<double> vps; // trivalent volumes
 
   std::map<const Link, const Idx> map2il;
   std::map<const Link, const int> map2sign;
@@ -104,13 +107,13 @@ struct S2Trivalent {
 	Idx v1, v2;
 	iss >> v1;
 	iss >> v2;
-	links.push_back( Link{v1,v2} );
+	_links.push_back( Link{v1,v2} );
       }
     }
 
     n_sites = sites.size();
     // assert( n_sites == sites.size() );
-    n_links = links.size();
+    n_links = _links.size();
 
     {
       std::cout << "# reading vs" << std::endl;
@@ -191,7 +194,7 @@ struct S2Trivalent {
 
     {
       for(Idx il=0; il<n_links; il++) {
-	const Link link = links[il];
+	const Link link = _links[il];
 	const Idx i = link[0];
 	const Idx j = link[1];
 
@@ -200,7 +203,7 @@ struct S2Trivalent {
       }
 
       for(Idx il=0; il<n_links; il++) {
-	const auto link = links[il];
+	const auto link = _links[il];
 	const Idx i = link[0];
 	const Idx j = link[1];
 
@@ -216,7 +219,35 @@ struct S2Trivalent {
       for(auto elem : vps) sum += elem;
       assert( std::abs(sum-4.0*M_PI)<1.0e-10 );
     }
+
+    set_simp_links();
   }
+
+
+
+  void set_simp_links() {
+    const double threshold=0.42188 * 2.0 / n_refine;
+
+    for(const Link& link : _links){ // trivalent
+      const VE x1 = sites[link[0]];
+      const VE x2 = sites[link[1]];
+
+      // Idx ip1, ip2;
+      std::vector<Idx> tmp;
+      for(Idx ip=0; ip<simp_sites.size(); ip++){
+        const VE x0 = simp_sites[ip];
+        const double d01 = (x0-x1).norm();
+        const double d02 = (x0-x2).norm();
+        if(d01<threshold && d02<threshold) tmp.push_back(ip);
+      }
+      assert( tmp.size()==2 );
+
+      const Idx min = std::min(tmp[0], tmp[1]);
+      const Idx max = std::max(tmp[0], tmp[1]);
+      simp_links.push_back( Link{min,max} );
+    }
+  }
+
 
 
   double vp(const Idx i_face) const {
@@ -248,5 +279,10 @@ struct S2Trivalent {
 
     return res;
   }
+
+  inline int nn(const Idx ix) const {
+    return 3;
+  }
+
 
 };

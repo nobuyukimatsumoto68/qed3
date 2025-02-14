@@ -4,37 +4,50 @@
 #include <fstream>
 #include <cstdlib>
 #include <cassert>
-
 #include <algorithm>
-
-
 #include <cstdint>
 #include <complex>
+
+using Double = double;
 using Idx = std::int32_t;
 using Complex = std::complex<double>;
 
-namespace Comp{
-  constexpr int NPARALLEL=12;
-  constexpr int NSTREAMS=4;
+#define IS_DUAL
+#define IS_OVERLAP
 
-  constexpr int N_REFINE=16;
+namespace Comp{
+  constexpr int NPARALLEL=12; // 12
+  constexpr int NSTREAMS=4; // 4
+
+  constexpr int N_REFINE=4;
   constexpr int NS=2;
+
+#ifdef IS_DUAL
   constexpr Idx N_SITES=20*N_REFINE*N_REFINE;
+#else
+  constexpr Idx N_SITES=10*N_REFINE*N_REFINE+2;
+#endif
+
   constexpr Idx N=NS*N_SITES; // matrix size of DW
 
   // const double TOL=1.0e-9;
-  // const double TOL_INNER=1.0e-6;
-  // const double TOL_OUTER=1.0e-5;
-  const double TOL_INNER=1.0e-10;
-  const double TOL_OUTER=1.0e-9;
-  // const double TOL_INNER=1.0e-12;
-  // const double TOL_OUTER=1.0e-10;
+  const double TOL_INNER=1.0e-9;
+  const double TOL_OUTER=1.0e-8;
 }
 
 // #define IsVerbose
 #define IsVerbose2
 // #define InfoForce
 #define InfoDelta
+
+const std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
+
+#include "s2n_dual.h"
+#include "s2n_simp.h"
+#include "rng.h"
+#include "gauge.h"
+#include "action.h"
+
 
 #include <cuComplex.h>
 #include <cuda_runtime.h>
@@ -46,22 +59,35 @@ using CuC = cuDoubleComplex;
 
 // ======================================
 
-#include "timer.h"
+// #include "timer.h"
 
-#include "s2n.h"
-#include "rng.h"
-#include "gauge.h"
-#include "force.h"
-#include "action.h"
+// #include "s2n_dual.h"
+// #include "s2n_simp.h"
+// #include "rng.h"
+// #include "gauge.h"
+// #include "force.h"
+// #include "action.h"
+// #include "sparse_matrix.h"
+// #include "dirac_dual.h"
+// #include "dirac_simp.h"
+// #include "sparse_dirac.h"
+// #include "matpoly.h"
+// #include "overlap.h"
+// #include "pseudofermion.h"
+
+// #include "integrator.h"
+// #include "hmc.h"
+
 #include "sparse_matrix.h"
-#include "dirac.h"
+// #include "pseudofermion.h"
+#include "dirac_dual.h"
+#include "dirac_simp.h"
+
 #include "sparse_dirac.h"
 #include "matpoly.h"
-#include "overlap.h"
-#include "pseudofermion.h"
 
-#include "integrator.h"
-#include "hmc.h"
+#include "overlap.h"
+
 
 #include "valence.h"
 
@@ -93,58 +119,76 @@ int main(int argc, char* argv[]){
 
   // ---------------------------------------
 
+#ifdef IS_DUAL
   using Lattice=S2Trivalent;
-  using Gauge=U1onS2<false>;
-  using Force=U1onS2<false>;
-  using Action=U1Wilson;
-  using Fermion=Overlap;
+  using Gauge=U1onS2<Lattice,false>;
+  using WilsonDirac=DiracS2Dual<Gauge>;
+#else
+  using Lattice=S2Simp;
+  using Gauge=U1onS2<Lattice,false>;
+  using WilsonDirac=DiracS2Simp<Gauge>;
+#endif
   using Rng=ParallelRng<Lattice>;
-  using WilsonDirac=Dirac1fonS2;
+  using Overlap=Overlap<Gauge,WilsonDirac,Lattice>;
+
+  Lattice lattice(Comp::N_REFINE);
 
   using Link = std::array<Idx,2>; // <int,int>;
   constexpr Idx N = Comp::N;
 
   // ----------------------
 
-  Lattice lattice(Comp::N_REFINE);
+  std::cout << "# lattice set. " << std::endl;
+
+#ifdef IS_OVERLAP
+  const double r = 1.0;
+  const double M5 = -1.0;
+#else
+  const double r = 1.0;
+  const double M5 = 0.0;
+#endif
+  WilsonDirac DW(lattice, 0.0, r, M5);
+
+  std::cout << "# DW set. " << std::endl;
+
   Gauge U(lattice);
   Rng rng(lattice);
   // U.gaussian( rng, 0.2 );
 
-  // ------------------
+  // ---------------------
 
-  // const double gR = 0.4;
-  // const double beta = 1.0/(gR*gR);
-  // Action SW(beta);
-
-  // -----------------
-
-  // const double M5 = -2.8;
-  const double M5 = -1.8;
-  // WilsonDirac DW(lattice, M5, 1.0/3.0);
-  WilsonDirac DW(lattice, M5, 1.0/3.0);
-  // Fermion Dov(DW, 21);
-  Fermion Dov(DW, 31);
+  Overlap Dov(DW, 31);
+  std::cout << "# Dov set. " << std::endl;
   Dov.update(U);
+  std::cout << "# min max ratio: "
+            << Dov.lambda_min << " "
+            << Dov.lambda_max << " "
+            << Dov.lambda_min/Dov.lambda_max << std::endl;
+  std::cout << "# delta = " << Dov.Delta() << std::endl;
 
-  // auto f_Op = std::bind(&Overlap::mult_deviceAsyncLaunch, &Dov, std::placeholders::_1, std::placeholders::_2);
+#ifdef IS_OVERLAP
   auto f_DHD = std::bind(&Overlap::sq_deviceAsyncLaunch, &Dov,
                          std::placeholders::_1, std::placeholders::_2);
   auto f_DH = std::bind(&Overlap::adj_deviceAsyncLaunch, &Dov,
                         std::placeholders::_1, std::placeholders::_2);
-  // auto f_DH = std::bind(&Overlap::mult_deviceAsyncLaunch, &Dov,
-  //                       std::placeholders::_1, std::placeholders::_2);
   LinOpWrapper M_DHD( f_DHD );
   LinOpWrapper M_DH( f_DH );
-
-  
-
 
   MatPoly DHD;
   DHD.push_back ( cplx(1.0), {&M_DHD} );
   //
   MatPoly DH;
   DH.push_back ( cplx(1.0), {&M_DH} );
+#else
+  MatPoly DHD;
+  DHD.push_back ( cplx(1.0), {&Dov.M_DW, &Dov.M_DWH} );
+  //
+  MatPoly DH;
+  DH.push_back ( cplx(1.0), {&Dov.M_DWH} );
+#endif
+
+  // ---------------------
+
 
   FermionVector src1(lattice, rng);
   FermionVector src(lattice, rng);
@@ -159,6 +203,9 @@ int main(int argc, char* argv[]){
   // DHD.bicgstab<N>( sink.field, src.field, rc.field, 1.0e-3, 1e8, 1.0e-8 );
   DHD.solve<N>( sink.field, src.field );
 
+
+
+#ifdef IS_DUAL
   std::vector<double> lengths;
   {
     std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
@@ -201,6 +248,26 @@ int main(int argc, char* argv[]){
               << std::setw(25) << 1.0/alat * elem.imag() << std::endl;
     counter++;
   }
+#else
+  std::vector<double> lengths;
+  {
+    const auto x0 = lattice.r[0];
+    for(int ix=0; ix<lattice.n_sites; ix++){
+      const auto x1 = lattice.r[ix];
+      double len = Geodesic::geodesicLength(Geodesic::Pt(x0), Geodesic::Pt(x1));
+      // std::cout << "len = " << len << std::endl;
+      lengths.push_back(len);
+    }
+  }
+  Idx counter=0;
+  for(auto& elem : sink) {
+    std::cout << std::setw(25) << lengths[int(counter/2)] << " "
+              << std::setw(25) << 1.0/DW.a * elem.real() << " "
+              << std::setw(25) << 1.0/DW.a * elem.imag() << std::endl;
+    counter++;
+  }
+#endif
+
 
   // ------------------
 
