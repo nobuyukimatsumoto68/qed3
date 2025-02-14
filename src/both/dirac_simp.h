@@ -118,7 +118,6 @@ struct DiracS2Simp : public SpinStructureSimp{
   DiracS2Simp()=delete;
 
   DiracS2Simp(Lattice& lattice_,
-	      // const int n_refine,
 	      const double m_=0.0,
 	      const double r_=1.0,
               const double M5_=0.0 )
@@ -202,8 +201,8 @@ struct DiracS2Simp : public SpinStructureSimp{
   }
 
 
-  MS gamma(const Idx ix, const Idx iy, const double shift=0.0) const { // located at x
-    const double al = alpha.at(Link{ix,iy}) + shift;
+  MS gamma(const Idx ix, const Idx iy) const { // located at x
+    const double al = alpha.at(Link{ix,iy});
     return std::cos(al)*sigma[1] + std::sin(al)*sigma[2];
   }
 
@@ -213,23 +212,23 @@ struct DiracS2Simp : public SpinStructureSimp{
   }
 
 
-  Eigen::MatrixXcd matrix_form() const {
-    Eigen::MatrixXcd res = Eigen::MatrixXcd::Zero(NS*lattice.n_sites, NS*lattice.n_sites);
+  // Eigen::MatrixXcd matrix_form() const {
+  //   Eigen::MatrixXcd res = Eigen::MatrixXcd::Zero(NS*lattice.n_sites, NS*lattice.n_sites);
 
-    for(Idx ix=0; ix<lattice.n_sites; ix++){
-      for(int jj=0; jj<lattice.nn(ix); jj++){
-	const Idx iy = lattice.nns[ix][jj];
-	const Idx il = lattice.sites[ix].links[jj];
+  //   for(Idx ix=0; ix<lattice.n_sites; ix++){
+  //     for(int jj=0; jj<lattice.nn(ix); jj++){
+  //       const Idx iy = lattice.nns[ix][jj];
+  //       const Idx il = lattice.sites[ix].links[jj];
 
-        // wilson // BROWER ET AL.
-	res.block<NS,NS>(NS*ix,NS*iy) += 0.5/a * (link_volume[il]/ell[il]) * gamma(ix, iy) * Omega(ix, iy);
-	res.block<NS,NS>(NS*ix,NS*ix) += 0.5 * r * (link_volume[il]/(ell[il]*ell[il])) * sigma[0];
-	res.block<NS,NS>(NS*ix,NS*iy) -= 0.5 * r * (link_volume[il]/(ell[il]*ell[il])) * Omega(ix, iy);
-      }
-    }
+  //       // wilson // BROWER ET AL.
+  //       res.block<NS,NS>(NS*ix,NS*iy) += 0.5/a * (link_volume[il]/ell[il]) * gamma(ix, iy) * Omega(ix, iy);
+  //       res.block<NS,NS>(NS*ix,NS*ix) += 0.5 * r * (link_volume[il]/(ell[il]*ell[il])) * sigma[0];
+  //       res.block<NS,NS>(NS*ix,NS*iy) -= 0.5 * r * (link_volume[il]/(ell[il]*ell[il])) * Omega(ix, iy);
+  //     }
+  //   }
 
-    return res;
-  } // end matrix_form
+  //   return res;
+  // } // end matrix_form
 
 
   void coo_format( std::vector<Complex>& v,

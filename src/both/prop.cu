@@ -12,14 +12,14 @@ using Double = double;
 using Idx = std::int32_t;
 using Complex = std::complex<double>;
 
-#define IS_DUAL
+// #define IS_DUAL
 #define IS_OVERLAP
 
 namespace Comp{
   constexpr int NPARALLEL=12; // 12
   constexpr int NSTREAMS=4; // 4
 
-  constexpr int N_REFINE=4;
+  constexpr int N_REFINE=8;
   constexpr int NS=2;
 
 #ifdef IS_DUAL
@@ -35,7 +35,7 @@ namespace Comp{
   const double TOL_OUTER=1.0e-8;
 }
 
-// #define IsVerbose
+#define IsVerbose
 #define IsVerbose2
 // #define InfoForce
 #define InfoDelta
@@ -230,24 +230,16 @@ int main(int argc, char* argv[]){
       lengths.push_back(len);
     }
   }
-  double alat;
-  {
-    std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
-    std::ifstream file(dir+"alat_n"+std::to_string(Comp::N_REFINE)+"_singlepatch.dat");
+  // double alat;
+  // {
+  //   std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
+  //   std::ifstream file(dir+"alat_n"+std::to_string(Comp::N_REFINE)+"_singlepatch.dat");
 
-    std::string str;
-    std::getline(file, str);
-    std::istringstream iss(str);
-    iss >> alat;
-  }
-
-  Idx counter=0;
-  for(auto& elem : sink) {
-    std::cout << std::setw(25) << lengths[int(counter/2)] << " "
-              << std::setw(25) << 1.0/alat * elem.real() << " "
-              << std::setw(25) << 1.0/alat * elem.imag() << std::endl;
-    counter++;
-  }
+  //   std::string str;
+  //   std::getline(file, str);
+  //   std::istringstream iss(str);
+  //   iss >> alat;
+  // }
 #else
   std::vector<double> lengths;
   {
@@ -259,6 +251,8 @@ int main(int argc, char* argv[]){
       lengths.push_back(len);
     }
   }
+#endif
+
   Idx counter=0;
   for(auto& elem : sink) {
     std::cout << std::setw(25) << lengths[int(counter/2)] << " "
@@ -266,7 +260,7 @@ int main(int argc, char* argv[]){
               << std::setw(25) << 1.0/DW.a * elem.imag() << std::endl;
     counter++;
   }
-#endif
+
 
 
   // ------------------

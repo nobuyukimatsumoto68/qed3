@@ -12,14 +12,14 @@ using Double = double;
 using Idx = std::int32_t;
 using Complex = std::complex<double>;
 
-#define IS_DUAL
-#define IS_OVERLAP
+// #define IS_DUAL
+// #define IS_OVERLAP
 
 namespace Comp{
   constexpr int NPARALLEL=12;
   constexpr int NSTREAMS=4;
 
-  constexpr int N_REFINE=4;
+  constexpr int N_REFINE=1;
   constexpr int NS=2;
 
 #ifdef IS_DUAL
@@ -151,6 +151,8 @@ int main(int argc, char* argv[]){
 
   // ---------------------
 
+  MatPoly Op;
+#ifdef IS_OVERLAP
   Overlap Dov(DW, 31);
   Dov.update(U);
   std::cout << "# min max ratio: "
@@ -159,13 +161,17 @@ int main(int argc, char* argv[]){
             << Dov.lambda_min/Dov.lambda_max << std::endl;
   std::cout << "# delta = " << Dov.Delta() << std::endl;
 
-  MatPoly Op;
-#ifdef IS_OVERLAP
   auto f_Op = std::bind(&Overlap::mult_deviceAsyncLaunch, &Dov, std::placeholders::_1, std::placeholders::_2);
   LinOpWrapper M_Op( f_Op );
   Op.push_back ( cplx(1.0), {&M_Op} );
 #else
-  Op.push_back ( cplx(1.0), {&Dov.M_DW} );
+  DWDevice<WilsonDirac,Lattice> d_DW(DW); // actual data used in M_DW, M_DWH
+  CSR M_DW;
+  CSR M_DWH;
+  d_DW.associateCSR( M_DW, false );
+  d_DW.associateCSR( M_DWH, true );
+  d_DW.update( U );
+  Op.push_back ( cplx(1.0), {&M_DW} );
 #endif
 
   // constexpr Idx N = Comp::N;

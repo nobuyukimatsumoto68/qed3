@@ -27,10 +27,10 @@ struct S2Simp : public QfeLatticeS2 {
     {
       Idx counter=0;
       for(Idx ix=0; ix<this->n_sites; ix++){
-        for(int jj=0; jj<this->nn(ix); jj++){
-          counter++;
-        }
+        // Idx counter_tmp=0;
         counter_accum.push_back(counter);
+        for(int jj=0; jj<this->nn(ix); jj++) counter+=8;
+        // counter += counter_tmp*8;
       }
     }
 
