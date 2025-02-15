@@ -19,7 +19,7 @@ namespace Comp{
   constexpr int NPARALLEL=12; // 12
   constexpr int NSTREAMS=4; // 4
 
-  constexpr int N_REFINE=8;
+  constexpr int N_REFINE=2;
   constexpr int NS=2;
 
 #ifdef IS_DUAL
@@ -31,11 +31,11 @@ namespace Comp{
   constexpr Idx N=NS*N_SITES; // matrix size of DW
 
   // const double TOL=1.0e-9;
-  const double TOL_INNER=1.0e-9;
-  const double TOL_OUTER=1.0e-8;
+  const double TOL_INNER=1.0e-15;
+  const double TOL_OUTER=1.0e-14;
 }
 
-#define IsVerbose
+// #define IsVerbose
 #define IsVerbose2
 // #define InfoForce
 #define InfoDelta
@@ -142,14 +142,18 @@ int main(int argc, char* argv[]){
 
 #ifdef IS_OVERLAP
   const double r = 1.0;
-  const double M5 = -1.0;
+#ifdef IS_DUAL
+  const double M5 = -1.6/2.0 * 0.5*3.0/2.0;
+#else
+  const double M5 = -1.6/2.0 * 0.5*(1.0 + std::sqrt( 5.0 + 2.0*std::sqrt(2.0) ));
+#endif
 #else
   const double r = 1.0;
   const double M5 = 0.0;
 #endif
   WilsonDirac DW(lattice, 0.0, r, M5);
 
-  std::cout << "# DW set. " << std::endl;
+  std::cout << "# DW set" << std::endl;
 
   Gauge U(lattice);
   Rng rng(lattice);
@@ -158,7 +162,7 @@ int main(int argc, char* argv[]){
   // ---------------------
 
   Overlap Dov(DW, 31);
-  std::cout << "# Dov set. " << std::endl;
+  std::cout << "# Dov set; M5 = " << M5 << std::endl;
   Dov.update(U);
   std::cout << "# min max ratio: "
             << Dov.lambda_min << " "
@@ -256,8 +260,8 @@ int main(int argc, char* argv[]){
   Idx counter=0;
   for(auto& elem : sink) {
     std::cout << std::setw(25) << lengths[int(counter/2)] << " "
-              << std::setw(25) << 1.0/DW.a * elem.real() << " "
-              << std::setw(25) << 1.0/DW.a * elem.imag() << std::endl;
+              << std::setw(25) << 1.0/lattice.alat * elem.real() << " "
+              << std::setw(25) << 1.0/lattice.alat * elem.imag() << std::endl;
     counter++;
   }
 

@@ -13,14 +13,22 @@ INCLUDES_CUDA += $(INCLUDES)
 NVCCFLAGS+=-DGRP_DIR="\"$(GRP_DIR)\""
 
 SRCS := $(wildcard *.cu)
+# SRCS := $(wildcard *.h)
 OBJS := $(SRCS:%.cu=%.o)
+# OBJS += $(SRCS:%.h=%.o)
 
 all: $(OBJS)
 
 %.d: %.cu
 	$(NVCC) $(INCLUDES_CUDA) -M $< -o $@
 
+# %.d: %.h
+# 	$(NVCC) $(INCLUDES_CUDA) -M $< -o $@
+
 include $(SRCS:.cu=.d)
+
+# %.o: %.h
+# 	$(NVCC) $(NVCCFLAGS) $(INCLUDES_CUDA) $(LDFLAGS_CUDA) -c $< -o $@ # $(<:.d=.cu)
 
 %.o: %.cu
 	$(NVCC) $(NVCCFLAGS) $(INCLUDES_CUDA) $(LDFLAGS_CUDA) $< -o $@ # $(<:.d=.cu)

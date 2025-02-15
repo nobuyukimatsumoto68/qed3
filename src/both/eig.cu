@@ -13,13 +13,13 @@ using Idx = std::int32_t;
 using Complex = std::complex<double>;
 
 // #define IS_DUAL
-// #define IS_OVERLAP
+#define IS_OVERLAP
 
 namespace Comp{
   constexpr int NPARALLEL=12;
   constexpr int NSTREAMS=4;
 
-  constexpr int N_REFINE=1;
+  constexpr int N_REFINE=4;
   constexpr int NS=2;
 
 #ifdef IS_DUAL
@@ -138,7 +138,12 @@ int main(int argc, char* argv[]){
 
 #ifdef IS_OVERLAP
   const double r = 1.0;
-  const double M5 = -1.0;
+  // const double M5 = -1.0;
+#ifdef IS_DUAL
+  const double M5 = -1.6/2.0 * 0.5*3.0/2.0;
+#else
+  const double M5 = -1.6/2.0 * 0.5*(1.0 + std::sqrt( 5.0 + 2.0*std::sqrt(2.0) ));
+#endif
 #else
   const double r = 1.0;
   const double M5 = 0.0;
@@ -155,6 +160,7 @@ int main(int argc, char* argv[]){
 #ifdef IS_OVERLAP
   Overlap Dov(DW, 31);
   Dov.update(U);
+  std::cout << "# Dov set; M5 = " << M5 << std::endl;
   std::cout << "# min max ratio: "
             << Dov.lambda_min << " "
             << Dov.lambda_max << " "

@@ -35,12 +35,12 @@ struct S2Trivalent {
   std::vector<Link> _links;
   std::vector<Link> simp_links; // dual to _link
 
-  std::vector<std::array<double, 3>> u; // site, M=A,B,C
-  std::vector<std::array<VD, 3>> v; // site, M=A,B,C
+  // std::vector<std::array<double, 3>> u; // site, M=A,B,C
+  // std::vector<std::array<VD, 3>> v; // site, M=A,B,C
   std::vector<double> vol; // triangular vol
 
   std::vector<Face> faces;
-  std::vector<double> vps; // trivalent volumes
+  // std::vector<double> vps; // trivalent volumes
 
   std::map<const Link, const Idx> map2il;
   std::map<const Link, const int> map2sign;
@@ -48,8 +48,10 @@ struct S2Trivalent {
   double mean_vol;
 
   Idx n_sites;
-  Idx n_links;
+  Idx n_links; // same
   Idx n_faces;
+
+  double alat;
 
   S2Trivalent(const int n_refine)
     : n_refine( n_refine )
@@ -115,44 +117,44 @@ struct S2Trivalent {
     // assert( n_sites == sites.size() );
     n_links = _links.size();
 
-    {
-      std::cout << "# reading vs" << std::endl;
-      std::ifstream file(dir+"vs_n"+std::to_string(n_refine)+"_singlepatch.dat");
+    // {
+    //   std::cout << "# reading vs" << std::endl;
+    //   std::ifstream file(dir+"vs_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
-      std::string str;
-      while (std::getline(file, str)){
-	std::istringstream iss(str);
-	double v1, v2, v3, v4, v5, v6;
-	iss >> v1;
-	iss >> v2;
-	const VD vv1(v1,v2);
-	iss >> v3;
-	iss >> v4;
-	const VD vv2(v3,v4);
-	iss >> v5;
-	iss >> v6;
-	const VD vv3(v5,v6);
-	v.push_back( std::array<VD,3>{vv1,vv2,vv3} );
-      }
-      assert( v.size()==n_sites );
-    }
+    //   std::string str;
+    //   while (std::getline(file, str)){
+    //     std::istringstream iss(str);
+    //     double v1, v2, v3, v4, v5, v6;
+    //     iss >> v1;
+    //     iss >> v2;
+    //     const VD vv1(v1,v2);
+    //     iss >> v3;
+    //     iss >> v4;
+    //     const VD vv2(v3,v4);
+    //     iss >> v5;
+    //     iss >> v6;
+    //     const VD vv3(v5,v6);
+    //     v.push_back( std::array<VD,3>{vv1,vv2,vv3} );
+    //   }
+    //   assert( v.size()==n_sites );
+    // }
 
-    {
-      std::cout << "# reading us" << std::endl;
-      std::ifstream file(dir+"us_n"+std::to_string(n_refine)+"_singlepatch.dat");
+    // {
+    //   std::cout << "# reading us" << std::endl;
+    //   std::ifstream file(dir+"us_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
-      std::string str;
-      while (std::getline(file, str)){
-	std::istringstream iss(str);
-	double v1, v2, v3;
-	iss >> v1;
-	iss >> v2;
-	iss >> v3;
-	u.push_back( std::array<double,3>{v1,v2,v3} );
-      }
+    //   std::string str;
+    //   while (std::getline(file, str)){
+    //     std::istringstream iss(str);
+    //     double v1, v2, v3;
+    //     iss >> v1;
+    //     iss >> v2;
+    //     iss >> v3;
+    //     u.push_back( std::array<double,3>{v1,v2,v3} );
+    //   }
 
-      assert( u.size()==n_sites );
-    }
+    //   assert( u.size()==n_sites );
+    // }
 
     {
       std::cout << "# reading vols" << std::endl;
@@ -170,12 +172,16 @@ struct S2Trivalent {
     }
     {
       Idx counter=0;
+      mean_vol=0.;
       for(double elem : vol){
 	mean_vol += elem;
 	counter++;
       }
       mean_vol /= counter;
     }
+
+    // alat = std::sqrt( 8.0*M_PI/std::sqrt(3.0)/n_sites );
+    alat = std::sqrt( mean_vol*4.0/std::sqrt(3.0) );
 
     {
       std::cout << "# reading faces" << std::endl;
@@ -212,13 +218,13 @@ struct S2Trivalent {
       }
     }
 
-    {
-      for(Idx i=0; i<n_faces; i++) vps.push_back(vp(i));
+    // {
+    //   for(Idx i=0; i<n_faces; i++) vps.push_back(vp(i));
 
-      double sum = 0.0;
-      for(auto elem : vps) sum += elem;
-      assert( std::abs(sum-4.0*M_PI)<1.0e-10 );
-    }
+    //   double sum = 0.0;
+    //   for(auto elem : vps) sum += elem;
+    //   assert( std::abs(sum-4.0*M_PI)<1.0e-10 );
+    // }
 
     set_simp_links();
   }
@@ -250,35 +256,40 @@ struct S2Trivalent {
 
 
 
-  double vp(const Idx i_face) const {
-    double res = 0.0;
 
-    const auto face = faces[i_face];
-    const Idx n = face.size();
 
-    const VE r0 = sites[face[0]];
-    for(Idx j=1; j<n-1; j++){
-      const Idx k=j+1;
 
-      const VE r1 = sites[face[j]];
-      const VE r2 = sites[face[k]];
 
-      const double a = std::acos(r0.dot(r1));
-      const double b = std::acos(r1.dot(r2));
-      const double c = std::acos(r2.dot(r0));
-      const double s = 0.5*(a+b+c);
 
-      double tantan = std::tan(0.5*s);
-      tantan *= std::tan(0.5*(s-a));
-      tantan *= std::tan(0.5*(s-b));
-      tantan *= std::tan(0.5*(s-c));
+  // double vp(const Idx i_face) const {
+  //   double res = 0.0;
 
-      const double tmp = 4.0 * std::atan( std::sqrt(tantan) );
-      res += tmp;
-    }
+  //   const auto face = faces[i_face];
+  //   const Idx n = face.size();
 
-    return res;
-  }
+  //   const VE r0 = sites[face[0]];
+  //   for(Idx j=1; j<n-1; j++){
+  //     const Idx k=j+1;
+
+  //     const VE r1 = sites[face[j]];
+  //     const VE r2 = sites[face[k]];
+
+  //     const double a = std::acos(r0.dot(r1));
+  //     const double b = std::acos(r1.dot(r2));
+  //     const double c = std::acos(r2.dot(r0));
+  //     const double s = 0.5*(a+b+c);
+
+  //     double tantan = std::tan(0.5*s);
+  //     tantan *= std::tan(0.5*(s-a));
+  //     tantan *= std::tan(0.5*(s-b));
+  //     tantan *= std::tan(0.5*(s-c));
+
+  //     const double tmp = 4.0 * std::atan( std::sqrt(tantan) );
+  //     res += tmp;
+  //   }
+
+  //   return res;
+  // }
 
   inline int nn(const Idx ix) const {
     return 3;

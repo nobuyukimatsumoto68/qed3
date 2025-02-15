@@ -341,8 +341,8 @@ int main(int argc, char* argv[]){
   for(auto elem : X){
     std::clog << std::setprecision(16)
               << std::setw(25) << lengths[int(counter/2)] << " "
-              << std::setw(25) << 1.0/DW.a * real(elem) << " "
-              << std::setw(25) << 1.0/DW.a * imag(elem) << std::endl;
+              << std::setw(25) << 1.0/lattice.alat * real(elem) << " "
+              << std::setw(25) << 1.0/lattice.alat * imag(elem) << std::endl;
     counter++;
   }
 #endif

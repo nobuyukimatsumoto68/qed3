@@ -15,6 +15,8 @@ struct S2Simp : public QfeLatticeS2 {
 
   std::vector<Idx> counter_accum;
 
+  double alat;
+
   S2Simp(const int n_refine)
     : QfeLatticeS2(5, n_refine)
     , _links(n_links)
@@ -73,6 +75,27 @@ struct S2Simp : public QfeLatticeS2 {
       }
     }
 
+
+    {
+      double mean_vol=0.;
+      Idx counter=0;
+      std::cout << "# reading vols" << std::endl;
+      std::ifstream file(dir+"dualtriangleareas_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      assert(file.is_open());
+      std::string str;
+      while (std::getline(file, str)){
+	std::istringstream iss(str);
+	double v1;
+	iss >> v1;
+	// vol.push_back(v1);
+        mean_vol += v1;
+	counter++;
+      }
+      mean_vol /= counter;
+      alat = std::sqrt( mean_vol*4.0/std::sqrt(3.0) );
+    }
+    // alat = std::sqrt( 8.0*M_PI/std::sqrt(3.0)/n_sites );
+    // alat = std::sqrt( 8.0*M_PI/std::sqrt(3.0)/this->n_faces );
   }
 
   inline int nn(const Idx ix) const {

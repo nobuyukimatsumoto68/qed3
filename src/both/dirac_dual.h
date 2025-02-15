@@ -73,7 +73,6 @@ struct SpinStructureDual{
 
 template<typename Gauge>
 struct DiracS2Dual : public SpinStructureDual{
-  // using Gauge=U1onS2<false>;
   using Lattice=S2Trivalent;
 
   using MS=Eigen::Matrix2cd;
@@ -89,14 +88,12 @@ struct DiracS2Dual : public SpinStructureDual{
   const double r;
   const double M5;
 
-  double a = 1.0;
+  // double a = 1.0;
 
-  // SpinStructure spin;
   std::array<MS, 4> sigma;
-
-  std::vector<double> ell; // link label
-  std::vector<double> link_volume; // link label
-  // std::vector<std::array<VD, 3>> exM; // site, M=A,B,C
+  std::vector<double> kappa; // link label
+  std::vector<double> link_volume; // evan's link label
+  std::vector<double> ell; // evan's link label
 
   DiracS2Dual()=delete;
 
@@ -110,8 +107,9 @@ struct DiracS2Dual : public SpinStructureDual{
     , m(m_)
     , r(r_)
     , M5(M5_)
-    , ell(lattice.n_links)
+    , kappa(lattice.n_links)
     , link_volume(lattice.n_links)
+    , ell(lattice.n_links)
   {
     set_sigma();
 
@@ -129,7 +127,7 @@ struct DiracS2Dual : public SpinStructureDual{
 	  assert( std::abs(Mod(diff))<TOL );
 	}}
     }
-    set_ell_and_link_volumes();
+    set_kappa();
   }
 
   DiracS2Dual & operator=(const DiracS2Dual&) = delete;
@@ -210,10 +208,18 @@ struct DiracS2Dual : public SpinStructureDual{
       for(int jj=0; jj<3; jj++){
 	const Idx iy = lattice.nns[ix][jj];
         const Idx il = lattice.map2il.at(Link{ix,iy});
-
+        // const double a = lattice.alat/std::sqrt(3.0);
         // const MS tmp = 0.5/a * (link_volume[il]/ell[il]) * gamma(ix, iy) * Omega(ix, iy) - 0.5 * r * (link_volume[il]/(ell[il]*ell[il])) * Omega(ix, iy);
-        const MS tmp = 0.5 * link_volume[il]/ell[il] * ( -r/ell[il] *sigma[0] + 1.0/a * gamma(ix, iy) ) * Omega(ix, iy);
-	const MS tmp2 = 0.5 * r * ( link_volume[il]/(ell[il]*ell[il]) ) * sigma[0] + M5/lattice.nn(ix) * sigma[0];
+        // const MS tmp = 0.5 * link_volume[il]/ell[il] * ( -r/ell[il] *sigma[0] + 1.0/a * gamma(ix, iy) ) * Omega(ix, iy);
+        // const MS tmp2 = 0.5 * r * ell[il]/a * ( link_volume[il]/(ell[il]*ell[il]) ) * sigma[0] + M5/lattice.nn(ix) * sigma[0];
+        // const MS tmp = 0.5/a * link_volume[il]/ell[il] * ( -r *sigma[0] + gamma(ix, iy) ) * Omega(ix, iy);
+	// const MS tmp2 = 0.5 * r/a * link_volume[il]/ell[il] * sigma[0] + M5/lattice.nn(ix) * sigma[0];
+
+        // const MS tmp = kappa[il] * ( - lattice.alat/ell[il] * r *sigma[0] + gamma(ix, iy) ) * Omega(ix, iy);
+	// const MS tmp2 = lattice.alat/ell[il] * r*kappa[il] * sigma[0] + M5/lattice.nn(ix) * sigma[0];
+
+        const MS tmp = 0.5 * kappa[il] * ( -r *sigma[0] + gamma(ix, iy) ) * Omega(ix, iy);
+	const MS tmp2 = 0.5 * r*kappa[il] * sigma[0] + M5/lattice.nn(ix) * sigma[0];
 
 	// res[NS*ix] += -tmp(0,0)*v[NS*iy] - tmp(0,1)*v[NS*iy+1];
 	v[counter] = tmp(0,0); counter++;
@@ -322,9 +328,10 @@ struct DiracS2Dual : public SpinStructureDual{
 
 
 
-  void set_ell_and_link_volumes() {
+  void set_kappa() {
     // QfeLatticeS2 simp(5, n_refine);
-
+    // Idx counter = 0;
+    // a = 0.0;
     for(Idx il=0; il<lattice.n_links; il++) {
       // std::cout << il << std::endl;
       // const Link link = lattice._links[il];
@@ -342,21 +349,21 @@ struct DiracS2Dual : public SpinStructureDual{
       {
         const VE p = lattice.simp_sites[iA];
 
-        double a_ = (x-p).norm();
-	double b_ = (y-p).norm();
-	double c_ = (x-y).norm(); // ell
-
-	double s_ = 0.5*(a_+b_+c_);
-	double tmp = s_ * (s_-a_) * (s_-b_) * (s_-c_);
-	double area_ = std::sqrt( tmp );
-
-        // double a_ = std::acos( r0.dot(p) /(r0.norm()* p.norm()) );
-	// double b_ = std::acos( r1.dot(p) /(r1.norm()* p.norm()) );
-	// double c_ = std::acos( r0.dot(r1)/(r0.norm()*r1.norm()) ); // ell
+        // double a_ = (x-p).norm();
+	// double b_ = (y-p).norm();
+	// double c_ = (x-y).norm(); // ell
 
 	// double s_ = 0.5*(a_+b_+c_);
-	// double tmp = std::tan(0.5*s_) * std::tan(0.5*(s_-a_)) * std::tan(0.5*(s_-b_)) * std::tan(0.5*(s_-c_));
-	// double area_ = 4.0*std::atan( std::sqrt( tmp ) );
+	// double tmp = s_ * (s_-a_) * (s_-b_) * (s_-c_);
+	// double area_ = std::sqrt( tmp );
+
+        double a_ = std::acos( x.dot(p) /(x.norm()* p.norm()) );
+	double b_ = std::acos( y.dot(p) /(y.norm()* p.norm()) );
+	double c_ = std::acos( x.dot(y)/(x.norm()*y.norm()) ); // ell
+
+	double s_ = 0.5*(a_+b_+c_);
+	double tmp = std::tan(0.5*s_) * std::tan(0.5*(s_-a_)) * std::tan(0.5*(s_-b_)) * std::tan(0.5*(s_-c_));
+	double area_ = 4.0*std::atan( std::sqrt( tmp ) );
 
 	ellA = c_;
 	areaA = area_;
@@ -364,44 +371,36 @@ struct DiracS2Dual : public SpinStructureDual{
       {
         const VE p = lattice.simp_sites[iB];
 
-        double a_ = (x-p).norm();
-	double b_ = (y-p).norm();
-	double c_ = (x-y).norm(); // ell
-
-	double s_ = 0.5*(a_+b_+c_);
-	double tmp = s_ * (s_-a_) * (s_-b_) * (s_-c_);
-	double area_ = std::sqrt( tmp );
-
-        // double a_ = std::acos( r0.dot(p) /(r0.norm()* p.norm()) );
-	// double b_ = std::acos( r1.dot(p) /(r1.norm()* p.norm()) );
-	// double c_ = std::acos( r0.dot(r1)/(r0.norm()*r1.norm()) ); // ell
+        // double a_ = (x-p).norm();
+	// double b_ = (y-p).norm();
+	// double c_ = (x-y).norm(); // ell
 
 	// double s_ = 0.5*(a_+b_+c_);
-	// double tmp = std::tan(0.5*s_) * std::tan(0.5*(s_-a_)) * std::tan(0.5*(s_-b_)) * std::tan(0.5*(s_-c_));
-	// double area_ = 4.0*std::atan( std::sqrt( tmp ) );
+	// double tmp = s_ * (s_-a_) * (s_-b_) * (s_-c_);
+	// double area_ = std::sqrt( tmp );
+
+        double a_ = std::acos( x.dot(p) /(x.norm()* p.norm()) );
+	double b_ = std::acos( y.dot(p) /(y.norm()* p.norm()) );
+	double c_ = std::acos( x.dot(y)/(x.norm()*y.norm()) ); // ell
+
+	double s_ = 0.5*(a_+b_+c_);
+	double tmp = std::tan(0.5*s_) * std::tan(0.5*(s_-a_)) * std::tan(0.5*(s_-b_)) * std::tan(0.5*(s_-c_));
+	double area_ = 4.0*std::atan( std::sqrt( tmp ) );
 
 	ellB = c_;
 	areaB = area_;
       }
 
       assert( std::abs(ellA-ellB)<1.0e-14 );
-      // std::cout << "ell " << il << std::endl;
       ell[il] = ellA;
-      // std::cout << "link_volume " << il << std::endl;
-      link_volume[il] = areaA + areaB;
-      // std::cout << il << std::endl;
-    }
+      link_volume[il] = (areaA + areaB);
+      kappa[il] = (areaA + areaB) / ellA; // std::acos( rA.dot(rB) /(rA.norm() * rB.norm()) );
 
-    Idx counter = 0;
-    a = 0.0;
-    for(Idx il=0; il<lattice.n_links; il++) {
-      a += ell[il];
-      counter++;
-      // std::cout << "ell[il] =" << ell[il] << std::endl;
+      // a += ellA;
+      // counter++;
     }
-    a /= counter;
-    a *= 1.0;
-    // std::cout << "a = " << a << std::endl;
+    // a /= counter;
+    for(Idx il=0; il<lattice.n_links; il++) kappa[il] /= lattice.alat;
   }
 
 };
