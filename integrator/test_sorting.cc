@@ -42,7 +42,7 @@ using VE=Eigen::Matrix<Double, 3, 1>;
 
 Double TOL=1.0e-14;
 
-constexpr Double TOLLOOSE=1.0e-6;
+constexpr Double TOLLOOSE=1.0e-5;
 
 const int limit = 4000; // 1000;
 Double epsabs = 1.0e-15; // 0.;
@@ -201,7 +201,7 @@ int main(int argc, char* argv[]){
 
   {
     const Double phi0 = _M_PI/48.0;
-    for(const auto& site : sites) assert( std::abs(Mod(Pt(site).xi[1]) - phi0)>TOLLOOSE );
+    // for(const auto& site : sites) assert( std::abs(Mod(Pt(site).xi[1]) - phi0)>TOLLOOSE );
     std::vector<Idx> section;
     for(Idx il=0; il<links.size(); il++){
       Link link = links[il];

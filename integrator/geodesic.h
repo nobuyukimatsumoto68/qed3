@@ -10,7 +10,7 @@
 namespace Geodesic{
 
 
-  constexpr Double TOLMOD=1.0e-5;
+  constexpr Double TOLMOD=1.0e-4;
   constexpr Double TOL3 = 1.0e-6;
 
   // constexpr Double EPSNUMDER=1.0e-5;

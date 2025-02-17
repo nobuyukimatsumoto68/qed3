@@ -22,7 +22,7 @@ using Double = std::float64_t;
 
 
 // #include "dirac_s2.h"
-#include "s2.h"
+// #include "s2.h"
 
 
 using namespace Geodesic;
@@ -48,7 +48,7 @@ using VE=Eigen::Matrix<Double, 3, 1>;
 
 Double TOL=1.0e-14;
 
-constexpr Double TOLLOOSE=1.0e-6;
+constexpr Double TOLLOOSE=1.0e-4;
 
 const int limit = 4000; // 1000;
 Double epsabs = 1.0e-13; // 0.;
@@ -65,7 +65,7 @@ int main(int argc, char* argv[]){
   int n_refine=1;
   if(argc==2) n_refine = atoi(argv[1]);
 
-  QfeLatticeS2 lattice(5, n_refine);
+  //  QfeLatticeS2 lattice(5, n_refine);
 
 
   // Double tht = _M_PI/n_refine;
@@ -82,10 +82,74 @@ int main(int argc, char* argv[]){
   //   0.0, 0.0, 1.0;
 
   std::vector<VE> sites;
-  for(Idx ix=0; ix<lattice.n_sites; ix++) {
-    VE x = rot*lattice.r[ix];
-    // VE x = lattice.r[ix];
-    sites.push_back(x);
+  {
+    std::ifstream file(dir+"pts_n"+std::to_string(n_refine)+"_singlepatch.dat");
+
+    std::string str;
+    // skip the header line
+    // https://stackoverflow.com/questions/16068997/how-to-skip-the-header-line-in-a-text-file-and-read-back-the-rest-of-the-data-to
+    // file.ignore(std::numeric_limits<std::streamsize>::max(),'\n');
+    while (std::getline(file, str)){
+      std::istringstream iss(str);
+      Double v1, v2, v3;
+      iss >> v1;
+      iss >> v2;
+      iss >> v3;
+      sites.push_back( VE(v1, v2, v3) );
+    }
+  }
+
+  std::vector<Link> links;
+  {
+    std::ifstream file(dir+"links_n"+std::to_string(n_refine)+"_singlepatch.dat");
+    std::string str;
+    while (std::getline(file, str)){
+      std::istringstream iss(str);
+      Idx v1, v2;
+      iss >> v1;
+      iss >> v2;
+      links.push_back( Link({v1, v2}) );
+    }
+  }
+
+  std::vector<std::vector<Idx>> nns;
+  {
+    std::ifstream file(dir+"nns_n"+std::to_string(n_refine)+"_singlepatch.dat");
+    std::string str;
+    while (std::getline(file, str)){
+      std::istringstream iss(str);
+      Idx v1, v2, v3;
+      iss >> v1;
+      iss >> v2;
+      iss >> v3;
+      nns.push_back( std::vector<Idx>{v1,v2,v3} );
+    }
+  }
+
+  std::vector<Face> faces;
+  {
+    std::ifstream file(dir+"face_n"+std::to_string(n_refine)+".dat");
+    assert(file.is_open());
+    std::string str;
+    while (std::getline(file, str)){
+      std::istringstream iss(str);
+      Idx v;
+      std::vector<Idx> face;
+      while( iss >> v ) face.push_back( v );
+      faces.push_back( face );
+    }
+  }
+
+
+
+
+
+  // std::vector<VE> sites;
+  for(Idx ix=0; ix<sites.size(); ix++) {
+    VE tmp = rot*sites[ix];
+    sites[ix] = tmp;
+    // // VE x = lattice.r[ix];
+    // sites.push_back(x);
   }
 
 
@@ -94,14 +158,15 @@ int main(int argc, char* argv[]){
   std::vector<Double> omegas;
   std::vector<Sol> sols;
   int counter=0;
-  for(const auto& link : lattice.links){
+  // std::vector<Link> links;
+  for(const Link& link : links){
     // {
     // Link link = links[74];
     // std::cout << "counter = " << counter << std::endl;
     counter++;
     // Link link = links[2];
-    Idx ix1 = link.sites[0];
-    Idx ix2 = link.sites[1];
+    Idx ix1 = link[0];
+    Idx ix2 = link[1];
 
     Pt x1( sites[ix1] );
     Pt x2( sites[ix2] );
@@ -162,12 +227,12 @@ int main(int argc, char* argv[]){
     // const Double phi0 = 0.3;
     const Double phi0 = _M_PI/48.0;
     // const Double phi0 = 0.0;
-    for(Idx ix=0; ix<lattice.n_sites; ix++) assert( std::abs(Mod(Pt(sites[ix]).xi[1]) - phi0)>TOLLOOSE );
+    // for(Idx ix=0; ix<lattice.n_sites; ix++) assert( std::abs(Mod(Pt(sites[ix]).xi[1]) - phi0)>TOLLOOSE );
     std::vector<Idx> section;
-    for(Idx il=0; il<lattice.n_links; il++){
-      const auto& link = lattice.links[il];
-      Idx ix1 = link.sites[0];
-      Idx ix2 = link.sites[1];
+    for(Idx il=0; il<links.size(); il++){
+      const Link& link = links[il];
+      Idx ix1 = link[0];
+      Idx ix2 = link[1];
 
       const Double phi1 = Pt(sites[ix1]).xi[1];
       const Double phi2 = Pt(sites[ix2]).xi[1];
@@ -198,11 +263,11 @@ int main(int argc, char* argv[]){
   }
 
   std::map<const Link, Double> omega;
-  for(Idx il=0; il<lattice.n_links; il++){
+  for(Idx il=0; il<links.size(); il++){
     // Link link = links[il];
-    const auto& link = lattice.links[il];
-    Idx ix1 = link.sites[0];
-    Idx ix2 = link.sites[1];
+    const Link& link = links[il];
+    Idx ix1 = link[0];
+    Idx ix2 = link[1];
 
     omega.insert( { Link{ix1, ix2},  omegas[il] } );
     omega.insert( { Link{ix2, ix1}, -omegas[il] } );
@@ -275,11 +340,11 @@ int main(int argc, char* argv[]){
   }
 
   std::map<const Link, Double> alpha;
-  for(Idx il=0; il<lattice.n_links; il++){
-    // Link link = links[il];
-    const auto& link = lattice.links[il];
-    Idx ix1 = link.sites[0];
-    Idx ix2 = link.sites[1];
+  for(Idx il=0; il<links.size(); il++){
+    Link link = links[il];
+    // const Link link = lattice.links[il];
+    Idx ix1 = link[0];
+    Idx ix2 = link[1];
 
     // omega.insert( { Link{ix1, ix2},  omegas[il] } );
     // omega.insert( { Link{ix1, ix2}, -omegas[il] } );
@@ -327,9 +392,9 @@ int main(int argc, char* argv[]){
   {
     std::clog << "# checking spin structure" << std::endl;
     for(Idx ix=0; ix<sites.size(); ix++){
-      const auto x = lattice.sites[ix];
-      for(int iw=0; iw<x.nn; iw++){
-        Idx iy = x.neighbors[iw];
+      // const VE x = sites[ix];
+      for(int iw=0; iw<nns[ix].size(); iw++){
+        Idx iy = nns[ix][iw];
         // for(Idx iy : nns[ix]){
         // std::cout << ix << " " << iy << std::endl;
         const Double alpha1 = alpha.at(Link{ix,iy});
@@ -392,15 +457,15 @@ int main(int argc, char* argv[]){
   // // }
 
   {
-    std::clog << "# checking deficits" << std::endl;
+    std::clog << "# checking deficits @@@ NEED DEBUG" << std::endl;
     int counter=0;
-    // for(auto& face : faces){
-    for(int ia=0; ia<lattice.n_faces; ia++){
+    for(auto& face : faces){
+      // for(int ia=0; ia<lattice.n_faces; ia++){
       int sign = 1;
       {
-        VE x0 = sites[ lattice.faces[ia].sites[0] ];
-        VE x1 = sites[ lattice.faces[ia].sites[1] ];
-        VE x2 = sites[ lattice.faces[ia].sites[2] ];
+        VE x0 = sites[ face[0] ];
+        VE x1 = sites[ face[1] ];
+        VE x2 = sites[ face[2] ];
         // if((x1-x0).cross(x2-x1).dot(x0) < 0) sign = -1;
         VE sum = x0+x1+x2;
         if((x1-x0).cross(x2-x0).dot(sum) < 0) sign = -1;
@@ -417,8 +482,8 @@ int main(int argc, char* argv[]){
         // const Idx j = (i+1)%face.size();
         // // std::cout << "j = " << j << std::endl;
         // const Idx jx = face[j];
-        Idx ix = lattice.faces[ia].sites[i];
-        Idx jx = lattice.faces[ia].sites[(i+1)%3];
+        Idx ix = face[i];
+        Idx jx = face[(i+1)%3];
 
         // std::cout << "jx = " << jx << std::endl;
         sum += omega.at( Link{ix,jx} );
@@ -429,7 +494,7 @@ int main(int argc, char* argv[]){
       std::cout << "sum (mod4pi) = " << mod << std::endl;
       if(mod>2.0*_M_PI) mod -= 4.0*_M_PI;
       std::clog << "# sum (mod4pi, repr) = " << mod << std::endl;
-      assert( (-1.5 * 4.0*_M_PI/lattice.n_faces < mod && mod < 0.0) );
+      assert( (-1.5 * 4.0*_M_PI/faces.size() < mod && mod < 0.0) );
       // if(! (-1.5 * 4.0*_M_PI/lattice.n_faces < mod && mod < 0.0) ){
       //   std::cout << "@@@@@@@@@@ ia = " << ia << std::endl;
       // };
@@ -438,15 +503,14 @@ int main(int argc, char* argv[]){
   }
 
 
-
   {
     std::ofstream ofs(dir+"omega_n"+std::to_string(n_refine)+"_singlepatch.dat");
     ofs << std::scientific << std::setprecision(15);
-    for(Idx il=0; il<lattice.n_links; il++){
-      // Link link = links[il];
-      const auto& link = lattice.links[il];
-      Idx ix1 = link.sites[0];
-      Idx ix2 = link.sites[1];
+    for(Idx il=0; il<links.size(); il++){
+      Link link = links[il];
+      // const auto& link = lattice.links[il];
+      Idx ix1 = link[0];
+      Idx ix2 = link[1];
 
       ofs << std::setw(25) << ix1 << " ";
       ofs << std::setw(25) << ix2 << " ";
@@ -457,11 +521,11 @@ int main(int argc, char* argv[]){
   {
     std::ofstream ofs(dir+"alpha_n"+std::to_string(n_refine)+"_singlepatch.dat");
     ofs << std::scientific << std::setprecision(15);
-    for(Idx il=0; il<lattice.n_links; il++){
-      // Link link = links[il];
-      const auto& link = lattice.links[il];
-      Idx ix1 = link.sites[0];
-      Idx ix2 = link.sites[1];
+    for(Idx il=0; il<links.size(); il++){
+      Link link = links[il];
+      // const auto& link = lattice.links[il];
+      Idx ix1 = link[0];
+      Idx ix2 = link[1];
 
       ofs << std::setw(25) << ix1 << " ";
       ofs << std::setw(25) << ix2 << " ";

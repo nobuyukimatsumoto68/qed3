@@ -54,7 +54,7 @@ int main(int argc, char* argv[]){
   }
 
   // --------------------------
-  // dual sites
+  // simp faces
   std::vector<Face> simp_faces;
   {
     int counter=0;
@@ -69,6 +69,8 @@ int main(int argc, char* argv[]){
   std::cout << simp_faces.size() << std::endl;
   // assert( simp_faces.size()==simp_sites.size() );
 
+  // --------------------------
+  // dual sites
   std::vector<VE> sites;
   {
     for( auto& elem : simp_faces ){
@@ -105,6 +107,40 @@ int main(int argc, char* argv[]){
   const int n_links = links.size();
 
   // --------------------------
+  // simp links
+  std::vector<Link> simp_links;
+  {
+    const double threshold=0.42188 * 2.0 / n_refine;
+
+    for(const Link& link : links){ // trivalent
+      const VE x1 = sites[link[0]];
+      const VE x2 = sites[link[1]];
+
+      // Idx ip1, ip2;
+      std::vector<Idx> tmp;
+      for(Idx ip=0; ip<simp_sites.size(); ip++){
+        const VE x0 = simp_sites[ip];
+        const double d01 = (x0-x1).norm();
+        const double d02 = (x0-x2).norm();
+        if(d01<threshold && d02<threshold) tmp.push_back(ip);
+      }
+      assert( tmp.size()==2 );
+
+      const Idx min = std::min(tmp[0], tmp[1]);
+      const Idx max = std::max(tmp[0], tmp[1]);
+      simp_links.push_back( Link{min,max} );
+    }
+  }
+  // for(const auto& link : lattice.links){
+  //   Idx ix1 = link.sites[0];
+  //   Idx ix2 = link.sites[1];
+
+  //   Idx min = std::min(ix1, ix2);
+  //   Idx max = std::max(ix1, ix2);
+  //   simp_links.push_back(Link{min,max});
+  // }
+
+  // --------------------------
   // nearest neighbor
   std::vector<std::vector<Idx>> nns;
   {
@@ -118,6 +154,19 @@ int main(int argc, char* argv[]){
         if(ell<threshold) nn.push_back(j);
       }
       nns.push_back( nn );
+    }
+  }
+
+  // --------------------------
+  // SIMP nearest neighbor
+  std::vector<std::vector<Idx>> simp_nns;
+  {
+    for(Idx i=0; i<lattice.n_sites; i++){
+      // std::vector<Idx> nn;
+      std::cout << "debug. " << std::endl;
+      std::vector<Idx> tmp;
+      for(int jj=0; jj<lattice.sites[i].nn; jj++) tmp.push_back( lattice.sites[i].neighbors[jj] );
+      simp_nns.push_back(tmp);
     }
   }
 
@@ -241,9 +290,29 @@ int main(int argc, char* argv[]){
     }
   }
   {
+    std::ofstream ofs(dir+"nns_n"+std::to_string(n_refine)+"_singlepatch.dat");
+    ofs << std::scientific << std::setprecision(25);
+    for(const auto& vec : simp_nns) {
+      for(const auto& elem : vec) {
+        ofs << std::setw(50) << elem << " ";
+      }
+      ofs << std::endl;
+    }
+  }
+  {
     std::ofstream ofs(dir+"dual_links_n"+std::to_string(n_refine)+"_singlepatch.dat");
     ofs << std::scientific << std::setprecision(25);
     for(const auto& vec : links) {
+      for(const auto& elem : vec) {
+        ofs << std::setw(50) << elem << " ";
+      }
+      ofs << std::endl;
+    }
+  }
+  {
+    std::ofstream ofs(dir+"links_n"+std::to_string(n_refine)+"_singlepatch.dat");
+    ofs << std::scientific << std::setprecision(25);
+    for(const auto& vec : simp_links) {
       for(const auto& elem : vec) {
         ofs << std::setw(50) << elem << " ";
       }
