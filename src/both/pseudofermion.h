@@ -3,14 +3,14 @@
 #include <cmath>
 
 
-template<typename F, typename Grad>
+template<typename F, typename Grad, typename Lattice>
 struct PseudoFermion {
-  using Complex = std::complex<double>;
+  // using Complex = std::complex<double>;
   using T = CuC;
 
-  using Link = std::array<int,2>; // <int,int>;
-  using Face = std::vector<int>;
-  using Fermion = Overlap;
+  using Link = std::array<Idx,2>; // <int,int>;
+  using Face = std::vector<Idx>;
+  // using Fermion = Overlap;
 
   static constexpr Complex I = Complex(0.0, 1.0);
   const int NS=2;
@@ -22,14 +22,18 @@ struct PseudoFermion {
   CuC *d_phi, *d_eta;
   static constexpr Idx N = Comp::N;
 
+  Lattice& lattice;
+
   PseudoFermion()=delete;
 
   explicit PseudoFermion( MatPoly& Op_DHD_,
                           F& f_DH_,
-                          Grad& f_mgrad_DHD_)
+                          Grad& f_mgrad_DHD_,
+                          Lattice& lattice_)
     : Op_DHD(Op_DHD_)
     , f_DH(f_DH_)
     , f_mgrad_DHD(f_mgrad_DHD_)
+    , lattice(lattice_)
   {
     CUDA_CHECK(cudaMalloc(&d_phi, N*CD));
     CUDA_CHECK(cudaMalloc(&d_eta, N*CD));
@@ -75,12 +79,12 @@ struct PseudoFermion {
   }
 
 
-  template<typename Gauge, typename Force>
-  void get_force( Force& pi, const Gauge& U ) const {
-// #ifdef _OPENMP
-// #pragma omp parallel for num_threads(Comp::NPARALLEL)
-// #endif
-    for(int ell=0; ell<U.lattice.n_links; ell++) pi[ell] = get_force( U, U.lattice.links[ell] );
+  template<typename Gauge>
+  void get_force( Gauge& pi, const Gauge& u ) const {
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(Comp::NPARALLEL2)
+#endif
+    for(int ell=0; ell<lattice.n_links; ell++) pi[ell] = get_force( u, lattice.links[ell] );
   }
 
 

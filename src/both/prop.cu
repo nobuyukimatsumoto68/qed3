@@ -19,7 +19,7 @@ namespace Comp{
   constexpr int NPARALLEL=12; // 12
   constexpr int NSTREAMS=4; // 4
 
-  constexpr int N_REFINE=2;
+  constexpr int N_REFINE=1;
   constexpr int NS=2;
 
 #ifdef IS_DUAL
@@ -247,9 +247,9 @@ int main(int argc, char* argv[]){
 #else
   std::vector<double> lengths;
   {
-    const auto x0 = lattice.r[0];
+    const auto x0 = lattice.sites[0];
     for(int ix=0; ix<lattice.n_sites; ix++){
-      const auto x1 = lattice.r[ix];
+      const auto x1 = lattice.sites[ix];
       double len = Geodesic::geodesicLength(Geodesic::Pt(x0), Geodesic::Pt(x1));
       // std::cout << "len = " << len << std::endl;
       lengths.push_back(len);

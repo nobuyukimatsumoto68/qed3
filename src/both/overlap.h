@@ -400,6 +400,7 @@ struct Overlap : public Zolotarev {
     }
 
     is_precalc = true;
+    CUDA_CHECK(cudaDeviceSynchronize());
   }
 
   double grad_deviceAsyncLaunch( const Link& link, const Gauge& U, const CuC* d_eta ) const {

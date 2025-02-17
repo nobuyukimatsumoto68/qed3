@@ -144,10 +144,18 @@ struct COO : public LinOp {
 
     Idx k=0;
     rows.push_back(k);
+    // std::cout << "debug. k = " << k << std::endl;
     for(Idx i=0; i<N; i++){
-      while(en[k].i == i) k++;
+      // std::cout << "debug. i = " << i << " en[k].i = " << en[k].i << std::endl;
+      if( k<en.size() ) while( en[k].i == i ) {
+          // std::cout << "--- debug. k = " << k << " en[k].i = " << en[k].i << std::endl;
+          k++;
+          if(k>=en.size()) break;
+        }
       rows.push_back(k);
+      // if(k==en.size()) break;
     }
+    assert(rows.size()==N+1);
 
     CUDA_CHECK(cudaMalloc(&d_cols, len*sizeof(Idx)));
     CUDA_CHECK(cudaMalloc(&d_rows, (N+1)*sizeof(Idx)));

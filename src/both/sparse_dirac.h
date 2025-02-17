@@ -54,8 +54,8 @@ struct DWDevice{
 
     // ========= COO ========= //
     for(Idx ix=0; ix<lattice.n_sites; ix++){
-      for(int jj=0; jj<lattice.nn(ix); jj++){
-	Idx iy = lattice.nns[ix][jj];
+      for(const Idx iy : lattice.nns[ix]){
+	// Idx iy = lattice.nns[ix][jj];
 
 	is.push_back( NS*ix ); js.push_back( NS*iy );
 	is.push_back( NS*ix ); js.push_back( NS*iy+1 );
