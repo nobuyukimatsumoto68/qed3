@@ -1,9 +1,11 @@
 #pragma once
 
 
+// template<bool is_compact_=false>
 struct U1WilsonExt {
   using Link = std::array<int,2>; // <int,int>;
   using Face = std::vector<int>;
+  // static constexpr bool is_compact = is_compact_;
   using Action=U1WilsonExt;
 
   const double beta_t, beta_s;
@@ -21,23 +23,40 @@ struct U1WilsonExt {
 
   template <typename Gauge>
   double operator()( const Gauge& U ) const {
-    double res = 0.0;
+    const auto& base = U.lattice;
+
+    std::vector<double> tmp(U.Nt, 0.0);
     // spatial
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(Comp::NPARALLEL3)
+#endif
     for(int s=0; s<U.Nt; s++){
       int i=0;
-      for(const Face& face : U.lattice.faces) {
-        if constexpr(U.is_compact) res += - 1.0*beta_s*U.lattice.mean_vol/U.lattice.vols[i] *  std::cos( U.plaquette_angle(s, face) );
-        else res += 0.5*beta_s*U.lattice.mean_vol/U.lattice.vols[i] * std::pow( U.plaquette_angle(s, face), 2 );
+      for(const Face& face : base.faces) {
+        const double factor = base.mean_vol/base.vols[i];
+        if constexpr(U.is_compact) tmp[s] += - beta_s*factor * ( std::cos( U.plaquette_angle(s, face) ) - 1.0);
+        else tmp[s] += 0.5*beta_s* factor * std::pow( U.plaquette_angle(s, face), 2 );
         i++;
       }
     }
     // temporal
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(Comp::NPARALLEL3)
+#endif
     for(int s=0; s<U.Nt; s++){
-      for(const Link& link : U.lattice.links) {
-        if constexpr(U.is_compact) res += - beta_t*std::cos( U.plaquette_angle(s, link) );
-        else res += 0.5*beta_t*std::pow( U.plaquette_angle(s, link), 2 );
+      for(const Link& link : base.links) {
+        const Idx il = base.map2il.at(link);
+        const double factor = std::pow(base.mean_ell/base.ell[il], 2) * base.link_volume[il]/base.mean_link_volume;
+        if constexpr(U.is_compact) tmp[s] += - beta_t*factor * (std::cos( U.plaquette_angle(s, link) ) - 1.0);
+        else tmp[s] += 0.5*beta_t* factor *std::pow( U.plaquette_angle(s, link), 2 );
       }
     }
+
+    double res = 0.0;
+    for(int s=0; s<U.Nt; s++){
+      res += tmp[s];
+    }
+
     return res;
   }
 
@@ -47,30 +66,51 @@ struct U1WilsonExt {
     for(Idx i=0; i<pi.spatial.size(); i++) for(Idx j=0; j<pi.spatial[i].size(); j++) pi.spatial[i][j] = 0.0;
     for(Idx i=0; i<pi.temporal.size(); i++) for(Idx j=0; j<pi.temporal[i].size(); j++) pi.temporal[i][j] = 0.0;
 
+    const auto& base = U.lattice;
+
     // spatial
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(Comp::NPARALLEL3)
+#endif
     for(int s=0; s<U.Nt; s++){
-      for(int i_face=0; i_face<U.lattice.n_faces; i_face++){
-        const Face& face = U.lattice.faces[i_face];
-        const double grad = beta_s*U.lattice.mean_vol/U.lattice.vols[i_face] * U.plaquette_angle(s, face);
+      for(int i_face=0; i_face<base.n_faces; i_face++){
+        const Face& face = base.faces[i_face];
+        double grad;
+        const double factor = base.mean_vol/base.vols[i_face];
+        if constexpr(U.is_compact) grad = beta_s*factor * std::sin( U.plaquette_angle(s, face) );
+        else grad = beta_s*factor * U.plaquette_angle(s, face);
 
         for(int i=0; i<face.size(); i++) {
           const Idx ix = face[i];
           const Idx iy = face[(i+1)%face.size()];
           const Link ell{ix, iy};
-          const Idx il = U.lattice.map2il.at(ell);
-          pi.sp( s, il ) += grad * U.lattice.map2sign.at(ell);
+          const Idx il = base.map2il.at(ell);
+          pi.sp( s, il ) += grad * base.map2sign.at(ell);
         }
       }
     }
 
     // temporal
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(Comp::NPARALLEL3)
+#endif
     for(int s=0; s<U.Nt; s++){
-      for(const Link& link : U.lattice.links) {
-        const double grad = beta_t * U.plaquette_angle(s, link);
+      for(const Link& link : base.links) {
+        const Idx il = base.map2il.at(link);
+        double grad, grad2;
+        const double factor = std::pow(base.mean_ell/base.ell[il], 2) * base.link_volume[il]/base.mean_link_volume;
+        if constexpr(U.is_compact) {
+          grad = beta_t *factor* std::sin( U.plaquette_angle(s, link) );
+          grad2 = beta_t *factor* std::sin( U.plaquette_angle(s-1, link) );
+        }
+        else {
+          grad = beta_t *factor* U.plaquette_angle(s, link);
+          grad2 = beta_t *factor* U.plaquette_angle(s-1, link);
+        }
 
-        pi.sp( s, U.lattice.map2il.at(link) ) += grad;
+        pi.sp( s, base.map2il.at(link) ) += grad;
         pi.tp( s, link[1] ) += grad;
-        pi.sp( s+1, U.lattice.map2il.at(link) ) -= grad;
+        pi.sp( s, base.map2il.at(link) ) -= grad2;
         pi.tp( s, link[0] ) -= grad;
       }
     }

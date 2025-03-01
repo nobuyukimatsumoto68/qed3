@@ -34,12 +34,10 @@ namespace Comp{
   constexpr int NPARALLEL2=12; // 12
   constexpr int NSTREAMS=12; // 4
 #endif
-  constexpr int NPARALLEL3=16; // 12
+  constexpr int NPARALLEL3=12; // 12
 
-  constexpr int N_REFINE=2;
+  constexpr int N_REFINE=4;
   constexpr int NS=2;
-
-  constexpr int Nt=16;
 
   constexpr Idx N_SITES=10*N_REFINE*N_REFINE+2;
 
@@ -55,10 +53,10 @@ const std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
 
 #include "s2n_simp.h"
 #include "rng.h"
-// #include "gauge.h"
-#include "gauge_ext.h"
-// #include "action.h"
-#include "action_ext.h"
+#include "gauge.h"
+// #include "gauge_ext.h"
+#include "action.h"
+// #include "action_ext.h"
 
 #include <cuComplex.h>
 #include <cuda_runtime.h>
@@ -80,8 +78,6 @@ using CuC = cuDoubleComplex;
 
 # include "integrator.h"
 #include "hmc.h"
-
-#include "obs.h"
 
 
 // TODO: Cusparse for SparseMatrix::act_gpu, probably defining handle in matpoly.h
@@ -111,28 +107,27 @@ int main(int argc, char* argv[]){
   // --------------------
   using Link = std::array<Idx,2>; // <int,int>;
   constexpr Idx N = Comp::N;
-  constexpr int Nt = Comp::Nt;
 
-  using Base=S2Simp;
+  using Lattice=S2Simp;
 
-  using Force=GaugeExt<Base,Nt,Comp::is_compact>;
-  using Gauge=GaugeExt<Base,Nt,Comp::is_compact>;
-  using Action=U1WilsonExt;
+  using Force=U1onS2<Lattice,false>;
+  using Gauge=U1onS2<Lattice,false>;
+  using Action=U1Wilson;
 
-  using Rng=ParallelRngExt<Base,Nt>;
+  using Rng=ParallelRng2<Lattice>;
 
-  Base base(Comp::N_REFINE);
+  Lattice lattice(Comp::N_REFINE);
   std::cout << "# lattice set. " << std::endl;
 
   // ----------------------
 
   // const double gR = 10.0;
   double beta = 24.0; // 1.0/(gR*gR);
-  Action SW(beta, beta);
+  if(argc==2) beta = atof( argv[1] );
+  Action SW(beta);
 
-  Gauge U(base);
-  srand( time(NULL) );
-  Rng rng(base, rand());
+  Gauge U(lattice);
+  Rng rng(lattice);
   U.gaussian( rng, 0.2 );
 
 
@@ -141,31 +136,31 @@ int main(int argc, char* argv[]){
   // int s = 0;
   // const Idx ix = 0;
   // const int yy=0;
-  // Link link{ix, base.nns[ix][yy]};
+  // Link link{ix, lattice.nns[ix][yy]};
   // std::cout << U.sp( s, link ) << std::endl
   //           << U.tp( s, link[1] ) << std::endl
   //           << U.sp( s+1, link[1] ) << std::endl
   //           << U.tp( s, link[0] ) << std::endl;
-  // // std::cout << "angle = " << U.plaquette_angle( s, link ) << std::endl;
+  // std::cout << "angle = " << U.plaquette_angle( s, link ) << std::endl;
 
-  // // std::cout << "debug. tp = " << std::endl;
-  // // for(const auto& v : U.temporal) {
-  // //   for(const double& elem : v) {
-  // //     std::cout << elem << " ";
-  // //   }
-  // //   std::cout << std::endl;
-  // // }
+  // std::cout << "debug. tp = " << std::endl;
+  // for(const auto& v : U.temporal) {
+  //   for(const double& elem : v) {
+  //     std::cout << elem << " ";
+  //   }
+  //   std::cout << std::endl;
+  // }
 
   // std::cout << "S(U) = " << SW(U) << std::endl;
 
-  // Force grad(base);
+  // Force grad(lattice);
   // SW.get_force( grad, U );
 
 
   // {  // sp
   //   for(int sl=0; sl<Comp::Nt; sl++){ // const int sl=0;
-  //     for(Idx il=0; il<base.n_links; il++){ //Idx il=0;
-  //       Link ell = base.links[il];
+  //     for(Idx il=0; il<lattice.n_links; il++){ //Idx il=0;
+  //       Link ell = lattice.links[il];
   //       // std::cout << "dS = " << grad.sp(sl, il) << std::endl;
 
   //       const double eps = 1.0e-5;
@@ -191,7 +186,7 @@ int main(int argc, char* argv[]){
   //   // const int sl=0;
   //   // Idx ix=0;
   //   for(int sl=0; sl<Comp::Nt; sl++){ // const int sl=0;
-  //     for(Idx ix=0; ix<base.n_sites; ix++){ //Idx ix=0;
+  //     for(Idx ix=0; ix<lattice.n_sites; ix++){ //Idx ix=0;
   //       // std::cout << "dS = " << grad.tp(sl, ix) << std::endl;
 
   //       const double eps = 1.0e-5;
@@ -214,7 +209,7 @@ int main(int argc, char* argv[]){
 
   // --------------------------------
 
-  // Force pi(base);
+  // Force pi(lattice);
 
   // HMCPureGauge hmc(rng, &SW, U, pi, 1.0, 10);
 
@@ -330,57 +325,57 @@ int main(int argc, char* argv[]){
 // #endif
 
 
-  // -----------------------------------------------------------
+//   // -----------------------------------------------------------
 
-  // const double gR = 0.4;
-  // const double beta = 1.0/(gR*gR);
-  // Action SW(beta);
+//   const double gR = 0.4;
+//   const double beta = 1.0/(gR*gR);
+//   Action SW(beta);
 
 
-  // PseudoFermion pf( Op_DHD, f_DH, f_mgrad_DHD, lattice );
+//   PseudoFermion pf( Op_DHD, f_DH, f_mgrad_DHD, lattice );
 
-  // Timer timer;
+//   // Timer timer;
 
-  // ------------------
+//   // ------------------
 
-  // Idx il=1;
-  // Link ell = lattice.links[il];
-  // std::cout << "debug. ell = " << ell[0] << " " << ell[1] << std::endl;
+//   // Idx il=1;
+//   // Link ell = lattice.links[il];
+//   // std::cout << "debug. ell = " << ell[0] << " " << ell[1] << std::endl;
 
-  // const double eps = 1.0e-5;
-  // Gauge UP(U);
-  // UP[il] += eps;
-  // Gauge UM(U);
-  // UM[il] -= eps;
+//   // const double eps = 1.0e-5;
+//   // Gauge UP(U);
+//   // UP[il] += eps;
+//   // Gauge UM(U);
+//   // UM[il] -= eps;
 
-  // std::cout << " --- Dov.update : " << timer.currentSeconds() << std::endl;
-  // D.update(U);
-  // std::cout << " --- pf.gen : " << timer.currentSeconds() << std::endl;
-  // pf.gen( rng );
+//   // std::cout << " --- Dov.update : " << timer.currentSeconds() << std::endl;
+//   // D.update(U);
+//   // std::cout << " --- pf.gen : " << timer.currentSeconds() << std::endl;
+//   // pf.gen( rng );
 
-  // std::cout << " --- grad constructor : " << timer.currentSeconds() << std::endl;
-  // Force grad(lattice);
+//   // std::cout << " --- grad constructor : " << timer.currentSeconds() << std::endl;
+//   // Force grad(lattice);
 
-  // std::cout << " --- pre calc : " << timer.currentSeconds() << std::endl;
-  // D.precalc_grad_deviceAsyncLaunch( U, pf.d_eta );
-  // std::cout << " --- get force : " << timer.currentSeconds() << std::endl;
-  // pf.get_force( grad, U );
+//   // std::cout << " --- pre calc : " << timer.currentSeconds() << std::endl;
+//   // D.precalc_grad_deviceAsyncLaunch( U, pf.d_eta );
+//   // std::cout << " --- get force : " << timer.currentSeconds() << std::endl;
+//   // pf.get_force( grad, U );
 
-  // std::cout << " --- fin : " << timer.currentSeconds() << std::endl;
+//   // std::cout << " --- fin : " << timer.currentSeconds() << std::endl;
 
-  // std::cout << "grad = " << grad[il] << std::endl;
-  // D.update(UP);
-  // pf.update_eta();
-  // double sfp = pf.S();
+//   // std::cout << "grad = " << grad[il] << std::endl;
+//   // D.update(UP);
+//   // pf.update_eta();
+//   // double sfp = pf.S();
 
-  // D.update(UM);
-  // pf.update_eta();
-  // double sfm = pf.S();
+//   // D.update(UM);
+//   // pf.update_eta();
+//   // double sfm = pf.S();
 
-  // double chck = (sfp-sfm)/(2.0*eps);
-  // std::cout << "check = " << chck << std::endl;
+//   // double chck = (sfp-sfm)/(2.0*eps);
+//   // std::cout << "check = " << chck << std::endl;
 
-  // -----------------
+//   // -----------------
 
 
 //   // const double eps = 1.0e-5;
@@ -469,13 +464,13 @@ int main(int argc, char* argv[]){
 
 
 
-  Force pi(base);
+  Force pi(lattice);
   pi.gaussian( rng );
   Force pi0=pi;
   Gauge U0=U;
 
   const double tmax = 1.0; // 0.1
-  const int nsteps=50;
+  const int nsteps=40;
   pi = pi0;
   U = U0;
   HMCPureGauge hmc(rng, &SW, U, pi, tmax, nsteps);
@@ -485,16 +480,13 @@ int main(int argc, char* argv[]){
   for(int k=0; k<10; k++){
     Timer timer;
     hmc.run( rate, dH, is_accept, true );
-    if constexpr(Comp::is_compact) U.project();
     std::cout << "# dH : " << dH
               << " is_accept : " << is_accept << std::endl;
     // std::cout << "# HMC : " << timer.currentSeconds() << " sec" << std::endl;
   }
-  const int kmax=400000;
-  for(int k=0; k<10000; k++){
+  for(int k=0; k<200; k++){
     Timer timer;
     hmc.run( rate, dH, is_accept );
-    if constexpr(Comp::is_compact) U.project();
     std::cout << "# dH : " << dH
               << " is_accept : " << is_accept << std::endl;
     // std::cout << "# HMC : " << timer.currentSeconds() << " sec" << std::endl;
@@ -502,74 +494,37 @@ int main(int argc, char* argv[]){
 
 
 
-  std::vector<std::vector<double>> plaq_s0(Comp::Nt);
-  std::vector<std::vector<double>> plaq_s1(Comp::Nt);
-  std::vector<double> polyakov_s0(Comp::Nt);
-  std::vector<double> polyakov_s1(Comp::Nt);
-  // std::vector<double> plaq_t0;
-  // const int ix0 = 0;
-  const int il0 = 1;
-  int iface0 = 2; // 2,3
-  int iface1 = 3; // 2,3
-  // if(argc==2) iface0 = atoi( argv[1] );
-
-  // std::vector<double> 1;
-  // const int s=0;
+  std::vector<double> plaq_s0;
+  std::vector<double> plaq_t0;
+  const int il0 = 0;
+  const int iface0 = 1;
 
   double r_mean;
+  const int kmax=200;
   const int interval=10;
 
   for(int k=0; k<kmax; k++){
     Timer timer;
     hmc.run( rate, dH, is_accept);
-    if constexpr(Comp::is_compact) U.project();
     std::cout << "# dH : " << dH
               << " is_accept : " << is_accept << std::endl;
     r_mean += rate;
-    // std::cout << "# HMC : " << timer.currentSeconds() << " sec" << std::endl;
 
     if(k%interval==0){
-      // std::vector<double> tmp1(Comp::Nt, 0.0);
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(Comp::NPARALLEL3)
-#endif
-      for(int t=0; t<Comp::Nt; t++){
-        int counter = 0;
-        double tmp1 = 0.0;
-        for(int s=0; s<Comp::Nt; s++){
-          for(int i_face=0; i_face<base.n_faces; i_face++){
-            if( std::abs( base.vols[i_face]-base.vols[iface0] )>1.0e-12 ) continue;
-            tmp1 += std::pow( U.plaquette_angle(s, U.lattice.faces[i_face]), 1) * std::pow( U.plaquette_angle(s+t, U.lattice.faces[i_face]), 1);
-            counter++;
-            tmp1 += std::pow( U.plaquette_angle(s, U.lattice.faces[i_face]), 1) * std::pow( U.plaquette_angle(s-t, U.lattice.faces[i_face]), 1);
-            counter++;
-          }
-        }
-        tmp1 /= counter;
-        plaq_s0[t].push_back( tmp1 );
-      }
-      polyakov_s0.push_back( std::real( get_polyakov(U, 0) ) );
+      double tmp1 = 0.0;
 
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(Comp::NPARALLEL3)
-#endif
-      for(int t=0; t<Comp::Nt; t++){
-        int counter = 0;
-        double tmp1 = 0.0;
-        for(int s=0; s<Comp::Nt; s++){
-          for(int i_face=0; i_face<base.n_faces; i_face++){
-            if( std::abs( base.vols[i_face]-base.vols[iface1] )>1.0e-12 ) continue;
-            tmp1 += std::pow( U.plaquette_angle(s, U.lattice.faces[i_face]), 1) * std::pow( U.plaquette_angle(s+t, U.lattice.faces[i_face]), 1);
-            counter++;
-            tmp1 += std::pow( U.plaquette_angle(s, U.lattice.faces[i_face]), 1) * std::pow( U.plaquette_angle(s-t, U.lattice.faces[i_face]), 1);
-            counter++;
-          }
-        }
-        tmp1 /= counter;
-        plaq_s1[t].push_back( tmp1 );
+      int counter1 = 0;
+      for(int i_face=0; i_face<lattice.n_faces; i_face++){
+        if( std::abs( lattice.vols[i_face]-lattice.vols[iface0] )>1.0e-10 ) continue;
+        // if( std::abs( lattice.vols[i_face]-lattice.vols[iface0] )<1.0e-10 ) continue;
+        counter1++;
+        // tmp1[s] += std::cos( U.plaquette_angle(s, U.lattice.faces[i_face]) );
+        // tmp1 += std::pow(lattice.mean_vol/lattice.vols[i_face], 1) * ( std::cos( U.plaquette_angle(U.lattice.faces[i_face]) ) - 1.0);
+        tmp1 += std::pow(lattice.mean_vol/lattice.vols[i_face], 2) * std::pow( U.plaquette_angle(U.lattice.faces[i_face]), 2 );
       }
-      polyakov_s1.push_back( std::real( get_polyakov(U, 1) ) );
+      tmp1 /= counter1;
 
+      plaq_s0.push_back( tmp1 );
     }
     if(k%100==0){
       std::cout << "# k = " << k << std::endl;
@@ -578,77 +533,24 @@ int main(int argc, char* argv[]){
   r_mean /= kmax;
   std::cout << "# r_mean = " << r_mean << std::endl;
 
-  // int counter1 = 0;
-  // for(int i_face=0; i_face<base.n_faces; i_face++){
-  //   if( std::abs( base.vols[i_face]-base.vols[iface0] )>1.0e-12 ) continue;
-  //   counter1++;
-  // }
-  {
-    std::vector<double> mean(Comp::Nt, 0.0), var(Comp::Nt, 0.0);
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(Comp::NPARALLEL3)
-#endif
-    for(int t=0; t<Comp::Nt; t++){
-      for(const double elem : plaq_s0[t]) mean[t] += elem;
-      mean[t] /= plaq_s0[t].size();
-    }
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(Comp::NPARALLEL3)
-#endif
-    for(int t=0; t<Comp::Nt; t++){
-      for(const double elem : plaq_s1[t]) var[t] += std::pow( elem-mean[t], 2);
-      var[t] /= std::pow( plaq_s0[t].size(), 2 );
-    }
 
-    std::string path = "plaq_s0.dat";
-    std::ofstream ofs(path);
-    ofs << "# kmax = " << kmax << std::endl;
-    for(int t=0; t<Comp::Nt; t++){
-      ofs << mean[t] << " " << std::sqrt(var[t]) << " " << base.vols[iface0] << std::endl;
-    }
+  double mean_s0=0.0, var_s0=0.0;
+  for(int k=0; k<plaq_s0.size(); k++){
+    mean_s0 += plaq_s0[k];
   }
-  {
-    std::vector<double> mean(Comp::Nt, 0.0), var(Comp::Nt, 0.0);
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(Comp::NPARALLEL3)
-#endif
-    for(int t=0; t<Comp::Nt; t++){
-      for(const double elem : plaq_s1[t]) mean[t] += elem;
-      mean[t] /= plaq_s1[t].size();
-    }
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(Comp::NPARALLEL3)
-#endif
-    for(int t=0; t<Comp::Nt; t++){
-      for(const double elem : plaq_s1[t]) var[t] += std::pow( elem-mean[t], 2);
-      var[t] /= std::pow( plaq_s1[t].size(), 2 );
-    }
+  mean_s0 /= plaq_s0.size();
 
-    std::string path = "plaq_s1.dat";
-    std::ofstream ofs(path);
-    ofs << "# kmax = " << kmax << std::endl;
-    for(int t=0; t<Comp::Nt; t++){
-      ofs << mean[t] << " " << std::sqrt(var[t]) << " " << base.vols[iface1] << std::endl;
-    }
+  for(int k=0; k<plaq_s0.size(); k++){
+    var_s0 += (plaq_s0[k]-mean_s0)*(plaq_s0[k]-mean_s0);
   }
+  var_s0 /= plaq_s0.size()*plaq_s0.size();
 
-  {
-    double mn=0.0, vr=0.0;
-    for(const double elem : polyakov_s0) mn += elem;
-    mn /= polyakov_s0.size();
-    for(const double elem : polyakov_s0) vr += std::pow(elem-mn, 2);
-    vr /= std::pow( polyakov_s0.size(), 2 );
-    std::cout << mn << " " << std::sqrt(vr) << " " << vr << std::endl;
-  }
+  std::cout << "s0: " << iface0 << " "
+            << beta << ", " << mean_s0 << ", " << std::sqrt( var_s0 ) << std::endl;
+  // std::cout << "t0: " << beta << ", " << mean_t0 << ", " << std::sqrt( var_t0 ) << std::endl;
+  // std::cout << "factor = " << U.lattice.mean_vol/U.lattice.vols[iface0] << std::endl;
 
-  {
-    double mn=0.0, vr=0.0;
-    for(const double elem : polyakov_s1) mn += elem;
-    mn /= polyakov_s1.size();
-    for(const double elem : polyakov_s1) vr += std::pow(elem-mn, 2);
-    vr /= std::pow( polyakov_s1.size(), 2 );
-    std::cout << mn << " " << std::sqrt(vr) << " " << vr << std::endl;
-  }
+
 
   // CUDA_CHECK(cudaDeviceReset());
   return 0;

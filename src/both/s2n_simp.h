@@ -27,6 +27,13 @@ struct S2Simp {
   std::vector<Face> faces;
 
   std::vector<double> vols; // triangular vol
+  double mean_vol;
+
+  std::vector<double> ell; // evan's link label
+  std::vector<double> ellstarA; // evan's link label
+  std::vector<double> ellstarB; // evan's link label
+  std::vector<double> link_volume; // evan's link label
+
 
   std::vector<VE> dual_sites;
   std::vector<Link> dual_links;
@@ -200,7 +207,7 @@ struct S2Simp {
 
 
     {
-      double mean_vol=0.;
+      mean_vol=0.;
       Idx counter=0;
       std::cout << "# reading vols" << std::endl;
       std::ifstream file(dir+"dualtriangleareas_n"+std::to_string(n_refine)+"_singlepatch.dat");
@@ -216,11 +223,78 @@ struct S2Simp {
       }
       assert( vols.size()==n_faces );
 
+      // std::cout << "debug. sum = " << mean_vol << std::endl;
+      assert( std::abs(mean_vol-4.0*M_PI)<1.0e-12 );
+
       mean_vol /= counter;
       alat = std::sqrt( mean_vol*4.0/std::sqrt(3.0) );
     }
     // alat = std::sqrt( 8.0*M_PI/std::sqrt(3.0)/n_sites );
     // alat = std::sqrt( 8.0*M_PI/std::sqrt(3.0)/this->n_faces );
+
+    set_ell_ellstar_linkvols();
+  }
+
+  void set_ell_ellstar_linkvols(){
+    ell.resize( n_links );
+    ellstarA.resize( n_links );
+    ellstarB.resize( n_links );
+    link_volume.resize( n_links );
+
+    for(Idx il=0; il<n_links; il++) {
+      const Link link = links[il];
+
+      const VE x = sites[ links[il][0] ];
+      const VE y = sites[ links[il][1] ];
+
+      const Idx iA = *std::min_element( dual_links[il].begin(), dual_links[il].end() );
+      const Idx iB = *std::max_element( dual_links[il].begin(), dual_links[il].end() );
+
+      double ellA=0.0, ellB=0.0;
+      double areaA=0.0, areaB=0.0;
+      {
+        const VE p = dual_sites[iA];
+
+        double a_ = std::acos( x.dot(p) /(x.norm()* p.norm()) );
+        double b_ = std::acos( y.dot(p) /(y.norm()* p.norm()) );
+        double c_ = std::acos( x.dot(y)/(x.norm()*y.norm()) ); // ell
+
+        double s_ = 0.5*(a_+b_+c_);
+        double tmp = std::tan(0.5*s_) * std::tan(0.5*(s_-a_)) * std::tan(0.5*(s_-b_)) * std::tan(0.5*(s_-c_));
+        double area_ = 4.0*std::atan( std::sqrt( tmp ) );
+        // double area_ = a_+b_+c_ - M_PI;
+
+        ellA = c_;
+        areaA = area_;
+      }
+      {
+        const VE p = dual_sites[iB];
+
+        double a_ = std::acos( x.dot(p) /(x.norm()* p.norm()) );
+        double b_ = std::acos( y.dot(p) /(y.norm()* p.norm()) );
+        double c_ = std::acos( x.dot(y)/(x.norm()*y.norm()) ); // ell
+
+        double s_ = 0.5*(a_+b_+c_);
+        double tmp = std::tan(0.5*s_) * std::tan(0.5*(s_-a_)) * std::tan(0.5*(s_-b_)) * std::tan(0.5*(s_-c_));
+        double area_ = 4.0*std::atan( std::sqrt( tmp ) );
+        // double area_ = a_+b_+c_ - M_PI;
+
+        ellB = c_;
+        areaB = area_;
+      }
+
+      assert( std::abs(ellA-ellB)<1.0e-14 );
+      ell[il] = ellA;
+      ellstarA[il] = areaA/ell[il];
+      ellstarB[il] = areaB/ell[il];
+      link_volume[il] = areaA + areaB;
+    }
+
+    double sum = 0.0;
+    for(const double elem : link_volume) sum+=elem;
+    // std::cout << "debug. sum = " << sum << std::endl;
+    assert( std::abs(sum-4.0*M_PI)<1.0e-12 );
+
   }
 
   // inline int nn(const Idx ix) const {

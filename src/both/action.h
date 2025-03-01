@@ -21,8 +21,8 @@ struct U1Wilson {
   double operator()( const Gauge& U ) const {
     double res = 0.0;
     for(int i=0; i<U.lattice.n_faces; i++) {
-      if constexpr(U.is_compact) res += - 1.0/U.lattice.vols[i] *  std::cos( U.plaquette_angle(i) );
-      else res += 0.5/U.lattice.vols[i] * std::pow( U.plaquette_angle(i), 2 );
+      if constexpr(U.is_compact) res += - U.lattice.mean_vol/U.lattice.vols[i] *  std::cos( U.plaquette_angle(i) );
+      else res += 0.5*U.lattice.mean_vol/U.lattice.vols[i] * std::pow( U.plaquette_angle(i), 2 );
     }
     res *= beta;
     return res;
@@ -34,7 +34,7 @@ struct U1Wilson {
 
     for(int i_face=0; i_face<U.lattice.n_faces; i_face++){
       const Face& face = U.lattice.faces[i_face];
-      const double grad = 1.0/U.lattice.vols[i_face] * U.plaquette_angle(face);
+      const double grad = U.lattice.mean_vol/U.lattice.vols[i_face] * U.plaquette_angle(face);
 
       for(int i=0; i<face.size(); i++) {
 	const int ix = face[i];

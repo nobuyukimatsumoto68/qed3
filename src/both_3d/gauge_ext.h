@@ -46,31 +46,31 @@ struct GaugeExt {
   double sp(const int s, const Link& ell) const { // recommended
     const int il = lattice.map2il.at(ell);
     const int sign = lattice.map2sign.at(ell);
-    return sign * spatial[s%Nt][il];
+    return sign * spatial[(s+Nt)%Nt][il];
   }
 
   inline double sp(const int s, const Idx& il) const { // recommended
-    return spatial[s%Nt][il];
+    return spatial[(s+Nt)%Nt][il];
   }
 
 
   inline double tp(const int s, const Idx& ix) const { // recommended
-    return temporal[s%Nt][ix];
+    return temporal[(s+Nt)%Nt][ix];
   }
 
   double& sp(const int s, const Link& ell) { // recommended
     const int il = lattice.map2il.at(ell);
     const int sign = lattice.map2sign.at(ell);
     assert(sign==1);
-    return spatial[s%Nt][il];
+    return spatial[(s+Nt)%Nt][il];
   }
 
   inline double& sp(const int s, const Idx& il) { // recommended
-    return spatial[s%Nt][il];
+    return spatial[(s+Nt)%Nt][il];
   }
 
   inline double& tp(const int s, const Idx& ix) { // recommended
-    return temporal[s%Nt][ix];
+    return temporal[(s+Nt)%Nt][ix];
   }
 
 
@@ -154,7 +154,17 @@ struct GaugeExt {
     for(Idx i=0; i<temporal.size(); i++) for(Idx j=0; j<temporal[i].size(); j++) temporal[i][j] = width*rng.gaussian_site(i,j);
   }
 
+  double Mod(double a, double b=2.0*M_PI){
+    int p = int(std::floor(a / b));
+    double r = a - p*b;
+    return r;
+  }
 
+
+  void project() {
+    for(Idx i=0; i<spatial.size(); i++) for(Idx j=0; j<spatial[i].size(); j++) spatial[i][j] = Mod( spatial[i][j], 2.0*M_PI );
+    for(Idx i=0; i<temporal.size(); i++) for(Idx j=0; j<temporal[i].size(); j++) temporal[i][j] = Mod( temporal[i][j], 2.0*M_PI );
+  }
 
 
 };

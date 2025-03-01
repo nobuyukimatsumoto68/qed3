@@ -82,7 +82,7 @@ struct ParallelRngExt {
   void reseed(const int seed) {
     master.reseed(seed);
     for(auto& v : links) for(auto& elem : v) elem.reseed( master.mt() );
-    for(auto& v : links) for(auto& elem : v) elem.reseed( master.mt() );
+    for(auto& v : sites) for(auto& elem : v) elem.reseed( master.mt() );
   }
 };
 

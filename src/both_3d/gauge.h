@@ -4,13 +4,11 @@
 #include <cmath>
 
 
-template<typename Lattice, bool is_compact_=false>
+template<typename Lattice>
 struct U1onS2 {
   using Link = std::array<int,2>; // <int,int>;
   using Face = std::vector<int>;
   // using Lattice = S2Trivalent;
-
-  static constexpr bool is_compact = is_compact_;
 
   Lattice& lattice;
   std::vector<double> field;
@@ -101,32 +99,32 @@ struct U1onS2 {
     return plaquette_angle(lattice.faces[i_face]);
   }
 
-  double average_plaquette() const {
-    double sum = 0.0;
-    for(int i=0; i<lattice.n_faces; i++) {
-      sum += std::cos(plaquette_angle(i));
-    }
-    return sum/lattice.n_faces;
-  }
+  // double average_plaquette() const {
+  //   double sum = 0.0;
+  //   for(int i=0; i<lattice.n_faces; i++) {
+  //     sum += std::cos(plaquette_angle(i));
+  //   }
+  //   return sum/lattice.n_faces;
+  // }
 
-  void dist_plaqsq( double& mean, double& square) const {
-    mean = 0.0;
-    square = 0.0;
-    for(int i=0; i<lattice.n_faces; i++) {
-      double val = plaquette_angle(i);
-      if constexpr(is_compact){
-	while(val>M_PI) val -= 2.0*M_PI;
-	while(val<-M_PI) val += 2.0*M_PI;
-      }
-      const double factor = 1.0 / lattice.vps[i];
+  // void dist_plaqsq( double& mean, double& square) const {
+  //   mean = 0.0;
+  //   square = 0.0;
+  //   for(int i=0; i<lattice.n_faces; i++) {
+  //     double val = plaquette_angle(i);
+  //     if constexpr(is_compact){
+  //       while(val>M_PI) val -= 2.0*M_PI;
+  //       while(val<-M_PI) val += 2.0*M_PI;
+  //     }
+  //     const double factor = 1.0 / lattice.vps[i];
 
-      const double v = factor * std::pow( val, 2 );
-      mean += v;
-      square += v*v;
-    }
-    mean /= lattice.n_faces;
-    square /= lattice.n_faces;
-  }
+  //     const double v = factor * std::pow( val, 2 );
+  //     mean += v;
+  //     square += v*v;
+  //   }
+  //   mean /= lattice.n_faces;
+  //   square /= lattice.n_faces;
+  // }
 
   template <typename Rng>
   void gaussian(Rng& rng, const double width=1.0) {

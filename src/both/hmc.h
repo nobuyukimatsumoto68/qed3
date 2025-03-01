@@ -109,3 +109,93 @@ struct HMC {
   }
 
 };
+
+
+
+template <typename Rng, typename Action,
+          typename Gauge, typename Force>
+struct HMCPureGauge {
+  Rng& rng;
+  Action* Sg;
+
+  Gauge& U;
+  Force& pi;
+
+  double tmax;
+  int nsteps;
+  double tau;
+
+  HMCPureGauge()=delete;
+
+  explicit HMCPureGauge(Rng& rng_,
+                        Action* Sg_,
+                        Gauge& U_,
+                        Force& pi_,
+                        const double tmax_=1.0,
+                        const int nsteps_=10)
+    : rng(rng_)
+    , Sg(Sg_)
+    , U(U_)
+    , pi(pi_)
+    , tmax(tmax_)
+    , nsteps(nsteps_)
+    , tau(tmax/nsteps)
+  {
+  }
+
+  ~HMCPureGauge(){
+  }
+
+  double H() {
+    double res = 0.5*pi.squared_norm();
+    res += Sg->operator()(U);
+    return res;
+  }
+
+  void onestep( Gauge& U, Force& pi, Action* Sg ) const {
+    Force dSg(U.lattice);
+
+    Sg->get_force( dSg, U );
+#ifdef InfoForce
+    dSg.print2log_norm( "# Sg : " );
+#endif
+    pi += -0.5*tau * ( dSg );
+
+    U += tau * pi;
+
+    Sg->get_force( dSg, U );
+#ifdef InfoForce
+    dSg.print2log_norm( "# Sg : " );
+#endif
+    pi += -0.5*tau * ( dSg );
+  }
+
+  void integrate() const {
+    for(int n=0; n<nsteps; n++) onestep( U, pi, Sg );
+  }
+
+  void run( double& r,
+            double& dH,
+            bool& is_accept,
+            const bool no_reject = false ) {
+    pi.gaussian( rng );
+
+    Gauge U0( U );
+
+    const double h0 = H();
+    integrate();
+    const double h1 = H();
+
+    dH = h1-h0;
+    r = std::min( 1.0, std::exp(-dH) );
+    const double a = rng.uniform();
+    if( a < r || no_reject ){
+      is_accept=true;
+    }
+    else {
+      is_accept=false;
+      U = U0;
+    }
+  }
+
+};

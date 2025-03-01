@@ -16,7 +16,7 @@ using Idx = std::int32_t;
 using Complex = std::complex<double>;
 
 // #define IS_DUAL
-#define IS_OVERLAP
+// #define IS_OVERLAP
 
 // #define IsVerbose
 // #define InfoForce
@@ -40,7 +40,7 @@ namespace Comp{
   // constexpr int NPARALLEL=12; // 12
   // constexpr int NSTREAMS=4; // 4
 
-  constexpr int N_REFINE=12;
+  constexpr int N_REFINE=2;
   constexpr int NS=2;
 
   constexpr Idx N_SITES=10*N_REFINE*N_REFINE+2;
@@ -56,7 +56,7 @@ namespace Comp{
 
 const std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
 
-#include "s2n_dual.h"
+// #include "s2n_dual.h"
 #include "s2n_simp.h"
 #include "rng.h"
 #include "gauge.h"
@@ -89,7 +89,7 @@ using CuC = cuDoubleComplex;
 
 #include "sparse_matrix.h"
 
-#include "dirac_dual.h"
+// #include "dirac_dual.h"
 #include "dirac_simp.h"
 
 #include "sparse_dirac.h"
@@ -183,7 +183,7 @@ int main(int argc, char* argv[]){
   using Force=U1onS2<Lattice,false>;
   using Gauge=U1onS2<Lattice,false>;
   using WilsonDirac=DiracS2Simp<Gauge>;
-  using Rng=ParallelRng<Lattice>;
+  using Rng=ParallelRng2<Lattice>;
 
 #ifdef IS_OVERLAP
   using Fermion=Overlap<Gauge,WilsonDirac,Lattice>;

@@ -109,9 +109,6 @@ struct DiracS2Simp : public SpinStructureSimp{
 
   std::array<MS, 4> sigma;
 
-  std::vector<double> ell; // evan's link label
-  // std::vector<double> ellstar; // evan's link label
-  std::vector<double> link_volume; // evan's link label
   // std::vector<double> site_vol; // evan's site label
   std::vector<double> kappa; // evan's link label
 
@@ -127,8 +124,8 @@ struct DiracS2Simp : public SpinStructureSimp{
     , m(m_)
     , r(r_)
     , M5(M5_)
-    , ell(lattice.n_links)
-    , link_volume(lattice.n_links)
+    // , ell(lattice.n_links)
+    // , link_volume(lattice.n_links)
     , kappa(lattice.n_links)
   {
     set_sigma();
@@ -349,213 +346,7 @@ struct DiracS2Simp : public SpinStructureSimp{
 
   void set_kappa() {
     for(Idx il=0; il<lattice.n_links; il++) {
-      const Link link = lattice.links[il];
-      const Idx ix = lattice.links[il][0];
-      const Idx iy = lattice.links[il][1];
-
-      const Idx iA = lattice.dual_links[il][0];
-      const Idx iB = lattice.dual_links[il][1];
-
-      // std::cout << "debug. il = " << il << std::endl
-      //           << "debug. link = " << link[0] << " " << link[1] << std::endl
-      //           << "debug. iA = " << iA << std::endl
-      //           << "debug. iB = " << iB << std::endl;
-
-      double ellA=0.0, ellB=0.0;
-      double areaA=0.0, areaB=0.0;
-
-      const VE x = lattice.sites[ix];
-      const VE y = lattice.sites[iy];
-      {
-        const VE p = lattice.dual_sites[iA];
-
-        // double a_ = (x-p).norm();
-        // double b_ = (y-p).norm();
-        // double c_ = (x-y).norm(); // ell
-
-        // double s_ = 0.5*(a_+b_+c_);
-        // double tmp = s_ * (s_-a_) * (s_-b_) * (s_-c_);
-        // double area_ = std::sqrt( tmp );
-
-        double a_ = std::acos( x.dot(p) /(x.norm()* p.norm()) );
-        double b_ = std::acos( y.dot(p) /(y.norm()* p.norm()) );
-        double c_ = std::acos( x.dot(y)/(x.norm()*y.norm()) ); // ell
-
-        double s_ = 0.5*(a_+b_+c_);
-        double tmp = std::tan(0.5*s_) * std::tan(0.5*(s_-a_)) * std::tan(0.5*(s_-b_)) * std::tan(0.5*(s_-c_));
-        double area_ = 4.0*std::atan( std::sqrt( tmp ) );
-
-        ellA = c_;
-        areaA = area_;
-      }
-      {
-        const VE p = lattice.dual_sites[iB];
-
-        // double a_ = (x-p).norm();
-        // double b_ = (y-p).norm();
-        // double c_ = (x-y).norm(); // ell
-
-        // double s_ = 0.5*(a_+b_+c_);
-        // double tmp = s_ * (s_-a_) * (s_-b_) * (s_-c_);
-        // double area_ = std::sqrt( tmp );
-
-        double a_ = std::acos( x.dot(p) /(x.norm()* p.norm()) );
-        double b_ = std::acos( y.dot(p) /(y.norm()* p.norm()) );
-        double c_ = std::acos( x.dot(y)/(x.norm()*y.norm()) ); // ell
-
-        double s_ = 0.5*(a_+b_+c_);
-        double tmp = std::tan(0.5*s_) * std::tan(0.5*(s_-a_)) * std::tan(0.5*(s_-b_)) * std::tan(0.5*(s_-c_));
-        double area_ = 4.0*std::atan( std::sqrt( tmp ) );
-
-        ellB = c_;
-        areaB = area_;
-      }
-      // {
-      //   const Face& face = lattice.faces[iA];
-      //   std::cout << "face " << iA << std::endl;
-      //   for(Idx elem : face) std::cout << elem << std::endl;
-      //   VE r0, r1, r2; // r0,1: link
-      //   if(face[0]==link[0] && face[1]==link[1]){
-      //     r0 = lattice.sites[face[0]];
-      //     r1 = lattice.sites[face[1]];
-      //     r2 = lattice.sites[face[2]];
-      //   }
-      //   else if(face[1]==link[0] && face[2]==link[1]){
-      //     r0 = lattice.sites[face[1]];
-      //     r1 = lattice.sites[face[2]];
-      //     r2 = lattice.sites[face[0]];
-      //   }
-      //   else if(face[2]==link[0] && face[0]==link[1]){
-      //     r0 = lattice.sites[face[2]];
-      //     r1 = lattice.sites[face[0]];
-      //     r2 = lattice.sites[face[1]];
-      //   } // reverse
-      //   else if(face[1]==link[0] && face[0]==link[1]){
-      //     r0 = lattice.sites[face[1]];
-      //     r1 = lattice.sites[face[0]];
-      //     r2 = lattice.sites[face[2]];
-      //   }
-      //   else if(face[2]==link[0] && face[1]==link[1]){
-      //     r0 = lattice.sites[face[2]];
-      //     r1 = lattice.sites[face[1]];
-      //     r2 = lattice.sites[face[0]];
-      //   }
-      //   else if(face[0]==link[0] && face[2]==link[1]){
-      //     r0 = lattice.sites[face[0]];
-      //     r1 = lattice.sites[face[2]];
-      //     r2 = lattice.sites[face[1]];
-      //   }
-      //   else assert(false);
-
-      //   //
-      //   const VE p = circumcenter(r0, r1, r2).transpose();
-      //   assert( std::abs( (p-r0).norm() - (p-r1).norm() )<1.0e-14 );
-      //   assert( std::abs( (p-r0).norm() - (p-r2).norm() )<1.0e-14 );
-
-      //   // double a_ = (r0-p).norm();
-      //   // double b_ = (r1-p).norm();
-      //   // double c_ = (r0-r1).norm(); // ell
-
-      //   // double s_ = 0.5*(a_+b_+c_);
-      //   // double tmp = s_ * (s_-a_) * (s_-b_) * (s_-c_);
-      //   // double area_ = std::sqrt( tmp );
-
-      //   double a_ = std::acos( r0.dot(p) /(r0.norm()* p.norm()) );
-      //   double b_ = std::acos( r1.dot(p) /(r1.norm()* p.norm()) );
-      //   double c_ = std::acos( r0.dot(r1)/(r0.norm()*r1.norm()) ); // ell
-
-      //   double s_ = 0.5*(a_+b_+c_);
-      //   double tmp = std::tan(0.5*s_) * std::tan(0.5*(s_-a_)) * std::tan(0.5*(s_-b_)) * std::tan(0.5*(s_-c_));
-      //   double area_ = 4.0*std::atan( std::sqrt( tmp ) );
-
-      //   ellA = c_;
-      //   areaA = area_;
-      // }
-      // {
-      //   const Face& face = lattice.faces[iB];
-      //   std::cout << "face " << iB << std::endl;
-      //   for(Idx elem : face) std::cout << elem << std::endl;
-
-      //   VE r0, r1, r2; // r0,1: link
-      //   if(face[0]==link[0] && face[1]==link[1]){
-      //     r0 = lattice.sites[face[0]];
-      //     r1 = lattice.sites[face[1]];
-      //     r2 = lattice.sites[face[2]];
-      //   }
-      //   else if(face[1]==link[0] && face[2]==link[1]){
-      //     r0 = lattice.sites[face[1]];
-      //     r1 = lattice.sites[face[2]];
-      //     r2 = lattice.sites[face[0]];
-      //   }
-      //   else if(face[2]==link[0] && face[0]==link[1]){
-      //     r0 = lattice.sites[face[2]];
-      //     r1 = lattice.sites[face[0]];
-      //     r2 = lattice.sites[face[1]];
-      //   } // reverse
-      //   else if(face[1]==link[0] && face[0]==link[1]){
-      //     r0 = lattice.sites[face[1]];
-      //     r1 = lattice.sites[face[0]];
-      //     r2 = lattice.sites[face[2]];
-      //   }
-      //   else if(face[2]==link[0] && face[1]==link[1]){
-      //     r0 = lattice.sites[face[2]];
-      //     r1 = lattice.sites[face[1]];
-      //     r2 = lattice.sites[face[0]];
-      //   }
-      //   else if(face[0]==link[0] && face[2]==link[1]){
-      //     r0 = lattice.sites[face[0]];
-      //     r1 = lattice.sites[face[2]];
-      //     r2 = lattice.sites[face[1]];
-      //   }
-      //   else assert(false);
-
-      //   const VE p = circumcenter(r0, r1, r2).transpose();
-      //   assert( std::abs( (p-r0).norm() - (p-r1).norm() )<1.0e-14 );
-      //   assert( std::abs( (p-r0).norm() - (p-r2).norm() )<1.0e-14 );
-
-      //   double a_ = std::acos( r0.dot(p) /(r0.norm()* p.norm()) );
-      //   double b_ = std::acos( r1.dot(p) /(r1.norm()* p.norm()) );
-      //   double c_ = std::acos( r0.dot(r1)/(r0.norm()*r1.norm()) ); // ell
-
-      //   double s_ = 0.5*(a_+b_+c_);
-      //   double tmp = std::tan(0.5*s_) * std::tan(0.5*(s_-a_)) * std::tan(0.5*(s_-b_)) * std::tan(0.5*(s_-c_));
-      //   double area_ = 4.0*std::atan( std::sqrt( tmp ) );
-
-      //   // double a_ = (r0-p).norm();
-      //   // double b_ = (r1-p).norm();
-      //   // double c_ = (r0-r1).norm(); // ell
-
-      //   // double s_ = 0.5*(a_+b_+c_);
-      //   // double tmp = s_ * (s_-a_) * (s_-b_) * (s_-c_);
-      //   // double area_ = std::sqrt( tmp );
-
-      //   ellB = c_;
-      //   areaB = area_;
-      // }
-
-      assert( std::abs(ellA-ellB)<1.0e-14 );
-      ell[il] = ellA;
-      link_volume[il] = areaA + areaB;
-      // kappa[il] = link_volume[il]/ell[il]/a
-
-      // VE rA = lattice.sites[iA];
-      // VE rB = lattice.sites[iB];
-      // kappa[il] = std::acos( rA.dot(rB) /(rA.norm() * rB.norm()) );
-    }
-
-    // Idx counter = 0;
-    // a = 0.0;
-    // for(Idx il=0; il<lattice.n_links; il++) {
-    //   a += ell[il];
-    //   counter++;
-    //   // std::cout << "ell[il] =" << ell[il] << std::endl;
-    // }
-    // a /= counter;
-    // a *= 1.0;
-
-    for(Idx il=0; il<lattice.n_links; il++) {
-      kappa[il] = link_volume[il]/ell[il]/(lattice.alat/std::sqrt(3.0));
-      // kappa[il] /= a;
+      kappa[il] = lattice.link_volume[il]/lattice.ell[il]/(lattice.alat/std::sqrt(3.0));
     }
     // std::cout << "a = " << a << std::endl;
   }

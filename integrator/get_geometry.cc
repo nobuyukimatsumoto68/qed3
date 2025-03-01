@@ -131,6 +131,7 @@ int main(int argc, char* argv[]){
       simp_links.push_back( Link{min,max} );
     }
   }
+  assert( simp_links.size()==links.size() );
   // for(const auto& link : lattice.links){
   //   Idx ix1 = link.sites[0];
   //   Idx ix2 = link.sites[1];

@@ -7,24 +7,23 @@ struct SingleRng {
   std::mt19937_64 mt;
 
   std::normal_distribution<double> dist_gaussian;
-  double gaussian(){ return dist_gaussian(mt); }
-
   std::uniform_real_distribution<> dist_01;
-  double uniform(){ return dist_01(mt); }
-
   std::uniform_int_distribution<int> dist_z2;
 
   SingleRng()
     : dist_z2(1,2)
   {}
 
+  double gaussian(){ return dist_gaussian(mt); }
+  double uniform(){ return dist_01(mt); }
   double z2(){ return dist_z2(mt); }
 
-  double RandReal(const double a=0., const double b=1.0) {
-    return (b-a) * uniform() + a;
-  }
+  // double RandReal(const double a=0., const double b=1.0) {
+  //   return (b-a) * uniform() + a;
+  // }
 
-  void SeedRng(const int seed) { mt.seed(seed); }
+  // void SeedRng(const int seed) { mt.seed(seed); }
+  void reseed(const int seed) { mt.seed(seed); }
 };
 
 
@@ -69,5 +68,53 @@ struct ParallelRng {
     mt.seed(seed);
     for(auto& elem : mt_link) elem.seed( mt() );
     for(auto& elem : mt_site) elem.seed( mt() );
+  }
+};
+
+template<typename Lattice>
+struct ParallelRng2 {
+  const Lattice& lattice;
+  // const int seed0;
+  // std::mt19937_64 mt;
+  // std::vector<std::mt19937_64> mt_link;
+  // std::vector<std::mt19937_64> mt_site;
+  // std::uniform_int_distribution<int> dist_z2;
+  SingleRng master;
+  std::vector<SingleRng> links;
+  std::vector<SingleRng> sites;
+
+  explicit ParallelRng2(const Lattice& lattice_, const int seed=0 )
+    : lattice(lattice_)
+      // , seed(seed)
+    , links( lattice.n_links )
+    , sites( lattice.n_sites )
+    // , dist_z2(1,2)
+  {
+    reseed(seed);
+    // mt.seed(seed);
+    // for(auto& elem : links) elem.seed( mt() );
+    // for(auto& elem : sites) elem.seed( mt() );
+  }
+
+  // std::normal_distribution<double> dist_gaussian;
+  double gaussian_link( const int il ){ return links[il].gaussian(); }
+  double gaussian_site( const int ix ){ return sites[ix].gaussian(); }
+  double gaussian(){ return master.gaussian(); }
+
+  // std::uniform_real_distribution<> dist_01;
+  double uniform_link( const int il ){ return links[il].uniform(); }
+  double uniform_site( const int ix ){ return sites[ix].uniform(); }
+  double uniform(){ return master.uniform(); }
+
+  double z2_site( const Idx ix ){ return sites[ix].z2(); }
+
+  // double RandReal(const double a=0., const double b=1.0) {
+  //   return (b-a) * uniform() + a;
+  // }
+
+  void reseed(const int seed) {
+    master.reseed(seed);
+    for(auto& elem : links) elem.reseed( master.mt() );
+    for(auto& elem : sites) elem.reseed( master.mt() );
   }
 };

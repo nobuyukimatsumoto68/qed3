@@ -77,10 +77,14 @@ struct U1onS2 {
     return v;
   }
 
-  double norm() const {
+  double squared_norm() const {
     double sum = 0.0;
     for(const auto elem : field) sum += elem*elem;
-    return std::sqrt( sum );
+    return sum;
+  }
+
+  inline double norm() const {
+    return std::sqrt( squared_norm() );
   }
 
   void print2log_norm(const std::string comment=" : ") const {
