@@ -30,7 +30,8 @@ struct S2Trivalent {
   std::vector<VE> simp_sites;
   std::vector<VE> sites;
   std::vector<std::vector<Idx> > nns;
-  std::vector<Link> links;
+  // std::vector<int> nn;
+  std::vector<Link> _links;
 
   std::vector<std::array<double, 3>> u; // site, M=A,B,C
   std::vector<std::array<VD, 3>> v; // site, M=A,B,C
@@ -104,13 +105,13 @@ struct S2Trivalent {
 	Idx v1, v2;
 	iss >> v1;
 	iss >> v2;
-	links.push_back( Link{v1,v2} );
+	_links.push_back( Link{v1,v2} );
       }
     }
 
     n_sites = sites.size();
     // assert( n_sites == sites.size() );
-    n_links = links.size();
+    n_links = _links.size();
 
     {
       std::cout << "# reading vs" << std::endl;
@@ -191,7 +192,7 @@ struct S2Trivalent {
 
     {
       for(Idx il=0; il<n_links; il++) {
-	const Link link = links[il];
+	const Link link = _links[il];
 	const Idx i = link[0];
 	const Idx j = link[1];
 
@@ -200,7 +201,7 @@ struct S2Trivalent {
       }
 
       for(Idx il=0; il<n_links; il++) {
-	const auto link = links[il];
+	const auto link = _links[il];
 	const Idx i = link[0];
 	const Idx j = link[1];
 
@@ -248,5 +249,10 @@ struct S2Trivalent {
 
     return res;
   }
+
+  inline int nn(const Idx ix) const {
+    return 3;
+  }
+
 
 };

@@ -10,7 +10,7 @@ using Idx = std::int32_t;
 using Double = double;
 using Complex = std::complex<Double>;
 
-#include "s2.h"
+#include "s2n.h"
 #include "dirac_s2.h"
 
 
@@ -43,12 +43,15 @@ int main(int argc, char* argv[]){
 
   if (argc>1) n_refine = atoi(argv[1]);
 
+  using Lattice=S2Simp;
+  using WilsonDirac=DiracS2Simp<Lattice>;
+
   // std::cout << "debug.1" << std::endl;
-  QfeLatticeS2 lattice(q, n_refine);
+  Lattice lattice(n_refine);
   // std::cout << "debug.2" << std::endl;
 
 
-  Dirac1fonS2 D(lattice, n_refine, 0.0, 1.0);
+  WilsonDirac D(lattice, n_refine, 0.0, 1.0);
   // std::cout << "debug.3" << std::endl;
   auto A = D.matrix_form();
   Eigen::VectorXcd B = Eigen::VectorXcd::Zero(A.cols());

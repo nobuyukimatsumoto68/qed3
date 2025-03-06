@@ -9,7 +9,7 @@ using Idx = std::int32_t;
 // using Complex = std::complex<double>;
 using Double = double;
 
-#include "dirac_s2.h"
+#include "s2n.h"
 
 #include "header_cusolver.hpp"
 
@@ -31,9 +31,10 @@ int main(int argc, char* argv[]){
 
   if (argc>1) n_refine = atoi(argv[1]);
 
+  using Lattice=S2Simp;
 
   // std::cout << "debug.1" << std::endl;
-  QfeLatticeS2 lattice(q, n_refine);
+  Lattice lattice(n_refine);
   // std::cout << "debug.2" << std::endl;
 
 
@@ -63,7 +64,7 @@ int main(int argc, char* argv[]){
   //
   int info = 0;
   int *d_info = nullptr;
-  
+
   size_t workspaceInBytesOnDevice = 0; /* size of workspace */
   void *d_work = nullptr;              /* device workspace */
   size_t workspaceInBytesOnHost = 0;   /* size of workspace */

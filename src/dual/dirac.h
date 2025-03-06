@@ -71,9 +71,9 @@ struct SpinStructure{
 };
 
 
-
+template<typename Gauge>
 struct Dirac1fonS2 : public SpinStructure{
-  using Gauge=U1onS2<false>;
+  // using Gauge=U1onS2<false>;
   using Lattice=S2Trivalent;
 
   using MS=Eigen::Matrix2cd;

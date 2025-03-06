@@ -36,9 +36,11 @@ struct S2Simp {
   std::vector<double> link_volume; // evan's link label
   double mean_link_volume;
 
-
   std::vector<VE> dual_sites;
   std::vector<Link> dual_links;
+
+  std::vector<double> dual_areas;
+  double mean_dual_area;
 
   S2Simp(const int n_refine)
   {
@@ -160,6 +162,7 @@ struct S2Simp {
         for(int jj=0; jj<nns[ix].size(); jj++) counter+=8;
         // counter += counter_tmp*8;
       }
+      counter_accum.push_back(counter);
     }
 
     {
@@ -227,7 +230,7 @@ struct S2Simp {
     // alat = std::sqrt( 8.0*M_PI/std::sqrt(3.0)/this->n_faces );
 
     set_ell_ellstar_linkvols();
-    // set_ell();
+    set_dual_areas();
   }
 
   // inline int nn(const Idx ix) const {
@@ -318,7 +321,26 @@ struct S2Simp {
     mean_ell /= ell.size();
   }
 
+  void set_dual_areas(){
+    dual_areas.clear();
+    dual_areas.resize(n_sites);
 
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(Comp::NPARALLEL)
+#endif
+    for(Idx ix=0; ix<n_sites; ix++){
+      double area=0.0;
+      for(const Link& link : links) {
+        if(link[0]==ix || link[1]==ix) area += link_volume[map2il.at(link)];
+      }
+      area *= 0.5;
+      dual_areas[ix] = area;
+    } // end for ix
+
+    mean_dual_area = 0.0;
+    for(const double elem : dual_areas) mean_dual_area+=elem;
+    mean_dual_area /= dual_areas.size();
+  }
 
 
 

@@ -17,7 +17,7 @@ namespace Comp{
   constexpr int NPARALLEL=12;
   constexpr int NSTREAMS=4;
 
-  constexpr int N_REFINE=16;
+  constexpr int N_REFINE=1;
   constexpr int NS=2;
   constexpr Idx N_SITES=20*N_REFINE*N_REFINE;
   constexpr Idx N=NS*N_SITES; // matrix size of DW

@@ -109,7 +109,6 @@ struct COO : public LinOp {
   std::vector<COOEntry> en;
 
   //
-
   T* d_val;
   Idx* d_cols;
   Idx* d_rows;

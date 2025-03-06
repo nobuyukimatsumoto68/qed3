@@ -1,13 +1,14 @@
 #pragma once
 
-template<class WilsonDirac, class Lattice>
+// template<class WilsonDirac, class Lattice>
+template<class WilsonDirac>
 struct DWDevice{
   using T = CuC;
   // using WilsonDirac=Dirac1fonS2;
   // using Lattice=S2Trivalent;
 
   const WilsonDirac& D;
-  const Lattice& lattice;
+  // const Lattice& lattice;
   const Idx N;
 
   static constexpr int NS = 2;
@@ -30,8 +31,8 @@ struct DWDevice{
 
   DWDevice(const WilsonDirac& D_)
     : D(D_)
-    , lattice(D.lattice)
-    , N(NS*lattice.n_sites)
+    // , lattice(D.lattice)
+    , N(Comp::N)
   {
     initialize();
   } // end of constructor
@@ -53,20 +54,8 @@ struct DWDevice{
     std::vector<Idx> js;
 
     // ========= COO ========= //
-    for(Idx ix=0; ix<lattice.n_sites; ix++){
-      for(const Idx iy : lattice.nns[ix]){
-	// Idx iy = lattice.nns[ix][jj];
 
-	is.push_back( NS*ix ); js.push_back( NS*iy );
-	is.push_back( NS*ix ); js.push_back( NS*iy+1 );
-	is.push_back( NS*ix ); js.push_back( NS*ix );
-	is.push_back( NS*ix ); js.push_back( NS*ix+1 );
-	is.push_back( NS*ix+1 ); js.push_back( NS*iy );
-	is.push_back( NS*ix+1 ); js.push_back( NS*iy+1 );
-	is.push_back( NS*ix+1 ); js.push_back( NS*ix );
-	is.push_back( NS*ix+1 ); js.push_back( NS*ix+1 );
-      }
-    }
+    D.coo_structure(is, js);
     len = js.size();
     assert( is.size()==len );
 

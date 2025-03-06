@@ -43,7 +43,8 @@ namespace Comp{
 
   constexpr Idx N_SITES=10*N_REFINE*N_REFINE+2;
 
-  constexpr Idx N=NS*N_SITES; // matrix size of DW
+  constexpr Idx Nx=NS*N_SITES; // matrix size of DW
+  constexpr Idx N=Nx*Nt; // matrix size of DW
 
   const double TOL_INNER=1.0e-9;
   const double TOL_OUTER=1.0e-8;
@@ -106,11 +107,11 @@ int main(int argc, char* argv[]){
 
   // ---------------------------------------
 
-  std::cout << "# N = " << Comp::N << std::endl;
+  std::cout << "# Nx = " << Comp::Nx << std::endl;
 
   // --------------------
   using Link = std::array<Idx,2>; // <int,int>;
-  constexpr Idx N = Comp::N;
+  constexpr Idx Nx = Comp::Nx;
   constexpr int Nt = Comp::Nt;
 
   using Base=S2Simp;

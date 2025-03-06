@@ -1,6 +1,6 @@
 #pragma once
 
-template<typename Gauge, typename WilsonDirac, typename Lattice>
+template<typename WilsonDirac>
 struct DiracPf {
   using Link = std::array<Idx,2>; // <int,int>;
 
@@ -8,7 +8,7 @@ struct DiracPf {
   static constexpr int nstreams = Comp::NSTREAMS;
 
   const WilsonDirac& DW;
-  DWDevice<WilsonDirac,Lattice> d_DW; // actual data used in M_DW, M_DWH
+  DWDevice<WilsonDirac> d_DW; // actual data used in M_DW, M_DWH
   CSR M_DW;
   CSR M_DWH;
 
@@ -58,6 +58,7 @@ struct DiracPf {
     CUDA_CHECK(cudaDeviceSynchronize());
   }
 
+  template<typename Gauge>
   void update( const Gauge& U )
   {
     d_DW.update( U );
@@ -72,6 +73,13 @@ struct DiracPf {
   }
 
 
+  void mult_deviceAsyncLaunch(CuC* d_res, const CuC* d_xi) const {
+    MatPoly OpGlob( handle[0], stream[0] );
+    OpGlob.push_back ( cplx(1.0), {&M_DW} );
+    OpGlob.on_gpuAsync<N>( d_res, d_xi );
+    CUDA_CHECK(cudaDeviceSynchronize());
+  }
+
   void adj_deviceAsyncLaunch(CuC* d_res, const CuC* d_xi) const {
     MatPoly OpGlob( handle[0], stream[0] );
     OpGlob.push_back ( cplx(1.0), {&M_DWH} );
@@ -79,7 +87,7 @@ struct DiracPf {
     CUDA_CHECK(cudaDeviceSynchronize());
   }
 
-
+  template<typename Gauge>
   void precalc_grad_deviceAsyncLaunch( const Gauge& U, const CuC* d_eta ) {
     is_precalc = true;
     MatPoly X(handle[0], stream[0]);
@@ -90,6 +98,7 @@ struct DiracPf {
     CUDA_CHECK(cudaDeviceSynchronize());
   }
 
+  template<typename Gauge>
   double grad_deviceAsyncLaunch( const Link& link, const Gauge& U, const CuC* d_eta ) const {
     assert( is_precalc );
     const int m = omp_get_thread_num();

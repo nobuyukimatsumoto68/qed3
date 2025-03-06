@@ -4,11 +4,11 @@
 #include <cmath>
 
 
-template<bool is_compact_=false>
+template<typename Lattice, bool is_compact_=false>
 struct U1onS2 {
   using Link = std::array<int,2>; // <int,int>;
   using Face = std::vector<int>;
-  using Lattice = S2Trivalent;
+  // using Lattice = S2Trivalent;
 
   static constexpr bool is_compact = is_compact_;
 
@@ -17,7 +17,7 @@ struct U1onS2 {
 
   U1onS2()=delete;
 
-  U1onS2(Lattice& lattice_)
+  explicit U1onS2(Lattice& lattice_)
     : lattice(lattice_)
     , field(lattice.n_links, 0.0)
   {}
@@ -89,9 +89,9 @@ struct U1onS2 {
 
   double plaquette_angle(const Face& face) const {
     double sum = 0.0;
-    for(Idx i=0; i<face.size(); i++) {
-      const Idx ix = face[i];
-      const Idx iy = face[(i+1)%face.size()];
+    for(int i=0; i<face.size(); i++) {
+      const int ix = face[i];
+      const int iy = face[(i+1)%face.size()];
       sum += (*this)( Link{ix,iy} );
     }
     return sum;

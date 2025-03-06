@@ -52,23 +52,7 @@ struct DWDevice{
     std::vector<Idx> is;
     std::vector<Idx> js;
 
-    // ========= COO ========= //
-    for(Idx ix=0; ix<lattice.n_sites; ix++){
-      for(const Idx iy : lattice.nns[ix]){
-	// Idx iy = lattice.nns[ix][jj];
-
-	is.push_back( NS*ix ); js.push_back( NS*iy );
-	is.push_back( NS*ix ); js.push_back( NS*iy+1 );
-	is.push_back( NS*ix ); js.push_back( NS*ix );
-	is.push_back( NS*ix ); js.push_back( NS*ix+1 );
-	is.push_back( NS*ix+1 ); js.push_back( NS*iy );
-	is.push_back( NS*ix+1 ); js.push_back( NS*iy+1 );
-	is.push_back( NS*ix+1 ); js.push_back( NS*ix );
-	is.push_back( NS*ix+1 ); js.push_back( NS*ix+1 );
-      }
-    }
-    len = js.size();
-    assert( is.size()==len );
+    D.coo_structure(is, js);
 
     // ========= CSR ========= //
 
