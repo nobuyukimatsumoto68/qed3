@@ -6,10 +6,31 @@
 #include <algorithm>
 #include <cstdint>
 #include <complex>
+#include <array>
+#include <vector>
+#include <map>
+#include <Eigen/Dense>
 
 using Double = double;
 using Idx = std::int32_t;
 using Complex = std::complex<double>;
+
+using Link = std::array<Idx,2>; // <int,int>;
+using Face = std::vector<Idx>;
+
+using MS=Eigen::Matrix2cd;
+using VD=Eigen::Vector2d;
+using VE=Eigen::Vector3d;
+using VC=Eigen::VectorXcd;
+
+static constexpr int NS = 2;
+static constexpr int DIM = 2;
+static constexpr Complex I = Complex(0.0, 1.0);
+
+
+#define IS_DUAL
+// #define IS_OVERLAP
+
 
 namespace Comp{
   constexpr bool is_compact=false;
@@ -28,9 +49,13 @@ namespace Comp{
   constexpr int N_REFINE=1;
   constexpr int NS=2;
 
-  constexpr int Nt=32;
+  constexpr int Nt=1;
 
+#ifdef IS_DUAL
+  constexpr Idx N_SITES=20*N_REFINE*N_REFINE;
+#else
   constexpr Idx N_SITES=10*N_REFINE*N_REFINE+2;
+#endif
 
   constexpr Idx Nx=NS*N_SITES; // matrix size of DW
   constexpr Idx N=Nx*Nt; // matrix size of DW
@@ -49,11 +74,12 @@ const std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
 #include "timer.h"
 
 #include "s2n_simp.h"
+#include "s2n_dual.h"
 #include "rng.h"
 // #include "gauge.h"
 #include "gauge_ext.h"
 // #include "action.h"
-#include "action_ext.h"
+// #include "action_ext.h"
 
 #include <cuComplex.h>
 #include <cuda_runtime.h>
@@ -79,7 +105,9 @@ using CuC = cuDoubleComplex;
 // #include "action.h"
 
 #include "sparse_matrix.h"
+#include "dirac_base.h"
 #include "dirac_simp.h"
+#include "dirac_dual.h"
 #include "dirac_ext.h"
 // // #include "pseudofermion.h"
 // #include "dirac.h"
@@ -120,19 +148,25 @@ int main(int argc, char* argv[]){
   std::cout << "# (GPU device is set.)" << std::endl;
 
   // ---------------------------------------
-  using Link = std::array<Idx,2>; // <int,int>;
+  // using Link = std::array<Idx,2>; // <int,int>;
   constexpr Idx N = Comp::N;
   constexpr int Nt = Comp::Nt;
 
+#ifdef IS_DUAL
+  using Base=S2Trivalent;
+  using WilsonDirac=DiracExt<Base, DiracS2Dual>;
+#else
   using Base=S2Simp;
+  using WilsonDirac=DiracExt<Base, DiracS2Simp>;
+#endif
 
   using Force=GaugeExt<Base,Nt,Comp::is_compact>;
   using Gauge=GaugeExt<Base,Nt,Comp::is_compact>;
-  using Action=U1WilsonExt;
+  // using Action=U1WilsonExt;
 
   using Rng=ParallelRngExt<Base,Nt>;
 
-  using WilsonDirac=DiracExt;
+  // using WilsonDirac=DiracExt<Base>;
   using Fermion=DiracPf<WilsonDirac>;
 
   Base base(Comp::N_REFINE);
@@ -150,15 +184,13 @@ int main(int argc, char* argv[]){
   // ----------------------
 
   // const double gR = 10.0;
-  double beta = 4.0; // 1.0/(gR*gR);
-  Action SW(beta, beta);
+  // double beta = 4.0; // 1.0/(gR*gR);
+  // Action SW(beta, beta);
 
   Gauge U(base);
   srand( time(NULL) );
   Rng rng(base, rand());
   // U.gaussian( rng, 0.2 );
-
-
   // const double M5 = -1.8;
   const double M5 = 0.0;
 
@@ -188,7 +220,7 @@ int main(int argc, char* argv[]){
 
 
 
-    // =========================================
+  // =========================================
   // cusolver
   cusolverDnHandle_t handle = NULL;
   cudaStream_t stream = NULL;
@@ -211,7 +243,7 @@ int main(int argc, char* argv[]){
   //
   int info = 0;
   int *d_info = nullptr;
-  
+
   size_t workspaceInBytesOnDevice = 0; /* size of workspace */
   void *d_work = nullptr;              /* device workspace */
   size_t workspaceInBytesOnHost = 0;   /* size of workspace */
@@ -237,53 +269,53 @@ int main(int argc, char* argv[]){
   cublasFillMode_t uplo = CUBLAS_FILL_MODE_LOWER;
 
   CUSOLVER_CHECK( cusolverDnXgeev_bufferSize( handle,
-					      params,
-					      jobvl,
-					      jobvr,
-					      n,
-					      CUDA_C_64F,
-					      d_A, // device
-					      lda,
-					      CUDA_C_64F,
-					      d_W, // Array holding the computed eigenvalues of A
-					      CUDA_C_64F,
-					      d_VL,
-					      ldvl,
-					      CUDA_C_64F,
-					      d_VR,
-					      ldvr,
-					      CUDA_C_64F,
-					      &workspaceInBytesOnDevice,
-					      &workspaceInBytesOnHost)
-		  );
+        				      params,
+        				      jobvl,
+        				      jobvr,
+        				      n,
+        				      CUDA_C_64F,
+        				      d_A, // device
+        				      lda,
+        				      CUDA_C_64F,
+        				      d_W, // Array holding the computed eigenvalues of A
+        				      CUDA_C_64F,
+        				      d_VL,
+        				      ldvl,
+        				      CUDA_C_64F,
+        				      d_VR,
+        				      ldvr,
+        				      CUDA_C_64F,
+        				      &workspaceInBytesOnDevice,
+        				      &workspaceInBytesOnHost)
+        	  );
 
   CUDA_CHECK(cudaMalloc( &d_work, workspaceInBytesOnDevice ) );
   h_work = malloc(workspaceInBytesOnHost);
 
   // step 4: compute spectrum
   CUSOLVER_CHECK( cusolverDnXgeev( handle,
-				   params,
-				   jobvl,
-				   jobvr,
-				   n,
-				   CUDA_C_64F,
-				   d_A,
-				   lda,
-				   CUDA_C_64F,
-				   d_W,
-				   CUDA_C_64F,
-				   d_VL,
-				   ldvl,
-				   CUDA_C_64F,
-				   d_VR,
-				   ldvr,
-				   CUDA_C_64F,
-				   d_work, // void *bufferOnDevice,
-				   workspaceInBytesOnDevice,
-				   h_work, // void *bufferOnHost,
-				   workspaceInBytesOnHost,
-				   d_info)
-		  );
+        			   params,
+        			   jobvl,
+        			   jobvr,
+        			   n,
+        			   CUDA_C_64F,
+        			   d_A,
+        			   lda,
+        			   CUDA_C_64F,
+        			   d_W,
+        			   CUDA_C_64F,
+        			   d_VL,
+        			   ldvl,
+        			   CUDA_C_64F,
+        			   d_VR,
+        			   ldvr,
+        			   CUDA_C_64F,
+        			   d_work, // void *bufferOnDevice,
+        			   workspaceInBytesOnDevice,
+        			   h_work, // void *bufferOnHost,
+        			   workspaceInBytesOnHost,
+        			   d_info)
+        	  );
 
   // ---------------------------------------------
 

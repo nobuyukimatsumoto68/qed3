@@ -228,6 +228,24 @@ struct DiracS2Simp : public SpinStructureSimp{
   //   return res;
   // } // end matrix_form
 
+  void coo_structure( std::vector<Idx>& is,
+                      std::vector<Idx>& js ) const {
+    for(Idx ix=0; ix<lattice.n_sites; ix++){
+      for(const Idx iy : lattice.nns[ix]){
+	is.push_back( NS*ix ); js.push_back( NS*iy );
+	is.push_back( NS*ix ); js.push_back( NS*iy+1 );
+	is.push_back( NS*ix ); js.push_back( NS*ix );
+	is.push_back( NS*ix ); js.push_back( NS*ix+1 );
+	is.push_back( NS*ix+1 ); js.push_back( NS*iy );
+	is.push_back( NS*ix+1 ); js.push_back( NS*iy+1 );
+	is.push_back( NS*ix+1 ); js.push_back( NS*ix );
+	is.push_back( NS*ix+1 ); js.push_back( NS*ix+1 );
+      }
+    }
+    assert( is.size()==js.size() );
+  }
+
+
 
   void coo_format( std::vector<Complex>& v,
 		   const Gauge& u ) const {

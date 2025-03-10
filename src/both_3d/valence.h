@@ -6,8 +6,10 @@ struct FermionVector {
   std::vector<Complex> field;
   // MatPoly& Op;
 
-  static constexpr Complex I = Complex(0.0, 1.0);
-  static constexpr int NS = Comp::NS;
+  // static constexpr Complex I = Complex(0.0, 1.0);
+  // static constexpr int NS = Comp::NS;
+
+  int Nt;
 
   Rng& rng;
 
@@ -21,10 +23,21 @@ struct FermionVector {
                          // MatPoly& Op_,
                          Rng& rng_)
     : lattice(lattice_)
-    // , Op(Op_)
+    // , Nt(1)
+      // , Op(Op_)
     , rng(rng_)
     , field(lattice.n_sites*NS, 0.0)
   {}
+
+  // explicit FermionVector(const Lattice& lattice_,
+  //                        const int Nt_,
+  //                        Rng& rng_)
+  //   : lattice(lattice_)
+  //   , Nt(Nt_)
+  //     // , Op(Op_)
+  //   , rng(rng_)
+  //   , field(lattice.n_sites*NS*Nt, 0.0)
+  // {}
 
   // GaugeForce& operator=(const GaugeForce& other){
   //   if (this == &other) return *this;
@@ -44,6 +57,9 @@ struct FermionVector {
   Complex operator()(const Idx ix, const int i) const { return field[NS*ix+i]; }
   Complex& operator()(const Idx ix, const int i) { return field[NS*ix+i]; }
 
+  Complex operator()(const int s, const Idx ix, const int i) const { return field[Comp::Nx*s+NS*ix+i]; }
+  Complex& operator()(const int s, const Idx ix, const int i) { return field[Comp::Nx*s+NS*ix+i]; }
+
   void set_pt_source(const Idx ix, const int i) {
     for(auto& elem : field) elem = 0.0;
     // field(ix, i) = rng.z2_site( ix ) + I*rng.z2_site( ix );
@@ -51,13 +67,20 @@ struct FermionVector {
     (*this)(ix, i) = 1.0;
   }
 
-  void set_random() {
-    for(Idx ix=0; ix<lattice.n_sites; ix++){
-      for(int i=0; i<NS; i++){
-        (*this)(ix, i) = rng.z2_site( ix ) + I*rng.z2_site( ix );
-        (*this)(ix, i) /= std::sqrt(2.0*lattice.n_sites);
-      }}
+  void set_pt_source(const int s, const Idx ix, const int i) {
+    for(auto& elem : field) elem = 0.0;
+    // field(ix, i) = rng.z2_site( ix ) + I*rng.z2_site( ix );
+    // field(ix, i) /= std::sqrt(2.0);
+    (*this)(s, ix, i) = 1.0;
   }
+
+  // void set_random() {
+  //   for(Idx ix=0; ix<lattice.n_sites; ix++){
+  //     for(int i=0; i<NS; i++){
+  //       (*this)(ix, i) = rng.z2_site( ix ) + I*rng.z2_site( ix );
+  //       (*this)(ix, i) /= std::sqrt(2.0*lattice.n_sites);
+  //     }}
+  // }
 
 
 };

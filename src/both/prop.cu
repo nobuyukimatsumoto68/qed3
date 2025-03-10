@@ -13,13 +13,13 @@ using Idx = std::int32_t;
 using Complex = std::complex<double>;
 
 // #define IS_DUAL
-#define IS_OVERLAP
+// #define IS_OVERLAP
 
 namespace Comp{
   constexpr int NPARALLEL=12; // 12
   constexpr int NSTREAMS=4; // 4
 
-  constexpr int N_REFINE=1;
+  constexpr int N_REFINE=8;
   constexpr int NS=2;
 
 #ifdef IS_DUAL

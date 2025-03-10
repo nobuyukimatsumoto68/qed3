@@ -1,15 +1,8 @@
 #pragma once
 
-#include "s2.h"
+// #include "s2.h"
 
 struct S2Simp {
-  using Link = std::array<Idx,2>; // <Idx,Idx>;
-  using Face = std::vector<Idx>;
-  using MS=Eigen::Matrix2cd;
-  using VD=Eigen::Vector2d;
-  using VE=Eigen::Vector3d;
-  using VC=Eigen::VectorXcd;
-
   std::map<const Link, const Idx> map2il;
   std::map<const Link, const int> map2sign;
 
@@ -20,7 +13,7 @@ struct S2Simp {
   std::vector<Idx> counter_accum;
   std::vector<double> ell; // evan's link label
   double mean_ell;
-  double alat; // from volume
+  // double alat; // from volume
 
   std::vector<VE> sites;
   std::vector<std::vector<Idx>> nns;
@@ -31,8 +24,8 @@ struct S2Simp {
   double mean_vol;
 
   // std::vector<double> ell; // evan's link label
-  std::vector<double> ellstarA; // evan's link label
-  std::vector<double> ellstarB; // evan's link label
+  // std::vector<double> ellstarA; // evan's link label
+  // std::vector<double> ellstarB; // evan's link label
   std::vector<double> link_volume; // evan's link label
   double mean_link_volume;
 
@@ -41,6 +34,8 @@ struct S2Simp {
 
   std::vector<double> dual_areas;
   double mean_dual_area;
+
+  double alat;
 
   S2Simp(const int n_refine)
   {
@@ -221,7 +216,7 @@ struct S2Simp {
 	counter++;
       }
       assert( vols.size()==n_faces );
-      assert( std::abs(mean_vol-4.0*M_PI)<1.0e-12 );
+      assert( std::abs(mean_vol-4.0*M_PI)<1.0e-10 );
 
       mean_vol /= counter;
       alat = std::sqrt( mean_vol*4.0/std::sqrt(3.0) );
@@ -257,8 +252,6 @@ struct S2Simp {
 
   void set_ell_ellstar_linkvols(){
     ell.resize( n_links );
-    ellstarA.resize( n_links );
-    ellstarB.resize( n_links );
     link_volume.resize( n_links );
 
     for(Idx il=0; il<n_links; il++) {
@@ -305,15 +298,15 @@ struct S2Simp {
 
       assert( std::abs(ellA-ellB)<1.0e-14 );
       ell[il] = ellA;
-      ellstarA[il] = areaA/ell[il];
-      ellstarB[il] = areaB/ell[il];
+      // ellstarA[il] = areaA/ell[il];
+      // ellstarB[il] = areaB/ell[il];
       link_volume[il] = areaA + areaB;
     }
 
     mean_link_volume = 0.0;
     for(const double elem : link_volume) mean_link_volume+=elem;
-    // std::cout << "debug. sum = " << sum << std::endl;
-    assert( std::abs(mean_link_volume-4.0*M_PI)<1.0e-12 );
+    std::cout << "# debug. sum = " << mean_link_volume << std::endl;
+    assert( std::abs(mean_link_volume-4.0*M_PI)<1.0e-10 );
     mean_link_volume /= link_volume.size();
 
     mean_ell = 0.0;

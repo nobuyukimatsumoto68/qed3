@@ -10,7 +10,7 @@
 namespace Geodesic{
 
 
-  constexpr Double TOLMOD=1.0e-4;
+  constexpr Double TOLMOD=1.0e-5;
   constexpr Double TOL3 = 1.0e-6;
 
   // constexpr Double EPSNUMDER=1.0e-5;
@@ -68,6 +68,19 @@ int sgn(const Double a){
   if(a<0) res *= -1;
   return res;
 }
+
+  V3 circumcenter(const V3& r0, const V3& r1, const V3& r2){
+    const V3 r10 = r1 - r0;
+    const V3 r20 = r2 - r0;
+
+    const V3 tmp1 = r10.squaredNorm() * r20 - r20.squaredNorm() * r10;
+    const V3 cross = r10.cross(r20);
+    const V3 numer = tmp1.cross(cross);
+    const double denom = 2.0*cross.squaredNorm();
+
+    return numer/denom + r0;
+  }
+
 
 
 bool isModdable( const Double v, const Double q=2.0*_M_PI, const Double TOL=TOLMOD ){

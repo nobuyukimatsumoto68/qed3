@@ -1,14 +1,13 @@
 #pragma once
 
-#include "dirac_simp.h"
+#include "dirac_base.h"
+// #include "dirac_simp.h"
 
-// template<typename Base>
-class DiracExt : private DiracS2Simp{
+template<class Base, class BaseDirac>
+class DiracExt : public DiracBase {
 public:
-  using Base=S2Simp;
-  // const double M5_t;
-
   Base& lattice;
+  BaseDirac bd;
 
   const Idx Nx; // = Comp::N;
   const int Nt; // = Comp::Nt;
@@ -16,24 +15,31 @@ public:
 
   std::vector<double> kappa_t;
 
+  const double m;
+  const double r;
+  const double M5;
+
+  const double c;
+
   DiracExt(Base& lattice_,
+           // BaseDirac& bd_,
            const double m_=0.0,
            const double r_=1.0,
-           const double M5_=0.0
+           const double M5_=0.0,
+           const double c_=2.0
            // const double M5_t_=0.0
            )
-    : DiracS2Simp(lattice_, m_, r_, M5_)
-    , lattice(lattice_)
+    : lattice(lattice_)
+    , bd(lattice_,m_,r_,M5_)
     , Nx(Comp::Nx)
     , Nt(Comp::Nt)
     , N(Comp::N)
-      // , M5_t(M5_t_)
+    , m(m_)
+    , r(r_)
+    , M5(M5_)
     , kappa_t(lattice.n_sites)
+    , c(c_)
   {
-    // set_sigma();
-    // set_face_signs();
-    // set_ell_and_link_volumes();
-    // set_kappa();
     set_kappa_t();
   }
 
@@ -90,22 +96,20 @@ public:
     const Idx Nx = Comp::Nx;
     const int Nt = Comp::Nt;
 
-    // elem.clear();
-    // elem.resize( N*Nt );
     for(Idx i=0; i<Nx*Nt; i++) v[i] = 0.0;
 
-// #ifdef _OPENMP
-// #pragma omp parallel for num_threads(Comp::NPARALLEL) collapse(2)
-// #endif
     // Idx counter=0;
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(Comp::NPARALLEL) collapse(2)
+#endif
     for(int s=0; s<Nt; s++){
       for(Idx ix=0; ix<lattice.n_sites; ix++){
         Idx counter = lattice.counter_accum.back()*s + lattice.counter_accum[ix];
         for(const Idx iy : lattice.nns[ix]){
           const Idx il = lattice.map2il.at(Link{ix,iy});
 
-          const MS tmp = 0.5 * kappa[il] * ( -r*sigma[0] + gamma(ix, iy) ) * std::exp( I*u.sp(s,Link{ix,iy})) * Omega(ix, iy);
-          const MS tmp2 = 0.5 * r*kappa[il] * sigma[0] + M5/lattice.nns[ix].size() * sigma[0];
+          const MS tmp = 0.5 * bd.kappa[il] * ( -r * sigma[0] + bd.gamma(ix, iy) ) * std::exp( I*u.sp(s,Link{ix,iy})) * bd.Omega(ix, iy);
+          const MS tmp2 = 0.5 * r*bd.kappa[il] * sigma[0] + M5/lattice.nns[ix].size() * sigma[0];
 
           // res[NS*ix] += -tmp(0,0)*v[NS*iy] - tmp(0,1)*v[NS*iy+1];
           v[counter] = tmp(0,0); counter++;
@@ -127,16 +131,17 @@ public:
     }
 
     if(Nt==1) return;
-// #ifdef _OPENMP
-// #pragma omp parallel for num_threads(Comp::NPARALLEL) collapse(2)
-// #endif
-    Idx counter = lattice.counter_accum.back()*Nt;
+    // Idx counter = lattice.counter_accum.back()*Nt;
+
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(Comp::NPARALLEL) collapse(2)
+#endif
     for(int s=0; s<Nt; s++){
       for(Idx ix=0; ix<lattice.n_sites; ix++){
         int signP = 1; if(s==Nt-1) signP = -1;
         int signM = 1; if(s==0) signM = -1;
 
-        // Idx counter = 12 * (lattice.n_sites*s + ix);
+        Idx counter = lattice.counter_accum.back()*Nt + 12 * (lattice.n_sites*s + ix);
 
         // const MS tmpP = 0.5 * signP * ( -sigma[0] + sigma[3] );
         // const MS tmpM = 0.5 * signM * ( -sigma[0] - sigma[3] );
@@ -170,9 +175,8 @@ public:
   // }
 
   void set_kappa_t() {
-    // const double factor = std::pow(base.mean_ell/base.ell[il], 2) * base.link_volume[il]/base.mean_link_volume;
-    for(Idx ix=0; ix<lattice.n_sites; ix++) { // @@@
-      kappa_t[ix] = lattice.dual_areas[ix]/lattice.mean_dual_area;
+    for(Idx ix=0; ix<lattice.n_sites; ix++) {
+      kappa_t[ix] = c * lattice.dual_areas[ix]/lattice.mean_dual_area;
     }
   }
 

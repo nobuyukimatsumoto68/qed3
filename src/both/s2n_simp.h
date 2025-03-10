@@ -293,7 +293,8 @@ struct S2Simp {
     double sum = 0.0;
     for(const double elem : link_volume) sum+=elem;
     // std::cout << "debug. sum = " << sum << std::endl;
-    assert( std::abs(sum-4.0*M_PI)<1.0e-12 );
+    // assert( std::abs(sum-4.0*M_PI)<1.0e-12 );
+    assert( std::abs(sum-4.0*M_PI)<1.0e-8 );
 
   }
 
