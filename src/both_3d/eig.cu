@@ -28,7 +28,7 @@ static constexpr int DIM = 2;
 static constexpr Complex I = Complex(0.0, 1.0);
 
 
-#define IS_DUAL
+// #define IS_DUAL
 // #define IS_OVERLAP
 
 
@@ -44,12 +44,12 @@ namespace Comp{
   constexpr int NPARALLEL2=12; // 12
   constexpr int NSTREAMS=12; // 4
 #endif
-  constexpr int NPARALLEL3=16; // 12
+  constexpr int NPARALLEL3=2; // 12
 
-  constexpr int N_REFINE=1;
+  constexpr int N_REFINE=4;
   constexpr int NS=2;
 
-  constexpr int Nt=1;
+  constexpr int Nt=16;
 
 #ifdef IS_DUAL
   constexpr Idx N_SITES=20*N_REFINE*N_REFINE;
@@ -89,20 +89,7 @@ const std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
 using CuC = cuDoubleComplex;
 #include "gpu_header.h"
 
-// #include <cuComplex.h>
-// #include <cuda_runtime.h>
-// #include <cublas_v2.h>
-// #include <cublas_api.h>
-// #include <cusolverDn.h>
-// using CuC = cuDoubleComplex;
-// #include "gpu_header.h"
-
 // ======================================
-
-// #include "s2n.h"
-// #include "rng.h"
-// #include "gauge.h"
-// #include "action.h"
 
 #include "sparse_matrix.h"
 #include "dirac_base.h"
@@ -193,8 +180,9 @@ int main(int argc, char* argv[]){
   // U.gaussian( rng, 0.2 );
   // const double M5 = -1.8;
   const double M5 = 0.0;
+  const double c = 1.0;
 
-  WilsonDirac DW(base, 0.0, 1.0, M5);
+  WilsonDirac DW(base, 0.0, 1.0, M5, c);
 
   Fermion D(DW);
   D.update( U );

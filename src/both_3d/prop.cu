@@ -45,12 +45,12 @@ namespace Comp{
   constexpr int NPARALLEL2=12; // 12
   constexpr int NSTREAMS=4; // 4
 #endif
-  constexpr int NPARALLEL3=16; // 12
+  constexpr int NPARALLEL3=2; // 12
 
-  constexpr int N_REFINE=1;
+  constexpr int N_REFINE=16;
   constexpr int NS=2;
 
-  constexpr int Nt=1;
+  constexpr int Nt=64;
 
 #ifdef IS_DUAL
   constexpr Idx N_SITES=20*N_REFINE*N_REFINE;
@@ -332,8 +332,9 @@ int main(int argc, char* argv[]){
   // U.gaussian( rng, 0.2 );
   // const double M5 = -1.8;
   const double M5 = 0.0;
+  const double c = 1.0;
 
-  WilsonDirac DW(base, 0.0, 1.0, M5);
+  WilsonDirac DW(base, 0.0, 1.0, M5, c);
 
   Fermion D(DW);
   D.update( U );
@@ -374,7 +375,10 @@ int main(int argc, char* argv[]){
   // MatPoly DH;
   // DH.push_back ( cplx(1.0), {&Dov.M_DWH} );
 // #endif
-  auto f_DH = std::bind(&Fermion::adj_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
+  // auto f_DH = std::bind(&Fermion::adj_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
+  // @@@debug
+  auto f_DH = std::bind(&Fermion::mult_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
+  //
   auto f_DHD = std::bind(&Fermion::sq_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
   LinOpWrapper M_DH( f_DH );
   MatPoly DH; DH.push_back ( cplx(1.0), {&M_DH} );
@@ -385,15 +389,15 @@ int main(int argc, char* argv[]){
 
 
   // std::cout << "debug. n = " << base.n_sites*NS << std::endl;
-  FermionVector src1(base, rng);
-  FermionVector src(base, rng);
-  // FermionVector src1(base, Nt, rng);
-  // FermionVector src(base, Nt, rng);
+  // FermionVector src1(base, rng);
+  // FermionVector src(base, rng);
+  FermionVector src1; // (base, Nt, rng);
+  FermionVector src; // (base, Nt, rng);
   src1.set_pt_source(0, 0, 0);
   DH.from_cpu<N>( src.field, src1.field );
 
   // FermionVector sink(base, Nt, rng);
-  FermionVector sink(base, rng);
+  FermionVector sink; // (base, Nt, rng);
   // Op.from_cpu<N>( sink.field, src.field );
   // FermionVector rc(base, rng);
   // rc.set_random();
@@ -451,12 +455,25 @@ int main(int argc, char* argv[]){
   }
 #endif
 
-  Idx counter=0;
-  for(auto& elem : sink) {
-    std::cout << std::setw(25) << lengths[int(counter/2)] << " "
-              << std::setw(25) << 1.0/base.mean_ell * elem.real() << " "
-              << std::setw(25) << 1.0/base.mean_ell * elem.imag() << std::endl;
-    counter++;
+  // Idx counter=0;
+  for(Idx ix=0; ix<base.n_sites; ix++) {
+    {
+      const auto elem = sink(0,ix,0);
+      std::cout << std::setw(25) << lengths[ix] << " "
+                << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
+                << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
+                // << std::setw(25) << 1.0 * elem.real() << " "
+                // << std::setw(25) << 1.0 * elem.imag() << std::endl;
+    }
+    {
+      const auto elem = sink(0,ix,1);
+      std::cout << std::setw(25) << lengths[ix] << " "
+                << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
+                << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
+                // << std::setw(25) << 1.0 * elem.real() << " "
+                // << std::setw(25) << 1.0 * elem.imag() << std::endl;
+    }
+    // counter++;
   }
 
 

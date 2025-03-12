@@ -1,8 +1,8 @@
 #pragma once
 
-template<typename Lattice, typename Rng>
+// template<typename Rng>
 struct FermionVector {
-  const Lattice& lattice;
+  // const Lattice& lattice;
   std::vector<Complex> field;
   // MatPoly& Op;
 
@@ -11,7 +11,7 @@ struct FermionVector {
 
   int Nt;
 
-  Rng& rng;
+  // Rng& rng;
 
   // cublasHandle_t handle;
   // cudaStream_t stream;
@@ -19,14 +19,11 @@ struct FermionVector {
 
   // Fermionvector() = delete;
 
-  explicit FermionVector(const Lattice& lattice_,
-                         // MatPoly& Op_,
-                         Rng& rng_)
-    : lattice(lattice_)
-    // , Nt(1)
+  FermionVector() // Rng& rng_)
+    : Nt(Comp::Nt)
       // , Op(Op_)
-    , rng(rng_)
-    , field(lattice.n_sites*NS, 0.0)
+    // , rng(rng_)
+    , field(Comp::N, 0.0)
   {}
 
   // explicit FermionVector(const Lattice& lattice_,
@@ -36,7 +33,7 @@ struct FermionVector {
   //   , Nt(Nt_)
   //     // , Op(Op_)
   //   , rng(rng_)
-  //   , field(lattice.n_sites*NS*Nt, 0.0)
+  //   , field(Comp::Nx*Nt, 0.0)
   // {}
 
   // GaugeForce& operator=(const GaugeForce& other){

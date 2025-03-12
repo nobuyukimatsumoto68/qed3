@@ -11,11 +11,29 @@
 #include <cstdint>
 #include <complex>
 
+#include <array>
+#include <vector>
+#include <map>
+#include <Eigen/Dense>
+
 using Double = double;
 using Idx = std::int32_t;
 using Complex = std::complex<double>;
 
-// #define IS_DUAL
+using Link = std::array<Idx,2>; // <int,int>;
+using Face = std::vector<Idx>;
+
+using MS=Eigen::Matrix2cd;
+using VD=Eigen::Vector2d;
+using VE=Eigen::Vector3d;
+using VC=Eigen::VectorXcd;
+
+static constexpr int NS = 2;
+static constexpr int DIM = 2;
+static constexpr Complex I = Complex(0.0, 1.0);
+
+
+#define IS_DUAL
 // #define IS_OVERLAP
 
 // #define IsVerbose
@@ -34,14 +52,18 @@ namespace Comp{
   constexpr int NPARALLEL2=12; // 12
   constexpr int NSTREAMS=12; // 4
 #endif
-  constexpr int NPARALLEL3=16; // 12
+  constexpr int NPARALLEL3=12; // 12
 
   constexpr int N_REFINE=2;
   constexpr int NS=2;
 
-  constexpr int Nt=16;
+  constexpr int Nt=12;
 
+#ifdef IS_DUAL
+  constexpr Idx N_SITES=20*N_REFINE*N_REFINE;
+#else
   constexpr Idx N_SITES=10*N_REFINE*N_REFINE+2;
+#endif
 
   constexpr Idx Nx=NS*N_SITES; // matrix size of DW
   constexpr Idx N=Nx*Nt; // matrix size of DW
@@ -55,6 +77,7 @@ const std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
 #include "timer.h"
 
 #include "s2n_simp.h"
+#include "s2n_dual.h"
 #include "rng.h"
 // #include "gauge.h"
 #include "gauge_ext.h"
@@ -114,7 +137,11 @@ int main(int argc, char* argv[]){
   constexpr Idx Nx = Comp::Nx;
   constexpr int Nt = Comp::Nt;
 
+#ifdef IS_DUAL
+  using Base=S2Trivalent;
+#else
   using Base=S2Simp;
+#endif
 
   using Force=GaugeExt<Base,Nt,Comp::is_compact>;
   using Gauge=GaugeExt<Base,Nt,Comp::is_compact>;
@@ -491,8 +518,10 @@ int main(int argc, char* argv[]){
               << " is_accept : " << is_accept << std::endl;
     // std::cout << "# HMC : " << timer.currentSeconds() << " sec" << std::endl;
   }
-  const int kmax=400000;
-  for(int k=0; k<10000; k++){
+  const int kmax=4e6;
+  for(int k=0; k<1e4; k++){
+  // const int kmax=4000;
+  // for(int k=0; k<100; k++){
     Timer timer;
     hmc.run( rate, dH, is_accept );
     if constexpr(Comp::is_compact) U.project();
@@ -510,15 +539,21 @@ int main(int argc, char* argv[]){
   // std::vector<double> plaq_t0;
   // const int ix0 = 0;
   const int il0 = 1;
+
+#ifdef IS_DUAL
   int iface0 = 2; // 2,3
   int iface1 = 3; // 2,3
+#else
+  int iface0 = 2; // 2,3
+  int iface1 = 3; // 2,3
+#endif
   // if(argc==2) iface0 = atoi( argv[1] );
 
   // std::vector<double> 1;
   // const int s=0;
 
   double r_mean;
-  const int interval=10;
+  const int interval=20;
 
   for(int k=0; k<kmax; k++){
     Timer timer;
@@ -602,6 +637,9 @@ int main(int argc, char* argv[]){
     }
 
     std::string path = "plaq_s0.dat";
+#ifdef IS_DUAL
+    path = "dual_"+path;
+#endif
     std::ofstream ofs(path);
     ofs << "# kmax = " << kmax << std::endl;
     for(int t=0; t<Comp::Nt; t++){
@@ -626,6 +664,9 @@ int main(int argc, char* argv[]){
     }
 
     std::string path = "plaq_s1.dat";
+#ifdef IS_DUAL
+    path = "dual_"+path;
+#endif
     std::ofstream ofs(path);
     ofs << "# kmax = " << kmax << std::endl;
     for(int t=0; t<Comp::Nt; t++){

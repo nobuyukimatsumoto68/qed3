@@ -56,27 +56,14 @@ struct S2Trivalent {
     n_sites = sites.size();
     // std::cout << "n_sites = " << n_sites;
 
-    {
-      std::cout << "# reading nns" << std::endl;
-      std::ifstream file(dir+"nns_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
-
-      std::string str;
-      while (std::getline(file, str)){
-        std::istringstream iss(str);
-        Idx v1, v2, v3;
-        iss >> v1;
-        iss >> v2;
-        iss >> v3;
-        nns.push_back( std::vector<Idx>{v1,v2,v3} );
-      }
-    }
+    nns = simp.dual_nns;
 
     {
       Idx counter=0;
       for(Idx ix=0; ix<n_sites; ix++){
         // Idx counter_tmp=0;
         counter_accum.push_back(counter);
-        for(int jj=0; jj<nns[ix].size(); jj++) counter+=8;
+        for(int jj=0; jj<nns[ix].size(); jj++) counter++;
         // counter += counter_tmp*8;
       }
       counter_accum.push_back(counter);
@@ -86,20 +73,8 @@ struct S2Trivalent {
     links = simp.dual_links;
     n_links = links.size();
 
-    {
-      std::cout << "# reading faces" << std::endl;
-      std::ifstream file(dir+"face_dual_n"+std::to_string(n_refine)+".dat");
-      assert(file.is_open());
-      std::string str;
-      while (std::getline(file, str)){
-        std::istringstream iss(str);
-        Idx v;
-        std::vector<Idx> face;
-        while( iss >> v ) face.push_back( v );
-        faces.push_back( face );
-      }
-      n_faces = faces.size();
-    }
+    faces = simp.dual_faces;
+    n_faces = faces.size();
 
     vols = simp.dual_areas;
     mean_vol = simp.mean_dual_area;

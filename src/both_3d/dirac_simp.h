@@ -209,7 +209,7 @@ struct DiracS2Simp : public DiracBase, public SpinStructureSimp{
 #pragma omp parallel for num_threads(Comp::NPARALLEL)
 #endif
     for(Idx ix=0; ix<lattice.n_sites; ix++){
-      Idx counter = lattice.counter_accum[ix];
+      Idx counter = 8*lattice.counter_accum[ix];
       for(const Idx iy : lattice.nns[ix]){
         const Idx il = lattice.map2il.at(Link{ix,iy});
 

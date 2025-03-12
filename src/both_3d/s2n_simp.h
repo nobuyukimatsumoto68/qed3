@@ -30,7 +30,9 @@ struct S2Simp {
   double mean_link_volume;
 
   std::vector<VE> dual_sites;
+  std::vector<std::vector<Idx>> dual_nns;
   std::vector<Link> dual_links;
+  std::vector<Face> dual_faces;
 
   std::vector<double> dual_areas;
   double mean_dual_area;
@@ -67,6 +69,22 @@ struct S2Simp {
 	iss >> v2;
 	iss >> v3;
 	dual_sites.push_back( VE(v1, v2, v3) );
+      }
+    }
+
+
+    {
+      std::cout << "# reading nns" << std::endl;
+      std::ifstream file(dir+"nns_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
+
+      std::string str;
+      while (std::getline(file, str)){
+        std::istringstream iss(str);
+        Idx v1, v2, v3;
+        iss >> v1;
+        iss >> v2;
+        iss >> v3;
+        dual_nns.push_back( std::vector<Idx>{v1,v2,v3} );
       }
     }
 
@@ -133,6 +151,22 @@ struct S2Simp {
       }
     }
 
+    {
+      std::cout << "# reading faces" << std::endl;
+      std::ifstream file(dir+"face_dual_n"+std::to_string(n_refine)+".dat");
+      assert(file.is_open());
+      std::string str;
+      while (std::getline(file, str)){
+        std::istringstream iss(str);
+        Idx v;
+        std::vector<Idx> face;
+        while( iss >> v ) face.push_back( v );
+        dual_faces.push_back( face );
+      }
+      // n_faces = faces.size();
+    }
+
+
     // {
     //   std::cout << "# reading vols" << std::endl;
     //   std::ifstream file(dir+"dualtriangleareas_n"+std::to_string(n_refine)+"_singlepatch.dat");
@@ -154,7 +188,8 @@ struct S2Simp {
       for(Idx ix=0; ix<n_sites; ix++){
         // Idx counter_tmp=0;
         counter_accum.push_back(counter);
-        for(int jj=0; jj<nns[ix].size(); jj++) counter+=8;
+        for(int jj=0; jj<nns[ix].size(); jj++) counter++;
+        // for(int jj=0; jj<nns[ix].size(); jj++) counter+=8;
         // counter += counter_tmp*8;
       }
       counter_accum.push_back(counter);
@@ -321,17 +356,34 @@ struct S2Simp {
 #ifdef _OPENMP
 #pragma omp parallel for num_threads(Comp::NPARALLEL)
 #endif
-    for(Idx ix=0; ix<n_sites; ix++){
+    for(Idx ip=0; ip<n_sites; ip++){
       double area=0.0;
-      for(const Link& link : links) {
-        if(link[0]==ix || link[1]==ix) area += link_volume[map2il.at(link)];
+
+      const VE p = sites[ip];
+      const Face face = dual_faces[ip];
+
+      for(int i=0; i<face.size(); i++){
+        const Idx ix = face[i];
+        const Idx iy = face[(i+1)%face.size()];
+
+        const VE x = dual_sites[ ix ];
+        const VE y = dual_sites[ iy ];
+
+        double a_ = std::acos( x.dot(p) / (x.norm()* p.norm()) );
+        double b_ = std::acos( y.dot(p) / (y.norm()* p.norm()) );
+        double c_ = std::acos( x.dot(y) / (x.norm()*y.norm()) ); // ell
+
+        double s_ = 0.5*(a_+b_+c_);
+        double tmp = std::tan(0.5*s_) * std::tan(0.5*(s_-a_)) * std::tan(0.5*(s_-b_)) * std::tan(0.5*(s_-c_));
+        area += 4.0*std::atan( std::sqrt( tmp ) );
       }
-      area *= 0.5;
-      dual_areas[ix] = area;
+
+      dual_areas[ip] = area;
     } // end for ix
 
     mean_dual_area = 0.0;
     for(const double elem : dual_areas) mean_dual_area+=elem;
+    assert( std::abs(mean_dual_area-4.0*M_PI)<1.0e-10 );
     mean_dual_area /= dual_areas.size();
   }
 
@@ -341,3 +393,45 @@ struct S2Simp {
 
 
 };
+
+    // for(Idx il=0; il<n_links; il++) {
+    //   const Link link = links[il];
+
+    //   const VE x = sites[ links[il][0] ];
+    //   const VE y = sites[ links[il][1] ];
+
+    //   const Idx iA = *std::min_element( dual_links[il].begin(), dual_links[il].end() );
+    //   const Idx iB = *std::max_element( dual_links[il].begin(), dual_links[il].end() );
+
+    //   double ellA=0.0, ellB=0.0;
+    //   double areaA=0.0, areaB=0.0;
+    //   {
+    //     const VE p = dual_sites[iA];
+
+    //     double a_ = std::acos( x.dot(p) /(x.norm()* p.norm()) );
+    //     double b_ = std::acos( y.dot(p) /(y.norm()* p.norm()) );
+    //     double c_ = std::acos( x.dot(y)/(x.norm()*y.norm()) ); // ell
+
+    //     double s_ = 0.5*(a_+b_+c_);
+    //     double tmp = std::tan(0.5*s_) * std::tan(0.5*(s_-a_)) * std::tan(0.5*(s_-b_)) * std::tan(0.5*(s_-c_));
+    //     double area_ = 4.0*std::atan( std::sqrt( tmp ) );
+    //     // double area_ = a_+b_+c_ - M_PI;
+
+    //     ellA = c_;
+    //     areaA = area_;
+    //   }
+    //   {
+    //     const VE p = dual_sites[iB];
+
+    //     double a_ = std::acos( x.dot(p) /(x.norm()* p.norm()) );
+    //     double b_ = std::acos( y.dot(p) /(y.norm()* p.norm()) );
+    //     double c_ = std::acos( x.dot(y)/(x.norm()*y.norm()) ); // ell
+
+    //     double s_ = 0.5*(a_+b_+c_);
+    //     double tmp = std::tan(0.5*s_) * std::tan(0.5*(s_-a_)) * std::tan(0.5*(s_-b_)) * std::tan(0.5*(s_-c_));
+    //     double area_ = 4.0*std::atan( std::sqrt( tmp ) );
+    //     // double area_ = a_+b_+c_ - M_PI;
+
+    //     ellB = c_;
+    //     areaB = area_;
+    //   }

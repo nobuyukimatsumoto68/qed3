@@ -193,15 +193,6 @@ struct DiracS2Dual : public DiracBase, public SpinStructureDual{
       for(int jj=0; jj<3; jj++){
 	const Idx iy = lattice.nns[ix][jj];
         const Idx il = lattice.map2il.at(Link{ix,iy});
-        // const double a = lattice.alat/std::sqrt(3.0);
-        // const MS tmp = 0.5/a * (link_volume[il]/ell[il]) * gamma(ix, iy) * Omega(ix, iy) - 0.5 * r * (link_volume[il]/(ell[il]*ell[il])) * Omega(ix, iy);
-        // const MS tmp = 0.5 * link_volume[il]/ell[il] * ( -r/ell[il] *sigma[0] + 1.0/a * gamma(ix, iy) ) * Omega(ix, iy);
-        // const MS tmp2 = 0.5 * r * ell[il]/a * ( link_volume[il]/(ell[il]*ell[il]) ) * sigma[0] + M5/lattice.nn(ix) * sigma[0];
-        // const MS tmp = 0.5/a * link_volume[il]/ell[il] * ( -r *sigma[0] + gamma(ix, iy) ) * Omega(ix, iy);
-	// const MS tmp2 = 0.5 * r/a * link_volume[il]/ell[il] * sigma[0] + M5/lattice.nn(ix) * sigma[0];
-
-        // const MS tmp = kappa[il] * ( - lattice.alat/ell[il] * r *sigma[0] + gamma(ix, iy) ) * Omega(ix, iy);
-	// const MS tmp2 = lattice.alat/ell[il] * r*kappa[il] * sigma[0] + M5/lattice.nn(ix) * sigma[0];
 
         const MS tmp = 0.5 * kappa[il] * ( -r *sigma[0] + gamma(ix, iy) ) * Omega(ix, iy);
 	const MS tmp2 = 0.5 * r*kappa[il] * sigma[0] + M5/lattice.nn(ix) * sigma[0];
