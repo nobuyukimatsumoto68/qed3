@@ -313,7 +313,7 @@ struct Overlap : public Zolotarev {
   void mult_deviceAsyncLaunch(CuC* d_res, const CuC* d_xi) const {
     // can parallelize
 #ifdef _OPENMP
-#pragma omp parallel for num_threads(Comp::NPARALLEL) schedule(static)
+#pragma omp parallel for num_threads(nstreams) schedule(static)
 #endif
     for(int m=1; m<size; m++) {
       const int istream = m%nstreams;
@@ -347,7 +347,7 @@ struct Overlap : public Zolotarev {
 
     // can parallelize
 #ifdef _OPENMP
-#pragma omp parallel for num_threads(Comp::NPARALLEL) schedule(static)
+#pragma omp parallel for num_threads(nstreams) schedule(static)
 #endif
     for(int m=1; m<size; m++) {
       const int istream = m%nstreams;
@@ -387,7 +387,7 @@ struct Overlap : public Zolotarev {
 
     // can parallelize omp parallel nparallel=nstreams static assert(nparallel>=nstreams)
 #ifdef _OPENMP
-#pragma omp parallel for num_threads(Comp::NPARALLEL) schedule(static)
+#pragma omp parallel for num_threads(nstreams) schedule(static)
 #endif
     for(int m=1; m<size; m++) {
       const int istream = m%nstreams;
@@ -412,7 +412,7 @@ struct Overlap : public Zolotarev {
 
     std::vector<double> tmp2reduce(size, 0.0);
 #ifdef _OPENMP
-#pragma omp parallel for num_threads(Comp::NPARALLEL) schedule(static)
+#pragma omp parallel for num_threads(nstreams) schedule(static)
 #endif
     for(int m=1; m<size; m++) {
       const int istream = m%nstreams;

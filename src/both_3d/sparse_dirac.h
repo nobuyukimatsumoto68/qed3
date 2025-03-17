@@ -29,6 +29,10 @@ struct DWDevice{
   Idx *d_cols, *d_rows, *d_colsT, *d_rowsT;
   CuC *d_val, *d_valH;
 
+  std::vector<Idx> is;
+  std::vector<Idx> js;
+
+
   DWDevice(const WilsonDirac& D_)
     : D(D_)
     // , lattice(D.lattice)
@@ -50,8 +54,8 @@ struct DWDevice{
   }
 
   void initialize(){
-    std::vector<Idx> is;
-    std::vector<Idx> js;
+    // std::vector<Idx> is;
+    // std::vector<Idx> js;
 
     // ========= COO ========= //
 

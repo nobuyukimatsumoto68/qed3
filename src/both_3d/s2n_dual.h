@@ -87,83 +87,6 @@ struct S2Trivalent {
     dual_areas = simp.vols;
     mean_dual_area = simp.mean_vol;
 
-    // sites = simp.dual_sites;
-    // {
-    //   std::cout << "# reading simplicial points" << std::endl;
-    //   std::ifstream file(dir+"pts_n"+std::to_string(n_refine)+"_singlepatch.dat");
-
-    //   std::string str;
-    //   while (std::getline(file, str)){
-    //     std::istringstream iss(str);
-    //     double v1, v2, v3;
-    //     iss >> v1;
-    //     iss >> v2;
-    //     iss >> v3;
-    //     simp_sites.push_back( VE(v1, v2, v3) );
-    //   }
-    // }
-    // {
-    //   std::cout << "# reading dual points" << std::endl;
-    //   std::ifstream file(dir+"pts_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
-
-    //   std::string str;
-    //   while (std::getline(file, str)){
-    //     std::istringstream iss(str);
-    //     double v1, v2, v3;
-    //     iss >> v1;
-    //     iss >> v2;
-    //     iss >> v3;
-    //     sites.push_back( VE(v1, v2, v3) );
-    //   }
-    // }
-    // {
-    //   std::cout << "# reading links" << std::endl;
-    //   std::ifstream file(dir+"dual_links_n"+std::to_string(n_refine)+"_singlepatch.dat");
-
-    //   std::string str;
-    //   while (std::getline(file, str)){
-    //     std::istringstream iss(str);
-    //     Idx v1, v2;
-    //     iss >> v1;
-    //     iss >> v2;
-    //     links.push_back( Link{v1,v2} );
-    //   }
-    // }
-
-    // n_sites = sites.size();
-    // n_links = links.size();
-
-    // {
-    //   std::cout << "# reading vols" << std::endl;
-    //   std::ifstream file(dir+"dualtriangleareas_n"+std::to_string(n_refine)+"_singlepatch.dat");
-    //   assert(file.is_open());
-    //   std::string str;
-    //   while (std::getline(file, str)){
-    //     std::istringstream iss(str);
-    //     double v1;
-    //     iss >> v1;
-    //     dual_areas.push_back(v1);
-    //   }
-
-    //   assert( dual_areas.size()==n_sites );
-    //   mean_dual_area = 0.0;
-    //   for(const double elem : dual_area) mean_dual_area+=elem;
-    //   assert( std::abs(mean_dual_area-4.0*M_PI)<1.0e-12 );
-    //   mean_dual_area /= dual_area.size();
-    // }
-    // {
-    //   Idx counter=0;
-    //   mean_vol=0.;
-    //   for(double elem : vols){
-    //     mean_vol += elem;
-    //     counter++;
-    //   }
-    //   mean_vol /= counter;
-    // }
-
-    // // alat = std::sqrt( 8.0*M_PI/std::sqrt(3.0)/n_sites );
-    // // alat = std::sqrt( mean_vol*4.0/std::sqrt(3.0) );
-
 
     {
       for(Idx il=0; il<n_links; il++) {
@@ -185,41 +108,7 @@ struct S2Trivalent {
       }
     }
 
-    // {
-    //   for(Idx i=0; i<n_faces; i++) vps.push_back(vp(i));
-
-    //   double sum = 0.0;
-    //   for(auto elem : vps) sum += elem;
-    //   assert( std::abs(sum-4.0*M_PI)<1.0e-10 );
-    // }
-
-    // set_simp_links();
   }
-
-
-
-  // void set_simp_links() {
-  //   const double threshold=0.42188 * 2.0 / n_refine;
-
-  //   for(const Link& link : links){ // trivalent
-  //     const VE x1 = sites[link[0]];
-  //     const VE x2 = sites[link[1]];
-
-  //     // Idx ip1, ip2;
-  //     std::vector<Idx> tmp;
-  //     for(Idx ip=0; ip<simp_sites.size(); ip++){
-  //       const VE x0 = simp_sites[ip];
-  //       const double d01 = (x0-x1).norm();
-  //       const double d02 = (x0-x2).norm();
-  //       if(d01<threshold && d02<threshold) tmp.push_back(ip);
-  //     }
-  //     assert( tmp.size()==2 );
-
-  //     const Idx min = std::min(tmp[0], tmp[1]);
-  //     const Idx max = std::max(tmp[0], tmp[1]);
-  //     simp_links.push_back( Link{min,max} );
-  //   }
-  // }
 
 
   void set_ell_link_volume(){
@@ -240,14 +129,6 @@ struct S2Trivalent {
       {
         const VE p = simp_sites[iA];
 
-        // double a_ = (x-p).norm();
-	// double b_ = (y-p).norm();
-	// double c_ = (x-y).norm(); // ell
-
-	// double s_ = 0.5*(a_+b_+c_);
-	// double tmp = s_ * (s_-a_) * (s_-b_) * (s_-c_);
-	// double area_ = std::sqrt( tmp );
-
         double a_ = std::acos( x.dot(p) /(x.norm()* p.norm()) );
 	double b_ = std::acos( y.dot(p) /(y.norm()* p.norm()) );
 	double c_ = std::acos( x.dot(y)/(x.norm()*y.norm()) ); // ell
@@ -261,14 +142,6 @@ struct S2Trivalent {
       }
       {
         const VE p = simp_sites[iB];
-
-        // double a_ = (x-p).norm();
-	// double b_ = (y-p).norm();
-	// double c_ = (x-y).norm(); // ell
-
-	// double s_ = 0.5*(a_+b_+c_);
-	// double tmp = s_ * (s_-a_) * (s_-b_) * (s_-c_);
-	// double area_ = std::sqrt( tmp );
 
         double a_ = std::acos( x.dot(p) /(x.norm()* p.norm()) );
 	double b_ = std::acos( y.dot(p) /(y.norm()* p.norm()) );
@@ -296,37 +169,6 @@ struct S2Trivalent {
     for(const double elem : ell) mean_ell+=elem;
     mean_ell /= ell.size();
   }
-
-
-  // double vp(const Idx i_face) const {
-  //   double res = 0.0;
-
-  //   const auto face = faces[i_face];
-  //   const Idx n = face.size();
-
-  //   const VE r0 = sites[face[0]];
-  //   for(Idx j=1; j<n-1; j++){
-  //     const Idx k=j+1;
-
-  //     const VE r1 = sites[face[j]];
-  //     const VE r2 = sites[face[k]];
-
-  //     const double a = std::acos(r0.dot(r1));
-  //     const double b = std::acos(r1.dot(r2));
-  //     const double c = std::acos(r2.dot(r0));
-  //     const double s = 0.5*(a+b+c);
-
-  //     double tantan = std::tan(0.5*s);
-  //     tantan *= std::tan(0.5*(s-a));
-  //     tantan *= std::tan(0.5*(s-b));
-  //     tantan *= std::tan(0.5*(s-c));
-
-  //     const double tmp = 4.0 * std::atan( std::sqrt(tantan) );
-  //     res += tmp;
-  //   }
-
-  //   return res;
-  // }
 
   inline int nn(const Idx ix) const {
     return 3;

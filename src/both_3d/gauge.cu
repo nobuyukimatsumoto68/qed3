@@ -52,12 +52,12 @@ namespace Comp{
   constexpr int NPARALLEL2=12; // 12
   constexpr int NSTREAMS=12; // 4
 #endif
-  constexpr int NPARALLEL3=12; // 12
+  constexpr int NPARALLEL3=10; // 12
 
   constexpr int N_REFINE=2;
   constexpr int NS=2;
 
-  constexpr int Nt=12;
+  constexpr int Nt=10;
 
 #ifdef IS_DUAL
   constexpr Idx N_SITES=20*N_REFINE*N_REFINE;
@@ -155,7 +155,7 @@ int main(int argc, char* argv[]){
   // ----------------------
 
   // const double gR = 10.0;
-  double beta = 24.0; // 1.0/(gR*gR);
+  double beta = 28.0; // 1.0/(gR*gR);
   Action SW(beta, beta);
 
   Gauge U(base);
@@ -518,7 +518,7 @@ int main(int argc, char* argv[]){
               << " is_accept : " << is_accept << std::endl;
     // std::cout << "# HMC : " << timer.currentSeconds() << " sec" << std::endl;
   }
-  const int kmax=4e6;
+  const int kmax=1e7;
   for(int k=0; k<1e4; k++){
   // const int kmax=4000;
   // for(int k=0; k<100; k++){
@@ -553,7 +553,7 @@ int main(int argc, char* argv[]){
   // const int s=0;
 
   double r_mean;
-  const int interval=20;
+  const int interval=50;
 
   for(int k=0; k<kmax; k++){
     Timer timer;

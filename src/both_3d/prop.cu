@@ -29,28 +29,29 @@ static constexpr int DIM = 2;
 static constexpr Complex I = Complex(0.0, 1.0);
 
 
-// #define IS_DUAL
+#define IS_DUAL
 // #define IS_OVERLAP
+#undef _OPENMP
 
 
 namespace Comp{
   constexpr bool is_compact=false;
 
 #ifdef IS_OVERLAP
-  constexpr int NPARALLEL=12; // 12
-  constexpr int NPARALLEL2=1; // 12
+  constexpr int NPARALLEL=4; // 12
+  // constexpr int NPARALLEL2=1; // 12
   constexpr int NSTREAMS=4; // 4
 #else
   constexpr int NPARALLEL=1; // 12
-  constexpr int NPARALLEL2=12; // 12
-  constexpr int NSTREAMS=4; // 4
+  // constexpr int NPARALLEL2=4; // 12
+  constexpr int NSTREAMS=1; // 4
 #endif
-  constexpr int NPARALLEL3=2; // 12
+  constexpr int NPARALLEL3=1; // 12
 
-  constexpr int N_REFINE=16;
+  constexpr int N_REFINE=1;
   constexpr int NS=2;
 
-  constexpr int Nt=64;
+  constexpr int Nt=128;
 
 #ifdef IS_DUAL
   constexpr Idx N_SITES=20*N_REFINE*N_REFINE;
@@ -335,10 +336,13 @@ int main(int argc, char* argv[]){
   const double c = 1.0;
 
   WilsonDirac DW(base, 0.0, 1.0, M5, c);
+  std::cout << "# DW set. " << std::endl;
 
   Fermion D(DW);
-  D.update( U );
+  std::cout << "# D set. " << std::endl;
 
+  D.update( U );
+  std::cout << "# D updated. " << std::endl;
 
   // std::cout << "kappa" << std::endl;
   // for(double elem : DW.bd.kappa){
@@ -377,7 +381,7 @@ int main(int argc, char* argv[]){
 // #endif
   // auto f_DH = std::bind(&Fermion::adj_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
   // @@@debug
-  auto f_DH = std::bind(&Fermion::mult_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
+  auto f_DH = std::bind(&Fermion::adj_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
   //
   auto f_DHD = std::bind(&Fermion::sq_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
   LinOpWrapper M_DH( f_DH );
@@ -387,6 +391,7 @@ int main(int argc, char* argv[]){
 
   // ---------------------
 
+  std::cout << "# calculating src " << std::endl;
 
   // std::cout << "debug. n = " << base.n_sites*NS << std::endl;
   // FermionVector src1(base, rng);
@@ -394,7 +399,71 @@ int main(int argc, char* argv[]){
   FermionVector src1; // (base, Nt, rng);
   FermionVector src; // (base, Nt, rng);
   src1.set_pt_source(0, 0, 0);
+  // DH.from_cpu<N>( src.field, src1.field );
   DH.from_cpu<N>( src.field, src1.field );
+
+//   const Idx len = D.d_DW.is.size();
+
+//   std::vector<Complex> v_coo;
+//   v_coo.resize(len);
+//   DW.coo_format( v_coo, U );
+//   for(Idx i=0; i<len; i++){
+//     // if(std::abs(v_coo[i])<1.0e-14) continue;
+//     std::cout << "COO "
+//               << std::setw(5) << D.d_DW.is[i] << " "
+//               << std::setw(5) << D.d_DW.js[i] << " "
+//               << std::setw(35) << v_coo[i] << " "
+//               << std::endl;
+//   }
+
+
+//   std::cout << "csr." << std::endl;
+//   D.d_DW.coo2csr_csrH( D.d_DW.v_csr, D.d_DW.v_csrH, v_coo );
+//   {
+//     Idx count = 0;
+//     for(Idx i=0; i<len; i++){
+//       // if(std::abs(D.d_DW.v_csr[i])<1.0e-14) continue;
+//       std::cout << "CSR "
+//                 << std::setw(5) << count << " "
+//                 << std::setw(5) << D.d_DW.ell2em[i] << " "
+//                 << std::setw(35) << D.d_DW.v_csr[i] << " "
+//                 << std::endl;
+//       count++;
+//     }
+//   }
+//   {
+//     Idx count = 0;
+//     std::cout << "csrH." << std::endl;
+//     for(Idx i=0; i<len; i++){
+//       // if(std::abs(D.d_DW.v_csrH[i])<1.0e-14) continue;
+//       std::cout << "CSRH " << std::setw(5) << count << " "
+//                 << std::setw(5) << D.d_DW.ell2emT[i] << " "
+//                 << std::setw(35) << D.d_DW.v_csrH[i] << " "
+//                 << std::endl;
+//       count++;
+//     }
+//   }
+
+//   for(const auto elem : src){
+//     std::cout << elem << std::endl;
+//   }
+// //   void coo2csr_csrH( std::vector<Complex>& v_csr,
+// // 		     std::vector<Complex>& v_csrH,
+// // 		     const std::vector<Complex>& v_coo) const {
+// // #ifdef _OPENMP
+// // #pragma omp parallel for num_threads(Comp::NPARALLEL)
+// // #endif
+// //     for(Idx ell=0; ell<len; ell++) {
+// //       v_csr[ ell2em[ell] ] = v_coo[ell];
+// //       v_csrH[ ell2emT[ell] ] = std::conj( v_coo[ell] );
+// //     }
+// //   }
+
+//   return 1;
+
+
+
+
 
   // FermionVector sink(base, Nt, rng);
   FermionVector sink; // (base, Nt, rng);
@@ -402,8 +471,12 @@ int main(int argc, char* argv[]){
   // FermionVector rc(base, rng);
   // rc.set_random();
 
+  std::cout << "# calculating sink" << std::endl;
+
   // DHD.bicgstab<N>( sink.field, src.field, rc.field, 1.0e-3, 1e8, 1.0e-8 );
   DHD.solve<N>( sink.field, src.field );
+
+  std::cout << "# done" << std::endl;
 
 
 
@@ -455,27 +528,62 @@ int main(int argc, char* argv[]){
   }
 #endif
 
-  // Idx counter=0;
-  for(Idx ix=0; ix<base.n_sites; ix++) {
-    {
-      const auto elem = sink(0,ix,0);
-      std::cout << std::setw(25) << lengths[ix] << " "
-                << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
-                << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
-                // << std::setw(25) << 1.0 * elem.real() << " "
-                // << std::setw(25) << 1.0 * elem.imag() << std::endl;
-    }
-    {
-      const auto elem = sink(0,ix,1);
-      std::cout << std::setw(25) << lengths[ix] << " "
-                << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
-                << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
-                // << std::setw(25) << 1.0 * elem.real() << " "
-                // << std::setw(25) << 1.0 * elem.imag() << std::endl;
-    }
-    // counter++;
-  }
+  {
+    std::string path = "prop_spacial_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+".dat2";
+#ifdef IS_DUAL
+    path = "dual_"+path;
+#endif
+    std::ofstream ofs(path);
 
+    // Idx counter=0;
+    for(Idx ix=0; ix<base.n_sites; ix++) {
+      {
+        const auto elem = sink(0,ix,0);
+        ofs << std::setw(25) << lengths[ix] << " "
+            << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
+            << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
+        // << std::setw(25) << 1.0 * elem.real() << " "
+        // << std::setw(25) << 1.0 * elem.imag() << std::endl;
+      }
+      {
+        const auto elem = sink(0,ix,1);
+        ofs << std::setw(25) << lengths[ix] << " "
+            << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
+            << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
+        // << std::setw(25) << 1.0 * elem.real() << " "
+        // << std::setw(25) << 1.0 * elem.imag() << std::endl;
+      }
+      // counter++;
+    }
+  }
+  {
+    std::string path = "prop_temporal_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+".dat2";
+#ifdef IS_DUAL
+    path = "dual_"+path;
+#endif
+    std::ofstream ofs(path);
+
+    // Idx counter=0;
+    for(Idx s=0; s<Comp::Nt; s++) {
+      {
+        const auto elem = sink(s,0,0);
+        ofs << std::setw(25) << s << " "
+            << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
+            << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
+        // << std::setw(25) << 1.0 * elem.real() << " "
+        // << std::setw(25) << 1.0 * elem.imag() << std::endl;
+      }
+      {
+        const auto elem = sink(s,0,1);
+        ofs << std::setw(25) << s << " "
+            << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
+            << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
+        // << std::setw(25) << 1.0 * elem.real() << " "
+        // << std::setw(25) << 1.0 * elem.imag() << std::endl;
+      }
+      // counter++;
+    }
+  }
 
 
   // ------------------
