@@ -29,9 +29,9 @@ static constexpr int DIM = 2;
 static constexpr Complex I = Complex(0.0, 1.0);
 
 
-#define IS_DUAL
+// #define IS_DUAL
 // #define IS_OVERLAP
-#undef _OPENMP
+// #undef _OPENMP
 
 
 namespace Comp{
@@ -48,10 +48,10 @@ namespace Comp{
 #endif
   constexpr int NPARALLEL3=1; // 12
 
-  constexpr int N_REFINE=1;
+  constexpr int N_REFINE=16;
   constexpr int NS=2;
 
-  constexpr int Nt=128;
+  constexpr int Nt=1;
 
 #ifdef IS_DUAL
   constexpr Idx N_SITES=20*N_REFINE*N_REFINE;
@@ -480,6 +480,8 @@ int main(int argc, char* argv[]){
 
 
 
+  std::vector<double> thetas;
+  std::vector<double> phis;
 #ifdef IS_DUAL
   std::vector<double> lengths;
   {
@@ -503,6 +505,8 @@ int main(int argc, char* argv[]){
       double len = Geodesic::geodesicLength(Geodesic::Pt(x0), Geodesic::Pt(elem));
       // std::cout << "len = " << len << std::endl;
       lengths.push_back(len);
+      thetas.push_back( Geodesic::projectionS2(elem)[0] );
+      phis.push_back( Geodesic::projectionS2(elem)[1] );
     }
   }
   // double alat;
@@ -524,12 +528,16 @@ int main(int argc, char* argv[]){
       double len = Geodesic::geodesicLength(Geodesic::Pt(x0), Geodesic::Pt(x1));
       // std::cout << "len = " << len << std::endl;
       lengths.push_back(len);
+      thetas.push_back( Geodesic::projectionS2(x1)[0] );
+      phis.push_back( Geodesic::projectionS2(x1)[1] );
     }
   }
 #endif
 
+  const double width = 0.05;
+
   {
-    std::string path = "prop_spacial_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+".dat2";
+    std::string path = "prop_spacial_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+".dat";
 #ifdef IS_DUAL
     path = "dual_"+path;
 #endif
@@ -537,9 +545,11 @@ int main(int argc, char* argv[]){
 
     // Idx counter=0;
     for(Idx ix=0; ix<base.n_sites; ix++) {
+      if( phis[ix]>width || phis[ix]<0. ) continue;
       {
         const auto elem = sink(0,ix,0);
-        ofs << std::setw(25) << lengths[ix] << " "
+        ofs << std::setw(25) << thetas[ix] << " "
+          // ofs << std::setw(25) << lengths[ix] << " "
             << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
             << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
         // << std::setw(25) << 1.0 * elem.real() << " "
@@ -547,7 +557,8 @@ int main(int argc, char* argv[]){
       }
       {
         const auto elem = sink(0,ix,1);
-        ofs << std::setw(25) << lengths[ix] << " "
+        ofs << std::setw(25) << thetas[ix] << " "
+          // ofs << std::setw(25) << lengths[ix] << " "
             << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
             << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
         // << std::setw(25) << 1.0 * elem.real() << " "
@@ -556,34 +567,37 @@ int main(int argc, char* argv[]){
       // counter++;
     }
   }
-  {
-    std::string path = "prop_temporal_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+".dat2";
-#ifdef IS_DUAL
-    path = "dual_"+path;
-#endif
-    std::ofstream ofs(path);
+//   {
+//     std::string path = "prop_temporal_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+".dat";
+// #ifdef IS_DUAL
+//     path = "dual_"+path;
+// #endif
+//     std::ofstream ofs(path);
 
-    // Idx counter=0;
-    for(Idx s=0; s<Comp::Nt; s++) {
-      {
-        const auto elem = sink(s,0,0);
-        ofs << std::setw(25) << s << " "
-            << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
-            << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
-        // << std::setw(25) << 1.0 * elem.real() << " "
-        // << std::setw(25) << 1.0 * elem.imag() << std::endl;
-      }
-      {
-        const auto elem = sink(s,0,1);
-        ofs << std::setw(25) << s << " "
-            << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
-            << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
-        // << std::setw(25) << 1.0 * elem.real() << " "
-        // << std::setw(25) << 1.0 * elem.imag() << std::endl;
-      }
-      // counter++;
-    }
-  }
+//     // Idx counter=0;
+//     for(Idx s=0; s<Comp::Nt; s++) {
+//       {
+//         const auto elem = sink(s,0,0);
+//         ofs << std::setw(25) << s << " "
+//             << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
+//             << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
+//         // << std::setw(25) << 1.0 * elem.real() << " "
+//         // << std::setw(25) << 1.0 * elem.imag() << std::endl;
+//       }
+//       {
+//         const auto elem = sink(s,0,1);
+//         ofs << std::setw(25) << s << " "
+//             << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
+//             << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
+//         // << std::setw(25) << 1.0 * elem.real() << " "
+//         // << std::setw(25) << 1.0 * elem.imag() << std::endl;
+//       }
+//       // counter++;
+//     }
+//   }
+
+
+
 
 
   // ------------------

@@ -72,7 +72,6 @@ struct DiracPf {
     CUDA_CHECK(cudaDeviceSynchronize());
   }
 
-
   void mult_deviceAsyncLaunch(CuC* d_res, const CuC* d_xi) const {
     MatPoly OpGlob( handle[0], stream[0] );
     OpGlob.push_back ( cplx(1.0), {&M_DW} );

@@ -46,10 +46,10 @@ namespace Comp{
 #endif
   constexpr int NPARALLEL3=2; // 12
 
-  constexpr int N_REFINE=4;
+  constexpr int N_REFINE=16;
   constexpr int NS=2;
 
-  constexpr int Nt=16;
+  constexpr int Nt=1;
 
 #ifdef IS_DUAL
   constexpr Idx N_SITES=20*N_REFINE*N_REFINE;
@@ -110,6 +110,8 @@ using CuC = cuDoubleComplex;
 // #include "dirac_s2_dual.h"
 // #include "header_cusolver.hpp"
 
+
+#include "../../integrator/geodesic.h"
 
 // TODO: Cusparse for SparseMatrix::act_gpu, probably defining handle in matpoly.h
 // all the operation on GPU in Overlap::operator()
@@ -182,6 +184,7 @@ int main(int argc, char* argv[]){
   const double M5 = 0.0;
   const double c = 1.0;
 
+  // WilsonDirac DW(base, 0.0, 1.0, M5, c);
   WilsonDirac DW(base, 0.0, 1.0, M5, c);
 
   Fermion D(DW);
@@ -189,7 +192,17 @@ int main(int argc, char* argv[]){
 
   auto f_Op = std::bind(&Fermion::mult_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
   LinOpWrapper M_Op( f_Op );
-  MatPoly Op; Op.push_back ( cplx(1.0), {&M_Op} );
+
+  COO gmfourth;
+  DW.volume_matrix( gmfourth.en, -0.5 );
+  gmfourth.do_it();
+  // auto f_vol = std::bind(&COO::operator(), &gmfourth, std::placeholders::_1, std::placeholders::_2);
+  // LinOpWrapper M_Op( f_Op );
+
+  MatPoly Op;
+  // Op.push_back ( cplx(1.0), {&M_Op} );
+  Op.push_back ( cplx(1.0), {&gmfourth, &M_Op, &gmfourth} );
+
 
   Eigen::MatrixXcd mat(N, N);
   {
@@ -252,8 +265,10 @@ int main(int argc, char* argv[]){
   CUDA_CHECK( cudaMemcpy(d_A, A, CD*n*n, H2D) );
 
   // step 3: query working space of syevd
+  // cusolverEigMode_t jobvl = CUSOLVER_EIG_MODE_NOVECTOR;
+  // cusolverEigMode_t jobvr = CUSOLVER_EIG_MODE_NOVECTOR;
   cusolverEigMode_t jobvl = CUSOLVER_EIG_MODE_NOVECTOR;
-  cusolverEigMode_t jobvr = CUSOLVER_EIG_MODE_NOVECTOR;
+  cusolverEigMode_t jobvr = CUSOLVER_EIG_MODE_VECTOR;
   cublasFillMode_t uplo = CUBLAS_FILL_MODE_LOWER;
 
   CUSOLVER_CHECK( cusolverDnXgeev_bufferSize( handle,
@@ -310,6 +325,10 @@ int main(int argc, char* argv[]){
   CUDA_CHECK(cudaMemcpy( W, d_W, CD*n, D2H) );
   CUDA_CHECK(cudaMemcpy( &info, d_info, sizeof(int), D2H ));
 
+  std::vector<std::complex<double>> vr(n*n);
+  for(Idx i=0; i<N; i++) gmfourth(d_VL+i*N, d_VR+i*N);
+  CUDA_CHECK(cudaMemcpy( reinterpret_cast<CuC*>(vr.data()), d_VL, CD * n*n, D2H ));
+
   std::cout << "# info (0=success) = " << info << std::endl;
   assert( info==0 );
 
@@ -320,7 +339,372 @@ int main(int argc, char* argv[]){
   // 				   << res[i] << " "
   // 				   << Dov.sgn(res[i]) << std::endl;
 
-  for(int i=0; i<n; i++) std::clog << real(W[i]) << " " << imag(W[i]) << " " << abs(W[i]) << std::endl;
+  std::vector<double> thetas;
+  std::vector<double> phis;
+#ifdef IS_DUAL
+  std::vector<double> lengths;
+  {
+    std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
+    std::vector<Geodesic::V3> sites;
+    {
+      std::ifstream file(dir+"pts_dual_n"+std::to_string(Comp::N_REFINE)+"_singlepatch.dat");
+
+      std::string str;
+      while (std::getline(file, str)){
+        std::istringstream iss(str);
+        double v1, v2, v3;
+        iss >> v1;
+        iss >> v2;
+        iss >> v3;
+        sites.push_back( Geodesic::V3(v1, v2, v3) );
+      }
+    }
+    const auto x0 = sites[0];
+    for(const auto& elem : sites){
+      double len = Geodesic::geodesicLength(Geodesic::Pt(x0), Geodesic::Pt(elem));
+      // std::cout << "len = " << len << std::endl;
+      lengths.push_back(len);
+      thetas.push_back( Geodesic::projectionS2(elem)[0] );
+      phis.push_back( Geodesic::projectionS2(elem)[1] );
+    }
+  }
+  // double alat;
+  // {
+  //   std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
+  //   std::ifstream file(dir+"alat_n"+std::to_string(Comp::N_REFINE)+"_singlepatch.dat");
+
+  //   std::string str;
+  //   std::getline(file, str);
+  //   std::istringstream iss(str);
+  //   iss >> alat;
+  // }
+#else
+  std::vector<double> lengths;
+  {
+    const auto x0 = base.sites[0];
+    for(int ix=0; ix<base.n_sites; ix++){
+      const auto x1 = base.sites[ix];
+      double len = Geodesic::geodesicLength(Geodesic::Pt(x0), Geodesic::Pt(x1));
+      // std::cout << "len = " << len << std::endl;
+      lengths.push_back(len);
+      thetas.push_back( Geodesic::projectionS2(x1)[0] );
+      phis.push_back( Geodesic::projectionS2(x1)[1] );
+    }
+  }
+#endif
+
+  const double width = 0.05;
+
+  if(Nt==1){
+    {
+      std::string path = "wf_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_0p.dat";
+#ifdef IS_DUAL
+      path = "dual_"+path;
+#endif
+      std::ofstream ofs(path);
+      for(Idx ix=0; ix<base.n_sites; ix++) {
+        // if( !Geodesic::isModdable(phis[ix], 2.0*M_PI, 0.1) ) continue;
+        if( phis[ix]>width || phis[ix]<0. ) continue;
+        ofs << std::setw(25) << thetas[ix] << " "
+            << std::setw(25) << real(vr[2*ix]) << " "
+            << std::setw(25) << imag(vr[2*ix]) << std::endl;
+            // << std::setw(25) << real(vr[Comp::Nx*ix]) << " "
+            // << std::setw(25) << imag(vr[Comp::Nx*ix]) << std::endl;
+      }
+    }
+
+    {
+      std::string path = "wf_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_0m.dat";
+#ifdef IS_DUAL
+      path = "dual_"+path;
+#endif
+      std::ofstream ofs(path);
+      for(Idx ix=0; ix<base.n_sites; ix++) {
+        // if( !Geodesic::isModdable(phis[ix], 2.0*M_PI, 0.1) ) continue;
+        if( phis[ix]>width || phis[ix]<0. ) continue;
+        ofs << std::setw(25) << thetas[ix] << " "
+            << std::setw(25) << real(vr[2*ix+1]) << " "
+            << std::setw(25) << imag(vr[2*ix+1]) << std::endl;
+                  // << std::setw(25) << real(vr[Comp::Nx*ix+1]) << " "
+                  // << std::setw(25) << imag(vr[Comp::Nx*ix+1]) << std::endl;
+      }
+    }
+
+//     {
+//       std::string path = "wf_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_many.dat";
+// #ifdef IS_DUAL
+//       path = "dual_"+path;
+// #endif
+//       std::ofstream ofs(path);
+//       for(Idx ix=0; ix<8*base.n_sites; ix++) {
+//         ofs << std::setw(25) << thetas[ix%base.n_sites] << " "
+//             << std::setw(25) << real(vr[2*ix]) << " "
+//             << std::setw(25) << imag(vr[2*ix]) << std::endl;
+//         // << std::setw(25) << real(vr[Comp::Nx*ix]) << " "
+//         // << std::setw(25) << imag(vr[Comp::Nx*ix]) << std::endl;
+//       }
+//     }
+
+//     {
+//       std::string path = "wf_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_0m.dat";
+// #ifdef IS_DUAL
+//       path = "dual_"+path;
+// #endif
+//       std::ofstream ofs(path);
+//       for(Idx ix=0; ix<base.n_sites; ix++) {
+//         ofs << std::setw(25) << thetas[ix] << " "
+//             << std::setw(25) << real(vr[2*ix+1]) << " "
+//             << std::setw(25) << imag(vr[2*ix+1]) << std::endl;
+//         // << std::setw(25) << real(vr[Comp::Nx*ix+1]) << " "
+//         // << std::setw(25) << imag(vr[Comp::Nx*ix+1]) << std::endl;
+//       }
+//     }
+
+    {
+      std::string path = "wf_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_1p.dat";
+#ifdef IS_DUAL
+      path = "dual_"+path;
+#endif
+      std::ofstream ofs(path);
+      for(Idx ix=0; ix<base.n_sites; ix++) {
+        // if( !Geodesic::isModdable(phis[ix], 2.0*M_PI, 0.1) ) continue;
+        if( phis[ix]>width || phis[ix]<0. ) continue;
+        ofs << std::setw(25) << thetas[ix] << " "
+            << std::setw(25) << real(vr[1*Comp::Nx+2*ix]) << " "
+            << std::setw(25) << imag(vr[1*Comp::Nx+2*ix]) << std::endl;
+      }
+    }
+
+    {
+      std::string path = "wf_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_1m.dat";
+#ifdef IS_DUAL
+      path = "dual_"+path;
+#endif
+      std::ofstream ofs(path);
+      for(Idx ix=0; ix<base.n_sites; ix++) {
+        // if( !Geodesic::isModdable(phis[ix], 2.0*M_PI, 0.1) ) continue;
+        if( phis[ix]>width || phis[ix]<0. ) continue;
+        ofs << std::setw(25) << thetas[ix] << " "
+            << std::setw(25) << real(vr[1*Comp::Nx+2*ix+1]) << " "
+            << std::setw(25) << imag(vr[1*Comp::Nx+2*ix+1]) << std::endl;
+      }
+    }
+
+    {
+      std::string path = "wf_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_2p.dat";
+#ifdef IS_DUAL
+      path = "dual_"+path;
+#endif
+      std::ofstream ofs(path);
+      for(Idx ix=0; ix<base.n_sites; ix++) {
+        // if( !Geodesic::isModdable(phis[ix], 2.0*M_PI, 0.1) ) continue;
+        if( phis[ix]>width || phis[ix]<0. ) continue;
+        ofs << std::setw(25) << thetas[ix] << " "
+            << std::setw(25) << real(vr[2*Comp::Nx+2*ix]) << " "
+            << std::setw(25) << imag(vr[2*Comp::Nx+2*ix]) << std::endl;
+      }
+    }
+
+    {
+      std::string path = "wf_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_2m.dat";
+#ifdef IS_DUAL
+      path = "dual_"+path;
+#endif
+      std::ofstream ofs(path);
+      for(Idx ix=0; ix<base.n_sites; ix++) {
+        // if( !Geodesic::isModdable(phis[ix], 2.0*M_PI, 0.1) ) continue;
+        if( phis[ix]>width || phis[ix]<0. ) continue;
+        ofs << std::setw(25) << thetas[ix] << " "
+            << std::setw(25) << real(vr[2*Comp::Nx+2*ix+1]) << " "
+            << std::setw(25) << imag(vr[2*Comp::Nx+2*ix+1]) << std::endl;
+      }
+    }
+
+    // -----------------
+
+    {
+      std::string path = "wf_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_4p.dat";
+#ifdef IS_DUAL
+      path = "dual_"+path;
+#endif
+      std::ofstream ofs(path);
+      for(Idx ix=0; ix<base.n_sites; ix++) {
+        // if( !Geodesic::isModdable(phis[ix], 2.0*M_PI, 0.1) ) continue;
+        if( phis[ix]>width || phis[ix]<0. ) continue;
+        ofs << std::setw(25) << thetas[ix] << " "
+                  << std::setw(25) << real(vr[4*Comp::Nx+2*ix]) << " "
+                  << std::setw(25) << imag(vr[4*Comp::Nx+2*ix]) << std::endl;
+      }
+    }
+
+    {
+      std::string path = "wf_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_4m.dat";
+#ifdef IS_DUAL
+      path = "dual_"+path;
+#endif
+      std::ofstream ofs(path);
+      for(Idx ix=0; ix<base.n_sites; ix++) {
+        // if( !Geodesic::isModdable(phis[ix], 2.0*M_PI, 0.1) ) continue;
+        if( phis[ix]>width || phis[ix]<0. ) continue;
+        ofs << std::setw(25) << thetas[ix] << " "
+                  << std::setw(25) << real(vr[4*Comp::Nx+2*ix+1]) << " "
+                  << std::setw(25) << imag(vr[4*Comp::Nx+2*ix+1]) << std::endl;
+      }
+    }
+
+    {
+      std::string path = "wf_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_5p.dat";
+#ifdef IS_DUAL
+      path = "dual_"+path;
+#endif
+      std::ofstream ofs(path);
+      for(Idx ix=0; ix<base.n_sites; ix++) {
+        // if( !Geodesic::isModdable(phis[ix], 2.0*M_PI, 0.1) ) continue;
+        if( phis[ix]>width || phis[ix]<0. ) continue;
+        ofs << std::setw(25) << thetas[ix] << " "
+            << std::setw(25) << real(vr[5*Comp::Nx+2*ix]) << " "
+            << std::setw(25) << imag(vr[5*Comp::Nx+2*ix]) << std::endl;
+      }
+    }
+
+    {
+      std::string path = "wf_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_5m.dat";
+#ifdef IS_DUAL
+      path = "dual_"+path;
+#endif
+      std::ofstream ofs(path);
+      for(Idx ix=0; ix<base.n_sites; ix++) {
+        // if( !Geodesic::isModdable(phis[ix], 2.0*M_PI, 0.1) ) continue;
+        if( phis[ix]>width || phis[ix]<0. ) continue;
+        ofs << std::setw(25) << thetas[ix] << " "
+            << std::setw(25) << real(vr[5*Comp::Nx+2*ix+1]) << " "
+            << std::setw(25) << imag(vr[5*Comp::Nx+2*ix+1]) << std::endl;
+      }
+    }
+
+    {
+      std::string path = "wf_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_6p.dat";
+#ifdef IS_DUAL
+      path = "dual_"+path;
+#endif
+      std::ofstream ofs(path);
+      for(Idx ix=0; ix<base.n_sites; ix++) {
+        // if( !Geodesic::isModdable(phis[ix], 2.0*M_PI, 0.1) ) continue;
+        if( phis[ix]>width || phis[ix]<0. ) continue;
+        ofs << std::setw(25) << thetas[ix] << " "
+                  << std::setw(25) << real(vr[6*Comp::Nx+2*ix]) << " "
+                  << std::setw(25) << imag(vr[6*Comp::Nx+2*ix]) << std::endl;
+      }
+    }
+
+    {
+      std::string path = "wf_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_6m.dat";
+#ifdef IS_DUAL
+      path = "dual_"+path;
+#endif
+      std::ofstream ofs(path);
+      for(Idx ix=0; ix<base.n_sites; ix++) {
+        // if( !Geodesic::isModdable(phis[ix], 2.0*M_PI, 0.1) ) continue;
+        if( phis[ix]>width || phis[ix]<0. ) continue;
+        ofs << std::setw(25) << thetas[ix] << " "
+                  << std::setw(25) << real(vr[6*Comp::Nx+2*ix+1]) << " "
+                  << std::setw(25) << imag(vr[6*Comp::Nx+2*ix+1]) << std::endl;
+      }
+    }
+
+
+    {
+      std::string path = "wf_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_7p.dat";
+#ifdef IS_DUAL
+      path = "dual_"+path;
+#endif
+      std::ofstream ofs(path);
+      for(Idx ix=0; ix<base.n_sites; ix++) {
+        // if( !Geodesic::isModdable(phis[ix], 2.0*M_PI, 0.1) ) continue;
+        if( phis[ix]>width || phis[ix]<0. ) continue;
+        ofs << std::setw(25) << thetas[ix] << " "
+                  << std::setw(25) << real(vr[7*Comp::Nx+2*ix]) << " "
+                  << std::setw(25) << imag(vr[7*Comp::Nx+2*ix]) << std::endl;
+      }
+    }
+
+    {
+      std::string path = "wf_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_7m.dat";
+#ifdef IS_DUAL
+      path = "dual_"+path;
+#endif
+      std::ofstream ofs(path);
+      for(Idx ix=0; ix<base.n_sites; ix++) {
+        // if( !Geodesic::isModdable(phis[ix], 2.0*M_PI, 0.1) ) continue;
+        if( phis[ix]>width || phis[ix]<0. ) continue;
+        ofs << std::setw(25) << thetas[ix] << " "
+                  << std::setw(25) << real(vr[7*Comp::Nx+2*ix+1]) << " "
+                  << std::setw(25) << imag(vr[7*Comp::Nx+2*ix+1]) << std::endl;
+      }
+    }
+
+
+    {
+      std::string path = "wf_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_8p.dat";
+#ifdef IS_DUAL
+      path = "dual_"+path;
+#endif
+      std::ofstream ofs(path);
+      for(Idx ix=0; ix<base.n_sites; ix++) {
+        // if( !Geodesic::isModdable(phis[ix], 2.0*M_PI, 0.1) ) continue;
+        if( phis[ix]>width || phis[ix]<0. ) continue;
+        ofs << std::setw(25) << thetas[ix] << " "
+                  << std::setw(25) << real(vr[8*Comp::Nx+2*ix]) << " "
+                  << std::setw(25) << imag(vr[8*Comp::Nx+2*ix]) << std::endl;
+      }
+    }
+
+    {
+      std::string path = "wf_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_8m.dat";
+#ifdef IS_DUAL
+      path = "dual_"+path;
+#endif
+      std::ofstream ofs(path);
+      for(Idx ix=0; ix<base.n_sites; ix++) {
+        // if( !Geodesic::isModdable(phis[ix], 2.0*M_PI, 0.1) ) continue;
+        if( phis[ix]>width || phis[ix]<0. ) continue;
+        ofs << std::setw(25) << thetas[ix] << " "
+                  << std::setw(25) << real(vr[8*Comp::Nx+2*ix+1]) << " "
+                  << std::setw(25) << imag(vr[8*Comp::Nx+2*ix+1]) << std::endl;
+      }
+    }
+
+
+//     {
+//       std::string path = "wf_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_8p.dat";
+// #ifdef IS_DUAL
+//       path = "dual_"+path;
+// #endif
+//       std::ofstream ofs(path);
+//       for(Idx ix=0; ix<base.n_sites; ix++) {
+//         ofs << std::setw(25) << thetas[ix] << " "
+//             << std::setw(25) << real(vr[8*Comp::Nx+2*ix]) << " "
+//             << std::setw(25) << imag(vr[8*Comp::Nx+2*ix]) << std::endl;
+//       }
+//     }
+
+//     {
+//       std::string path = "wf_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_8m.dat";
+// #ifdef IS_DUAL
+//       path = "dual_"+path;
+// #endif
+//       std::ofstream ofs(path);
+//       for(Idx ix=0; ix<base.n_sites; ix++) {
+//         ofs << std::setw(25) << thetas[ix] << " "
+//             << std::setw(25) << real(vr[8*Comp::Nx+2*ix+1]) << " "
+//             << std::setw(25) << imag(vr[8*Comp::Nx+2*ix+1]) << std::endl;
+//       }
+//     }
+
+    // for(int i=0; i<n; i++) std::clog << real(vr[i]) << " " << imag(vr[i]) << std::endl;
+  }
+
+  for(int i=0; i<n; i++) std::clog << i << " " << real(W[i]) << " " << imag(W[i]) << " " << abs(W[i]) << std::endl;
 
   /* free resources */
   free(A);

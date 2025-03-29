@@ -55,9 +55,9 @@ public:
     js.resize(len);
 
     Idx counter=0;
-// #ifdef _OPENMP
-// #pragma omp parallel for num_threads(Comp::NPARALLEL)
-// #endif
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(Comp::NPARALLEL)
+#endif
     for(int s=0; s<Nt; s++){
       for(Idx ix=0; ix<lattice.n_sites; ix++){
         // Idx counter = 4*lattice.counter_accum.back()*s + 4*lattice.counter_accum[ix];
@@ -83,9 +83,9 @@ public:
 
     // return ; // @@@ DEBUG
 
-// #ifdef _OPENMP
-// #pragma omp parallel for num_threads(Comp::NPARALLEL)
-// #endif
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(Comp::NPARALLEL)
+#endif
     for(int s=0; s<Nt; s++){
       for(Idx ix=0; ix<lattice.n_sites; ix++){
         // Idx counter = 4*lattice.counter_accum.back()*Nt + 8*(lattice.n_sites*s + ix);
@@ -105,9 +105,9 @@ public:
       }
     }
 
-// #ifdef _OPENMP
-// #pragma omp parallel for num_threads(Comp::NPARALLEL)
-// #endif
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(Comp::NPARALLEL)
+#endif
     for(int s=0; s<Nt; s++){
       for(Idx ix=0; ix<lattice.n_sites; ix++){
         // Idx counter = 4*lattice.counter_accum.back()*Nt + 8*lattice.n_sites*Nt + 4*(lattice.n_sites*s + ix);
@@ -122,227 +122,72 @@ public:
 
 
 
-  // void coo_structure( std::vector<Idx>& is,
-  //                     std::vector<Idx>& js ) const {
-  //   // const Idx N = Comp::N;
-  //   // const int Nt = Comp::Nt;
-
-  //   for(int s=0; s<Nt; s++){
-  //     for(Idx ix=0; ix<lattice.n_sites; ix++){
-  //       // Idx counter = lattice.counter_accum[ix];
-  //       for(const Idx iy : lattice.nns[ix]){
-  //         is.push_back(Nx*s+NS*ix); js.push_back(Nx*s+NS*iy);
-  //         is.push_back(Nx*s+NS*ix); js.push_back(Nx*s+NS*iy+1);
-
-  //         is.push_back(Nx*s+NS*ix); js.push_back(Nx*s+NS*ix);
-  //         is.push_back(Nx*s+NS*ix); js.push_back(Nx*s+NS*ix+1);
-
-  //         is.push_back(Nx*s+NS*ix+1); js.push_back(Nx*s+NS*iy);
-  //         is.push_back(Nx*s+NS*ix+1); js.push_back(Nx*s+NS*iy+1);
-
-  //         is.push_back(Nx*s+NS*ix+1); js.push_back(Nx*s+NS*ix);
-  //         is.push_back(Nx*s+NS*ix+1); js.push_back(Nx*s+NS*ix+1);
-  //       }
-  //     }
-  //   }
-
-  //   if(Nt==1) return;
-  //   for(int s=0; s<Nt; s++){
-  //     for(Idx ix=0; ix<lattice.n_sites; ix++){
-  //       is.push_back( ( Nx*(s+1)+NS*ix )%N ); js.push_back( Nx*s+NS*ix );
-  //       is.push_back( ( Nx*(s+1)+NS*ix )%N ); js.push_back( Nx*s+NS*ix+1 );
-  //       is.push_back( ( Nx*(s-1)+NS*ix + N )%N ); js.push_back( Nx*s+NS*ix );
-  //       is.push_back( ( Nx*(s-1)+NS*ix + N )%N ); js.push_back( Nx*s+NS*ix+1 );
-  //       is.push_back( Nx*s+NS*ix ); js.push_back( Nx*s+NS*ix );
-  //       is.push_back( Nx*s+NS*ix ); js.push_back( Nx*s+NS*ix+1 );
-
-  //       is.push_back( ( Nx*(s+1)+NS*ix+1 )%N ); js.push_back( Nx*s+NS*ix );
-  //       is.push_back( ( Nx*(s+1)+NS*ix+1 )%N ); js.push_back( Nx*s+NS*ix+1 );
-  //       is.push_back( ( Nx*(s-1)+NS*ix+1 + N )%N ); js.push_back( Nx*s+NS*ix );
-  //       is.push_back( ( Nx*(s-1)+NS*ix+1 + N )%N ); js.push_back( Nx*s+NS*ix+1 );
-  //       is.push_back( Nx*s+NS*ix+1 ); js.push_back( Nx*s+NS*ix );
-  //       is.push_back( Nx*s+NS*ix+1 ); js.push_back( Nx*s+NS*ix+1 );
-  //     }
-  //   }
-  // }
-
-
-
-
-
-
-//   template<typename Gauge>
-//   void coo_format( std::vector<Complex>& v,
-// 		   const Gauge& u ) const {
-//     const Idx Nx = Comp::Nx;
-//     const int Nt = Comp::Nt;
-
-//     for(Idx i=0; i<Nx*Nt; i++) v[i] = 0.0;
-
-//     // Idx counter=0;
-// #ifdef _OPENMP
-// #pragma omp parallel for num_threads(Comp::NPARALLEL) collapse(2)
-// #endif
-//     for(int s=0; s<Nt; s++){
-//       for(Idx ix=0; ix<lattice.n_sites; ix++){
-//         Idx counter = lattice.counter_accum.back()*s + lattice.counter_accum[ix];
-//         for(const Idx iy : lattice.nns[ix]){
-//           // std::cout << "debug. iy = " << iy << std::endl;
-//           const Idx il = lattice.map2il.at(Link{ix,iy});
-
-//           const MS tmp = 0.5 * bd.kappa[il] * ( -r * sigma[0] + bd.gamma(ix, iy) ) * std::exp( I*u.sp(s,Link{ix,iy})) * bd.Omega(ix, iy);
-//           // std::cout << "debug. tmp = " << tmp << std::endl;
-//           const MS tmp2 = 0.5 * r*bd.kappa[il] * sigma[0] + M5/lattice.nns[ix].size() * sigma[0];
-
-//           // res[NS*ix] += -tmp(0,0)*v[NS*iy] - tmp(0,1)*v[NS*iy+1];
-//           v[counter] = tmp(0,0); counter++;
-//           v[counter] = tmp(0,1); counter++;
-
-//           // res[NS*ix] += tmp(0,0)*v[NS*ix] + tmp(0,1)*v[NS*ix+1];
-//           v[counter] = tmp2(0,0); counter++;
-//           v[counter] = tmp2(0,1); counter++;
-
-//           // res[NS*ix+1] += -tmp(1,0)*v[NS*iy] - tmp(1,1)*v[NS*iy+1];
-//           v[counter] = tmp(1,0); counter++;
-//           v[counter] = tmp(1,1); counter++;
-
-//           // res[NS*ix+1] += tmp(1,0)*v[NS*ix] + tmp(1,1)*v[NS*ix+1];
-//           v[counter] = tmp2(1,0); counter++;
-//           v[counter] = tmp2(1,1); counter++;
-//         }
-//       }
-//     }
-
-//     if(Nt==1) return;
-//     // Idx counter = lattice.counter_accum.back()*Nt;
-
-// #ifdef _OPENMP
-// #pragma omp parallel for num_threads(Comp::NPARALLEL) collapse(2)
-// #endif
-//     for(int s=0; s<Nt; s++){
-//       for(Idx ix=0; ix<lattice.n_sites; ix++){
-//         int signP = 1; if(s==Nt-1) signP = -1;
-//         int signM = 1; if(s==0) signM = -1;
-
-//         Idx counter = lattice.counter_accum.back()*Nt + 12 * (lattice.n_sites*s + ix);
-
-//         // const MS tmpP = 0.5 * signP * ( -sigma[0] + sigma[3] );
-//         // const MS tmpM = 0.5 * signM * ( -sigma[0] - sigma[3] );
-//         // const MS tmpD = sigma[0];
-
-//         const MS tmpP = 0.5 * signP * kappa_t[ix] * ( -r*sigma[0] + sigma[3] ) * std::exp( I*u.tp(s,ix) );
-//         const MS tmpM = 0.5 * signM * kappa_t[ix] * ( -r*sigma[0] - sigma[3] ) * std::exp( I*u.tp(s-1,ix) );
-//         const MS tmpD = r*kappa_t[ix] * sigma[0];
-
-//         v[counter] = tmpP(0,0); counter++;
-//         v[counter] = tmpP(0,1); counter++;
-//         v[counter] = tmpM(0,0); counter++;
-//         v[counter] = tmpM(0,1); counter++;
-//         v[counter] = tmpD(0,0); counter++;
-//         v[counter] = tmpD(0,1); counter++;
-
-//         v[counter] = tmpP(1,0); counter++;
-//         v[counter] = tmpP(1,1); counter++;
-//         v[counter] = tmpM(1,0); counter++;
-//         v[counter] = tmpM(1,1); counter++;
-//         v[counter] = tmpD(1,0); counter++;
-//         v[counter] = tmpD(1,1); counter++;
-//       }
-//     }
-//   }
-
-
-
-
   template<typename Gauge>
   void coo_format( std::vector<Complex>& v,
 		   const Gauge& u ) const {
     const Idx Nx = Comp::Nx;
     const int Nt = Comp::Nt;
 
-// #ifdef _OPENMP
-// #pragma omp parallel for num_threads(Comp::NPARALLEL)
-// #endif
-    // for(Idx i=0; i<Nx*Nt; i++) v[i] = 0.0;
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(Comp::NPARALLEL)
+#endif
     for(Idx i=0; i<v.size(); i++) v[i] = 0.0;
 
-    // Idx counter=0;
-// #ifdef _OPENMP
-// #pragma omp parallel for num_threads(Comp::NPARALLEL)
-// #endif
+
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(Comp::NPARALLEL)
+#endif
     for(int s=0; s<Nt; s++){
       for(Idx ix=0; ix<lattice.n_sites; ix++){
         Idx counter = 4*lattice.counter_accum.back()*s + 4*lattice.counter_accum[ix];
-        // assert( counter == 4*lattice.counter_accum.back()*s + 4*lattice.counter_accum[ix]);
         for(const Idx iy : lattice.nns[ix]){
-          // std::cout << "debug. iy = " << iy << std::endl;
           const Idx il = lattice.map2il.at(Link{ix,iy});
 
           const MS tmp = 0.5 * bd.kappa[il] * ( -r * sigma[0] + bd.gamma(ix, iy) ) * std::exp( I*u.sp(s,Link{ix,iy})) * bd.Omega(ix, iy);
-          // std::cout << "debug. tmp = " << tmp << std::endl;
-          // const MS tmp2 = 0.5 * r*bd.kappa[il] * sigma[0] + M5/lattice.nns[ix].size() * sigma[0];
 
           // res[NS*ix] += -tmp(0,0)*v[NS*iy] - tmp(0,1)*v[NS*iy+1];
           v[counter] = tmp(0,0); counter++;
           v[counter] = tmp(0,1); counter++;
 
-          // // res[NS*ix] += tmp(0,0)*v[NS*ix] + tmp(0,1)*v[NS*ix+1];
-          // v[counter] = tmp2(0,0); counter++;
-          // v[counter] = tmp2(0,1); counter++;
-
           // res[NS*ix+1] += -tmp(1,0)*v[NS*iy] - tmp(1,1)*v[NS*iy+1];
           v[counter] = tmp(1,0); counter++;
           v[counter] = tmp(1,1); counter++;
-
-          // // res[NS*ix+1] += tmp(1,0)*v[NS*ix] + tmp(1,1)*v[NS*ix+1];
-          // v[counter] = tmp2(1,0); counter++;
-          // v[counter] = tmp2(1,1); counter++;
         }
       }
     }
 
-    // return ; // @@@ DEBUG
 
-
-// #ifdef _OPENMP
-// #pragma omp parallel for num_threads(Comp::NPARALLEL)
-// #endif
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(Comp::NPARALLEL)
+#endif
     for(int s=0; s<Nt; s++){
+      int signP = 1;
+      int signM = 1;
+      if(s==Nt-1) signP = -1;
+      if(s==0) signM = -1;
+
       for(Idx ix=0; ix<lattice.n_sites; ix++){
-        int signP = 1; if(s==Nt-1) signP = -1;
-        int signM = 1; if(s==0) signM = -1;
-
         Idx counter = 4*lattice.counter_accum.back()*Nt + 8*(lattice.n_sites*s + ix);
-        // assert( counter == 4*lattice.counter_accum.back()*Nt + 8*(lattice.n_sites*s + ix) );
-
-        // const MS tmpP = 0.5 * signP * ( -sigma[0] + sigma[3] );
-        // const MS tmpM = 0.5 * signM * ( -sigma[0] - sigma[3] );
-        // const MS tmpD = sigma[0];
 
         const MS tmpP = 0.5 * signP * kappa_t[ix] * ( -r*sigma[0] + sigma[3] ) * std::exp( I*u.tp(s,ix) );
         const MS tmpM = 0.5 * signM * kappa_t[ix] * ( -r*sigma[0] - sigma[3] ) * std::exp( I*u.tp(s-1,ix) );
-        // const MS tmpD = r*kappa_t[ix] * sigma[0];
 
         v[counter] = tmpP(0,0); counter++;
         v[counter] = tmpP(0,1); counter++;
         v[counter] = tmpM(0,0); counter++;
         v[counter] = tmpM(0,1); counter++;
-        // v[counter] = tmpD(0,0); counter++;
-        // v[counter] = tmpD(0,1); counter++;
 
         v[counter] = tmpP(1,0); counter++;
         v[counter] = tmpP(1,1); counter++;
         v[counter] = tmpM(1,0); counter++;
         v[counter] = tmpM(1,1); counter++;
-        // v[counter] = tmpD(1,0); counter++;
-        // v[counter] = tmpD(1,1); counter++;
       }
     }
 
 
-// #ifdef _OPENMP
-// #pragma omp parallel for num_threads(Comp::NPARALLEL)
-// #endif
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(Comp::NPARALLEL)
+#endif
     for(int s=0; s<Nt; s++){
       for(Idx ix=0; ix<lattice.n_sites; ix++){
         double coeff = 0.0;
@@ -354,8 +199,6 @@ public:
         coeff += M5;
 
         Idx counter = 4*lattice.counter_accum.back()*Nt + 8*lattice.n_sites*Nt + 4*(lattice.n_sites*s + ix);
-        // assert( counter == 4*lattice.counter_accum.back()*Nt + 8*lattice.n_sites*Nt + 4*(lattice.n_sites*s + ix) );
-        // const Idx counter = 4*lattice.counter_accum.back()*Nt + 4*s;
         const MS tmp2 = coeff * sigma[0];
 
         v[counter] = tmp2(0,0); counter++;
@@ -365,8 +208,75 @@ public:
         v[counter] = tmp2(1,1); counter++;
       }
     }
-
   }
+
+
+  void volume_matrix( std::vector<COOEntry>& elem, const double pow ) const {
+    elem.clear();
+
+    for(int s=0; s<Nt; s++){
+      for(Idx ix=0; ix<lattice.n_sites; ix++){
+        const Idx i = Nx*s+NS*ix;
+        const double v = lattice.dual_areas[ix]/lattice.mean_dual_area;
+
+        elem.push_back( COOEntry( std::pow(v, pow), i, i ) );
+        elem.push_back( COOEntry( std::pow(v, pow), i+1, i+1 ) );
+      }}
+  }
+
+
+
+
+
+  // template<typename Gauge>
+  // void d_coo_format( std::vector<COOEntry>& elem,
+  //       	     const Gauge& u,
+  //       	     const Link& el ) const {
+  //   const Idx ix0 = el[0];
+  //   const Idx iy0 = el[1];
+
+  //   elem.clear();
+  //   {
+  //     // pos
+  //     const Idx ix = ix0;
+  //     for(int jj=0; jj<lattice.nns[ix].size(); jj++){
+  //       const Idx iy = lattice.nns[ix][jj];
+  //       if(iy!=iy0) continue;
+  //       const Idx il = lattice.map2il.at(Link{ix,iy});
+  //       const MS tmp = 0.5 * kappa[il] * ( -r *sigma[0] + gamma(ix, iy) ) * I*std::exp( I* u(Link{ix,iy})) * Omega(ix, iy);
+
+  //       // res[NS*ix] += -tmp(0,0)*v[NS*iy] - tmp(0,1)*v[NS*iy+1];
+  //       elem.push_back(COOEntry(tmp(0,0),NS*ix,NS*iy));
+  //       elem.push_back(COOEntry(tmp(0,1),NS*ix,NS*iy+1));
+
+  //       // res[NS*ix+1] += -tmp(1,0)*v[NS*iy] - tmp(1,1)*v[NS*iy+1];
+  //       elem.push_back(COOEntry(tmp(1,0),NS*ix+1,NS*iy));
+  //       elem.push_back(COOEntry(tmp(1,1),NS*ix+1,NS*iy+1));
+  //     }
+  //   }
+
+  //   {
+  //     // neg
+  //     const Idx iy = iy0;
+  //     for(int jj=0; jj<lattice.nns[iy].size(); jj++){
+  //       const Idx ix = lattice.nns[iy0][jj];
+  //       if(ix!=ix0) continue;
+  //       const Idx il = lattice.map2il.at(Link{ix,iy});
+  //       const MS tmp = -0.5 * kappa[il] * ( -r *sigma[0] + gamma(iy, ix) ) * I*std::exp( I* u(Link{iy,ix})) * Omega(iy, ix);
+
+  //       // res[NS*iy] += -tmp(0,0)*v[NS*ix] - tmp(0,1)*v[NS*ix+1];
+  //       elem.push_back(COOEntry(tmp(0,0),NS*iy,NS*ix));
+  //       elem.push_back(COOEntry(tmp(0,1),NS*iy,NS*ix+1));
+
+  //       // res[NS*iy+1] += -tmp(1,0)*v[NS*ix] - tmp(1,1)*v[NS*ix+1];
+  //       elem.push_back(COOEntry(tmp(1,0),NS*iy+1,NS*ix));
+  //       elem.push_back(COOEntry(tmp(1,1),NS*iy+1,NS*ix+1));
+  //     }
+  //   }
+  // }
+
+
+
 
   void set_kappa_t() {
 #ifdef _OPENMP
