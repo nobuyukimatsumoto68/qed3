@@ -65,19 +65,9 @@ public:
         for(const Idx iy : lattice.nns[ix]){
           is[counter] = Nx*s+NS*ix; js[counter] = Nx*s+NS*iy; counter++;
           is[counter] = Nx*s+NS*ix; js[counter] = Nx*s+NS*iy+1; counter++;
-          // is.push_back(Nx*s+NS*ix); js.push_back(Nx*s+NS*iy);
-          // is.push_back(Nx*s+NS*ix); js.push_back(Nx*s+NS*iy+1);
-
-          // is.push_back(Nx*s+NS*ix); js.push_back(Nx*s+NS*ix);
-          // is.push_back(Nx*s+NS*ix); js.push_back(Nx*s+NS*ix+1);
 
           is[counter] = Nx*s+NS*ix+1; js[counter] = Nx*s+NS*iy; counter++;
           is[counter] = Nx*s+NS*ix+1; js[counter] = Nx*s+NS*iy+1; counter++;
-          // is.push_back(Nx*s+NS*ix+1); js.push_back(Nx*s+NS*iy);
-          // is.push_back(Nx*s+NS*ix+1); js.push_back(Nx*s+NS*iy+1);
-
-          // is.push_back(Nx*s+NS*ix+1); js.push_back(Nx*s+NS*ix);
-          // is.push_back(Nx*s+NS*ix+1); js.push_back(Nx*s+NS*ix+1);
         }
       }
     }
@@ -95,15 +85,11 @@ public:
         is[counter] =  ( Nx*(s+1)+NS*ix )%N; js[counter] = Nx*s+NS*ix+1; counter++;
         is[counter] = ( Nx*(s-1)+NS*ix + N )%N; js[counter] = Nx*s+NS*ix; counter++;
         is[counter] =  ( Nx*(s-1)+NS*ix + N )%N; js[counter] = Nx*s+NS*ix+1; counter++;
-        // is.push_back( Nx*s+NS*ix ); js.push_back( Nx*s+NS*ix );
-        // is.push_back( Nx*s+NS*ix ); js.push_back( Nx*s+NS*ix+1 );
 
         is[counter] = ( Nx*(s+1)+NS*ix+1 )%N; js[counter] = Nx*s+NS*ix; counter++;
         is[counter] = ( Nx*(s+1)+NS*ix+1 )%N; js[counter] = Nx*s+NS*ix+1; counter++;
         is[counter] = ( Nx*(s-1)+NS*ix+1 + N )%N; js[counter] = Nx*s+NS*ix; counter++;
         is[counter] = ( Nx*(s-1)+NS*ix+1 + N )%N; js[counter] = Nx*s+NS*ix+1; counter++;
-        // is.push_back( Nx*s+NS*ix+1 ); js.push_back( Nx*s+NS*ix );
-        // is.push_back( Nx*s+NS*ix+1 ); js.push_back( Nx*s+NS*ix+1 );
       }
     }
 

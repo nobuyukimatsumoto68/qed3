@@ -77,26 +77,54 @@ struct DWDevice{
     rows_csrT.clear();
 
 
-
     rows_csr.push_back( em );
     rows_csrT.push_back( em );
 
+
+    std::vector<std::vector<Idx>> ell_record(N);
+    std::vector<std::vector<Idx>> ell_recordT(N);
+
+    #ifdef _OPENMP
+    #pragma omp parallel for num_threads(Comp::NPARALLEL)
+    #endif
     for(Idx i=0; i<N; i++){
       for(Idx ell=0; ell<len; ell++){
-	if( is[ell]==i ){
-	  ell2em[ell] = em;
-	  cols_csr[em] = js[ell];
-	  ++em;
-	}
-	if( js[ell]==i ){
-	  ell2emT[ell] = emT;
-	  cols_csrT[emT] = is[ell];
-	  ++emT;
-	}
+	if( is[ell]==i ) ell_record[i].push_back(ell);
+	if( js[ell]==i ) ell_recordT[i].push_back(ell);
+      }
+    }
+
+    for(Idx i=0; i<N; i++){
+      for(const Idx ell : ell_record[i]){
+        ell2em[ell] = em;
+        cols_csr[em] = js[ell];
+        ++em;
+      }
+      for(const Idx ell : ell_recordT[i]){
+        ell2emT[ell] = emT;
+        cols_csrT[emT] = is[ell];
+        ++emT;
       }
       rows_csr.push_back( em );
       rows_csrT.push_back( emT );
     }
+
+    // for(Idx i=0; i<N; i++){
+    //   for(Idx ell=0; ell<len; ell++){
+    //     if( is[ell]==i ){
+    //       ell2em[ell] = em;
+    //       cols_csr[em] = js[ell];
+    //       ++em;
+    //     }
+    //     if( js[ell]==i ){
+    //       ell2emT[ell] = emT;
+    //       cols_csrT[emT] = is[ell];
+    //       ++emT;
+    //     }
+    //   }
+    //   rows_csr.push_back( em );
+    //   rows_csrT.push_back( emT );
+    // }
 
 
     assert( rows_csr.size()==N+1 );
