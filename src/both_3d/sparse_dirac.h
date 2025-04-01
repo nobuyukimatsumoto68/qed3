@@ -76,8 +76,11 @@ struct DWDevice{
     cols_csrT.resize(len);
     rows_csrT.clear();
 
+
+
     rows_csr.push_back( em );
     rows_csrT.push_back( em );
+
     for(Idx i=0; i<N; i++){
       for(Idx ell=0; ell<len; ell++){
 	if( is[ell]==i ){
@@ -94,6 +97,7 @@ struct DWDevice{
       rows_csr.push_back( em );
       rows_csrT.push_back( emT );
     }
+
 
     assert( rows_csr.size()==N+1 );
     assert( rows_csrT.size()==N+1 );

@@ -54,13 +54,14 @@ public:
     is.resize(len);
     js.resize(len);
 
-    Idx counter=0;
+    // Idx counter=0;
 #ifdef _OPENMP
 #pragma omp parallel for num_threads(Comp::NPARALLEL)
 #endif
     for(int s=0; s<Nt; s++){
       for(Idx ix=0; ix<lattice.n_sites; ix++){
-        // Idx counter = 4*lattice.counter_accum.back()*s + 4*lattice.counter_accum[ix];
+        Idx counter = 4*lattice.counter_accum.back()*s + 4*lattice.counter_accum[ix];
+        // assert( counter==4*lattice.counter_accum.back()*s + 4*lattice.counter_accum[ix] );
         for(const Idx iy : lattice.nns[ix]){
           is[counter] = Nx*s+NS*ix; js[counter] = Nx*s+NS*iy; counter++;
           is[counter] = Nx*s+NS*ix; js[counter] = Nx*s+NS*iy+1; counter++;
@@ -88,7 +89,8 @@ public:
 #endif
     for(int s=0; s<Nt; s++){
       for(Idx ix=0; ix<lattice.n_sites; ix++){
-        // Idx counter = 4*lattice.counter_accum.back()*Nt + 8*(lattice.n_sites*s + ix);
+        Idx counter = 4*lattice.counter_accum.back()*Nt + 8*(lattice.n_sites*s + ix);
+        // assert( counter==4*lattice.counter_accum.back()*Nt + 8*(lattice.n_sites*s + ix) );
         is[counter] = ( Nx*(s+1)+NS*ix )%N; js[counter] = Nx*s+NS*ix; counter++;
         is[counter] =  ( Nx*(s+1)+NS*ix )%N; js[counter] = Nx*s+NS*ix+1; counter++;
         is[counter] = ( Nx*(s-1)+NS*ix + N )%N; js[counter] = Nx*s+NS*ix; counter++;
@@ -110,7 +112,8 @@ public:
 #endif
     for(int s=0; s<Nt; s++){
       for(Idx ix=0; ix<lattice.n_sites; ix++){
-        // Idx counter = 4*lattice.counter_accum.back()*Nt + 8*lattice.n_sites*Nt + 4*(lattice.n_sites*s + ix);
+        Idx counter = 4*lattice.counter_accum.back()*Nt + 8*lattice.n_sites*Nt + 4*(lattice.n_sites*s + ix);
+        // assert( counter==4*lattice.counter_accum.back()*Nt + 8*lattice.n_sites*Nt + 4*(lattice.n_sites*s + ix) );
         is[counter] = Nx*s+NS*ix; js[counter] = Nx*s+NS*ix; counter++;
         is[counter] = Nx*s+NS*ix; js[counter] = Nx*s+NS*ix+1; counter++;
         is[counter] = Nx*s+NS*ix+1; js[counter] = Nx*s+NS*ix; counter++;
@@ -128,15 +131,15 @@ public:
     const Idx Nx = Comp::Nx;
     const int Nt = Comp::Nt;
 
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(Comp::NPARALLEL)
-#endif
+// #ifdef _OPENMP
+// #pragma omp parallel for num_threads(Comp::NPARALLEL)
+// #endif
     for(Idx i=0; i<v.size(); i++) v[i] = 0.0;
 
 
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(Comp::NPARALLEL)
-#endif
+// #ifdef _OPENMP
+// #pragma omp parallel for num_threads(Comp::NPARALLEL)
+// #endif
     for(int s=0; s<Nt; s++){
       for(Idx ix=0; ix<lattice.n_sites; ix++){
         Idx counter = 4*lattice.counter_accum.back()*s + 4*lattice.counter_accum[ix];
@@ -157,9 +160,9 @@ public:
     }
 
 
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(Comp::NPARALLEL)
-#endif
+// #ifdef _OPENMP
+// #pragma omp parallel for num_threads(Comp::NPARALLEL)
+// #endif
     for(int s=0; s<Nt; s++){
       int signP = 1;
       int signM = 1;
@@ -185,9 +188,9 @@ public:
     }
 
 
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(Comp::NPARALLEL)
-#endif
+// #ifdef _OPENMP
+// #pragma omp parallel for num_threads(Comp::NPARALLEL)
+// #endif
     for(int s=0; s<Nt; s++){
       for(Idx ix=0; ix<lattice.n_sites; ix++){
         double coeff = 0.0;

@@ -42,16 +42,17 @@ namespace Comp{
   // constexpr int NPARALLEL2=1; // 12
   constexpr int NSTREAMS=4; // 4
 #else
-  constexpr int NPARALLEL=1; // 12
+  constexpr int NPARALLEL=16; // 12
   // constexpr int NPARALLEL2=4; // 12
   constexpr int NSTREAMS=1; // 4
 #endif
   constexpr int NPARALLEL3=1; // 12
 
-  constexpr int N_REFINE=16;
+  constexpr int N_REFINE=8;
   constexpr int NS=2;
 
-  constexpr int Nt=1;
+  constexpr int Nt=64;
+  // constexpr int Nt=16;
 
 #ifdef IS_DUAL
   constexpr Idx N_SITES=20*N_REFINE*N_REFINE;
@@ -567,34 +568,34 @@ int main(int argc, char* argv[]){
       // counter++;
     }
   }
-//   {
-//     std::string path = "prop_temporal_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+".dat";
-// #ifdef IS_DUAL
-//     path = "dual_"+path;
-// #endif
-//     std::ofstream ofs(path);
+  {
+    std::string path = "prop_temporal_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+".dat";
+#ifdef IS_DUAL
+    path = "dual_"+path;
+#endif
+    std::ofstream ofs(path);
 
-//     // Idx counter=0;
-//     for(Idx s=0; s<Comp::Nt; s++) {
-//       {
-//         const auto elem = sink(s,0,0);
-//         ofs << std::setw(25) << s << " "
-//             << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
-//             << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
-//         // << std::setw(25) << 1.0 * elem.real() << " "
-//         // << std::setw(25) << 1.0 * elem.imag() << std::endl;
-//       }
-//       {
-//         const auto elem = sink(s,0,1);
-//         ofs << std::setw(25) << s << " "
-//             << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
-//             << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
-//         // << std::setw(25) << 1.0 * elem.real() << " "
-//         // << std::setw(25) << 1.0 * elem.imag() << std::endl;
-//       }
-//       // counter++;
-//     }
-//   }
+    // Idx counter=0;
+    for(Idx s=0; s<Comp::Nt; s++) {
+      {
+        const auto elem = sink(s,0,0);
+        ofs << std::setw(25) << s << " "
+            << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
+            << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
+        // << std::setw(25) << 1.0 * elem.real() << " "
+        // << std::setw(25) << 1.0 * elem.imag() << std::endl;
+      }
+      {
+        const auto elem = sink(s,0,1);
+        ofs << std::setw(25) << s << " "
+            << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
+            << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
+        // << std::setw(25) << 1.0 * elem.real() << " "
+        // << std::setw(25) << 1.0 * elem.imag() << std::endl;
+      }
+      // counter++;
+    }
+  }
 
 
 
