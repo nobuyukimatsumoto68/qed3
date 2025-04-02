@@ -8,8 +8,8 @@ struct PseudoFermion {
   // using Complex = std::complex<double>;
   using T = CuC;
 
-  using Link = std::array<Idx,2>; // <int,int>;
-  using Face = std::vector<Idx>;
+  // using Link = std::array<Idx,2>; // <int,int>;
+  // using Face = std::vector<Idx>;
   // using Fermion = Overlap;
 
   static constexpr Complex I = Complex(0.0, 1.0);
@@ -73,19 +73,20 @@ struct PseudoFermion {
   }
 
 
-  template<class Gauge>
-  inline double get_force( const Gauge& U, const Link& ell ) const {
-    return f_mgrad_DHD( ell, U, d_eta );
-  }
+  // template<class Gauge, typename Link>
+  // inline double get_force( const Gauge& U, const Link& ell ) const {
+  //   return f_mgrad_DHD( ell, U, d_eta );
+  // }
 
-  
 
   template<typename Gauge>
   void get_force( Gauge& pi, const Gauge& u ) const {
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(Comp::NPARALLEL2)
-#endif
-    for(int ell=0; ell<lattice.n_links; ell++) pi[ell] = get_force( u, lattice.links[ell] );
+    // @@@
+// #ifdef _OPENMP
+// #pragma omp parallel for num_threads(Comp::NPARALLEL2)
+// #endif
+//     for(int ell=0; ell<lattice.n_links; ell++) pi[ell] = get_force( u, lattice.links[ell] );
+    pi.compute( u, f_mgrad_DHD );
   }
 
 

@@ -3,6 +3,9 @@
 // #include "s2.h"
 
 struct S2Simp {
+  using Link = std::array<Idx,2>; // <int,int>;
+  using Face = std::vector<Idx>;
+
   std::map<const Link, const Idx> map2il;
   std::map<const Link, const int> map2sign;
 

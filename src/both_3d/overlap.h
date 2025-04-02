@@ -134,7 +134,7 @@ struct Zolotarev{
 };
 
 
-template<typename Gauge, typename WilsonDirac, typename Lattice>
+template<typename WilsonDirac>
 struct Overlap : public Zolotarev {
   // using Gauge=U1onS2<false>;
   // using WilsonDirac=Dirac1fonS2;
@@ -144,7 +144,8 @@ struct Overlap : public Zolotarev {
   static constexpr int nstreams = Comp::NSTREAMS;
 
   const WilsonDirac& DW;
-  DWDevice<WilsonDirac,Lattice> d_DW; // actual data used in M_DW, M_DWH
+  // DWDevice<WilsonDirac,Lattice> d_DW; // actual data used in M_DW, M_DWH
+  DWDevice<WilsonDirac> d_DW; // actual data used in M_DW, M_DWH
   CSR M_DW;
   CSR M_DWH;
   double lambda_max, lambda_min;
@@ -208,6 +209,7 @@ struct Overlap : public Zolotarev {
     CUDA_CHECK(cudaDeviceSynchronize());
   }
 
+  template<typename Gauge>
   void update( const Gauge& U ) {
     d_DW.update( U );
     compute_lambda_max();
@@ -379,6 +381,7 @@ struct Overlap : public Zolotarev {
   }
 
 
+  template<typename Gauge>
   void precalc_grad_deviceAsyncLaunch( const Gauge& U, const CuC* d_eta ) {
     {
       MatPoly XH(handle[0], stream[0]);   XH.push_back ( cplx(1.0/(lambda_max)), {&M_DWH} );
@@ -403,6 +406,7 @@ struct Overlap : public Zolotarev {
     CUDA_CHECK(cudaDeviceSynchronize());
   }
 
+  template<typename Gauge>
   double grad_deviceAsyncLaunch( const Link& link, const Gauge& U, const CuC* d_eta ) const {
     assert( is_precalc );
 

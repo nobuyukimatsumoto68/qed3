@@ -2,7 +2,6 @@
 
 template<typename WilsonDirac>
 struct DiracPf {
-  using Link = std::array<Idx,2>; // <int,int>;
 
   static constexpr Idx N = Comp::N;
   static constexpr int nstreams = Comp::NSTREAMS;
@@ -97,7 +96,7 @@ struct DiracPf {
     CUDA_CHECK(cudaDeviceSynchronize());
   }
 
-  template<typename Gauge>
+  template<typename Gauge, typename Link>
   double grad_deviceAsyncLaunch( const Link& link, const Gauge& U, const CuC* d_eta ) const {
     assert( is_precalc );
     const int m = omp_get_thread_num();
@@ -114,4 +113,9 @@ struct DiracPf {
     double res = -2.0 * real(inner);
     return res;
   }
+
+
+  // for looped wrapper of grad returning Gauge
+
+
 };

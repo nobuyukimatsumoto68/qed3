@@ -17,6 +17,7 @@ double Mod(double a, double b=2.0*M_PI){
 
 
 struct SpinStructureDual{
+  using Link = std::array<Idx,2>; // <int,int>;
   // using Link = std::array<Idx,2>; // <Idx,Idx>;
   // using Face = std::vector<Idx>;
 
@@ -71,6 +72,8 @@ struct SpinStructureDual{
 
 struct DiracS2Dual : public DiracBase, public SpinStructureDual{
   using Lattice=S2Trivalent;
+  using Link = std::array<Idx,2>; // <int,int>;
+  using Face = std::vector<Idx>;
 
   // static constexpr int NS = 2;
   // static constexpr int DIM = 2;

@@ -9,6 +9,9 @@ public:
   Base& lattice;
   BaseDirac bd;
 
+  using BaseLink = std::array<Idx,2>; // <int,int>;
+
+
   const Idx Nx; // = Comp::N;
   const int Nt; // = Comp::Nt;
   const Idx N;
@@ -130,9 +133,9 @@ public:
       for(Idx ix=0; ix<lattice.n_sites; ix++){
         Idx counter = 4*lattice.counter_accum.back()*s + 4*lattice.counter_accum[ix];
         for(const Idx iy : lattice.nns[ix]){
-          const Idx il = lattice.map2il.at(Link{ix,iy});
+          const Idx il = lattice.map2il.at(BaseLink{ix,iy});
 
-          const MS tmp = 0.5 * bd.kappa[il] * ( -r * sigma[0] + bd.gamma(ix, iy) ) * std::exp( I*u.sp(s,Link{ix,iy})) * bd.Omega(ix, iy);
+          const MS tmp = 0.5 * bd.kappa[il] * ( -r * sigma[0] + bd.gamma(ix, iy) ) * std::exp( I*u.sp(s,BaseLink{ix,iy})) * bd.Omega(ix, iy);
 
           // res[NS*ix] += -tmp(0,0)*v[NS*iy] - tmp(0,1)*v[NS*iy+1];
           v[counter] = tmp(0,0); counter++;
@@ -159,7 +162,7 @@ public:
         Idx counter = 4*lattice.counter_accum.back()*Nt + 8*(lattice.n_sites*s + ix);
 
         const MS tmpP = 0.5 * signP * kappa_t[ix] * ( -r*sigma[0] + sigma[3] ) * std::exp( I*u.tp(s,ix) );
-        const MS tmpM = 0.5 * signM * kappa_t[ix] * ( -r*sigma[0] - sigma[3] ) * std::exp( I*u.tp(s-1,ix) );
+        const MS tmpM = 0.5 * signM * kappa_t[ix] * ( -r*sigma[0] - sigma[3] ) * std::exp( -I*u.tp(s-1,ix) );
 
         v[counter] = tmpP(0,0); counter++;
         v[counter] = tmpP(0,1); counter++;
@@ -181,7 +184,7 @@ public:
       for(Idx ix=0; ix<lattice.n_sites; ix++){
         double coeff = 0.0;
         for(const Idx iy : lattice.nns[ix]){
-          const Idx il = lattice.map2il.at(Link{ix,iy});
+          const Idx il = lattice.map2il.at(BaseLink{ix,iy});
           coeff += 0.5 * r*bd.kappa[il];
         }
         coeff += r*kappa_t[ix];
@@ -217,50 +220,93 @@ public:
 
 
 
+  template<typename Gauge>
+  void d_coo_format( std::vector<COOEntry>& elem,
+        	     const Gauge& u,
+        	     const std::pair<int, BaseLink>& el ) const {
+    const int s = el.first;
+    const Idx ix = el.second[0];
+    const Idx iy = el.second[1];
+
+    elem.clear();
+    {
+      // pos
+      const Idx il = lattice.map2il.at(BaseLink{ix,iy});
+      const MS tmp = 0.5 * bd.kappa[il] * ( -r *sigma[0] + bd.gamma(ix, iy) ) * I*std::exp( I* u.sp(s, BaseLink{ix,iy})) * bd.Omega(ix, iy);
+
+      // res[NS*ix] += -tmp(0,0)*v[NS*iy] - tmp(0,1)*v[NS*iy+1];
+      elem.push_back(COOEntry(tmp(0,0), Nx*s+NS*ix, Nx*s+NS*iy));
+      elem.push_back(COOEntry(tmp(0,1), Nx*s+NS*ix, Nx*s+NS*iy+1));
+
+      // res[NS*ix+1] += -tmp(1,0)*v[NS*iy] - tmp(1,1)*v[NS*iy+1];
+      elem.push_back(COOEntry(tmp(1,0), Nx*s+NS*ix+1, Nx*s+NS*iy));
+      elem.push_back(COOEntry(tmp(1,1), Nx*s+NS*ix+1, Nx*s+NS*iy+1));
+      // }
+    }
+
+    {
+      // neg
+      const Idx il = lattice.map2il.at(BaseLink{ix,iy});
+      const MS tmp = -0.5 * bd.kappa[il] * ( -r *sigma[0] + bd.gamma(iy, ix) ) * I*std::exp( I* u.sp(s, BaseLink{iy,ix})) * bd.Omega(iy, ix);
+
+      // res[NS*ix] += -tmp(0,0)*v[NS*iy] - tmp(0,1)*v[NS*iy+1];
+      elem.push_back(COOEntry(tmp(0,0), Nx*s+NS*iy, Nx*s+NS*ix));
+      elem.push_back(COOEntry(tmp(0,1), Nx*s+NS*iy, Nx*s+NS*ix+1));
+
+      // res[NS*ix+1] += -tmp(1,0)*v[NS*iy] - tmp(1,1)*v[NS*iy+1];
+      elem.push_back(COOEntry(tmp(1,0), Nx*s+NS*iy+1, Nx*s+NS*ix));
+      elem.push_back(COOEntry(tmp(1,1), Nx*s+NS*iy+1, Nx*s+NS*ix+1));
+      //}
+    }
+  }
+
+
   // template<typename Gauge>
   // void d_coo_format( std::vector<COOEntry>& elem,
   //       	     const Gauge& u,
-  //       	     const Link& el ) const {
-  //   const Idx ix0 = el[0];
-  //   const Idx iy0 = el[1];
+  //       	     const std::pair<int, Idx>& el ) const {
+  //   const int s = el.first;
+  //   const Idx ix = el.second;
+
 
   //   elem.clear();
   //   {
   //     // pos
-  //     const Idx ix = ix0;
-  //     for(int jj=0; jj<lattice.nns[ix].size(); jj++){
-  //       const Idx iy = lattice.nns[ix][jj];
-  //       if(iy!=iy0) continue;
-  //       const Idx il = lattice.map2il.at(Link{ix,iy});
-  //       const MS tmp = 0.5 * kappa[il] * ( -r *sigma[0] + gamma(ix, iy) ) * I*std::exp( I* u(Link{ix,iy})) * Omega(ix, iy);
+  //     int signP = 1;
+  //     int signM = 1;
+  //     if(s==Nt-1) signP = -1;
+  //     if(s==0) signM = -1;
 
-  //       // res[NS*ix] += -tmp(0,0)*v[NS*iy] - tmp(0,1)*v[NS*iy+1];
-  //       elem.push_back(COOEntry(tmp(0,0),NS*ix,NS*iy));
-  //       elem.push_back(COOEntry(tmp(0,1),NS*ix,NS*iy+1));
+  //     const MS tmpP = 0.5 * signP * kappa_t[ix] * ( -r*sigma[0] + sigma[3] ) * std::exp( I*u.tp(s,ix) );
+  //     const MS tmpM = 0.5 * signM * kappa_t[ix] * ( -r*sigma[0] - sigma[3] ) * std::exp( I*u.tp(s-1,ix) );
 
-  //       // res[NS*ix+1] += -tmp(1,0)*v[NS*iy] - tmp(1,1)*v[NS*iy+1];
-  //       elem.push_back(COOEntry(tmp(1,0),NS*ix+1,NS*iy));
-  //       elem.push_back(COOEntry(tmp(1,1),NS*ix+1,NS*iy+1));
-  //     }
+  //     // res[NS*ix] += -tmp(0,0)*v[NS*iy] - tmp(0,1)*v[NS*iy+1];
+  //     elem.push_back(COOEntry(tmp(0,0),NS*ix,NS*iy));
+  //     elem.push_back(COOEntry(tmp(0,1),NS*ix,NS*iy+1));
+
+  //     // res[NS*ix+1] += -tmp(1,0)*v[NS*iy] - tmp(1,1)*v[NS*iy+1];
+  //     elem.push_back(COOEntry(tmp(1,0),NS*ix+1,NS*iy));
+  //     elem.push_back(COOEntry(tmp(1,1),NS*ix+1,NS*iy+1));
+  //     // }
   //   }
 
   //   {
   //     // neg
-  //     const Idx iy = iy0;
-  //     for(int jj=0; jj<lattice.nns[iy].size(); jj++){
-  //       const Idx ix = lattice.nns[iy0][jj];
-  //       if(ix!=ix0) continue;
-  //       const Idx il = lattice.map2il.at(Link{ix,iy});
-  //       const MS tmp = -0.5 * kappa[il] * ( -r *sigma[0] + gamma(iy, ix) ) * I*std::exp( I* u(Link{iy,ix})) * Omega(iy, ix);
+  //     // const Idx iy = iy0;
+  //     // for(int jj=0; jj<lattice.nns[iy].size(); jj++){
+  //     // const Idx ix = lattice.nns[iy0][jj];
+  //     // if(ix!=ix0) continue;
+  //     const Idx il = lattice.map2il.at(BaseLink{ix,iy});
+  //     const MS tmp = -0.5 * bd.kappa[il] * ( -r *sigma[0] + bd.gamma(iy, ix) ) * I*std::exp( I* u.sp(s, BaseLink{iy,ix})) * bd.Omega(iy, ix);
 
-  //       // res[NS*iy] += -tmp(0,0)*v[NS*ix] - tmp(0,1)*v[NS*ix+1];
-  //       elem.push_back(COOEntry(tmp(0,0),NS*iy,NS*ix));
-  //       elem.push_back(COOEntry(tmp(0,1),NS*iy,NS*ix+1));
+  //     // res[NS*iy] += -tmp(0,0)*v[NS*ix] - tmp(0,1)*v[NS*ix+1];
+  //     elem.push_back(COOEntry(tmp(0,0),NS*iy,NS*ix));
+  //     elem.push_back(COOEntry(tmp(0,1),NS*iy,NS*ix+1));
 
-  //       // res[NS*iy+1] += -tmp(1,0)*v[NS*ix] - tmp(1,1)*v[NS*ix+1];
-  //       elem.push_back(COOEntry(tmp(1,0),NS*iy+1,NS*ix));
-  //       elem.push_back(COOEntry(tmp(1,1),NS*iy+1,NS*ix+1));
-  //     }
+  //     // res[NS*iy+1] += -tmp(1,0)*v[NS*ix] - tmp(1,1)*v[NS*ix+1];
+  //     elem.push_back(COOEntry(tmp(1,0),NS*iy+1,NS*ix));
+  //     elem.push_back(COOEntry(tmp(1,1),NS*iy+1,NS*ix+1));
+  //     //}
   //   }
   // }
 

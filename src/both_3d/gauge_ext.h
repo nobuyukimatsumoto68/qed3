@@ -2,8 +2,8 @@
 
 template<typename Lattice, int Nt_, bool is_compact_=false>
 struct GaugeExt {
-  using Link = std::array<int,2>; // <int,int>;
-  using Face = std::vector<int>;
+  using BaseLink = std::array<int,2>; // <int,int>;
+  using BaseFace = std::vector<int>;
 
   static constexpr bool is_compact = is_compact_;
   static constexpr int Nt = Nt_;
@@ -43,7 +43,7 @@ struct GaugeExt {
   }
 
 
-  double sp(const int s, const Link& ell) const { // recommended
+  double sp(const int s, const BaseLink& ell) const { // recommended
     const int il = lattice.map2il.at(ell);
     const int sign = lattice.map2sign.at(ell);
     return sign * spatial[(s+Nt)%Nt][il];
@@ -58,7 +58,7 @@ struct GaugeExt {
     return temporal[(s+Nt)%Nt][ix];
   }
 
-  double& sp(const int s, const Link& ell) { // recommended
+  double& sp(const int s, const BaseLink& ell) { // recommended
     const int il = lattice.map2il.at(ell);
     const int sign = lattice.map2sign.at(ell);
     assert(sign==1);
@@ -127,17 +127,17 @@ struct GaugeExt {
   }
 
 
-  double plaquette_angle(const int s, const Face& face) const {
+  double plaquette_angle(const int s, const BaseFace& face) const {
     double sum = 0.0;
     for(Idx i=0; i<face.size(); i++) {
       const Idx ix = face[i];
       const Idx iy = face[(i+1)%face.size()];
-      sum += sp( s, Link{ix,iy} );
+      sum += sp( s, BaseLink{ix,iy} );
     }
     return sum;
   }
 
-  double plaquette_angle(const int s, const Link& link) const {
+  double plaquette_angle(const int s, const BaseLink& link) const {
     double sum = 0.0;
 
     sum += sp( s, link );

@@ -48,10 +48,10 @@ namespace Comp{
 #endif
   constexpr int NPARALLEL3=1; // 12
 
-  constexpr int N_REFINE=8;
+  constexpr int N_REFINE=16;
   constexpr int NS=2;
 
-  constexpr int Nt=64;
+  constexpr int Nt=128;
   // constexpr int Nt=16;
 
 #ifdef IS_DUAL

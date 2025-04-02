@@ -21,6 +21,7 @@
 
 
 struct SpinStructureSimp{
+  using Link = std::array<Idx,2>; // <int,int>;
 
 
   std::map<const Link, const double> omega;
@@ -72,6 +73,8 @@ struct SpinStructureSimp{
 
 struct DiracS2Simp : public DiracBase, public SpinStructureSimp{
   using Lattice=S2Simp;
+  using Link = std::array<Idx,2>; // <int,int>;
+  using Face = std::vector<Idx>;
 
   // using MS=Eigen::Matrix2cd;
   // using VD=Eigen::Vector2d;
