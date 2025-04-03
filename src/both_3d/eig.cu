@@ -156,7 +156,6 @@ int main(int argc, char* argv[]){
 
   using Rng=ParallelRngExt<Base,Nt>;
   using Overlap=Overlap<WilsonDirac>;
-
   using Fermion=DiracPf<WilsonDirac>;
 
   Base base(Comp::N_REFINE);

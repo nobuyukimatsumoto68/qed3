@@ -33,8 +33,8 @@ static constexpr int DIM = 2;
 static constexpr Complex I = Complex(0.0, 1.0);
 
 
-#define IS_DUAL
-// #define IS_OVERLAP
+// #define IS_DUAL
+#define IS_OVERLAP
 
 // #define IsVerbose
 // #define InfoForce
@@ -147,9 +147,8 @@ int main(int argc, char* argv[]){
   // using Action=U1WilsonExt;
 
   using Rng=ParallelRngExt<Base,Nt>;
-  using Overlap=Overlap<WilsonDirac>;
 
-  using Fermion=DiracPf<WilsonDirac>;
+
 
   Base base(Comp::N_REFINE);
   std::cout << "# lattice set. " << std::endl;
@@ -159,9 +158,11 @@ int main(int argc, char* argv[]){
 #ifdef IS_OVERLAP
   const double r = 1.0;
   const double M5 = -1.6/2.0 * 0.5*(1.0 + std::sqrt( 5.0 + 2.0*std::sqrt(2.0) ));
+  using Fermion=Overlap<WilsonDirac>;
 #else
   const double r = 1.0;
   const double M5 = 0.0;
+  using Fermion=DiracPf<WilsonDirac>;
 #endif
   // WilsonDirac DW(lattice, 0.0, r, M5);
   const double c = 1.0;
@@ -177,28 +178,28 @@ int main(int argc, char* argv[]){
   // ---------------------
 
 #ifdef IS_OVERLAP
-  // Fermion D(DW, 21);
-  // std::cout << "# Dov set; M5 = " << M5 << std::endl;
-  // D.update(U);
-  // std::cout << "# min max ratio: "
-  //           << D.lambda_min << " "
-  //           << D.lambda_max << " "
-  //           << D.lambda_min/D.lambda_max << std::endl;
-  // std::cout << "# delta = " << D.Delta() << std::endl;
+  Fermion D(DW, 31);
+  std::cout << "# Dov set; M5 = " << M5 << std::endl;
+  D.update(U);
+  std::cout << "# min max ratio: "
+            << D.lambda_min << " "
+            << D.lambda_max << " "
+            << D.lambda_min/D.lambda_max << std::endl;
+  std::cout << "# delta = " << D.Delta() << std::endl;
 
-  // auto f_DHD = std::bind(&Fermion::sq_deviceAsyncLaunch, &D,
-  //                        std::placeholders::_1, std::placeholders::_2);
-  // auto f_DH = std::bind(&Fermion::adj_deviceAsyncLaunch, &D,
-  //                       std::placeholders::_1, std::placeholders::_2);
-  // LinOpWrapper M_DHD( f_DHD );
-  // // LinOpWrapper M_DH( f_DH );
+  auto f_DHD = std::bind(&Fermion::sq_deviceAsyncLaunch, &D,
+                         std::placeholders::_1, std::placeholders::_2);
+  auto f_DH = std::bind(&Fermion::adj_deviceAsyncLaunch, &D,
+                        std::placeholders::_1, std::placeholders::_2);
+  LinOpWrapper M_DHD( f_DHD );
+  MatPoly Op_DHD; Op_DHD.push_back ( cplx(1.0), {&M_DHD} );
+  // LinOpWrapper M_DH( f_DH );
 
-  // // MatPoly DHD;
-  // // DHD.push_back ( cplx(1.0), {&M_DHD} );
-  // //
-  // // MatPoly DH;
-  // // DH.push_back ( cplx(1.0), {&M_DH} );
-  // MatPoly Op_DHD; Op_DHD.push_back ( cplx(1.0), {&M_DHD} );
+  // MatPoly DHD;
+  // DHD.push_back ( cplx(1.0), {&M_DHD} );
+  //
+  // MatPoly DH;
+  // DH.push_back ( cplx(1.0), {&M_DH} );
   // auto f_mgrad_DHD = std::bind(&Fermion::grad_deviceAsyncLaunch, &D,
   //                              std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
 #else
@@ -245,173 +246,176 @@ int main(int argc, char* argv[]){
 
   // ------------------
 
-  {
-    int s=2;
-    Idx il=4;
-    BaseLink ell = base.links[il];
-    std::cout << "debug. ell = " << ell[0] << " " << ell[1] << std::endl;
+  // {
+  //   int s=Nt-1;
+  //   Idx il=4;
+  //   BaseLink ell = base.links[il];
+  //   std::cout << "debug. ell = " << ell[0] << " " << ell[1] << std::endl;
 
-    const double eps = 1.0e-5;
-    Gauge UP(U);
-    UP.sp(s,il) += eps;
-    Gauge UM(U);
-    UM.sp(s,il) -= eps;
+  //   const double eps = 1.0e-5;
+  //   Gauge UP(U);
+  //   UP.sp(s,il) += eps;
+  //   Gauge UM(U);
+  //   UM.sp(s,il) -= eps;
 
-    std::cout << " --- Dov.update : " << timer.currentSeconds() << std::endl;
-    D.update(U);
-    std::cout << " --- pf.gen : " << timer.currentSeconds() << std::endl;
-    pf.gen( rng );
+  //   std::cout << " --- Dov.update : " << timer.currentSeconds() << std::endl;
+  //   D.update(U);
+  //   std::cout << " --- pf.gen : " << timer.currentSeconds() << std::endl;
+  //   pf.gen( rng );
 
-    std::cout << " --- grad constructor : " << timer.currentSeconds() << std::endl;
-    Force grad(base);
+  //   std::cout << " --- grad constructor : " << timer.currentSeconds() << std::endl;
+  //   Force grad(base);
 
-    std::cout << " --- pre calc : " << timer.currentSeconds() << std::endl;
-    D.precalc_grad_deviceAsyncLaunch( U, pf.d_eta );
-    std::cout << " --- get force : " << timer.currentSeconds() << std::endl;
-    pf.get_force( grad, U );
+  //   std::cout << " --- pre calc : " << timer.currentSeconds() << std::endl;
+  //   D.precalc_grad_deviceAsyncLaunch( U, pf.d_eta );
+  //   std::cout << " --- get force : " << timer.currentSeconds() << std::endl;
+  //   pf.get_force( grad, U );
 
-    std::cout << " --- fin : " << timer.currentSeconds() << std::endl;
+  //   std::cout << " --- fin : " << timer.currentSeconds() << std::endl;
 
-    std::cout << "grad = " << grad.sp(s,il) << std::endl;
-    D.update(UP);
-    pf.update_eta();
-    double sfp = pf.S();
+  //   std::cout << "grad = " << grad.sp(s,il) << std::endl;
+  //   D.update(UP);
+  //   pf.update_eta();
+  //   double sfp = pf.S();
 
-    D.update(UM);
-    pf.update_eta();
-    double sfm = pf.S();
+  //   D.update(UM);
+  //   pf.update_eta();
+  //   double sfm = pf.S();
 
-    double chck = (sfp-sfm)/(2.0*eps);
-    std::cout << "check = " << chck << std::endl;
-  }
+  //   double chck = (sfp-sfm)/(2.0*eps);
+  //   std::cout << "check = " << chck << std::endl;
+  // }
 
-  // -----------------
+  // // -----------------
 
-  {
-    int s=2;
-    Idx ix=4;
+  // {
+  //   int s=Nt-1;
+  //   Idx ix=4;
 
-    const double eps = 1.0e-5;
-    Gauge UP(U);
-    UP.tp(s,ix) += eps;
-    Gauge UM(U);
-    UM.tp(s,ix) -= eps;
+  //   const double eps = 1.0e-5;
+  //   Gauge UP(U);
+  //   UP.tp(s,ix) += eps;
+  //   Gauge UM(U);
+  //   UM.tp(s,ix) -= eps;
 
-    std::cout << " --- Dov.update : " << timer.currentSeconds() << std::endl;
-    D.update(U);
-    std::cout << " --- pf.gen : " << timer.currentSeconds() << std::endl;
-    pf.gen( rng );
+  //   std::cout << " --- Dov.update : " << timer.currentSeconds() << std::endl;
+  //   D.update(U);
+  //   std::cout << " --- pf.gen : " << timer.currentSeconds() << std::endl;
+  //   pf.gen( rng );
 
-    std::cout << " --- grad constructor : " << timer.currentSeconds() << std::endl;
-    Force grad(base);
+  //   std::cout << " --- grad constructor : " << timer.currentSeconds() << std::endl;
+  //   Force grad(base);
 
-    std::cout << " --- pre calc : " << timer.currentSeconds() << std::endl;
-    D.precalc_grad_deviceAsyncLaunch( U, pf.d_eta );
-    std::cout << " --- get force : " << timer.currentSeconds() << std::endl;
-    pf.get_force( grad, U );
+  //   std::cout << " --- pre calc : " << timer.currentSeconds() << std::endl;
+  //   D.precalc_grad_deviceAsyncLaunch( U, pf.d_eta );
+  //   std::cout << " --- get force : " << timer.currentSeconds() << std::endl;
+  //   pf.get_force( grad, U );
 
-    std::cout << " --- fin : " << timer.currentSeconds() << std::endl;
+  //   std::cout << " --- fin : " << timer.currentSeconds() << std::endl;
 
-    std::cout << "grad = " << grad.tp(s, ix) << std::endl;
-    D.update(UP);
-    pf.update_eta();
-    double sfp = pf.S();
+  //   std::cout << "grad = " << grad.tp(s, ix) << std::endl;
+  //   D.update(UP);
+  //   pf.update_eta();
+  //   double sfp = pf.S();
 
-    D.update(UM);
-    pf.update_eta();
-    double sfm = pf.S();
+  //   D.update(UM);
+  //   pf.update_eta();
+  //   double sfm = pf.S();
 
-    double chck = (sfp-sfm)/(2.0*eps);
-    std::cout << "check = " << chck << std::endl;
-  }
+  //   double chck = (sfp-sfm)/(2.0*eps);
+  //   std::cout << "check = " << chck << std::endl;
+  // }
 
   // -----------------
 
 
   // const double eps = 1.0e-5;
 
-  // std::cout << " --- Dov.update : " << timer.currentSeconds() << std::endl;
-  // Dov.update(U);
+  // std::cout << " --- D.update : " << timer.currentSeconds() << std::endl;
+  // D.update(U);
   // std::cout << " --- pf.gen : " << timer.currentSeconds() << std::endl;
   // pf.gen( rng );
 
   // std::cout << " --- grad constructor : " << timer.currentSeconds() << std::endl;
   // Force dSf(base);
   // std::cout << " --- pre calc : " << timer.currentSeconds() << std::endl;
-  // Dov.precalc_grad_deviceAsyncLaunch( U, pf.d_eta );
+  // D.precalc_grad_deviceAsyncLaunch( U, pf.d_eta );
   // std::cout << " --- get force : " << timer.currentSeconds() << std::endl;
   // pf.get_force( dSf, U );
   // std::cout << " --- fin : " << timer.currentSeconds() << std::endl;
 
 
-  // for(Idx il=0; il<base.n_links; il++) std::cout << "grad = " << il << " " << dSf[il] << std::endl;
-
   // const double tmax = 0.5; // 1.0; // 0.1
   // const int nsteps=5;
   // ExplicitLeapfrogML integrator( tmax, nsteps, 10 );
 
+  // // for(Idx il=0; il<base.n_links; il++) std::cout << "grad = " << il << " " << dSf[il] << std::endl;
 
   // Force pi( base );
   // pi.gaussian( rng );
   // // Force pi0=pi;
 
+  // int s=2;
   // for(Idx il=0; il<base.n_links; il++){
   //   //   Idx il=3;
   //   // Link ell = base.links[il];
 
   //   Gauge UP(U);
-  //   UP[il] += eps;
+  //   UP.sp(s,il) += eps;
   //   Gauge UM(U);
-  //   UM[il] -= eps;
+  //   UM.sp(s,il) -= eps;
 
 
   //   double Hp, Hm;
   //   {
-  //     HMC hmc(rng, &SW, &Dov, UP, pi, &pf, &integrator);
-  //     Dov.update(UP);
+  //     HMC hmc(rng, &SW, &D, UP, pi, &pf, &integrator);
+  //     D.update(UP);
   //     pf.update_eta();
   //     Hp = hmc.H();
   //   }
 
   //   {
-  //     HMC hmc(rng, &SW, &Dov, UM, pi, &pf, &integrator);
-  //     Dov.update(UM);
+  //     HMC hmc(rng, &SW, &D, UM, pi, &pf, &integrator);
+  //     D.update(UM);
   //     pf.update_eta();
   //     Hm = hmc.H();
   //   }
 
   //   double chck = (Hp-Hm)/(2.0*eps);
-  //   std::cout << "check = " << il << " " << chck << std::endl;
-  // }
-  // // -----------------
-
-
-  // Force pi( base );
-  // pi.gaussian( rng );
-  // Force pi0=pi;
-
-  // Gauge U0=U;
-  // D.update(U);
-  // pf.gen( rng );
-  // D.precalc_grad_deviceAsyncLaunch( U, pf.d_eta );
-
-  // const double tmax = 0.2; // 1.0; // 0.1
-  // for(int nsteps=1; nsteps<=5; nsteps+=1){
-  //   // const int nsteps=5;
-  //   ExplicitLeapfrogML integrator( tmax, nsteps, 10 );
-  //   // ExplicitLeapfrogML integrator( tmax, nsteps, 100 );
-  //   pi = pi0;
-  //   U = U0;
-  //   HMC hmc(rng, &SW, &D, U, pi, &pf, &integrator);
-  //   D.update( U ); pf.update_eta();
-  //   D.precalc_grad_deviceAsyncLaunch( U, pf.d_eta );
-  //   const double h0 = hmc.H();
-  //   hmc.integrate();
-  //   const double h1 = hmc.H();
-  //   double dH = h1-h0;
-  //   std::cout << tmax/nsteps << " " << dH << std::endl;
+  //   std::cout << "check = " << il << " " << chck << " " << dSf.sp(s,il) << std::endl;
   // }
 
+  // -----------------
+
+
+  Force pi( base );
+  pi.gaussian( rng );
+  Force pi0=pi;
+
+  Gauge U0=U;
+  D.update(U);
+  pf.gen( rng );
+  D.precalc_grad_deviceAsyncLaunch( U, pf.d_eta );
+
+  const double tmax = 0.2; // 1.0; // 0.1
+  for(int nsteps=2; nsteps<=10; nsteps+=2){
+    // const int nsteps=5;
+    ExplicitLeapfrogML integrator( tmax, nsteps, 10 );
+    // ExplicitLeapfrogML integrator( tmax, nsteps, 100 );
+    pi = pi0;
+    U = U0;
+    HMC hmc(rng, &SW, &D, U, pi, &pf, &integrator);
+    D.update( U ); pf.update_eta();
+    D.precalc_grad_deviceAsyncLaunch( U, pf.d_eta );
+    const double h0 = hmc.H();
+    hmc.integrate();
+    const double h1 = hmc.H();
+    double dH = h1-h0;
+    std::cout << tmax/nsteps << " " << dH << std::endl;
+  }
+
+
+  // -----------------
 
 
   // Force pi( base );
