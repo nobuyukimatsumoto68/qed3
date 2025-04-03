@@ -199,6 +199,9 @@ int main(int argc, char* argv[]){
   src1.set_pt_source(0, 0);
   DH.from_cpu<N>( src.field, src1.field );
 
+  
+
+
   FermionVector sink(lattice, rng);
   // Op.from_cpu<N>( sink.field, src.field );
   // FermionVector rc(lattice, rng);
