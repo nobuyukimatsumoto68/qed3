@@ -59,6 +59,26 @@ struct LinOpWrapper : public LinOp {
 };
 
 
+template<typename Fermion>
+struct LinOpDHDWrapper : public LinOp {
+  using T = CuC;
+  const Fermion& D;
+
+  LinOpDHDWrapper(const Fermion& D_ )
+    : D(D_)
+  {}
+
+  void operator()( T* d_res, const T* d_v ) const {
+    D.sq_deviceAsyncLaunch( d_res, d_v );
+  }
+
+  void Async( T* d_res, const T* d_v, const cudaStream_t stream ) const {
+    D.sq_deviceAsyncLaunch( d_res, d_v );
+    CUDA_CHECK( cudaStreamSynchronize(stream) );
+  }
+};
+
+
 struct COOEntry {
   using T = CuC;
   T v;

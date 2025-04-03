@@ -175,24 +175,10 @@ int main(int argc, char* argv[]){
             << D.lambda_min/D.lambda_max << std::endl;
   std::cout << "# delta = " << D.Delta() << std::endl;
 
-  auto f_DHD = std::bind(&Fermion::sq_deviceAsyncLaunch, &D,
-                         std::placeholders::_1, std::placeholders::_2);
-  auto f_DH = std::bind(&Fermion::adj_deviceAsyncLaunch, &D,
-                        std::placeholders::_1, std::placeholders::_2);
-
-  LinOpWrapper M_DHD( f_DHD );
-  MatPoly Op_DHD; Op_DHD.push_back ( cplx(1.0), {&M_DHD} );
 #else
   Fermion D(DW);
   D.update( U );
 
-  auto f_DHD = std::bind(&Fermion::sq_deviceAsyncLaunch, &D,
-                         std::placeholders::_1, std::placeholders::_2);
-  auto f_DH = std::bind(&Fermion::adj_deviceAsyncLaunch, &D,
-                        std::placeholders::_1, std::placeholders::_2);
-
-  LinOpWrapper M_DHD( f_DHD );
-  MatPoly Op_DHD; Op_DHD.push_back ( cplx(1.0), {&M_DHD} );
 #endif
 
 
@@ -202,7 +188,7 @@ int main(int argc, char* argv[]){
   const double beta = 1.0/(gR*gR);
   Action SW(beta, beta);
 
-  PseudoFermion pf( Op_DHD, f_DH, D, base );
+  PseudoFermion pf(D);
 
   Timer timer;
 

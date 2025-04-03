@@ -135,15 +135,10 @@ struct Zolotarev{
 
 template<typename WilsonDirac>
 struct Overlap : public Zolotarev {
-  // using Gauge=U1onS2<false>;
-  // using WilsonDirac=Dirac1fonS2;
-  // using Link = std::array<Idx,2>; // <int,int>;
-
   static constexpr Idx N = Comp::N;
   static constexpr int nstreams = Comp::NSTREAMS;
 
   const WilsonDirac& DW;
-  // DWDevice<WilsonDirac,Lattice> d_DW; // actual data used in M_DW, M_DWH
   DWDevice<WilsonDirac> d_DW; // actual data used in M_DW, M_DWH
   CSR M_DW;
   CSR M_DWH;

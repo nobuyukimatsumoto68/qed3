@@ -8,3 +8,8 @@
 *.nvprof
 .ipynb_checkpoints/
 newQFE/
+*analysis*
+*dats*
+*boost*
+*old*
+*.virtual_documents*
