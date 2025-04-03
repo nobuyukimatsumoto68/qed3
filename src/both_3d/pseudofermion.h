@@ -3,7 +3,7 @@
 #include <cmath>
 
 
-template<typename F, typename Grad, typename Lattice>
+template<typename F, typename Lattice, typename... GradFuncs>
 struct PseudoFermion {
   // using Complex = std::complex<double>;
   using T = CuC;
@@ -17,7 +17,7 @@ struct PseudoFermion {
 
   MatPoly& Op_DHD;
   F& f_DH;
-  Grad& f_mgrad_DHD;
+  GradFuncs& f_mgrad_DHD;
 
   CuC *d_phi, *d_eta;
   static constexpr Idx N = Comp::N;
@@ -28,8 +28,9 @@ struct PseudoFermion {
 
   explicit PseudoFermion( MatPoly& Op_DHD_,
                           F& f_DH_,
-                          Grad& f_mgrad_DHD_,
-                          Lattice& lattice_)
+                          Lattice& lattice_,
+                          GradFuncs&... f_mgrad_DHD_,
+                          )
     : Op_DHD(Op_DHD_)
     , f_DH(f_DH_)
     , f_mgrad_DHD(f_mgrad_DHD_)
@@ -86,7 +87,7 @@ struct PseudoFermion {
 // #pragma omp parallel for num_threads(Comp::NPARALLEL2)
 // #endif
 //     for(int ell=0; ell<lattice.n_links; ell++) pi[ell] = get_force( u, lattice.links[ell] );
-    pi.compute( u, f_mgrad_DHD );
+    pi.compute( u, d_eta, f_mgrad_DHD );
   }
 
 

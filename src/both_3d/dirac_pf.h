@@ -58,8 +58,7 @@ struct DiracPf {
   }
 
   template<typename Gauge>
-  void update( const Gauge& U )
-  {
+  void update( const Gauge& U ){
     d_DW.update( U );
     is_precalc = false;
   }
@@ -95,6 +94,7 @@ struct DiracPf {
 
     CUDA_CHECK(cudaDeviceSynchronize());
   }
+
 
   template<typename Gauge, typename Link>
   double grad_deviceAsyncLaunch( const Link& link, const Gauge& U, const CuC* d_eta ) const {

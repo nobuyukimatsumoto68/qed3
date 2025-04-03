@@ -49,9 +49,6 @@ public:
 
   void coo_structure( std::vector<Idx>& is,
                       std::vector<Idx>& js ) const {
-    // const Idx N = Comp::N;
-    // const int Nt = Comp::Nt;
-
     const Idx len = 4*lattice.counter_accum.back()*Nt + 8*lattice.n_sites*Nt + 4*lattice.n_sites*Nt;
     // const Idx len = 4*lattice.counter_accum.back();
     is.resize(len);
@@ -75,7 +72,6 @@ public:
       }
     }
 
-    // return ; // @@@ DEBUG
 
 #ifdef _OPENMP
 #pragma omp parallel for num_threads(Comp::NPARALLEL)
@@ -85,9 +81,9 @@ public:
         Idx counter = 4*lattice.counter_accum.back()*Nt + 8*(lattice.n_sites*s + ix);
         // assert( counter==4*lattice.counter_accum.back()*Nt + 8*(lattice.n_sites*s + ix) );
         is[counter] = ( Nx*(s+1)+NS*ix )%N; js[counter] = Nx*s+NS*ix; counter++;
-        is[counter] =  ( Nx*(s+1)+NS*ix )%N; js[counter] = Nx*s+NS*ix+1; counter++;
+        is[counter] = ( Nx*(s+1)+NS*ix )%N; js[counter] = Nx*s+NS*ix+1; counter++;
         is[counter] = ( Nx*(s-1)+NS*ix + N )%N; js[counter] = Nx*s+NS*ix; counter++;
-        is[counter] =  ( Nx*(s-1)+NS*ix + N )%N; js[counter] = Nx*s+NS*ix+1; counter++;
+        is[counter] = ( Nx*(s-1)+NS*ix + N )%N; js[counter] = Nx*s+NS*ix+1; counter++;
 
         is[counter] = ( Nx*(s+1)+NS*ix+1 )%N; js[counter] = Nx*s+NS*ix; counter++;
         is[counter] = ( Nx*(s+1)+NS*ix+1 )%N; js[counter] = Nx*s+NS*ix+1; counter++;
@@ -261,54 +257,34 @@ public:
   }
 
 
-  // template<typename Gauge>
-  // void d_coo_format( std::vector<COOEntry>& elem,
-  //       	     const Gauge& u,
-  //       	     const std::pair<int, Idx>& el ) const {
-  //   const int s = el.first;
-  //   const Idx ix = el.second;
+  template<typename Gauge>
+  void d_coo_format( std::vector<COOEntry>& elem,
+        	     const Gauge& u,
+        	     const std::pair<int, Idx>& el ) const {
+    const int s = el.first;
+    const Idx ix = el.second;
 
+    elem.clear();
 
-  //   elem.clear();
-  //   {
-  //     // pos
-  //     int signP = 1;
-  //     int signM = 1;
-  //     if(s==Nt-1) signP = -1;
-  //     if(s==0) signM = -1;
+    int sign = 1;
+    if(s==Nt-1) sign = -1;
 
-  //     const MS tmpP = 0.5 * signP * kappa_t[ix] * ( -r*sigma[0] + sigma[3] ) * std::exp( I*u.tp(s,ix) );
-  //     const MS tmpM = 0.5 * signM * kappa_t[ix] * ( -r*sigma[0] - sigma[3] ) * std::exp( I*u.tp(s-1,ix) );
+    const MS tmpP = 0.5 * sign * kappa_t[ix] * ( -r*sigma[0] + sigma[3] ) * I*std::exp( I*u.tp(s,ix) );
+    const MS tmpM = -0.5 * sign * kappa_t[ix] * ( -r*sigma[0] - sigma[3] ) * I*std::exp( -I*u.tp(s,ix) ); // s-1 -> s
 
-  //     // res[NS*ix] += -tmp(0,0)*v[NS*iy] - tmp(0,1)*v[NS*iy+1];
-  //     elem.push_back(COOEntry(tmp(0,0),NS*ix,NS*iy));
-  //     elem.push_back(COOEntry(tmp(0,1),NS*ix,NS*iy+1));
+    // res[NS*ix] += -tmp(0,0)*v[NS*iy] - tmp(0,1)*v[NS*iy+1];
+    elem.push_back(COOEntry(tmpP(0,0), ( Nx*(s+1)+NS*ix )%N, Nx*s+NS*ix ));
+    elem.push_back(COOEntry(tmpP(0,1), ( Nx*(s+1)+NS*ix )%N, Nx*s+NS*ix+1 ));
+    elem.push_back(COOEntry(tmpM(0,0), ( Nx*s+NS*ix + N )%N, ( Nx*(s+1)+NS*ix )%N ));
+    elem.push_back(COOEntry(tmpM(0,1), ( Nx*s+NS*ix + N )%N, ( Nx*(s+1)+NS*ix+1 )%N ));
 
-  //     // res[NS*ix+1] += -tmp(1,0)*v[NS*iy] - tmp(1,1)*v[NS*iy+1];
-  //     elem.push_back(COOEntry(tmp(1,0),NS*ix+1,NS*iy));
-  //     elem.push_back(COOEntry(tmp(1,1),NS*ix+1,NS*iy+1));
-  //     // }
-  //   }
-
-  //   {
-  //     // neg
-  //     // const Idx iy = iy0;
-  //     // for(int jj=0; jj<lattice.nns[iy].size(); jj++){
-  //     // const Idx ix = lattice.nns[iy0][jj];
-  //     // if(ix!=ix0) continue;
-  //     const Idx il = lattice.map2il.at(BaseLink{ix,iy});
-  //     const MS tmp = -0.5 * bd.kappa[il] * ( -r *sigma[0] + bd.gamma(iy, ix) ) * I*std::exp( I* u.sp(s, BaseLink{iy,ix})) * bd.Omega(iy, ix);
-
-  //     // res[NS*iy] += -tmp(0,0)*v[NS*ix] - tmp(0,1)*v[NS*ix+1];
-  //     elem.push_back(COOEntry(tmp(0,0),NS*iy,NS*ix));
-  //     elem.push_back(COOEntry(tmp(0,1),NS*iy,NS*ix+1));
-
-  //     // res[NS*iy+1] += -tmp(1,0)*v[NS*ix] - tmp(1,1)*v[NS*ix+1];
-  //     elem.push_back(COOEntry(tmp(1,0),NS*iy+1,NS*ix));
-  //     elem.push_back(COOEntry(tmp(1,1),NS*iy+1,NS*ix+1));
-  //     //}
-  //   }
-  // }
+    // res[NS*ix+1] += -tmp(1,0)*v[NS*iy] - tmp(1,1)*v[NS*iy+1];
+    elem.push_back(COOEntry(tmpP(1,0), ( Nx*(s+1)+NS*ix+1 )%N, Nx*s+NS*ix ));
+    elem.push_back(COOEntry(tmpP(1,1), ( Nx*(s+1)+NS*ix+1 )%N, Nx*s+NS*ix+1 ));
+    elem.push_back(COOEntry(tmpM(1,0), ( Nx*s+NS*ix+1 + N )%N, ( Nx*(s+1)+NS*ix )%N ));
+    elem.push_back(COOEntry(tmpM(1,1), ( Nx*s+NS*ix+1 + N )%N, ( Nx*(s+1)+NS*ix+1 )%N ));
+    // }
+  }
 
 
 

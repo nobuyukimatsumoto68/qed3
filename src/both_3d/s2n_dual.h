@@ -64,10 +64,8 @@ struct S2Trivalent {
     {
       Idx counter=0;
       for(Idx ix=0; ix<n_sites; ix++){
-        // Idx counter_tmp=0;
         counter_accum.push_back(counter);
-        for(int jj=0; jj<nns[ix].size(); jj++) counter++;
-        // counter += counter_tmp*8;
+        for(Idx iy : nns[ix]) counter++;
       }
       counter_accum.push_back(counter);
     }
