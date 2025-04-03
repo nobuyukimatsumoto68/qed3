@@ -20,9 +20,6 @@ using Double = double;
 using Idx = std::int32_t;
 using Complex = std::complex<double>;
 
-// BaseLink
-// using Face = std::vector<Idx>;
-
 using MS=Eigen::Matrix2cd;
 using VD=Eigen::Vector2d;
 using VE=Eigen::Vector3d;
