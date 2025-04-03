@@ -164,10 +164,18 @@ struct GaugeExt {
 
   template<typename Gauge, typename ComplexType, typename Fermion>
   void compute( const Gauge& u, const ComplexType* d_eta, const Fermion& D ){
+
+// #ifdef _OPENMP
+// #pragma omp parallel for num_threads(Comp::NPARALLEL_GRAD) schedule(static)
+// #endif
     for(int s=0; s<Nt; s++)
       for(Idx ell=0; ell<lattice.n_links; ell++)
         sp(s,ell) = D.grad_deviceAsyncLaunch( std::pair<int, BaseLink>(s,lattice.links[ell]),
                                               u, d_eta );
+
+// #ifdef _OPENMP
+// #pragma omp parallel for num_threads(Comp::NPARALLEL_GRAD) schedule(static)
+// #endif
     for(int s=0; s<Nt; s++)
       for(Idx ix=0; ix<lattice.n_sites; ix++)
         tp(s,ix) = D.grad_deviceAsyncLaunch( std::pair<int, Idx>(s,ix),

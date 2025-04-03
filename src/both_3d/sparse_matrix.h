@@ -85,7 +85,6 @@ struct COOEntry {
   Idx i;
   Idx j;
 
-  // COOEntry() = delete;
   COOEntry( const T v, const Idx i, const Idx j )
     : v(v)
     , i(i)

@@ -26,7 +26,7 @@ struct U1WilsonExt {
     std::vector<double> tmp(U.Nt, 0.0);
     // spatial
 #ifdef _OPENMP
-#pragma omp parallel for num_threads(Comp::NPARALLEL3)
+#pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE)
 #endif
     for(int s=0; s<U.Nt; s++){
       int i=0;
@@ -39,7 +39,7 @@ struct U1WilsonExt {
     }
     // temporal
 #ifdef _OPENMP
-#pragma omp parallel for num_threads(Comp::NPARALLEL3)
+#pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE)
 #endif
     for(int s=0; s<U.Nt; s++){
       for(const Link& link : base.links) {
@@ -68,7 +68,7 @@ struct U1WilsonExt {
 
     // spatial
 #ifdef _OPENMP
-#pragma omp parallel for num_threads(Comp::NPARALLEL3)
+#pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE)
 #endif
     for(int s=0; s<U.Nt; s++){
       for(int i_face=0; i_face<base.n_faces; i_face++){
@@ -90,7 +90,7 @@ struct U1WilsonExt {
 
     // temporal
 #ifdef _OPENMP
-#pragma omp parallel for num_threads(Comp::NPARALLEL3)
+#pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE)
 #endif
     for(int s=0; s<U.Nt; s++){
       for(const Link& link : base.links) {

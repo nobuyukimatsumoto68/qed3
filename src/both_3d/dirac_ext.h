@@ -112,14 +112,14 @@ public:
     const int Nt = Comp::Nt;
 
 // #ifdef _OPENMP
-// #pragma omp parallel for num_threads(Comp::NPARALLEL)
+// #pragma omp parallel for num_threads(Comp::NPARALLEL_DUPDATE)
 // #endif
     for(Idx i=0; i<v.size(); i++) v[i] = 0.0;
 
 
-// #ifdef _OPENMP
-// #pragma omp parallel for num_threads(Comp::NPARALLEL)
-// #endif
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(Comp::NPARALLEL_DUPDATE)  schedule(static)
+#endif
     for(int s=0; s<Nt; s++){
       for(Idx ix=0; ix<lattice.n_sites; ix++){
         Idx counter = 4*lattice.counter_accum.back()*s + 4*lattice.counter_accum[ix];
@@ -140,9 +140,9 @@ public:
     }
 
 
-// #ifdef _OPENMP
-// #pragma omp parallel for num_threads(Comp::NPARALLEL)
-// #endif
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(Comp::NPARALLEL_DUPDATE) schedule(static)
+#endif
     for(int s=0; s<Nt; s++){
       int signP = 1;
       int signM = 1;
@@ -168,9 +168,9 @@ public:
     }
 
 
-// #ifdef _OPENMP
-// #pragma omp parallel for num_threads(Comp::NPARALLEL)
-// #endif
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(Comp::NPARALLEL_DUPDATE) schedule(static)
+#endif
     for(int s=0; s<Nt; s++){
       for(Idx ix=0; ix<lattice.n_sites; ix++){
         double coeff = 0.0;
@@ -232,7 +232,6 @@ public:
       // res[NS*ix+1] += -tmp(1,0)*v[NS*iy] - tmp(1,1)*v[NS*iy+1];
       elem.push_back(COOEntry(tmp(1,0), Nx*s+NS*ix+1, Nx*s+NS*iy));
       elem.push_back(COOEntry(tmp(1,1), Nx*s+NS*ix+1, Nx*s+NS*iy+1));
-      // }
     }
 
     {
@@ -247,7 +246,6 @@ public:
       // res[NS*ix+1] += -tmp(1,0)*v[NS*iy] - tmp(1,1)*v[NS*iy+1];
       elem.push_back(COOEntry(tmp(1,0), Nx*s+NS*iy+1, Nx*s+NS*ix));
       elem.push_back(COOEntry(tmp(1,1), Nx*s+NS*iy+1, Nx*s+NS*ix+1));
-      //}
     }
   }
 
@@ -278,7 +276,6 @@ public:
     elem.push_back(COOEntry(tmpP(1,1), ( Nx*(s+1)+NS*ix+1 )%N, Nx*s+NS*ix+1 ));
     elem.push_back(COOEntry(tmpM(1,0), ( Nx*s+NS*ix+1 + N )%N, ( Nx*(s+1)+NS*ix )%N ));
     elem.push_back(COOEntry(tmpM(1,1), ( Nx*s+NS*ix+1 + N )%N, ( Nx*(s+1)+NS*ix+1 )%N ));
-    // }
   }
 
 

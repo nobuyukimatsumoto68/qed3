@@ -115,7 +115,4 @@ struct DiracPf {
   }
 
 
-  // for looped wrapper of grad returning Gauge
-
-
 };

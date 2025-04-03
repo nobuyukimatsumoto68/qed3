@@ -56,11 +56,8 @@ struct PseudoFermion {
     return real(tmp);
   }
 
-
   template<typename Gauge>
   inline void get_force( Gauge& pi, const Gauge& u ) const { pi.compute( u, d_eta, D ); }
-
-
 };
 
 

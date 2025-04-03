@@ -41,16 +41,17 @@ static constexpr Complex I = Complex(0.0, 1.0);
 namespace Comp{
   constexpr bool is_compact=false;
 
+  // d_DW.update() is always done independently
 #ifdef IS_OVERLAP
+  constexpr int NPARALLEL_DUPDATE=1;
   constexpr int NPARALLEL=12; // 12
-  constexpr int NPARALLEL2=1; // 12
   constexpr int NSTREAMS=4; // 4
 #else
+  constexpr int NPARALLEL_DUPDATE=12;
   constexpr int NPARALLEL=1; // 12
-  constexpr int NPARALLEL2=12; // 12
-  constexpr int NSTREAMS=12; // 4
+  constexpr int NSTREAMS=12; // for grad loop
 #endif
-  constexpr int NPARALLEL3=10; // 12
+  constexpr int NPARALLEL_GAUGE=10; // 12
 
   constexpr int N_REFINE=2;
   constexpr int NS=2;
@@ -360,6 +361,7 @@ int main(int argc, char* argv[]){
     const double h1 = hmc.H();
     double dH = h1-h0;
     std::cout << tmax/nsteps << " " << dH << std::endl;
+    std::cout << " --- hmc : " << timer.currentSeconds() << std::endl;
   }
 
 
