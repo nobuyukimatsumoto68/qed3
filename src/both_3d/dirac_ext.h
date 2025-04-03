@@ -1,7 +1,6 @@
 #pragma once
 
 #include "dirac_base.h"
-// #include "dirac_simp.h"
 
 template<class Base, class BaseDirac>
 class DiracExt : public DiracBase {
@@ -25,12 +24,10 @@ public:
   const double c;
 
   DiracExt(Base& lattice_,
-           // BaseDirac& bd_,
            const double m_=0.0,
            const double r_=1.0,
            const double M5_=0.0,
            const double c_=1.0
-           // const double M5_t_=0.0
            )
     : lattice(lattice_)
     , bd(lattice_,m_,r_,M5_)
@@ -50,11 +47,9 @@ public:
   void coo_structure( std::vector<Idx>& is,
                       std::vector<Idx>& js ) const {
     const Idx len = 4*lattice.counter_accum.back()*Nt + 8*lattice.n_sites*Nt + 4*lattice.n_sites*Nt;
-    // const Idx len = 4*lattice.counter_accum.back();
     is.resize(len);
     js.resize(len);
 
-    // Idx counter=0;
 #ifdef _OPENMP
 #pragma omp parallel for num_threads(Comp::NPARALLEL)
 #endif

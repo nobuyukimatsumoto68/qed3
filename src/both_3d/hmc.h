@@ -66,8 +66,6 @@ struct HMC {
   }
 
   double H() {
-    // double res = 0.0;
-    // for(const auto elem : pi ) res += elem*elem;
     double res = pi.squared_norm();
     res *= 0.5;
     res += Sg->operator()(U);

@@ -3,23 +3,15 @@
 #include <cmath>
 
 
-// template<typename F, typename Lattice, typename... GradFuncs>
 template<typename F, typename Fermion, typename Lattice>
 struct PseudoFermion {
-  // using Complex = std::complex<double>;
   using T = CuC;
-
-  // using Link = std::array<Idx,2>; // <int,int>;
-  // using Face = std::vector<Idx>;
-  // using Fermion = Overlap;
 
   static constexpr Complex I = Complex(0.0, 1.0);
   const int NS=2;
 
   MatPoly& Op_DHD;
   F& f_DH;
-  // GradFuncs& f_mgrad_DHD;
-  // Grad& f_mgrad_DHD;
   Fermion& D;
 
   CuC *d_phi, *d_eta;
@@ -33,7 +25,6 @@ struct PseudoFermion {
                           F& f_DH_,
                           Fermion& D_,
                           Lattice& lattice_
-                          // Grad&... f_mgrad_DHD_,
                           )
     : Op_DHD(Op_DHD_)
     , f_DH(f_DH_)
@@ -53,10 +44,6 @@ struct PseudoFermion {
   void gen( Rng& rng ) {
     std::vector<Complex> xi(N, 0.0);
 
-    // for(Idx ix=0; ix<Comp::N_SITES; ix++) {
-    //   for(int a=0; a<Comp::NS; a++) xi[NS*ix+a] = ( rng.gaussian_site(ix)
-    //                                                 + I*rng.gaussian_site(ix) ) / std::sqrt(2.0);
-    // }
     rng.fill_gaussian( xi );
 
     CuC *d_xi;
@@ -68,9 +55,7 @@ struct PseudoFermion {
     update_eta();
   }
 
-  inline void update_eta() {
-    Op_DHD.solve<N>( d_eta, d_phi, Comp::TOL_OUTER );
-  } // outer CG
+  inline void update_eta() { Op_DHD.solve<N>( d_eta, d_phi, Comp::TOL_OUTER ); } // outer CG
 
   double S() const {
     CuC tmp;
@@ -79,22 +64,8 @@ struct PseudoFermion {
   }
 
 
-  // template<class Gauge, typename Link>
-  // inline double get_force( const Gauge& U, const Link& ell ) const {
-  //   return f_mgrad_DHD( ell, U, d_eta );
-  // }
-
-
   template<typename Gauge>
-  void get_force( Gauge& pi, const Gauge& u ) const {
-    // @@@
-// #ifdef _OPENMP
-// #pragma omp parallel for num_threads(Comp::NPARALLEL2)
-// #endif
-//     for(int ell=0; ell<lattice.n_links; ell++) pi[ell] = get_force( u, lattice.links[ell] );
-    // pi.compute( u, d_eta, f_mgrad_DHD );
-    pi.compute( u, d_eta, D );
-  }
+  inline void get_force( Gauge& pi, const Gauge& u ) const { pi.compute( u, d_eta, D ); }
 
 
 };

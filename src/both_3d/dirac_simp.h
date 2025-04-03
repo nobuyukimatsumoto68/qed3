@@ -6,33 +6,18 @@
 #include "s2n_simp.h"
 #include "dirac_base.h"
 
-// using Complex = std::complex<double>;
-
-// using VD=Eigen::Vector2d;
-
-
-// double Mod(double a, double b=2.0*M_PI){
-//   int p = int(std::round(a / b));
-//   double r = a - p*b;
-//   return r;
-// }
-
 
 
 
 struct SpinStructureSimp{
   using Link = std::array<Idx,2>; // <int,int>;
 
-
   std::map<const Link, const double> omega;
   std::map<const Link, const double> alpha;
-  // std::map<const int, const int> NM2EO;
-
 
   SpinStructureSimp(const int n_refine)
   {
     {
-      // std::ifstream file("./dats/omega_n"+std::to_string(n_refine)+".dat");
       std::ifstream file(dir+"/omega_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
       std::string str;
@@ -50,7 +35,6 @@ struct SpinStructureSimp{
     }
 
     {
-      // std::ifstream file("./dats/alpha_n"+std::to_string(n_refine)+".dat");
       std::ifstream file(dir+"/alpha_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
       std::string str;
@@ -76,29 +60,12 @@ struct DiracS2Simp : public DiracBase, public SpinStructureSimp{
   using Link = std::array<Idx,2>; // <int,int>;
   using Face = std::vector<Idx>;
 
-  // using MS=Eigen::Matrix2cd;
-  // using VD=Eigen::Vector2d;
-  // using VE=Eigen::Vector3d;
-  // using VC=Eigen::VectorXcd;
-
-  // static constexpr int NS = 2;
-  // static constexpr int DIM = 2;
-  // static constexpr Complex I = Complex(0.0, 1.0);
-
   Lattice& lattice;
-
-  // sign for the ordering of Evan's face.sites; +1 for clockwise rotation from the origin
-  // std::vector<Idx> face_signs; // index: ia (Evan's label for faces)
 
   const double m;
   const double r;
   const double M5;
 
-  // double a = 1.0;
-
-  // SpinStructureSimp spin;
-  // const std::map<const Link, const double> omega;
-  // const std::map<const Link, const double> alpha;
   std::vector<double> kappa; // evan's link label
 
   DiracS2Simp()=delete;
@@ -114,7 +81,6 @@ struct DiracS2Simp : public DiracBase, public SpinStructureSimp{
     , M5(M5_)
     , kappa(lattice.n_links)
   {
-    // set_sigma();
     set_kappa();
   }
 
@@ -137,13 +103,10 @@ struct DiracS2Simp : public DiracBase, public SpinStructureSimp{
   }
 
 
-  // void set_face_signs() { for(Idx i=0; i<lattice.n_faces; i++) face_signs[i] = face_sign(i); }
-
   bool is_nn(const Idx ix, const Idx iy) const {
     if(ix==iy) return false;
 
     bool res = false;
-    // const VE x = lattice.sites[ix];
 
     for(Idx iz : lattice.nns[ix]){
       if(iy==iz) {
@@ -207,7 +170,6 @@ struct DiracS2Simp : public DiracBase, public SpinStructureSimp{
     const Idx N = lattice.n_sites * NS;
     for(Idx i=0; i<N; i++) v[i] = 0.0;
 
-    // Idx counter=0;
 #ifdef _OPENMP
 #pragma omp parallel for num_threads(Comp::NPARALLEL)
 #endif
@@ -307,7 +269,6 @@ struct DiracS2Simp : public DiracBase, public SpinStructureSimp{
     kappa.resize(lattice.n_links);
     for(Idx il=0; il<lattice.n_links; il++) {
       kappa[il] = lattice.link_volume[il] / lattice.mean_link_volume * lattice.mean_ell / lattice.ell[il];
-      // kappa[il] = lattice.link_volume[il] / lattice.ell[il] / (lattice.alat/std::sqrt(3.0));
     }
   }
 

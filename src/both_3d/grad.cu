@@ -31,11 +31,12 @@ static constexpr Complex I = Complex(0.0, 1.0);
 
 
 // #define IS_DUAL
-#define IS_OVERLAP
+// #define IS_OVERLAP
 
 // #define IsVerbose
 // #define InfoForce
 // #define InfoDelta
+
 
 namespace Comp{
   constexpr bool is_compact=false;
@@ -54,7 +55,7 @@ namespace Comp{
   constexpr int N_REFINE=2;
   constexpr int NS=2;
 
-  constexpr int Nt=16;
+  constexpr int Nt=4;
 
 #ifdef IS_DUAL
   constexpr Idx N_SITES=20*N_REFINE*N_REFINE;
@@ -76,9 +77,7 @@ const std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
 #include "s2n_simp.h"
 #include "s2n_dual.h"
 #include "rng.h"
-// #include "gauge.h"
 #include "gauge_ext.h"
-// #include "action.h"
 #include "action_ext.h"
 
 #include <cuComplex.h>
@@ -93,12 +92,10 @@ using CuC = cuDoubleComplex;
 
 #include "sparse_matrix.h"
 
-// #include "dirac_base.h"
 #include "dirac_simp.h"
 #include "dirac_dual.h"
 #include "dirac_ext.h"
 
-// #include "dirac_simp.h"
 #include "sparse_dirac.h"
 #include "matpoly.h"
 #include "dirac_pf.h"
@@ -108,7 +105,7 @@ using CuC = cuDoubleComplex;
 # include "integrator.h"
 #include "hmc.h"
 
-#include "obs.h"
+// #include "obs.h" // to be developed
 
 
 
@@ -126,7 +123,6 @@ int main(int argc, char* argv[]){
 
   // ---------------------------------------
   using BaseLink = std::array<Idx,2>; // <int,int>;
-  // using Link = std::array<Idx,2>; // <int,int>;
   constexpr Idx N = Comp::N;
   constexpr int Nt = Comp::Nt;
 
@@ -137,14 +133,10 @@ int main(int argc, char* argv[]){
   using Base=S2Simp;
   using WilsonDirac=DiracExt<Base, DiracS2Simp>;
 #endif
-
   using Force=GaugeExt<Base,Nt,Comp::is_compact>;
   using Gauge=GaugeExt<Base,Nt,Comp::is_compact>;
   using Action=U1WilsonExt;
-  // using Action=U1WilsonExt;
-
   using Rng=ParallelRngExt<Base,Nt>;
-
 
 
   Base base(Comp::N_REFINE);
@@ -161,7 +153,6 @@ int main(int argc, char* argv[]){
   const double M5 = 0.0;
   using Fermion=DiracPf<WilsonDirac>;
 #endif
-  // WilsonDirac DW(lattice, 0.0, r, M5);
   const double c = 1.0;
   WilsonDirac DW(base, 0.0, 1.0, M5, c);
 
@@ -170,7 +161,7 @@ int main(int argc, char* argv[]){
 
   Gauge U(base);
   Rng rng(base);
-  // U.gaussian( rng, 0.2 );
+  U.gaussian( rng, 0.2 );
 
   // ---------------------
 
@@ -188,24 +179,11 @@ int main(int argc, char* argv[]){
                          std::placeholders::_1, std::placeholders::_2);
   auto f_DH = std::bind(&Fermion::adj_deviceAsyncLaunch, &D,
                         std::placeholders::_1, std::placeholders::_2);
+
   LinOpWrapper M_DHD( f_DHD );
   MatPoly Op_DHD; Op_DHD.push_back ( cplx(1.0), {&M_DHD} );
-  // LinOpWrapper M_DH( f_DH );
-
-  // MatPoly DHD;
-  // DHD.push_back ( cplx(1.0), {&M_DHD} );
-  //
-  // MatPoly DH;
-  // DH.push_back ( cplx(1.0), {&M_DH} );
-  // auto f_mgrad_DHD = std::bind(&Fermion::grad_deviceAsyncLaunch, &D,
-  //                              std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
 #else
   Fermion D(DW);
-  // DWDevice<WilsonDirac,Base> d_DW(DW); // actual data used in M_DW, M_DWH
-  // CSR M_DW;
-  // CSR M_DWH;
-  // d_DW.associateCSR( M_DW, false );
-  // d_DW.associateCSR( M_DWH, true );
   D.update( U );
 
   auto f_DHD = std::bind(&Fermion::sq_deviceAsyncLaunch, &D,
@@ -215,17 +193,6 @@ int main(int argc, char* argv[]){
 
   LinOpWrapper M_DHD( f_DHD );
   MatPoly Op_DHD; Op_DHD.push_back ( cplx(1.0), {&M_DHD} );
-  // MatPoly Op_DHD;
-  // Op_DHD.push_back ( cplx(1.0), {&D.M_DW, &D.M_DWH} );
-  //
-  // MatPoly DH;
-  // DH.push_back ( cplx(1.0), {&D.M_DWH} );
-  // auto f_DHD = std::bind(&Fermion::sq_deviceAsyncLaunch, &Dov,
-  //                        std::placeholders::_1, std::placeholders::_2);
-  // auto f_mgrad_DHD = std::bind(&Fermion::grad_deviceAsyncLaunch, &D,
-  //                              std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
-  // auto f_mgrad_DHD_tp = std::bind(&Fermion::grad_deviceAsyncLaunch, &D,
-  //                                 std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
 #endif
 
 
@@ -235,8 +202,6 @@ int main(int argc, char* argv[]){
   const double beta = 1.0/(gR*gR);
   Action SW(beta, beta);
 
-
-  // PseudoFermion pf( Op_DHD, f_DH, f_mgrad_DHD, base );
   PseudoFermion pf( Op_DHD, f_DH, D, base );
 
   Timer timer;

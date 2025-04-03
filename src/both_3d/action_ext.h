@@ -1,11 +1,9 @@
 #pragma once
 
 
-// template<bool is_compact_=false>
 struct U1WilsonExt {
   using Link = std::array<int,2>; // <int,int>;
   using Face = std::vector<int>;
-  // static constexpr bool is_compact = is_compact_;
   using Action=U1WilsonExt;
 
   const double beta_t, beta_s;

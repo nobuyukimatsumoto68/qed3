@@ -19,7 +19,6 @@ struct GaugeExt {
 
   GaugeExt(Lattice& lattice_)
     : lattice(lattice_)
-    // , Nt(Nt_)
     , spatial(Nt,
               std::vector<double>(lattice.n_links, 0.0))
     , temporal(Nt,
@@ -98,15 +97,11 @@ struct GaugeExt {
 
   friend GaugeExt operator*(GaugeExt v, const double a) {
     v *= a;
-    // for(Idx i=0; i<v.spatial.size(); i++) v.spatial[i] *= a;
-    // for(Idx i=0; i<v.temporal.size(); i++) v.temporal[i] *= a;
     return v;
   }
 
   friend GaugeExt operator*(const double a, GaugeExt v) {
     v *= a;
-    // for(Idx i=0; i<v.spatial.size(); i++) v.spatial[i] *= a;
-    // for(Idx i=0; i<v.temporal.size(); i++) v.temporal[i] *= a;
     return v;
   }
 
@@ -166,11 +161,6 @@ struct GaugeExt {
     for(Idx i=0; i<temporal.size(); i++) for(Idx j=0; j<temporal[i].size(); j++) temporal[i][j] = Mod( temporal[i][j], 2.0*M_PI );
   }
 
-  // template<typename Gauge, typename Func1, typename Func2>
-  // void compute( const Gauge& u, const CuC* d_eta, const Func1& fs, const Func2& ft ){
-  //   for(int s=0; s<Nt; s++) for(Idx ell=0; ell<lattice.n_links; ell++) sp(s,ell) = fs( lattice.links[ell], u, d_eta );
-  //   for(int s=0; s<Nt; s++) for(Idx ix=0; ix<lattice.n_sites; ix++) tp(s,ix) = ft( ix, u, d_eta );
-  // }
 
   template<typename Gauge, typename ComplexType, typename Fermion>
   void compute( const Gauge& u, const ComplexType* d_eta, const Fermion& D ){
@@ -183,7 +173,5 @@ struct GaugeExt {
         tp(s,ix) = D.grad_deviceAsyncLaunch( std::pair<int, Idx>(s,ix),
                                              u, d_eta );
   }
-
-
 
 };

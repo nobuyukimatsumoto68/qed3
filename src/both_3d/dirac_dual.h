@@ -12,18 +12,8 @@ double Mod(double a, double b=2.0*M_PI){
 }
 
 
-// std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
-// std::string dir = "/mnt/hdd_barracuda/qed3/dats_saved2/";
-
-
 struct SpinStructureDual{
   using Link = std::array<Idx,2>; // <int,int>;
-  // using Link = std::array<Idx,2>; // <Idx,Idx>;
-  // using Face = std::vector<Idx>;
-
-  // static constexpr int NS = 2;
-  // static constexpr int DIM = 2;
-  // static constexpr int EDIM = 3;
 
   std::map<const Link, const double> omega;
   std::map<const Link, const double> alpha;
@@ -75,17 +65,12 @@ struct DiracS2Dual : public DiracBase, public SpinStructureDual{
   using Link = std::array<Idx,2>; // <int,int>;
   using Face = std::vector<Idx>;
 
-  // static constexpr int NS = 2;
-  // static constexpr int DIM = 2;
-  // static constexpr Complex I = Complex(0.0, 1.0);
-
   const Lattice& lattice;
 
   const double m;
   const double r;
   const double M5;
 
-  // std::array<MS, 4> sigma;
   std::vector<double> kappa; // link label
 
   DiracS2Dual()=delete;
@@ -120,65 +105,15 @@ struct DiracS2Dual : public DiracBase, public SpinStructureDual{
 
   DiracS2Dual & operator=(const DiracS2Dual&) = delete;
 
-  // void set_sigma(){
-  //   assert(NS==2);
-  //   sigma[0] << 1,0,0,1;
-  //   sigma[1] << 0,1,1,0;
-  //   sigma[2] << 0,-I,I,0;
-  //   sigma[3] << 1,0,0,-1;
-  // }
-
-  // MS gamma(const Idx ix, const int jj) const { // located at x
-  //   const Idx iy = lattice.nns[ix][jj];
-  //   const double al = alpha.at(Link{ix,iy});
-  //   return std::cos(al)*sigma[1] + std::sin(al)*sigma[2];
-  //   // return lattice.v[ix][jj](0) * sigma[1] + lattice.v[ix][jj](1) * sigma[2];
-  // }
-
   MS gamma(const Idx ix, const Idx iy) const { // located at x
     const double al = alpha.at(Link{ix,iy});
     return std::cos(al)*sigma[1] + std::sin(al)*sigma[2];
-    // return lattice.v[ix][jj](0) * sigma[1] + lattice.v[ix][jj](1) * sigma[2];
   }
 
   MS Omega(const Idx ix, const Idx iy) const {
     const double om = omega.at(Link{ix,iy});
     return std::cos(0.5*om)*sigma[0] - I*std::sin(0.5*om)*sigma[3];
   }
-
-  // Eigen::MatrixXcd matrix_form() const {
-  //   Eigen::MatrixXcd res = Eigen::MatrixXcd::Zero(NS*lattice.n_sites, NS*lattice.n_sites);
-
-  //   for(Idx ix=0; ix<lattice.n_sites; ix++){
-  //     for(int jj=0; jj<3; jj++){
-  //       Idx iy = lattice.nns[ix][jj];
-  //       // res.block<NS,NS>(NS*ix,NS*iy) -= lattice.vol[ix]/lattice.mean_vol * (r*sigma[0] - gamma(ix, jj)) * Omega(ix, iy);
-  //       // res.block<NS,NS>(NS*ix,NS*ix) += lattice.vol[ix]/lattice.mean_vol * (r + m/3.0)*sigma[0];
-  //       // res.block<NS,NS>(NS*ix,NS*iy) -= lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj]*sigma[0] - gamma(ix, jj)) * Omega(ix, iy);
-  //       // res.block<NS,NS>(NS*ix,NS*ix) += lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj] + m/3.0)*sigma[0];
-  //       res.block<NS,NS>(NS*ix,NS*ix) += M5/3.0*sigma[0];
-  //     }
-  //   }
-
-  //   return res;
-  // } // end matrix_form
-
-
-  // Eigen::MatrixXcd matrix_form( const Gauge& U ) const {
-  //   Eigen::MatrixXcd res = Eigen::MatrixXcd::Zero(NS*lattice.n_sites, NS*lattice.n_sites);
-
-  //   for(Idx ix=0; ix<lattice.n_sites; ix++){
-  //     for(int jj=0; jj<3; jj++){
-  //       Idx iy = lattice.nns[ix][jj];
-  //       res.block<NS,NS>(NS*ix,NS*iy) -= lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj]*sigma[0] - gamma(ix, jj)) * std::exp( I* U(Link{ix,iy})) * Omega(ix, iy);
-  //       res.block<NS,NS>(NS*ix,NS*ix) += lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj] + m/3.0)*sigma[0];
-  //       res.block<NS,NS>(NS*ix,NS*ix) += M5/3.0*sigma[0];
-  //     }
-  //   }
-
-  //   return res;
-  // } // end matrix_form
-
 
 
   template<typename Gauge>
@@ -187,7 +122,6 @@ struct DiracS2Dual : public DiracBase, public SpinStructureDual{
     const Idx N = lattice.n_sites * NS;
     for(Idx i=0; i<N; i++) v[i] = 0.0;
 
-    // int counter=0;
 #ifdef _OPENMP
 #pragma omp parallel for num_threads(Comp::NPARALLEL)
 #endif
@@ -218,42 +152,6 @@ struct DiracS2Dual : public DiracBase, public SpinStructureDual{
       }
     }
   }
-
-//   void H_coo_format( Complex* v,
-// 		     const Gauge& U,
-// 		     const double lambda_max=1.0 ) const {
-//     const Idx N = lattice.n_sites * NS;
-//     // for(Idx i=0; i<N; i++) v[i] = 0.0;
-
-//     // Idx counter=0;
-// #ifdef _OPENMP
-// #pragma omp parallel for num_threads(CompilationConst::NPARALLEL)
-// #endif
-//     for(Idx ix=0; ix<lattice.n_sites; ix++){
-//       Idx counter = 3*8*ix;
-//       for(int jj=0; jj<3; jj++){
-// 	Idx iy = lattice.nns[ix][jj];
-// 	const MS tmp = lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj]*sigma[0] - gamma(ix, jj)) * std::exp( I* U(Link{ix,iy})) * Omega(ix, iy) / lambda_max;
-// 	const MS tmp2 = lattice.vol[ix]/lattice.mean_vol * (r*lattice.u[ix][jj] + m/3.0)*sigma[0] / lambda_max;
-
-// 	// res[NS*ix] += -tmp(0,0)*v[NS*iy] - tmp(0,1)*v[NS*iy+1];
-// 	v[counter] = -tmp(0,0); counter++;
-// 	v[counter] = -tmp(0,1); counter++;
-
-// 	// res[NS*ix] += tmp(0,0)*v[NS*ix] + tmp(0,1)*v[NS*ix+1];
-// 	v[counter] = tmp2(0,0); counter++;
-// 	v[counter] = tmp2(0,1); counter++;
-
-// 	// res[NS*ix+1] -= -tmp(1,0)*v[NS*iy] - tmp(1,1)*v[NS*iy+1];
-// 	v[counter] = tmp(1,0); counter++;
-// 	v[counter] = tmp(1,1); counter++;
-
-// 	// res[NS*ix+1] -= tmp(1,0)*v[NS*ix] + tmp(1,1)*v[NS*ix+1];
-// 	v[counter] = -tmp2(1,0); counter++;
-// 	v[counter] = -tmp2(1,1); counter++;
-//       }
-//     }
-//   }
 
 
   // void d_coo_format( std::vector<COOEntry>& elem,

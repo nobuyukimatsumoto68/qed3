@@ -12,10 +12,6 @@
 #include <algorithm>
 
 
-// std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
-// std::string dir = "/mnt/hdd_barracuda/qed3/dats_save/";
-
-
 struct S2Trivalent {
   using Link = std::array<Idx,2>; // <int,int>;
   using Face = std::vector<Idx>;
@@ -48,8 +44,6 @@ struct S2Trivalent {
   std::vector<VE> simp_sites;
   std::vector<Link> simp_links; // dual to _link
 
-  // const int n_refine;
-
 
   S2Trivalent(const int n_refine)
   {
@@ -57,8 +51,6 @@ struct S2Trivalent {
 
     sites = simp.dual_sites;
     n_sites = sites.size();
-    // std::cout << "n_sites = " << n_sites;
-
     nns = simp.dual_nns;
 
     {
