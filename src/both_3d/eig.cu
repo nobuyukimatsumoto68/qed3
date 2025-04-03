@@ -28,20 +28,28 @@ static constexpr Complex I = Complex(0.0, 1.0);
 // #define IS_DUAL
 // #define IS_OVERLAP
 
+// // #define IsVerbose
+// #define IsVerbose2
+// // #define InfoForce
+// #define InfoDelta
+
+
 
 namespace Comp{
   constexpr bool is_compact=false;
 
+  // d_DW.update() is always done independently
 #ifdef IS_OVERLAP
+  constexpr int NPARALLEL_DUPDATE=1;
   constexpr int NPARALLEL=12; // 12
-  constexpr int NPARALLEL2=1; // 12
   constexpr int NSTREAMS=4; // 4
 #else
+  constexpr int NPARALLEL_DUPDATE=12;
   constexpr int NPARALLEL=1; // 12
-  constexpr int NPARALLEL2=12; // 12
-  constexpr int NSTREAMS=12; // 4
+  constexpr int NSTREAMS=12; // for grad loop
 #endif
-  constexpr int NPARALLEL3=2; // 12
+  constexpr int NPARALLEL_GAUGE=12; // 12
+  constexpr int NPARALLEL_SORT=12; // 12
 
   constexpr int N_REFINE=2;
   constexpr int NS=2;
@@ -63,20 +71,13 @@ namespace Comp{
 
 const std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
 
-// // #define IsVerbose
-// #define IsVerbose2
-// // #define InfoForce
-// #define InfoDelta
 
 #include "timer.h"
 
 #include "s2n_simp.h"
 #include "s2n_dual.h"
 #include "rng.h"
-// #include "gauge.h"
 #include "gauge_ext.h"
-// #include "action.h"
-// #include "action_ext.h"
 
 #include <cuComplex.h>
 #include <cuda_runtime.h>
@@ -138,7 +139,6 @@ int main(int argc, char* argv[]){
   std::cout << "# (GPU device is set.)" << std::endl;
 
   // ---------------------------------------
-  // using Link = std::array<Idx,2>; // <int,int>;
   constexpr Idx N = Comp::N;
   constexpr int Nt = Comp::Nt;
 
@@ -152,7 +152,6 @@ int main(int argc, char* argv[]){
 
   using Force=GaugeExt<Base,Nt,Comp::is_compact>;
   using Gauge=GaugeExt<Base,Nt,Comp::is_compact>;
-  // using Action=U1WilsonExt;
 
   using Rng=ParallelRngExt<Base,Nt>;
   using Overlap=Overlap<WilsonDirac>;
@@ -160,15 +159,6 @@ int main(int argc, char* argv[]){
 
   Base base(Comp::N_REFINE);
   std::cout << "# lattice set. " << std::endl;
-
-  // using Gauge=U1onS2<false>;
-  // // using Force=U1onS2<false>;
-  // // using Action=U1Wilson;
-  // // using Fermion=Dirac1fonS2;
-  // // using HMC=HMC<Force,Gauge,Action,Fermion>;
-  // // using Rng=ParallelRng;
-  // using Lattice=S2Trivalent;
-  // using Rng=ParallelRng<Lattice>;
 
   // ----------------------
 
@@ -221,15 +211,6 @@ int main(int argc, char* argv[]){
   LinOpWrapper M_Op( f_Op );
   Op.push_back ( cplx(1.0), {&M_Op} );
 #else
-  // DWDevice<WilsonDirac,Lattice> d_DW(DW); // actual data used in M_DW, M_DWH
-  // CSR M_DW;
-  // CSR M_DWH;
-  // d_DW.associateCSR( M_DW, false );
-  // d_DW.associateCSR( M_DWH, true );
-  // d_DW.update( U );
-  // Op.push_back ( cplx(1.0), {&M_DW} );
-  // Op.push_back ( cplx(1.0), {&M_Op} );
-
   auto f_Op = std::bind(&Fermion::mult_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
   LinOpWrapper M_Op( f_Op );
   Op.push_back ( cplx(1.0), {&gmfourth, &M_Op, &gmfourth} );
@@ -266,8 +247,6 @@ int main(int argc, char* argv[]){
   A = (CuC*)malloc(n*n*CD);
   W = (CuC*)malloc(n*CD);
   for(int j=0; j<n; j++) for(int i=0; i<n; i++) A[n*j+i] = cplx(mat(i,j));
-  // for(int j=0; j<n; j++) for(int i=0; i<n; i++) A[n*j+i] = reinterpret_cast<CuC*>(&mat(i,j));
-  // for(int j=0; j<n; j++) for(int i=0; i<n; i++) A[n*j+i] = cplxmat(i,j));
   for(int i=0; i<n; i++) W[i] = cplx(0.);
 
   CuC *d_A, *d_W, *d_VL, *d_VR;
@@ -759,286 +738,5 @@ int main(int argc, char* argv[]){
 
   return 0; // EXIT_SUCCESS;
 
-
-
-
-  // auto f_DHD = std::bind(&Fermion::sq_deviceAsyncLaunch, &D,
-  //                        std::placeholders::_1, std::placeholders::_2);
-  // auto f_DH = std::bind(&Fermion::adj_deviceAsyncLaunch, &D,
-  //                       std::placeholders::_1, std::placeholders::_2);
-
-  // LinOpWrapper M_DHD( f_DHD );
-  // MatPoly Op_DHD; Op_DHD.push_back ( cplx(1.0), {&M_DHD} );
-  // auto f_mgrad_DHD = std::bind(&Fermion::grad_deviceAsyncLaunch, &D,
-  //                              std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
-
-
-
-
-
-  // Lattice lattice(Comp::N_REFINE);
-  // // Dirac1fonS2 D(lattice, 0.0, 1.0);
-
-  // using WilsonDirac=Dirac1fonS2;
-  // // using Overlap=OverlapPseudoFermion;
-
-  // Gauge U(lattice);
-  // Rng rng(lattice);
-  // U.gaussian( rng, 0.2 );
-
-  // const double M5 = -1.8;
-  // // const double M5 = 0.0;
-  // // const double M5 = -2.5;
-  // WilsonDirac DW(lattice, M5, 1.0/3.0);
-  // // Overlap Dov(DW);
-  // // Overlap Dov(DW, 1.0e-4, 21);
-  // Overlap Dov(DW, 31);
-  // // Dov.compute(U);
-  // Dov.update(U);
-  // std::cout << "# min max ratio: "
-  //           << Dov.lambda_min << " "
-  //           << Dov.lambda_max << " "
-  //           << Dov.lambda_min/Dov.lambda_max << std::endl;
-  // std::cout << "# delta = " << Dov.Delta() << std::endl;
-
-
-  // MatPoly Op;
-  // Op.push_back ( cplx(1.0), {&(Dov.M_DW), &(Dov.M_DWH)} );
-  // auto f_Op = std::bind(&Overlap::sq_device, &Dov, std::placeholders::_1, std::placeholders::_2);
-  // auto f_Op = std::bind(&Overlap::sq_device, &Dov, std::placeholders::_1, std::placeholders::_2);
-  // auto f_Op = std::bind(&Overlap::mult_device, &Dov, std::placeholders::_1, std::placeholders::_2);
-  // auto f_Op = std::bind(&Overlap::mult_deviceAsyncLaunch, &Dov, std::placeholders::_1, std::placeholders::_2);
-  // LinOpWrapper M_Op( f_Op );
-
-  // MatPoly Op;
-  // Op.push_back ( cplx(1.0), {&M_Op} );
-  // // Op.push_back ( cplx(1.0), {&Dov.M_DW} );
-
-  // constexpr Idx N = Comp::N;
-  // Eigen::MatrixXcd mat(N, N);
-  // {
-  //   for(Idx i=0; i<N; i++){
-  //     Eigen::VectorXcd e = Eigen::VectorXcd::Zero(N);
-  //     e(i) = 1.0;
-  //     std::vector<Complex> xi(e.data(), e.data()+N);
-  //     std::vector<Complex> Dxi(N);
-
-  //     //   // Op.solve<N>( d_eta, d_xi );
-  //     Op.from_cpu<N>( Dxi, xi );
-
-  //     // for(Idx j=0; j<N; j++) Dxi[j] -= xi[j];
-  //     // for(Idx j=0; j<N; j++) Dxi[j] -= M5*xi[j];
-  //     // std::cout << "debug. i=" << i << std::endl;
-  //     // Op.from_cpu<N>( Dxi, xi );
-  //     mat.block(0,i,N,1) = Eigen::Map<Eigen::MatrixXcd>(Dxi.data(), N, 1);
-  //     std::clog << "i = " << i << " finished." << std::endl;
-  //   }
-  // }
-
-  // // =========================================
-  // // cusolver
-  // cusolverDnHandle_t handle = NULL;
-  // cudaStream_t stream = NULL;
-  // cusolverDnParams_t params = NULL;
-
-  // const int n = mat.cols(); // Number of rows (or columns) of matrix A.
-  // const int lda = n;
-
-  // CuC *A, *W;
-  // A = (CuC*)malloc(n*n*CD);
-  // W = (CuC*)malloc(n*CD);
-  // for(int j=0; j<n; j++) for(int i=0; i<n; i++) A[n*j+i] = cplx(mat(i,j));
-  // // for(int j=0; j<n; j++) for(int i=0; i<n; i++) A[n*j+i] = reinterpret_cast<CuC*>(&mat(i,j));
-  // // for(int j=0; j<n; j++) for(int i=0; i<n; i++) A[n*j+i] = cplxmat(i,j));
-  // for(int i=0; i<n; i++) W[i] = cplx(0.);
-
-  // CuC *d_A, *d_W, *d_VL, *d_VR;
-  // int ldvl = n;
-  // int ldvr = n;
-  // //
-  // int info = 0;
-  // int *d_info = nullptr;
-  
-  // size_t workspaceInBytesOnDevice = 0; /* size of workspace */
-  // void *d_work = nullptr;              /* device workspace */
-  // size_t workspaceInBytesOnHost = 0;   /* size of workspace */
-  // void *h_work = nullptr;              /* host workspace for */
-
-  // /* step 1: create cusolver handle, bind a stream */
-  // CUSOLVER_CHECK(cusolverDnCreate(&handle));
-  // CUDA_CHECK(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
-  // CUSOLVER_CHECK(cusolverDnSetStream(handle, stream));
-  // CUSOLVER_CHECK(cusolverDnCreateParams(&params));
-
-  // CUDA_CHECK(cudaMalloc( &d_A, CD * n*n ));
-  // CUDA_CHECK(cudaMalloc( &d_W, CD * n ));
-  // CUDA_CHECK(cudaMalloc( &d_VL, CD * n*n ));
-  // CUDA_CHECK(cudaMalloc( &d_VR, CD * n*n ));
-  // CUDA_CHECK(cudaMalloc( &d_info, sizeof(int)));
-
-  // CUDA_CHECK( cudaMemcpy(d_A, A, CD*n*n, H2D) );
-
-  // // step 3: query working space of syevd
-  // cusolverEigMode_t jobvl = CUSOLVER_EIG_MODE_NOVECTOR;
-  // cusolverEigMode_t jobvr = CUSOLVER_EIG_MODE_NOVECTOR;
-  // cublasFillMode_t uplo = CUBLAS_FILL_MODE_LOWER;
-
-  // CUSOLVER_CHECK( cusolverDnXgeev_bufferSize( handle,
-  //       				      params,
-  //       				      jobvl,
-  //       				      jobvr,
-  //       				      n,
-  //       				      CUDA_C_64F,
-  //       				      d_A, // device
-  //       				      lda,
-  //       				      CUDA_C_64F,
-  //       				      d_W, // Array holding the computed eigenvalues of A
-  //       				      CUDA_C_64F,
-  //       				      d_VL,
-  //       				      ldvl,
-  //       				      CUDA_C_64F,
-  //       				      d_VR,
-  //       				      ldvr,
-  //       				      CUDA_C_64F,
-  //       				      &workspaceInBytesOnDevice,
-  //       				      &workspaceInBytesOnHost)
-  //       	  );
-
-  // CUDA_CHECK(cudaMalloc( &d_work, workspaceInBytesOnDevice ) );
-  // h_work = malloc(workspaceInBytesOnHost);
-
-  // // step 4: compute spectrum
-  // CUSOLVER_CHECK( cusolverDnXgeev( handle,
-  //       			   params,
-  //       			   jobvl,
-  //       			   jobvr,
-  //       			   n,
-  //       			   CUDA_C_64F,
-  //       			   d_A,
-  //       			   lda,
-  //       			   CUDA_C_64F,
-  //       			   d_W,
-  //       			   CUDA_C_64F,
-  //       			   d_VL,
-  //       			   ldvl,
-  //       			   CUDA_C_64F,
-  //       			   d_VR,
-  //       			   ldvr,
-  //       			   CUDA_C_64F,
-  //       			   d_work, // void *bufferOnDevice,
-  //       			   workspaceInBytesOnDevice,
-  //       			   h_work, // void *bufferOnHost,
-  //       			   workspaceInBytesOnHost,
-  //       			   d_info)
-  //       	  );
-
-  // // ---------------------------------------------
-
-  // CUDA_CHECK(cudaMemcpy( W, d_W, CD*n, D2H) );
-  // CUDA_CHECK(cudaMemcpy( &info, d_info, sizeof(int), D2H ));
-
-  // std::cout << "# info (0=success) = " << info << std::endl;
-  // assert( info==0 );
-
-  // // std::vector<double> res(n);
-  // // for(int i=0; i<n; i++) res[i] = real(W[i]);
-  // // std::sort(res.begin(), res.end());
-  // // for(int i=0; i<n; i++) std::cout << i << " "
-  // // 				   << res[i] << " "
-  // // 				   << Dov.sgn(res[i]) << std::endl;
-
-  // for(int i=0; i<n; i++) std::cout << real(W[i]) << " " << imag(W[i]) << " " << abs(W[i]) << std::endl;
-
-  // /* free resources */
-  // free(A);
-  // free(h_work);
-
-  // CUDA_CHECK(cudaFree(d_A));
-  // CUDA_CHECK(cudaFree(d_W));
-  // CUDA_CHECK(cudaFree(d_VL));
-  // CUDA_CHECK(cudaFree(d_VR));
-  // CUDA_CHECK(cudaFree(d_info));
-  // CUDA_CHECK(cudaFree(d_work));
-
-  // CUSOLVER_CHECK(cusolverDnDestroyParams(params));
-  // CUSOLVER_CHECK(cusolverDnDestroy(handle));
-  // CUDA_CHECK(cudaStreamDestroy(stream));
-
-
-  return 0; // EXIT_SUCCESS;
-
-  // CUDA_CHECK(cudaDeviceReset());
-
-
-
-  // // 2.4.5.7. cusolverDnXgeev()
-  // cusolverStatus_t
-  //   cusolverDnXgeev_bufferSize(
-  // 			       cusolverDnHandle_t handle,
-  // 			       cusolverDnParams_t params,
-  // 			       cusolverEigMode_t jobvl,
-  // 			       cusolverEigMode_t jobvr,
-  // 			       int64_t n,
-  // 			       cudaDataType dataTypeA,
-  // 			       const void *A,
-  // 			       int64_t lda,
-  // 			       cudaDataType dataTypeW,
-  // 			       const void *W,
-  // 			       cudaDataType dataTypeVL,
-  // 			       const void *VL,
-  // 			       int64_t ldvl,
-  // 			       cudaDataType dataTypeVR,
-  // 			       const void *VR,
-  // 			       int64_t ldvr,
-  // 			       cudaDataType computeType,
-  // 			       size_t *workspaceInBytesOnDevice,
-  // 			       size_t *workspaceInBytesOnHost);
-
-  // // ss. 2.5.2.5. cusolverSp<t>csreigvsi()
-  // cusolverSpZcsreigvsi(cusolverSpHandle_t handle,
-  // 		       int m,
-  // 		       int nnz,
-  // 		       const cusparseMatDescr_t descrA,
-  // 		       const cuDoubleCuC *csrValA,
-  // 		       const int *csrRowPtrA,
-  // 		       const int *csrColIndA,
-  // 		       cuDoubleCuC mu0,
-  // 		       const cuDoubleCuC *x0,
-  // 		       int maxite,
-  // 		       double tol,
-  // 		       cuDoubleCuC *mu,
-  // 		       cuDoubleCuC *x);
-
-  // Eigen::CuCEigenSolver<Eigen::MatrixXcd> solver( mat );
-  // const Eigen::MatrixXcd evec = solver.eigenvectors();
-  // Eigen::VectorXcd ev = solver.eigenvalues();
-  // for(int i=0; i<evec.rows(); i++){
-  //   const Eigen::VectorXcd check1 = sq * evec.col(i);
-  //   const Eigen::VectorXcd check2 = eval[i] * evec.col(i);
-  //   assert( (check1-check2).norm() < 1.0e-8 );
-
-  //   const Eigen::VectorXcd MV = mat * evec.col(i);
-  //   std::cout << ( MV.array() / evec.col(i).array() - 1.0).abs().maxCoeff() << std::endl;
-  // }
-
-  // auto ev = mat.eigenvalues();
-  // for(int i=0; i<ev.size(); i++){
-  //   std::cout << ev[i].real() << " " << ev[i].imag() << std::endl;
-  // }
-
-  // ----------------------------------
-
-    // return 0;
 }
 
-
-
-  // for(int ix=0; ix<lattice.n_sites; ix++){
-  //   for(int jj=0; jj<lattice.sites[ix].nn; jj++){
-  //     const int iy = lattice.sites[ix].neighbors[jj];
-  //     auto mat1 = ( D.sigma[0] - D.gamma(ix, iy) ) * D.Omega(ix, iy);
-  //     auto mat2 = D.Omega(ix, iy) * ( D.sigma[0] - D.gamma(iy, ix, M_PI) );
-  //     std::cout << mat1-mat2 << std::endl;
-  //   }}
-
-  // ----------------------------------

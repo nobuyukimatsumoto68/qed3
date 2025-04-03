@@ -37,16 +37,18 @@ static constexpr Complex I = Complex(0.0, 1.0);
 namespace Comp{
   constexpr bool is_compact=false;
 
+  // d_DW.update() is always done independently
 #ifdef IS_OVERLAP
-  constexpr int NPARALLEL=4; // 12
-  // constexpr int NPARALLEL2=1; // 12
+  constexpr int NPARALLEL_DUPDATE=1;
+  constexpr int NPARALLEL=12; // 12
   constexpr int NSTREAMS=4; // 4
 #else
-  constexpr int NPARALLEL=16; // 12
-  // constexpr int NPARALLEL2=4; // 12
-  constexpr int NSTREAMS=1; // 4
+  constexpr int NPARALLEL_DUPDATE=12;
+  constexpr int NPARALLEL=1; // 12
+  constexpr int NSTREAMS=12; // for grad loop
 #endif
-  constexpr int NPARALLEL3=1; // 12
+  constexpr int NPARALLEL_GAUGE=12; // 12
+  constexpr int NPARALLEL_SORT=12; // 12
 
   constexpr int N_REFINE=16;
   constexpr int NS=2;
@@ -79,10 +81,7 @@ const std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
 #include "s2n_simp.h"
 #include "s2n_dual.h"
 #include "rng.h"
-// #include "gauge.h"
 #include "gauge_ext.h"
-// #include "action.h"
-// #include "action_ext.h"
 
 #include <cuComplex.h>
 #include <cuda_runtime.h>
@@ -92,20 +91,7 @@ const std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
 using CuC = cuDoubleComplex;
 #include "gpu_header.h"
 
-// #include <cuComplex.h>
-// #include <cuda_runtime.h>
-// #include <cublas_v2.h>
-// #include <cublas_api.h>
-// #include <cusolverDn.h>
-// using CuC = cuDoubleComplex;
-// #include "gpu_header.h"
-
 // ======================================
-
-// #include "s2n.h"
-// #include "rng.h"
-// #include "gauge.h"
-// #include "action.h"
 
 #include "sparse_matrix.h"
 #include "dirac_base.h"
@@ -119,102 +105,10 @@ using CuC = cuDoubleComplex;
 #include "matpoly.h"
 
 #include "dirac_pf.h"
-// #include <iostream>
-// #include <iomanip>
-// #include <fstream>
-// #include <cstdlib>
-// #include <cassert>
-// #include <algorithm>
-// #include <cstdint>
-// #include <complex>
-
-// using Double = double;
-// using Idx = std::int32_t;
-// using Complex = std::complex<double>;
-
-// // #define IS_DUAL
-// #define IS_OVERLAP
-
-// namespace Comp{
-//   constexpr int NPARALLEL=12; // 12
-//   constexpr int NSTREAMS=4; // 4
-
-//   constexpr int N_REFINE=1;
-//   constexpr int NS=2;
-
-// #ifdef IS_DUAL
-//   constexpr Idx N_SITES=20*N_REFINE*N_REFINE;
-// #else
-//   constexpr Idx N_SITES=10*N_REFINE*N_REFINE+2;
-// #endif
-
-//   constexpr Idx N=NS*N_SITES; // matrix size of DW
-
-//   // const double TOL=1.0e-9;
-//   const double TOL_INNER=1.0e-15;
-//   const double TOL_OUTER=1.0e-14;
-// }
-
-// // #define IsVerbose
-// #define IsVerbose2
-// // #define InfoForce
-// #define InfoDelta
-
-// const std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
-
-// #include "s2n_dual.h"
-// #include "s2n_simp.h"
-// #include "rng.h"
-// #include "gauge.h"
-// #include "action.h"
-
-
-// #include <cuComplex.h>
-// #include <cuda_runtime.h>
-// #include <cublas_v2.h>
-// #include <cublas_api.h>
-// #include <cusolverDn.h>
-// using CuC = cuDoubleComplex;
-// #include "gpu_header.h"
-
-// // ======================================
-
-// // #include "timer.h"
-
-// // #include "s2n_dual.h"
-// // #include "s2n_simp.h"
-// // #include "rng.h"
-// // #include "gauge.h"
-// // #include "force.h"
-// // #include "action.h"
-// // #include "sparse_matrix.h"
-// // #include "dirac_dual.h"
-// // #include "dirac_simp.h"
-// // #include "sparse_dirac.h"
-// // #include "matpoly.h"
-// // #include "overlap.h"
-// // #include "pseudofermion.h"
-
-// // #include "integrator.h"
-// // #include "hmc.h"
-
-// #include "sparse_matrix.h"
-// // #include "pseudofermion.h"
-// #include "dirac_dual.h"
-// #include "dirac_simp.h"
-
-// #include "sparse_dirac.h"
-// #include "matpoly.h"
-
-// #include "overlap.h"
-
 
 #include "valence.h"
 
-// using Double = double;
 #include "../../integrator/geodesic.h"
-// #include "dirac_s2_dual.h"
-// #include "header_cusolver.hpp"
 
 
 // TODO: Cusparse for SparseMatrix::act_gpu, probably defining handle in matpoly.h
@@ -239,57 +133,6 @@ int main(int argc, char* argv[]){
 
   // ---------------------------------------
 
-// #ifdef IS_DUAL
-//   using Lattice=S2Trivalent;
-//   using Gauge=U1onS2<Lattice,false>;
-//   using WilsonDirac=DiracS2Dual<Gauge>;
-// #else
-//   using Lattice=S2Simp;
-//   using Gauge=U1onS2<Lattice,false>;
-//   using WilsonDirac=DiracS2Simp<Gauge>;
-// #endif
-//   using Rng=ParallelRng<Lattice>;
-//   using Overlap=Overlap<Gauge,WilsonDirac,Lattice>;
-
-//   Lattice lattice(Comp::N_REFINE);
-
-//   using Link = std::array<Idx,2>; // <int,int>;
-//   constexpr Idx N = Comp::N;
-
-//   // ----------------------
-
-//   std::cout << "# lattice set. " << std::endl;
-
-// #ifdef IS_OVERLAP
-//   const double r = 1.0;
-// #ifdef IS_DUAL
-//   const double M5 = -1.6/2.0 * 0.5*3.0/2.0;
-// #else
-//   const double M5 = -1.6/2.0 * 0.5*(1.0 + std::sqrt( 5.0 + 2.0*std::sqrt(2.0) ));
-// #endif
-// #else
-//   const double r = 1.0;
-//   const double M5 = 0.0;
-// #endif
-//   WilsonDirac DW(lattice, 0.0, r, M5);
-
-//   std::cout << "# DW set" << std::endl;
-
-//   Gauge U(lattice);
-//   Rng rng(lattice);
-//   // U.gaussian( rng, 0.2 );
-
-//   // ---------------------
-
-//   Overlap Dov(DW, 31);
-//   std::cout << "# Dov set; M5 = " << M5 << std::endl;
-//   Dov.update(U);
-//   std::cout << "# min max ratio: "
-//             << Dov.lambda_min << " "
-//             << Dov.lambda_max << " "
-//             << Dov.lambda_min/Dov.lambda_max << std::endl;
-//   std::cout << "# delta = " << Dov.Delta() << std::endl;
-
   constexpr Idx N = Comp::N;
   constexpr int Nt = Comp::Nt;
 
@@ -303,24 +146,13 @@ int main(int argc, char* argv[]){
 
   using Force=GaugeExt<Base,Nt,Comp::is_compact>;
   using Gauge=GaugeExt<Base,Nt,Comp::is_compact>;
-  // using Action=U1WilsonExt;
 
   using Rng=ParallelRngExt<Base,Nt>;
 
-  // using WilsonDirac=DiracExt<Base>;
   using Fermion=DiracPf<WilsonDirac>;
 
   Base base(Comp::N_REFINE);
   std::cout << "# lattice set. " << std::endl;
-
-  // using Gauge=U1onS2<false>;
-  // // using Force=U1onS2<false>;
-  // // using Action=U1Wilson;
-  // // using Fermion=Dirac1fonS2;
-  // // using HMC=HMC<Force,Gauge,Action,Fermion>;
-  // // using Rng=ParallelRng;
-  // using Lattice=S2Trivalent;
-  // using Rng=ParallelRng<Lattice>;
 
   // ----------------------
 
@@ -345,43 +177,6 @@ int main(int argc, char* argv[]){
   D.update( U );
   std::cout << "# D updated. " << std::endl;
 
-  // std::cout << "kappa" << std::endl;
-  // for(double elem : DW.bd.kappa){
-  //   std::cout << elem << std::endl;
-  // }
-  // std::cout << "ell" << std::endl;
-  // for(double elem : base.ell){
-  //   std::cout << elem << std::endl;
-  // }
-  // std::cout << "link_volume" << std::endl;
-  // for(double elem : base.link_volume){
-  //   std::cout << elem << std::endl;
-  // }
-  // return 0;
-
-
-// #ifdef IS_OVERLAP
-//   auto f_DHD = std::bind(&Overlap::sq_deviceAsyncLaunch, &Dov,
-//                          std::placeholders::_1, std::placeholders::_2);
-//   auto f_DH = std::bind(&Overlap::adj_deviceAsyncLaunch, &Dov,
-//                         std::placeholders::_1, std::placeholders::_2);
-//   LinOpWrapper M_DHD( f_DHD );
-//   LinOpWrapper M_DH( f_DH );
-
-//   MatPoly DHD;
-//   DHD.push_back ( cplx(1.0), {&M_DHD} );
-//   //
-//   MatPoly DH;
-//   DH.push_back ( cplx(1.0), {&M_DH} );
-// #else
-  // MatPoly DHD;
-  // DHD.push_back ( cplx(1.0), {&Dov.M_DW, &Dov.M_DWH} );
-  // //
-  // MatPoly DH;
-  // DH.push_back ( cplx(1.0), {&Dov.M_DWH} );
-// #endif
-  // auto f_DH = std::bind(&Fermion::adj_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
-  // @@@debug
   auto f_DH = std::bind(&Fermion::adj_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
   //
   auto f_DHD = std::bind(&Fermion::sq_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
@@ -394,87 +189,16 @@ int main(int argc, char* argv[]){
 
   std::cout << "# calculating src " << std::endl;
 
-  // std::cout << "debug. n = " << base.n_sites*NS << std::endl;
-  // FermionVector src1(base, rng);
-  // FermionVector src(base, rng);
   FermionVector src1; // (base, Nt, rng);
   FermionVector src; // (base, Nt, rng);
   src1.set_pt_source(0, 0, 0);
-  // DH.from_cpu<N>( src.field, src1.field );
   DH.from_cpu<N>( src.field, src1.field );
 
-//   const Idx len = D.d_DW.is.size();
 
-//   std::vector<Complex> v_coo;
-//   v_coo.resize(len);
-//   DW.coo_format( v_coo, U );
-//   for(Idx i=0; i<len; i++){
-//     // if(std::abs(v_coo[i])<1.0e-14) continue;
-//     std::cout << "COO "
-//               << std::setw(5) << D.d_DW.is[i] << " "
-//               << std::setw(5) << D.d_DW.js[i] << " "
-//               << std::setw(35) << v_coo[i] << " "
-//               << std::endl;
-//   }
-
-
-//   std::cout << "csr." << std::endl;
-//   D.d_DW.coo2csr_csrH( D.d_DW.v_csr, D.d_DW.v_csrH, v_coo );
-//   {
-//     Idx count = 0;
-//     for(Idx i=0; i<len; i++){
-//       // if(std::abs(D.d_DW.v_csr[i])<1.0e-14) continue;
-//       std::cout << "CSR "
-//                 << std::setw(5) << count << " "
-//                 << std::setw(5) << D.d_DW.ell2em[i] << " "
-//                 << std::setw(35) << D.d_DW.v_csr[i] << " "
-//                 << std::endl;
-//       count++;
-//     }
-//   }
-//   {
-//     Idx count = 0;
-//     std::cout << "csrH." << std::endl;
-//     for(Idx i=0; i<len; i++){
-//       // if(std::abs(D.d_DW.v_csrH[i])<1.0e-14) continue;
-//       std::cout << "CSRH " << std::setw(5) << count << " "
-//                 << std::setw(5) << D.d_DW.ell2emT[i] << " "
-//                 << std::setw(35) << D.d_DW.v_csrH[i] << " "
-//                 << std::endl;
-//       count++;
-//     }
-//   }
-
-//   for(const auto elem : src){
-//     std::cout << elem << std::endl;
-//   }
-// //   void coo2csr_csrH( std::vector<Complex>& v_csr,
-// // 		     std::vector<Complex>& v_csrH,
-// // 		     const std::vector<Complex>& v_coo) const {
-// // #ifdef _OPENMP
-// // #pragma omp parallel for num_threads(Comp::NPARALLEL)
-// // #endif
-// //     for(Idx ell=0; ell<len; ell++) {
-// //       v_csr[ ell2em[ell] ] = v_coo[ell];
-// //       v_csrH[ ell2emT[ell] ] = std::conj( v_coo[ell] );
-// //     }
-// //   }
-
-//   return 1;
-
-
-
-
-
-  // FermionVector sink(base, Nt, rng);
   FermionVector sink; // (base, Nt, rng);
-  // Op.from_cpu<N>( sink.field, src.field );
-  // FermionVector rc(base, rng);
-  // rc.set_random();
 
   std::cout << "# calculating sink" << std::endl;
 
-  // DHD.bicgstab<N>( sink.field, src.field, rc.field, 1.0e-3, 1e8, 1.0e-8 );
   DHD.solve<N>( sink.field, src.field );
 
   std::cout << "# done" << std::endl;

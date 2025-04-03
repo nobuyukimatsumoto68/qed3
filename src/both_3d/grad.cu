@@ -51,7 +51,8 @@ namespace Comp{
   constexpr int NPARALLEL=1; // 12
   constexpr int NSTREAMS=12; // for grad loop
 #endif
-  constexpr int NPARALLEL_GAUGE=10; // 12
+  constexpr int NPARALLEL_GAUGE=12; // 12
+  constexpr int NPARALLEL_SORT=12; // 12
 
   constexpr int N_REFINE=2;
   constexpr int NS=2;

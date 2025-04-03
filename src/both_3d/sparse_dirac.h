@@ -77,9 +77,9 @@ struct DWDevice{
     std::vector<std::vector<Idx>> ell_record(N);
     std::vector<std::vector<Idx>> ell_recordT(N);
 
-    #ifdef _OPENMP
-    #pragma omp parallel for num_threads(Comp::NPARALLEL)
-    #endif
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(Comp::NPARALLEL_SORT)
+#endif
     for(Idx i=0; i<N; i++){
       for(Idx ell=0; ell<len; ell++){
 	if( is[ell]==i ) ell_record[i].push_back(ell);

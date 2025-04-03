@@ -43,16 +43,18 @@ static constexpr Complex I = Complex(0.0, 1.0);
 namespace Comp{
   constexpr bool is_compact=false;
 
+  // d_DW.update() is always done independently
 #ifdef IS_OVERLAP
+  constexpr int NPARALLEL_DUPDATE=1;
   constexpr int NPARALLEL=12; // 12
-  constexpr int NPARALLEL2=1; // 12
   constexpr int NSTREAMS=4; // 4
 #else
+  constexpr int NPARALLEL_DUPDATE=12;
   constexpr int NPARALLEL=1; // 12
-  constexpr int NPARALLEL2=12; // 12
-  constexpr int NSTREAMS=12; // 4
+  constexpr int NSTREAMS=12; // for grad loop
 #endif
-  constexpr int NPARALLEL3=10; // 12
+  constexpr int NPARALLEL_GAUGE=12; // 12
+  constexpr int NPARALLEL_SORT=12; // 12
 
   constexpr int N_REFINE=2;
   constexpr int NS=2;
@@ -79,9 +81,7 @@ const std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
 #include "s2n_simp.h"
 #include "s2n_dual.h"
 #include "rng.h"
-// #include "gauge.h"
 #include "gauge_ext.h"
-// #include "action.h"
 #include "action_ext.h"
 
 #include <cuComplex.h>
@@ -93,14 +93,6 @@ using CuC = cuDoubleComplex;
 #include "gpu_header.h"
 
 // ======================================
-
-// #include "sparse_matrix.h"
-// #include "dirac_simp.h"
-// #include "sparse_dirac.h"
-// #include "matpoly.h"
-// #include "dirac_pf.h"
-// #include "overlap.h"
-// #include "pseudofermion.h"
 
 # include "integrator.h"
 #include "hmc.h"
@@ -567,7 +559,7 @@ int main(int argc, char* argv[]){
     if(k%interval==0){
       // std::vector<double> tmp1(Comp::Nt, 0.0);
 #ifdef _OPENMP
-#pragma omp parallel for num_threads(Comp::NPARALLEL3)
+#pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE)
 #endif
       for(int t=0; t<Comp::Nt; t++){
         int counter = 0;
@@ -587,7 +579,7 @@ int main(int argc, char* argv[]){
       polyakov_s0.push_back( std::real( get_polyakov(U, 0) ) );
 
 #ifdef _OPENMP
-#pragma omp parallel for num_threads(Comp::NPARALLEL3)
+#pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE)
 #endif
       for(int t=0; t<Comp::Nt; t++){
         int counter = 0;
@@ -622,14 +614,14 @@ int main(int argc, char* argv[]){
   {
     std::vector<double> mean(Comp::Nt, 0.0), var(Comp::Nt, 0.0);
 #ifdef _OPENMP
-#pragma omp parallel for num_threads(Comp::NPARALLEL3)
+#pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE)
 #endif
     for(int t=0; t<Comp::Nt; t++){
       for(const double elem : plaq_s0[t]) mean[t] += elem;
       mean[t] /= plaq_s0[t].size();
     }
 #ifdef _OPENMP
-#pragma omp parallel for num_threads(Comp::NPARALLEL3)
+#pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE)
 #endif
     for(int t=0; t<Comp::Nt; t++){
       for(const double elem : plaq_s1[t]) var[t] += std::pow( elem-mean[t], 2);
@@ -649,14 +641,14 @@ int main(int argc, char* argv[]){
   {
     std::vector<double> mean(Comp::Nt, 0.0), var(Comp::Nt, 0.0);
 #ifdef _OPENMP
-#pragma omp parallel for num_threads(Comp::NPARALLEL3)
+#pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE)
 #endif
     for(int t=0; t<Comp::Nt; t++){
       for(const double elem : plaq_s1[t]) mean[t] += elem;
       mean[t] /= plaq_s1[t].size();
     }
 #ifdef _OPENMP
-#pragma omp parallel for num_threads(Comp::NPARALLEL3)
+#pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE)
 #endif
     for(int t=0; t<Comp::Nt; t++){
       for(const double elem : plaq_s1[t]) var[t] += std::pow( elem-mean[t], 2);
