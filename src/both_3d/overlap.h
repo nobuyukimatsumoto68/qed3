@@ -138,7 +138,7 @@ template<typename WilsonDirac>
 struct Overlap : public Zolotarev {
   // using Gauge=U1onS2<false>;
   // using WilsonDirac=Dirac1fonS2;
-  using Link = std::array<Idx,2>; // <int,int>;
+  // using Link = std::array<Idx,2>; // <int,int>;
 
   static constexpr Idx N = Comp::N;
   static constexpr int nstreams = Comp::NSTREAMS;
@@ -406,7 +406,7 @@ struct Overlap : public Zolotarev {
     CUDA_CHECK(cudaDeviceSynchronize());
   }
 
-  template<typename Gauge>
+  template<typename Link, typename Gauge>
   double grad_deviceAsyncLaunch( const Link& link, const Gauge& U, const CuC* d_eta ) const {
     assert( is_precalc );
 

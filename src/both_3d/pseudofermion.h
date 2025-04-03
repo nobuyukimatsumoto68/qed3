@@ -3,7 +3,8 @@
 #include <cmath>
 
 
-template<typename F, typename Lattice, typename... GradFuncs>
+// template<typename F, typename Lattice, typename... GradFuncs>
+template<typename F, typename Fermion, typename Lattice>
 struct PseudoFermion {
   // using Complex = std::complex<double>;
   using T = CuC;
@@ -17,7 +18,9 @@ struct PseudoFermion {
 
   MatPoly& Op_DHD;
   F& f_DH;
-  GradFuncs& f_mgrad_DHD;
+  // GradFuncs& f_mgrad_DHD;
+  // Grad& f_mgrad_DHD;
+  Fermion& D;
 
   CuC *d_phi, *d_eta;
   static constexpr Idx N = Comp::N;
@@ -28,12 +31,13 @@ struct PseudoFermion {
 
   explicit PseudoFermion( MatPoly& Op_DHD_,
                           F& f_DH_,
-                          Lattice& lattice_,
-                          GradFuncs&... f_mgrad_DHD_,
+                          Fermion& D_,
+                          Lattice& lattice_
+                          // Grad&... f_mgrad_DHD_,
                           )
     : Op_DHD(Op_DHD_)
     , f_DH(f_DH_)
-    , f_mgrad_DHD(f_mgrad_DHD_)
+    , D(D_)
     , lattice(lattice_)
   {
     CUDA_CHECK(cudaMalloc(&d_phi, N*CD));
@@ -49,10 +53,11 @@ struct PseudoFermion {
   void gen( Rng& rng ) {
     std::vector<Complex> xi(N, 0.0);
 
-    for(Idx ix=0; ix<Comp::N_SITES; ix++) {
-      for(int a=0; a<Comp::NS; a++) xi[NS*ix+a] = ( rng.gaussian_site(ix)
-                                                    + I*rng.gaussian_site(ix) ) / std::sqrt(2.0);
-    }
+    // for(Idx ix=0; ix<Comp::N_SITES; ix++) {
+    //   for(int a=0; a<Comp::NS; a++) xi[NS*ix+a] = ( rng.gaussian_site(ix)
+    //                                                 + I*rng.gaussian_site(ix) ) / std::sqrt(2.0);
+    // }
+    rng.fill_gaussian( xi );
 
     CuC *d_xi;
     CUDA_CHECK(cudaMalloc(&d_xi, N*CD));
@@ -87,7 +92,8 @@ struct PseudoFermion {
 // #pragma omp parallel for num_threads(Comp::NPARALLEL2)
 // #endif
 //     for(int ell=0; ell<lattice.n_links; ell++) pi[ell] = get_force( u, lattice.links[ell] );
-    pi.compute( u, d_eta, f_mgrad_DHD );
+    // pi.compute( u, d_eta, f_mgrad_DHD );
+    pi.compute( u, d_eta, D );
   }
 
 

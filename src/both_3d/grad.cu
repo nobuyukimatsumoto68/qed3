@@ -21,7 +21,6 @@ using Idx = std::int32_t;
 using Complex = std::complex<double>;
 
 // BaseLink
-// using Link = std::array<Idx,2>; // <int,int>;
 // using Face = std::vector<Idx>;
 
 using MS=Eigen::Matrix2cd;
@@ -58,7 +57,7 @@ namespace Comp{
   constexpr int N_REFINE=2;
   constexpr int NS=2;
 
-  constexpr int Nt=10;
+  constexpr int Nt=16;
 
 #ifdef IS_DUAL
   constexpr Idx N_SITES=20*N_REFINE*N_REFINE;
@@ -96,7 +95,13 @@ using CuC = cuDoubleComplex;
 // ======================================
 
 #include "sparse_matrix.h"
+
+// #include "dirac_base.h"
 #include "dirac_simp.h"
+#include "dirac_dual.h"
+#include "dirac_ext.h"
+
+// #include "dirac_simp.h"
 #include "sparse_dirac.h"
 #include "matpoly.h"
 #include "dirac_pf.h"
@@ -123,6 +128,7 @@ int main(int argc, char* argv[]){
   std::cout << "# (GPU device is set.)" << std::endl;
 
   // ---------------------------------------
+  using BaseLink = std::array<Idx,2>; // <int,int>;
   // using Link = std::array<Idx,2>; // <int,int>;
   constexpr Idx N = Comp::N;
   constexpr int Nt = Comp::Nt;
@@ -137,6 +143,7 @@ int main(int argc, char* argv[]){
 
   using Force=GaugeExt<Base,Nt,Comp::is_compact>;
   using Gauge=GaugeExt<Base,Nt,Comp::is_compact>;
+  using Action=U1WilsonExt;
   // using Action=U1WilsonExt;
 
   using Rng=ParallelRngExt<Base,Nt>;
@@ -163,8 +170,8 @@ int main(int argc, char* argv[]){
 
   std::cout << "# DW set" << std::endl;
 
-  Gauge U(lattice);
-  Rng rng(lattice);
+  Gauge U(base);
+  Rng rng(base);
   // U.gaussian( rng, 0.2 );
 
   // ---------------------
@@ -196,7 +203,7 @@ int main(int argc, char* argv[]){
   //                              std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
 #else
   Fermion D(DW);
-  // DWDevice<WilsonDirac,Lattice> d_DW(DW); // actual data used in M_DW, M_DWH
+  // DWDevice<WilsonDirac,Base> d_DW(DW); // actual data used in M_DW, M_DWH
   // CSR M_DW;
   // CSR M_DWH;
   // d_DW.associateCSR( M_DW, false );
@@ -217,9 +224,10 @@ int main(int argc, char* argv[]){
   // DH.push_back ( cplx(1.0), {&D.M_DWH} );
   // auto f_DHD = std::bind(&Fermion::sq_deviceAsyncLaunch, &Dov,
   //                        std::placeholders::_1, std::placeholders::_2);
-  auto f_mgrad_DHD = std::bind(&Fermion::grad_deviceAsyncLaunch, &D,
-                               std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
-
+  // auto f_mgrad_DHD = std::bind(&Fermion::grad_deviceAsyncLaunch, &D,
+  //                              std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
+  // auto f_mgrad_DHD_tp = std::bind(&Fermion::grad_deviceAsyncLaunch, &D,
+  //                                 std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
 #endif
 
 
@@ -227,51 +235,95 @@ int main(int argc, char* argv[]){
 
   const double gR = 0.4;
   const double beta = 1.0/(gR*gR);
-  Action SW(beta);
+  Action SW(beta, beta);
 
 
-  PseudoFermion pf( Op_DHD, f_DH, f_mgrad_DHD, lattice );
+  // PseudoFermion pf( Op_DHD, f_DH, f_mgrad_DHD, base );
+  PseudoFermion pf( Op_DHD, f_DH, D, base );
 
   Timer timer;
 
   // ------------------
 
-  Idx il=1;
-  Link ell = lattice.links[il];
-  std::cout << "debug. ell = " << ell[0] << " " << ell[1] << std::endl;
+  {
+    int s=2;
+    Idx il=4;
+    BaseLink ell = base.links[il];
+    std::cout << "debug. ell = " << ell[0] << " " << ell[1] << std::endl;
 
-  const double eps = 1.0e-5;
-  Gauge UP(U);
-  UP[il] += eps;
-  Gauge UM(U);
-  UM[il] -= eps;
+    const double eps = 1.0e-5;
+    Gauge UP(U);
+    UP.sp(s,il) += eps;
+    Gauge UM(U);
+    UM.sp(s,il) -= eps;
 
-  std::cout << " --- Dov.update : " << timer.currentSeconds() << std::endl;
-  D.update(U);
-  std::cout << " --- pf.gen : " << timer.currentSeconds() << std::endl;
-  pf.gen( rng );
+    std::cout << " --- Dov.update : " << timer.currentSeconds() << std::endl;
+    D.update(U);
+    std::cout << " --- pf.gen : " << timer.currentSeconds() << std::endl;
+    pf.gen( rng );
 
-  std::cout << " --- grad constructor : " << timer.currentSeconds() << std::endl;
-  Force grad(lattice);
+    std::cout << " --- grad constructor : " << timer.currentSeconds() << std::endl;
+    Force grad(base);
 
-  std::cout << " --- pre calc : " << timer.currentSeconds() << std::endl;
-  D.precalc_grad_deviceAsyncLaunch( U, pf.d_eta );
-  std::cout << " --- get force : " << timer.currentSeconds() << std::endl;
-  pf.get_force( grad, U );
+    std::cout << " --- pre calc : " << timer.currentSeconds() << std::endl;
+    D.precalc_grad_deviceAsyncLaunch( U, pf.d_eta );
+    std::cout << " --- get force : " << timer.currentSeconds() << std::endl;
+    pf.get_force( grad, U );
 
-  std::cout << " --- fin : " << timer.currentSeconds() << std::endl;
+    std::cout << " --- fin : " << timer.currentSeconds() << std::endl;
 
-  std::cout << "grad = " << grad[il] << std::endl;
-  D.update(UP);
-  pf.update_eta();
-  double sfp = pf.S();
+    std::cout << "grad = " << grad.sp(s,il) << std::endl;
+    D.update(UP);
+    pf.update_eta();
+    double sfp = pf.S();
 
-  D.update(UM);
-  pf.update_eta();
-  double sfm = pf.S();
+    D.update(UM);
+    pf.update_eta();
+    double sfm = pf.S();
 
-  double chck = (sfp-sfm)/(2.0*eps);
-  std::cout << "check = " << chck << std::endl;
+    double chck = (sfp-sfm)/(2.0*eps);
+    std::cout << "check = " << chck << std::endl;
+  }
+
+  // -----------------
+
+  {
+    int s=2;
+    Idx ix=4;
+
+    const double eps = 1.0e-5;
+    Gauge UP(U);
+    UP.tp(s,ix) += eps;
+    Gauge UM(U);
+    UM.tp(s,ix) -= eps;
+
+    std::cout << " --- Dov.update : " << timer.currentSeconds() << std::endl;
+    D.update(U);
+    std::cout << " --- pf.gen : " << timer.currentSeconds() << std::endl;
+    pf.gen( rng );
+
+    std::cout << " --- grad constructor : " << timer.currentSeconds() << std::endl;
+    Force grad(base);
+
+    std::cout << " --- pre calc : " << timer.currentSeconds() << std::endl;
+    D.precalc_grad_deviceAsyncLaunch( U, pf.d_eta );
+    std::cout << " --- get force : " << timer.currentSeconds() << std::endl;
+    pf.get_force( grad, U );
+
+    std::cout << " --- fin : " << timer.currentSeconds() << std::endl;
+
+    std::cout << "grad = " << grad.tp(s, ix) << std::endl;
+    D.update(UP);
+    pf.update_eta();
+    double sfp = pf.S();
+
+    D.update(UM);
+    pf.update_eta();
+    double sfm = pf.S();
+
+    double chck = (sfp-sfm)/(2.0*eps);
+    std::cout << "check = " << chck << std::endl;
+  }
 
   // -----------------
 
@@ -284,7 +336,7 @@ int main(int argc, char* argv[]){
   // pf.gen( rng );
 
   // std::cout << " --- grad constructor : " << timer.currentSeconds() << std::endl;
-  // Force dSf(lattice);
+  // Force dSf(base);
   // std::cout << " --- pre calc : " << timer.currentSeconds() << std::endl;
   // Dov.precalc_grad_deviceAsyncLaunch( U, pf.d_eta );
   // std::cout << " --- get force : " << timer.currentSeconds() << std::endl;
@@ -292,20 +344,20 @@ int main(int argc, char* argv[]){
   // std::cout << " --- fin : " << timer.currentSeconds() << std::endl;
 
 
-  // for(Idx il=0; il<lattice.n_links; il++) std::cout << "grad = " << il << " " << dSf[il] << std::endl;
+  // for(Idx il=0; il<base.n_links; il++) std::cout << "grad = " << il << " " << dSf[il] << std::endl;
 
   // const double tmax = 0.5; // 1.0; // 0.1
   // const int nsteps=5;
   // ExplicitLeapfrogML integrator( tmax, nsteps, 10 );
 
 
-  // Force pi( lattice );
+  // Force pi( base );
   // pi.gaussian( rng );
   // // Force pi0=pi;
 
-  // for(Idx il=0; il<lattice.n_links; il++){
+  // for(Idx il=0; il<base.n_links; il++){
   //   //   Idx il=3;
-  //   // Link ell = lattice.links[il];
+  //   // Link ell = base.links[il];
 
   //   Gauge UP(U);
   //   UP[il] += eps;
@@ -334,7 +386,7 @@ int main(int argc, char* argv[]){
   // // -----------------
 
 
-  // Force pi( lattice );
+  // Force pi( base );
   // pi.gaussian( rng );
   // Force pi0=pi;
 
@@ -362,7 +414,7 @@ int main(int argc, char* argv[]){
 
 
 
-  // Force pi( lattice );
+  // Force pi( base );
   // pi.gaussian( rng );
   // Force pi0=pi;
 

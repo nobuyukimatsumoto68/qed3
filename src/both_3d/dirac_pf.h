@@ -96,7 +96,7 @@ struct DiracPf {
   }
 
 
-  template<typename Gauge, typename Link>
+  template<typename Link, typename Gauge>
   double grad_deviceAsyncLaunch( const Link& link, const Gauge& U, const CuC* d_eta ) const {
     assert( is_precalc );
     const int m = omp_get_thread_num();
