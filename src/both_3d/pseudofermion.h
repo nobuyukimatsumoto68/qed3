@@ -2,7 +2,6 @@
 
 #include <cmath>
 
-
 template<typename F, typename Fermion, typename Lattice>
 struct PseudoFermion {
   using T = CuC;

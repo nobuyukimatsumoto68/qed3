@@ -3,7 +3,6 @@
 #include <cmath>
 #include <vector>
 
-// #include "cg_cuda.h"
 
 struct Zolotarev{
   using FLOAT = double;
