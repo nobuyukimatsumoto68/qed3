@@ -69,34 +69,47 @@ Real f(const int m, const int n, const int alpha, const int beta, const double t
 }
 
 
-Real jacobi_asymp(const int n, const double alpha, const double beta, const double z, const int M=10){
+// Real jacobi_asymp(const int n, const double alpha, const double beta, const double z, const int M=10){
+//   Real pre_inv = std::pow( std::sin(0.5*std::acos(z)), alpha+0.5 ) * std::pow( std::cos(0.5*std::acos(z)), beta+0.5 );
+//   pre_inv *= M_PI;
+
+//   Real pre2 = std::pow( 2, 2*n+alpha+beta+1 );
+//   pre2 *= std::beta( n+alpha+1, n+beta+1 );
+
+//   Real sum=0.0;
+//   for(int m=0; m<=M; m++){
+//     Real tmp = f(m,n,alpha,beta,std::acos(z));
+//     tmp /= std::pow(2, m);
+//     tmp /= poch(2*n+alpha+beta+2, m);
+//     if(!std::isnormal(tmp)){
+//       std::cout << "f = " << f(m,n,alpha,beta,std::acos(z)) << std::endl;
+//       std::cout << "poch = " << poch(2*n+alpha+beta+2, m) << std::endl;
+//       std::cout << "n = " << n << std::endl;
+//       std::cout << "m = " << m << std::endl;
+//       assert(false);
+//     }
+//     sum += tmp;
+//   }
+//   return pre2 * sum / pre_inv;
+// }
+
+
+
+Real jacobi_asymp_darboux(const int n, const double alpha, const double beta, const double z){
   Real pre_inv = std::pow( std::sin(0.5*std::acos(z)), alpha+0.5 ) * std::pow( std::cos(0.5*std::acos(z)), beta+0.5 );
-  pre_inv *= M_PI;
-
-  Real pre2 = std::pow( 2, 2*n+alpha+beta+1 );
-  pre2 *= std::beta( n+alpha+1, n+beta+1 );
-
-  Real sum=0.0;
-  for(int m=0; m<=M; m++){
-    Real tmp = f(m,n,alpha,beta,std::acos(z));
-    tmp /= std::pow(2, m);
-    tmp /= poch(2*n+alpha+beta+2, m);
-    if(!std::isnormal(tmp)){
-      std::cout << "f = " << f(m,n,alpha,beta,std::acos(z)) << std::endl;
-      std::cout << "poch = " << poch(2*n+alpha+beta+2, m) << std::endl;
-      std::cout << "n = " << n << std::endl;
-      std::cout << "m = " << m << std::endl;
-      assert(false);
-    }
-    sum += tmp;
-  }
-  return pre2 * sum / pre_inv;
+  pre_inv *= std::sqrt( M_PI * n );
+  const Real angle = 0.5*( 2.0*n+alpha+beta+1.0 )*std::acos(z) - 0.25*(2.0*alpha+1.0)*M_PI;
+  return std::cos(angle) / pre_inv;
 }
 
 
-Real jacobi( const int n, const double alpha, const double beta, const double z, const int nthreshold=100, const int M=10 ){
+
+
+// Real jacobi( const int n, const double alpha, const double beta, const double z, const int nthreshold=97, const int M=10 ){
+Real jacobi( const int n, const double alpha, const double beta, const double z, const int nthreshold=200, const int M=10 ){
   if(n<nthreshold) return boost::math::jacobi(n, 1.0*alpha, 1.0*beta, z);
-  else return jacobi_asymp(n, alpha, beta, z, M);
+  // else return jacobi_asymp(n, alpha, beta, z, M);
+  else return jacobi_asymp_darboux(n, alpha, beta, z);
 }
 
 
@@ -144,8 +157,25 @@ Real xi( const int mpH, const int n, const double z){
 Real Cnm( const int mpH, const int n ){
   Real tmp = 4.0*M_PI;
   tmp /= 2.0*n + 2.0*mpH;
-  tmp *= std::tgamma( n+2.0*mpH ) * std::tgamma( n+1.0 );
-  tmp /= std::tgamma( n+mpH ) * std::tgamma( n+mpH+1.0 );
+
+  if(mpH!=1){
+    tmp *= std::tgamma( n+2.0*mpH ) * std::tgamma( n+1.0 );
+    tmp /= std::tgamma( n+mpH ) * std::tgamma( n+mpH+1.0 );
+  }
+  return std::sqrt(tmp);
+}
+
+Real Cnm_asymp( const int mpH, const int n ){
+  Real tmp = 4.0*M_PI;
+  tmp /= 2.0*n + 2.0*mpH;
+  // std::cout << "tmp. pt1. " << tmp << std::endl;
+  if(mpH!=1){
+    tmp *= std::pow(1.0+(2.0*mpH-1)/n, 2*mpH-1);
+  // std::cout << "tmp. pt2. " << tmp << std::endl;
+    tmp /= std::pow(1.0+(mpH-1.0)/n, mpH-1) * std::pow(1.0+1.0*mpH/n, mpH);
+  }
+  // std::cout << "tmp. pt3. " << std::pow(1.0+(mpH-1)/n, n+mpH-1) << " " <<  std::pow(1.0+mpH/n, n+mpH) << std::endl;
+  // std::cout << "tmp. pt4. " << tmp << std::endl;
   return std::sqrt(tmp);
 }
 
@@ -178,7 +208,7 @@ VC psi2( const int mpH, const int n, const int s, const double z, const double p
 
 
 
-const int mpH_max = 98;
+const int mpH_max = 2000;
 const int n_max = mpH_max;
 
 
@@ -187,18 +217,22 @@ int main(int argc, char* argv[]){
   std::clog << std::scientific << std::setprecision(15);
 
   // {
-  //   const int n = 8;
+  //   const int n = 70;
   //   const int mpH = 1;
 
   //   const int k = n+mpH;
   //   const int alpha = mpH-1;
   //   const int beta = -mpH;
-  //   const double z = 0.5;
+  //   const double z = 0.1;
 
   //   std::cout << boost::math::jacobi(k, 1.0*alpha, 1.0*beta, z) << std::endl;
-  //   std::cout << jacobi_asymp(k, alpha, beta, z) << std::endl;
+  //   std::cout << jacobi_asymp_darboux(k, alpha, beta, z) << std::endl;
 
-  //   // return 1;
+  //   std::cout << Cnm(n,mpH) << std::endl;
+  //   std::cout << Cnm_asymp(n,mpH) << std::endl;
+  //   std::cout << ( Cnm(n,mpH)-Cnm_asymp(n,mpH) )/Cnm(n,mpH) << std::endl;
+
+  //   return 1;
   // }
 
 
