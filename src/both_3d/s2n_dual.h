@@ -31,6 +31,7 @@ struct S2Trivalent {
   std::vector<std::vector<Idx> > nns;
   std::vector<Link> links;
   std::vector<Face> faces;
+  std::vector<int> face_signs;
 
   std::vector<double> vols; // hex vol
   double mean_vol;
@@ -41,8 +42,8 @@ struct S2Trivalent {
   std::vector<double> dual_areas;
   double mean_dual_area;
 
-  std::vector<VE> simp_sites;
-  std::vector<Link> simp_links; // dual to _link
+  std::vector<VE> dual_sites;
+  std::vector<Link> dual_links; // dual to _link
 
 
   S2Trivalent(const int n_refine)
@@ -72,14 +73,15 @@ struct S2Trivalent {
     vols = simp.dual_areas;
     mean_vol = simp.mean_dual_area;
 
-    simp_sites = simp.sites;
-    simp_links = simp.links;
+    dual_sites = simp.sites;
+    dual_links = simp.links;
 
     set_ell_link_volume();
 
     dual_areas = simp.vols;
     mean_dual_area = simp.mean_vol;
 
+    face_signs = simp.dual_face_signs;
 
     {
       for(Idx il=0; il<n_links; il++) {
@@ -111,8 +113,8 @@ struct S2Trivalent {
       const Idx ix = links[il][0];
       const Idx iy = links[il][1];
 
-      const Idx iA = simp_links[il][0];
-      const Idx iB = simp_links[il][1];
+      const Idx iA = dual_links[il][0];
+      const Idx iB = dual_links[il][1];
 
       double ellA=0.0, ellB=0.0;
       double areaA=0.0, areaB=0.0;
@@ -120,7 +122,7 @@ struct S2Trivalent {
       const VE x = sites[ix];
       const VE y = sites[iy];
       {
-        const VE p = simp_sites[iA];
+        const VE p = dual_sites[iA];
 
         double a_ = std::acos( x.dot(p) /(x.norm()* p.norm()) );
 	double b_ = std::acos( y.dot(p) /(y.norm()* p.norm()) );
@@ -134,7 +136,7 @@ struct S2Trivalent {
 	areaA = area_;
       }
       {
-        const VE p = simp_sites[iB];
+        const VE p = dual_sites[iB];
 
         double a_ = std::acos( x.dot(p) /(x.norm()* p.norm()) );
 	double b_ = std::acos( y.dot(p) /(y.norm()* p.norm()) );

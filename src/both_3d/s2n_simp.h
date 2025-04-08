@@ -21,6 +21,7 @@ struct S2Simp {
   std::vector<std::vector<Idx>> nns;
   std::vector<Link> links;
   std::vector<Face> faces;
+  std::vector<int> face_signs;
 
   std::vector<double> vols; // triangular vol
   double mean_vol;
@@ -32,6 +33,7 @@ struct S2Simp {
   std::vector<std::vector<Idx>> dual_nns;
   std::vector<Link> dual_links;
   std::vector<Face> dual_faces;
+  std::vector<int> dual_face_signs;
 
   std::vector<double> dual_areas;
   double mean_dual_area;
@@ -224,6 +226,36 @@ struct S2Simp {
 
     set_ell_ellstar_linkvols();
     set_dual_areas();
+    set_facesigns();
+  }
+
+  void set_facesigns(){
+    {
+      face_signs.clear();
+      for(const Face& face : faces){
+        const VE x0 = sites[face[0]];
+        const VE x1 = sites[face[1]];
+        const VE x2 = sites[face[2]];
+
+        const double dot = ((x2-x1).cross(x0-x1)).dot(x1);
+
+        const int sign = dot>0 ? 1 : -1;
+        face_signs.push_back(sign);
+      }
+    }
+    {
+      dual_face_signs.clear();
+      for(const Face& face : dual_faces){
+        const VE x0 = sites[face[0]];
+        const VE x1 = sites[face[1]];
+        const VE x2 = sites[face[2]];
+
+        const double dot = ((x2-x1).cross(x0-x1)).dot(x1);
+
+        const int sign = dot>0 ? 1 : -1;
+        dual_face_signs.push_back(sign);
+      }
+    }
   }
 
 

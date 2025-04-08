@@ -26,15 +26,18 @@ struct U1WilsonExt {
     std::vector<double> tmp(U.Nt, 0.0);
     // spatial
 #ifdef _OPENMP
-#pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE)
+#pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE) // collapse(2)
 #endif
     for(int s=0; s<U.Nt; s++){
-      int i=0;
-      for(const Face& face : base.faces) {
+      //for(const Face& face : base.faces) {
+      for(Idx i=0; i<base.faces.size(); i++) {
+        const Face& face = base.faces[i];
+        // Idx i=std::distance( base.faces[0],  );
+        // int i=0;
         const double factor = base.mean_vol/base.vols[i];
         if constexpr(U.is_compact) tmp[s] += - beta_s*factor * ( std::cos( U.plaquette_angle(s, face) ) - 1.0);
         else tmp[s] += 0.5*beta_s* factor * std::pow( U.plaquette_angle(s, face), 2 );
-        i++;
+        // i++;
       }
     }
     // temporal
@@ -61,14 +64,21 @@ struct U1WilsonExt {
 
   template <typename Force, typename Gauge>
   void get_force( Force& pi, const Gauge& U ) const {
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE)
+#endif
     for(Idx i=0; i<pi.spatial.size(); i++) for(Idx j=0; j<pi.spatial[i].size(); j++) pi.spatial[i][j] = 0.0;
+
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE)
+#endif
     for(Idx i=0; i<pi.temporal.size(); i++) for(Idx j=0; j<pi.temporal[i].size(); j++) pi.temporal[i][j] = 0.0;
 
     const auto& base = U.lattice;
 
     // spatial
 #ifdef _OPENMP
-#pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE)
+#pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE) // collapse(2)
 #endif
     for(int s=0; s<U.Nt; s++){
       for(int i_face=0; i_face<base.n_faces; i_face++){

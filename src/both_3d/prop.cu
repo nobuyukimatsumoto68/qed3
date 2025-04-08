@@ -207,8 +207,8 @@ int main(int argc, char* argv[]){
 
   std::vector<double> thetas;
   std::vector<double> phis;
-#ifdef IS_DUAL
   std::vector<double> lengths;
+#ifdef IS_DUAL
   {
     std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
     std::vector<Geodesic::V3> sites;
@@ -245,7 +245,6 @@ int main(int argc, char* argv[]){
   //   iss >> alat;
   // }
 #else
-  std::vector<double> lengths;
   {
     const auto x0 = base.sites[0];
     for(int ix=0; ix<base.n_sites; ix++){

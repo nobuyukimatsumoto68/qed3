@@ -1,7 +1,8 @@
 #include <typeinfo>
-#include <iostream>
+
 #include <iomanip>
 #include <fstream>
+#include <iostream>
 #include <cstdlib>
 #include <cassert>
 
@@ -33,6 +34,7 @@ static constexpr int DIM = 2;
 static constexpr Complex I = Complex(0.0, 1.0);
 
 
+
 #define IS_DUAL
 // #define IS_OVERLAP
 
@@ -45,7 +47,7 @@ namespace Comp{
 
   // d_DW.update() is always done independently
 #ifdef IS_OVERLAP
-  constexpr int NPARALLEL_DUPDATE=1;
+  constexpr int NPARALLEL_DUPDATE=1;l
   constexpr int NPARALLEL=12; // 12
   constexpr int NSTREAMS=4; // 4
 #else
@@ -53,13 +55,13 @@ namespace Comp{
   constexpr int NPARALLEL=1; // 12
   constexpr int NSTREAMS=12; // for grad loop
 #endif
-  constexpr int NPARALLEL_GAUGE=12; // 12
+  constexpr int NPARALLEL_GAUGE=16; // 12
   constexpr int NPARALLEL_SORT=12; // 12
 
   constexpr int N_REFINE=2;
   constexpr int NS=2;
 
-  constexpr int Nt=10;
+  constexpr int Nt=16; // 10
 
 #ifdef IS_DUAL
   constexpr Idx N_SITES=20*N_REFINE*N_REFINE;
@@ -98,6 +100,38 @@ using CuC = cuDoubleComplex;
 #include "hmc.h"
 
 #include "obs.h"
+
+
+#include "../../integrator/geodesic.h"
+
+
+
+#include "s2.h"
+
+struct MultTableG {
+  const QfeLatticeS2& lattice;
+  std::vector<std::vector<int>> table;
+  const double TOL;
+
+  MultTableG( const QfeLatticeS2& lattice, const double TOL=1.0e-10 ) // TODO: TOL should be set from given geometry
+    : lattice(lattice)
+    , table( lattice.n_sites, std::vector<int>(lattice.G.size(), -1) )
+    , TOL(TOL)
+  {
+    for(int ir=0; ir<lattice.n_sites; ir++){ const Vec3 r = lattice.r[ir];
+      for(int g=0; g<lattice.G.size(); g++){ const Vec3 gr = lattice.G[g] * r;
+        for(int irp=0; irp<lattice.n_sites; irp++){ const Vec3 rp = lattice.r[irp];
+          if( (gr-rp).norm()<TOL ) { table[ir][g] = irp; continue; }}}}
+
+    // check
+    for(int ir=0; ir<lattice.n_sites; ir++){
+      for(int g=0; g<lattice.G.size(); g++){
+        if( table[ir][g] < 0 ) assert( false );
+      }}}
+
+  int operator()(const int g, const int ir) const { return table[ir][g]; }
+};
+
 
 
 // TODO: Cusparse for SparseMatrix::act_gpu, probably defining handle in matpoly.h
@@ -147,6 +181,7 @@ int main(int argc, char* argv[]){
   // ----------------------
 
   // const double gR = 10.0;
+  // double beta = 28.0; // 1.0/(gR*gR);
   double beta = 28.0; // 1.0/(gR*gR);
   Action SW(beta, beta);
 
@@ -495,6 +530,7 @@ int main(int argc, char* argv[]){
   Gauge U0=U;
 
   const double tmax = 1.0; // 0.1
+  // const int nsteps=100;
   const int nsteps=50;
   pi = pi0;
   U = U0;
@@ -510,8 +546,12 @@ int main(int argc, char* argv[]){
               << " is_accept : " << is_accept << std::endl;
     // std::cout << "# HMC : " << timer.currentSeconds() << " sec" << std::endl;
   }
-  const int kmax=1e7;
-  for(int k=0; k<1e4; k++){
+
+
+  const int kmax=5e4;
+  // const int kmax=1e3;
+
+  for(int k=0; k<1e3; k++){
   // const int kmax=4000;
   // for(int k=0; k<100; k++){
     Timer timer;
@@ -526,6 +566,11 @@ int main(int argc, char* argv[]){
 
   std::vector<std::vector<double>> plaq_s0(Comp::Nt);
   std::vector<std::vector<double>> plaq_s1(Comp::Nt);
+
+
+  std::vector<std::vector<double>> plaq_corr(base.n_faces);
+
+
   std::vector<double> polyakov_s0(Comp::Nt);
   std::vector<double> polyakov_s1(Comp::Nt);
   // std::vector<double> plaq_t0;
@@ -545,7 +590,7 @@ int main(int argc, char* argv[]){
   // const int s=0;
 
   double r_mean;
-  const int interval=50;
+  const int interval=10;
 
   for(int k=0; k<kmax; k++){
     Timer timer;
@@ -557,7 +602,39 @@ int main(int argc, char* argv[]){
     // std::cout << "# HMC : " << timer.currentSeconds() << " sec" << std::endl;
 
     if(k%interval==0){
-      // std::vector<double> tmp1(Comp::Nt, 0.0);
+
+      {
+        auto sites = base.dual_sites;
+        const auto x0 = sites[0];
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE)
+#endif
+        for(int i_face=0; i_face<base.n_faces; i_face++){
+          const auto x1 = sites[i_face];
+          // distance( 0, i_face );
+          int counter=0;
+          double tmp1 = 0.0;
+          for(int i_face2=0; i_face2<base.n_faces; i_face2++){
+            const auto x2 = sites[i_face2];
+            for(int i_face3=0; i_face3<base.n_faces; i_face3++){
+              const auto x3 = sites[i_face3];
+
+              // if( std::abs( distance( x2, x3 )-distance( 0, x1 ))>1.0e-14 ) continue;
+              if( std::abs( Geodesic::geodesicLength(Geodesic::Pt(x2), Geodesic::Pt(x3)) - Geodesic::geodesicLength(Geodesic::Pt(x0), Geodesic::Pt(x1)) )>1.0e-14 ) continue;
+              for(int s=0; s<Comp::Nt; s++){
+                // tmp1 += base.face_signs[0]*base.face_signs[i_face] * std::pow( U.plaquette_angle(s, U.lattice.faces[0]), 1) * std::pow( U.plaquette_angle(s, U.lattice.faces[i_face]), 1);
+                tmp1 += base.face_signs[i_face2]*base.face_signs[i_face3] * std::pow( U.plaquette_angle(s, U.lattice.faces[i_face2]), 1) * std::pow( U.plaquette_angle(s, U.lattice.faces[i_face3]), 1);
+                counter++;
+              }
+            }
+          }
+          tmp1 /= counter;
+          plaq_corr[i_face].push_back( tmp1 );
+        }
+      }
+
+      // -----------------------------------------------------------------
+
 #ifdef _OPENMP
 #pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE)
 #endif
@@ -611,6 +688,68 @@ int main(int argc, char* argv[]){
   //   if( std::abs( base.vols[i_face]-base.vols[iface0] )>1.0e-12 ) continue;
   //   counter1++;
   // }
+
+
+
+
+
+
+
+
+
+  std::vector<double> lengths;
+  {
+    auto sites = base.dual_sites;
+    const auto x0 = sites[0];
+    for(const auto& elem : sites){
+      double len = Geodesic::geodesicLength(Geodesic::Pt(x0), Geodesic::Pt(elem));
+      lengths.push_back(len);
+    }
+  }
+
+
+
+
+
+
+
+
+  {
+    std::vector<double> mean(base.n_faces, 0.0), var(base.n_faces, 0.0);
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE)
+#endif
+    for(int i_face=0; i_face<base.n_faces; i_face++){
+      for(const double elem : plaq_corr[i_face]) mean[i_face] += elem;
+      mean[i_face] /= plaq_corr[i_face].size();
+    }
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE)
+#endif
+    for(int i_face=0; i_face<base.n_faces; i_face++){
+      for(const double elem : plaq_corr[i_face]) var[i_face] += std::pow( elem-mean[i_face], 2);
+      var[i_face] /= std::pow( plaq_corr[i_face].size(), 2 );
+      // mean[i_face] /= plaq_corr[i_face].size();
+    }
+    // for(int t=0; t<Comp::Nt; t++){
+    //   for(const double elem : plaq_s1[t]) var[t] += std::pow( elem-mean[t], 2);
+    //   var[t] /= std::pow( plaq_s0[t].size(), 2 );
+    // }
+
+    std::string path = "plaq_corr.dat";
+#ifdef IS_DUAL
+    path = "dual_"+path;
+#endif
+    std::ofstream ofs(path);
+    ofs << "# kmax = " << kmax << std::endl;
+    for(int i_face=0; i_face<base.n_faces; i_face++){
+      ofs << lengths[i_face] << " "
+          << mean[i_face] << " "
+          << std::sqrt(var[i_face]) << " "
+          << base.dual_areas[i_face] << std::endl;
+    }
+  }
+
   {
     std::vector<double> mean(Comp::Nt, 0.0), var(Comp::Nt, 0.0);
 #ifdef _OPENMP
