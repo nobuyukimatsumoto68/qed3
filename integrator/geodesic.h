@@ -2,8 +2,8 @@
 // #include <cmath>
 #include <math.h>
 #include <vector>
-#include <stdfloat>
-#include <numbers>
+// #include <stdfloat>
+// #include <numbers>
 
 #include <Eigen/Dense>
 
@@ -18,7 +18,7 @@ namespace Geodesic{
 
   constexpr int BRMAX = 8;
 
-  constexpr Double _M_PI = std::numbers::pi_v<Double>;
+  constexpr Double _M_PI = M_PI; // std::numbers::pi_v<Double>;
 
 
 using I2=Eigen::Vector2i;

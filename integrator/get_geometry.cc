@@ -5,9 +5,10 @@
 
 #include <algorithm>
 
-#include <stdfloat>
+// #include <stdfloat>
 // #include "geodesic2.h"
-using Double = std::float64_t;
+// using Double = std::float64_t;
+using Double = double; // std::float64_t;
 # include "geodesic.h"
 
 #include "s2.h"
@@ -32,7 +33,7 @@ using VE=V3;
 // using VC=Eigen::Matrix<Complex, Eigen::Dynamic, 1>;
 
 
-std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
+std::string dir = "/projectnb/qfe/nmatsum/qed3/dats/";
 
 int main(int argc, char* argv[]){
 
@@ -108,6 +109,12 @@ int main(int argc, char* argv[]){
   const int n_dual_sites = dual_sites.size();
   std::cout << "n_dual_sites = " << n_dual_sites << std::endl;
 
+
+
+
+
+
+
   // --------------------------
   // dual links
   std::vector<Link> dual_links;
@@ -132,6 +139,85 @@ int main(int argc, char* argv[]){
   const int n_dual_links = dual_links.size();
   std::cout << "n_dual_links = " << n_dual_links << std::endl;
 
+  // // --------------------------
+  // // nearest neighbor
+  // std::vector<std::vector<Idx>> dual_nns;
+  // {
+  //   for(Idx i=0; i<n_dual_sites; i++){
+  //     Pt x( dual_sites[i] );
+  //     std::vector<Idx> nn;
+  //     for(Idx j=0; j<n_dual_sites; j++){
+  //       if(i==j) continue;
+  //       Pt y( dual_sites[j] );
+  //       const double ell = geodesicLength( x, y );
+  //       if(ell<threshold) nn.push_back(j);
+  //     }
+  //     assert( nn.size()==3 ); // this is dual nn
+  //     dual_nns.push_back( nn );
+  //   }
+  // }
+
+  // // --------------------------
+  // // nearest neighbor // dirty
+  // std::vector<std::vector<Idx>> nns;
+  // std::vector<Link> links;
+  // {
+  //   for(Idx i=0; i<lattice.n_sites; i++){
+  //     Pt x( simp_sites[i] );
+  //     const auto xx = lattice.sites[i];
+  //     std::vector<Idx> nn;
+  //     for(int iw=0; iw<xx.nn; iw++){
+  //       Idx j = xx.neighbors[iw];
+  //       Pt y( simp_sites[j] );
+  //       nn.push_back(j);
+
+  //       // Idx min, max;
+  //       // if(i<j) { min=i; max=j; }
+  //       // else { min=j; max=i; }
+  //       if(i<j) links.push_back( Link{i,j} );
+  //     }
+  //     std::sort( nn.begin(), nn.end() );
+  //     nns.push_back( nn );
+  //   }
+  // }
+
+
+  // --------------------------
+  // simp links
+  std::vector<Link> simp_links;
+  {
+    // const double threshold=0.42188 * 1.6 / n_refine;
+    const double threshold=0.42188 * 2.0 / n_refine;
+
+    for(const Link& link : dual_links){ // trivalent
+      const VE x1 = dual_sites[link[0]];
+      const VE x2 = dual_sites[link[1]];
+
+      // Idx ip1, ip2;
+      std::vector<Idx> tmp;
+      for(Idx ip=0; ip<simp_sites.size(); ip++){
+        const VE x0 = simp_sites[ip];
+        const double d01 = (x0-x1).norm();
+        const double d02 = (x0-x2).norm();
+        if(d01<threshold && d02<threshold) tmp.push_back(ip);
+      }
+      assert( tmp.size()==2 );
+
+      const Idx min = std::min(tmp[0], tmp[1]);
+      const Idx max = std::max(tmp[0], tmp[1]);
+      simp_links.push_back( Link{min,max} );
+    }
+  }
+  assert( simp_links.size()==dual_links.size() );
+  // for(const auto& link : lattice.links){
+  //   Idx ix1 = link.sites[0];
+  //   Idx ix2 = link.sites[1];
+
+  //   Idx min = std::min(ix1, ix2);
+  //   Idx max = std::max(ix1, ix2);
+  //   simp_links.push_back(Link{min,max});
+  // }
+
   // --------------------------
   // nearest neighbor
   std::vector<std::vector<Idx>> dual_nns;
@@ -145,10 +231,23 @@ int main(int argc, char* argv[]){
         const double ell = geodesicLength( x, y );
         if(ell<threshold) nn.push_back(j);
       }
-      assert( nn.size()==3 ); // this is dual nn
       dual_nns.push_back( nn );
     }
   }
+
+  // --------------------------
+  // SIMP nearest neighbor
+  std::vector<std::vector<Idx>> simp_nns;
+  {
+    for(Idx i=0; i<lattice.n_sites; i++){
+      // std::vector<Idx> nn;
+      std::cout << "debug. " << std::endl;
+      std::vector<Idx> tmp;
+      for(int jj=0; jj<lattice.sites[i].nn; jj++) tmp.push_back( lattice.sites[i].neighbors[jj] );
+      simp_nns.push_back(tmp);
+    }
+  }
+
 
   // --------------------------
   // dual faces
@@ -272,6 +371,17 @@ int main(int argc, char* argv[]){
     }
   }
   {
+    std::ofstream ofs(dir+"nns_n"+std::to_string(n_refine)+"_singlepatch.dat");
+    ofs << std::scientific << std::setprecision(25);
+    for(const auto& vec : simp_nns) {
+      for(const auto& elem : vec) {
+        ofs << std::setw(50) << elem << " ";
+        // std::cout << std::setw(50) << elem << " ";
+      }
+      ofs << std::endl;
+    }
+  }
+  {
     std::ofstream ofs(dir+"nns_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
     ofs << std::scientific << std::setprecision(25);
     for(const auto& vec : dual_nns) {
@@ -285,6 +395,16 @@ int main(int argc, char* argv[]){
     std::ofstream ofs(dir+"dual_links_n"+std::to_string(n_refine)+"_singlepatch.dat");
     ofs << std::scientific << std::setprecision(25);
     for(const auto& vec : dual_links) {
+      for(const auto& elem : vec) {
+        ofs << std::setw(50) << elem << " ";
+      }
+      ofs << std::endl;
+    }
+  }
+  {
+    std::ofstream ofs(dir+"links_n"+std::to_string(n_refine)+"_singlepatch.dat");
+    ofs << std::scientific << std::setprecision(25);
+    for(const auto& vec : simp_links) {
       for(const auto& elem : vec) {
         ofs << std::setw(50) << elem << " ";
       }

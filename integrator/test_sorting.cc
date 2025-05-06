@@ -5,7 +5,7 @@
 #include <cmath>
 #include <map>
 #include <limits>
-#include <stdfloat>
+// #include <stdfloat>
 
 #include <Eigen/Dense>
 
@@ -13,7 +13,7 @@
 // #include "integral.h"
 
 
-using Double = std::float64_t;
+using Double = double; // std::float64_t;
 // using Double = std::float128_t;
 #include "geodesic.h"
 #include "integral.h"
@@ -22,6 +22,7 @@ using Double = std::float64_t;
 using namespace Geodesic;
 
 using Idx = std::int32_t;
+// using Idx = std::size_t; // std::int32_t;
 // using Complex = std::complex<double>;
 // const Complex I = Complex(0.0, 1.0);
 
@@ -50,7 +51,7 @@ Double epsrel = 1.0e-13; // TOLLOOSE;
 int key = 5;
 
 
-std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
+std::string dir = "/projectnb/qfe/nmatsum/qed3/dats/";
 
 
 int main(int argc, char* argv[]){

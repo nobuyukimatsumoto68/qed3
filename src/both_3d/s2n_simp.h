@@ -61,6 +61,7 @@ struct S2Simp {
     {
       std::cout << "# reading dual points" << std::endl;
       std::ifstream file(dir+"pts_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      if(!file) assert(false);
 
       std::string str;
       while (std::getline(file, str)){
@@ -77,6 +78,7 @@ struct S2Simp {
     {
       std::cout << "# reading nns" << std::endl;
       std::ifstream file(dir+"nns_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      if(!file) assert(false);
 
       std::string str;
       while (std::getline(file, str)){
@@ -93,6 +95,7 @@ struct S2Simp {
     {
       std::cout << "# reading links" << std::endl;
       std::ifstream file(dir+"links_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      if(!file) assert(false);
 
       std::string str;
       while (std::getline(file, str)){
@@ -104,10 +107,12 @@ struct S2Simp {
       }
     }
     n_links = links.size();
+    // std::cout << "debug. n_links = " << n_links << std::endl;
 
     {
       std::cout << "# reading dual links" << std::endl;
       std::ifstream file(dir+"dual_links_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      if(!file) assert(false);
 
       std::string str;
       while (std::getline(file, str)){
@@ -121,6 +126,7 @@ struct S2Simp {
 
     {
       std::ifstream file(dir+"face_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      if(!file) assert(false);
 
       std::string str;
       while (std::getline(file, str)){
@@ -138,6 +144,7 @@ struct S2Simp {
     {
       std::cout << "# reading nns" << std::endl;
       std::ifstream file(dir+"nns_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      if(!file) assert(false);
 
       std::string str;
       while (std::getline(file, str)){
@@ -163,15 +170,20 @@ struct S2Simp {
       }
     }
 
+    // std::cout << "# debug1" << std::endl;
     {
       Idx counter=0;
+      std::cout << "# n_sites = " << n_sites << std::endl;
       for(Idx ix=0; ix<n_sites; ix++){
+        std::cout << "# ix = " << ix << std::endl;
         counter_accum.push_back(counter);
+        std::cout << "# ix = " << ix << std::endl;
+        std::cout << "# nns[ix] = " << nns[ix][0] << std::endl;
         for(Idx iy : nns[ix]) counter++;
       }
       counter_accum.push_back(counter);
     }
-
+    // std::cout << "# debug2" << std::endl;
     {
       for(Idx il=0; il<n_links; il++) {
 	const Link link = links[il];
@@ -181,7 +193,7 @@ struct S2Simp {
 	map2il.insert( { Link{i,j}, il } );
 	map2il.insert( { Link{j,i}, il } );
       }
-
+      // std::cout << "# debug3" << std::endl;
       for(Idx il=0; il<n_links; il++) {
 	const Link link = links[il];
 	const Idx i = link[0];
@@ -201,21 +213,38 @@ struct S2Simp {
       }
     }
 
-
+    // std::cout << "# debug4" << std::endl;
     {
       mean_vol = 0.0;
       Idx counter=0;
-      std::cout << "# reading vols" << std::endl;
-      std::ifstream file(dir+"dualtriangleareas_n"+std::to_string(n_refine)+"_singlepatch.dat");
-      assert(file.is_open());
-      std::string str;
-      while (std::getline(file, str)){
-	std::istringstream iss(str);
-	double v1;
-	iss >> v1;
-        vols.push_back(v1);
-        mean_vol += v1;
-	counter++;
+      // std::cout << "# reading vols" << std::endl;
+      // std::ifstream file(dir+"dualtriangleareas_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      // assert(file.is_open());
+      // std::string str;
+      // while (std::getline(file, str)){
+      // std::istringstream iss(str);
+      // double v1;
+      // iss >> v1;
+      for(const Face& face : faces ){
+        Idx i0=face[0];
+        Idx i1=face[1];
+        Idx i2=face[2];
+
+        const VE x0 = sites[ i0 ];
+        const VE x1 = sites[ i1 ];
+        const VE x2 = sites[ i2 ];
+
+        double a_ = std::acos( x0.dot(x1) );
+        double b_ = std::acos( x1.dot(x2) );
+        double c_ = std::acos( x2.dot(x0) );
+
+        double s_ = 0.5*(a_+b_+c_);
+        double tmp = std::tan(0.5*s_) * std::tan(0.5*(s_-a_)) * std::tan(0.5*(s_-b_)) * std::tan(0.5*(s_-c_));
+        double area = 4.0*std::atan( std::sqrt( tmp ) );
+
+        vols.push_back( area );
+        mean_vol += area;
+        counter++;
       }
       assert( vols.size()==n_faces );
       assert( std::abs(mean_vol-4.0*M_PI)<1.0e-10 );
@@ -224,8 +253,12 @@ struct S2Simp {
       alat = std::sqrt( mean_vol*4.0/std::sqrt(3.0) );
     }
 
+    // std::cout << "# debug5" << std::endl;
+
     set_ell_ellstar_linkvols();
+    // std::cout << "# debug6" << std::endl;
     set_dual_areas();
+    // std::cout << "# debug7" << std::endl;
     set_facesigns();
   }
 
@@ -264,6 +297,7 @@ struct S2Simp {
     link_volume.resize( n_links );
 
     for(Idx il=0; il<n_links; il++) {
+      // std::cout << "il = " << il << std::endl;
       const Link link = links[il];
 
       const VE x = sites[ links[il][0] ];
@@ -306,10 +340,15 @@ struct S2Simp {
       assert( std::abs(ellA-ellB)<1.0e-14 );
       ell[il] = ellA;
       link_volume[il] = areaA + areaB;
+      // std::cout << "areas = " << areaA << " " << areaB << std::endl;
     }
 
     mean_link_volume = 0.0;
-    for(const double elem : link_volume) mean_link_volume+=elem;
+    for(const double elem : link_volume) {
+      mean_link_volume+=elem;
+    }
+    // std::cout << "debug. mean_link_volume = " << 
+    // mean_link_volume << std::endl;
     assert( std::abs(mean_link_volume-4.0*M_PI)<1.0e-10 );
     mean_link_volume /= link_volume.size();
 
