@@ -121,7 +121,6 @@ struct GaugeExt {
     std::clog << comment << norm() << std::endl;
   }
 
-
   double plaquette_angle(const int s, const BaseFace& face) const {
     double sum = 0.0;
     for(Idx i=0; i<face.size(); i++) {

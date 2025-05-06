@@ -7,6 +7,7 @@
 #include <cassert>
 
 #include <algorithm>
+#include <filesystem>
 
 
 #include <cstdint>
@@ -35,7 +36,7 @@ static constexpr Complex I = Complex(0.0, 1.0);
 
 
 
-#define IS_DUAL
+// #define IS_DUAL
 // #define IS_OVERLAP
 
 // #define IsVerbose
@@ -47,7 +48,7 @@ namespace Comp{
 
   // d_DW.update() is always done independently
 #ifdef IS_OVERLAP
-  constexpr int NPARALLEL_DUPDATE=1;l
+  constexpr int NPARALLEL_DUPDATE=1;
   constexpr int NPARALLEL=12; // 12
   constexpr int NSTREAMS=4; // 4
 #else
@@ -55,13 +56,13 @@ namespace Comp{
   constexpr int NPARALLEL=1; // 12
   constexpr int NSTREAMS=12; // for grad loop
 #endif
-  constexpr int NPARALLEL_GAUGE=16; // 12
-  constexpr int NPARALLEL_SORT=12; // 12
-
   constexpr int N_REFINE=2;
-  constexpr int NS=2;
+  constexpr int NPARALLEL_GAUGE=8; // 12
+  constexpr int NPARALLEL_SORT=NPARALLEL_GAUGE; // 12
 
-  constexpr int Nt=16; // 10
+  constexpr int Nt=64; // 10
+
+  constexpr int NS=2;
 
 #ifdef IS_DUAL
   constexpr Idx N_SITES=20*N_REFINE*N_REFINE;
@@ -180,15 +181,24 @@ int main(int argc, char* argv[]){
 
   // ----------------------
 
-  // const double gR = 10.0;
+  const double gsqR = 0.02;
+  // const double gsqR = 0.2;
   // double beta = 28.0; // 1.0/(gR*gR);
-  double beta = 28.0; // 1.0/(gR*gR);
-  Action SW(beta, beta);
+  double beta = 1.0/gsqR; // 1.0/(gR*gR);
+  // double at = base.mean_ell * 0.125;
+  double ratio = 1.0/2.0;
+  double at = base.mean_ell * 0.125 * ratio;
+  // double beta_t = beta_s; // 1.0/(gR*gR);
+  if(Comp::Nt==1) at=0.;
+  Action SW( beta, at );
 
   Gauge U(base);
   srand( time(NULL) );
   Rng rng(base, rand());
   U.gaussian( rng, 0.2 );
+
+  std::string dir2="beta"+std::to_string(beta)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"ratio"+std::to_string(ratio)+"/";
+  std::filesystem::create_directory(dir2);
 
 
   // //--------------------------------
@@ -531,7 +541,8 @@ int main(int argc, char* argv[]){
 
   const double tmax = 1.0; // 0.1
   // const int nsteps=100;
-  const int nsteps=50;
+  const int nsteps=200;
+  // const int nsteps=30;
   pi = pi0;
   U = U0;
   HMCPureGauge hmc(rng, &SW, U, pi, tmax, nsteps);
@@ -548,10 +559,10 @@ int main(int argc, char* argv[]){
   }
 
 
-  const int kmax=5e4;
+  const int kmax=4e5;
   // const int kmax=1e3;
 
-  for(int k=0; k<1e3; k++){
+  for(int k=0; k<2e3; k++){
   // const int kmax=4000;
   // for(int k=0; k<100; k++){
     Timer timer;
@@ -564,33 +575,10 @@ int main(int argc, char* argv[]){
 
 
 
-  std::vector<std::vector<double>> plaq_s0(Comp::Nt);
-  std::vector<std::vector<double>> plaq_s1(Comp::Nt);
-
-
-  std::vector<std::vector<double>> plaq_corr(base.n_faces);
-
-
-  std::vector<double> polyakov_s0(Comp::Nt);
-  std::vector<double> polyakov_s1(Comp::Nt);
-  // std::vector<double> plaq_t0;
-  // const int ix0 = 0;
-  const int il0 = 1;
-
-#ifdef IS_DUAL
-  int iface0 = 2; // 2,3
-  int iface1 = 3; // 2,3
-#else
-  int iface0 = 2; // 2,3
-  int iface1 = 3; // 2,3
-#endif
-  // if(argc==2) iface0 = atoi( argv[1] );
-
-  // std::vector<double> 1;
-  // const int s=0;
+  std::vector<double> plaq_s0(Comp::Nt);
 
   double r_mean;
-  const int interval=10;
+  const int interval=5;
 
   for(int k=0; k<kmax; k++){
     Timer timer;
@@ -603,35 +591,9 @@ int main(int argc, char* argv[]){
 
     if(k%interval==0){
 
-      {
-        auto sites = base.dual_sites;
-        const auto x0 = sites[0];
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE)
-#endif
-        for(int i_face=0; i_face<base.n_faces; i_face++){
-          const auto x1 = sites[i_face];
-          // distance( 0, i_face );
-          int counter=0;
-          double tmp1 = 0.0;
-          for(int i_face2=0; i_face2<base.n_faces; i_face2++){
-            const auto x2 = sites[i_face2];
-            for(int i_face3=0; i_face3<base.n_faces; i_face3++){
-              const auto x3 = sites[i_face3];
-
-              // if( std::abs( distance( x2, x3 )-distance( 0, x1 ))>1.0e-14 ) continue;
-              if( std::abs( Geodesic::geodesicLength(Geodesic::Pt(x2), Geodesic::Pt(x3)) - Geodesic::geodesicLength(Geodesic::Pt(x0), Geodesic::Pt(x1)) )>1.0e-14 ) continue;
-              for(int s=0; s<Comp::Nt; s++){
-                // tmp1 += base.face_signs[0]*base.face_signs[i_face] * std::pow( U.plaquette_angle(s, U.lattice.faces[0]), 1) * std::pow( U.plaquette_angle(s, U.lattice.faces[i_face]), 1);
-                tmp1 += base.face_signs[i_face2]*base.face_signs[i_face3] * std::pow( U.plaquette_angle(s, U.lattice.faces[i_face2]), 1) * std::pow( U.plaquette_angle(s, U.lattice.faces[i_face3]), 1);
-                counter++;
-              }
-            }
-          }
-          tmp1 /= counter;
-          plaq_corr[i_face].push_back( tmp1 );
-        }
-      }
+      std::string path = "plaq_ss_t_"+std::to_string(k)+".dat";
+      std::ofstream ofs(dir2+path);
+      // ofs << "# kmax = " << kmax << std::endl;
 
       // -----------------------------------------------------------------
 
@@ -643,37 +605,19 @@ int main(int argc, char* argv[]){
         double tmp1 = 0.0;
         for(int s=0; s<Comp::Nt; s++){
           for(int i_face=0; i_face<base.n_faces; i_face++){
-            if( std::abs( base.vols[i_face]-base.vols[iface0] )>1.0e-12 ) continue;
-            tmp1 += std::pow( U.plaquette_angle(s, U.lattice.faces[i_face]), 1) * std::pow( U.plaquette_angle(s+t, U.lattice.faces[i_face]), 1);
+            tmp1 += U.plaquette_angle(s, U.lattice.faces[i_face]) * U.plaquette_angle(s+t, U.lattice.faces[i_face]) / std::pow(base.vols[i_face],2);
             counter++;
-            tmp1 += std::pow( U.plaquette_angle(s, U.lattice.faces[i_face]), 1) * std::pow( U.plaquette_angle(s-t, U.lattice.faces[i_face]), 1);
+            tmp1 += U.plaquette_angle(s, U.lattice.faces[i_face]) * U.plaquette_angle(s-t, U.lattice.faces[i_face]) / std::pow(base.vols[i_face],2);
             counter++;
           }
         }
         tmp1 /= counter;
-        plaq_s0[t].push_back( tmp1 );
+        plaq_s0[t] = tmp1;
       }
-      polyakov_s0.push_back( std::real( get_polyakov(U, 0) ) );
 
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE)
-#endif
       for(int t=0; t<Comp::Nt; t++){
-        int counter = 0;
-        double tmp1 = 0.0;
-        for(int s=0; s<Comp::Nt; s++){
-          for(int i_face=0; i_face<base.n_faces; i_face++){
-            if( std::abs( base.vols[i_face]-base.vols[iface1] )>1.0e-12 ) continue;
-            tmp1 += std::pow( U.plaquette_angle(s, U.lattice.faces[i_face]), 1) * std::pow( U.plaquette_angle(s+t, U.lattice.faces[i_face]), 1);
-            counter++;
-            tmp1 += std::pow( U.plaquette_angle(s, U.lattice.faces[i_face]), 1) * std::pow( U.plaquette_angle(s-t, U.lattice.faces[i_face]), 1);
-            counter++;
-          }
-        }
-        tmp1 /= counter;
-        plaq_s1[t].push_back( tmp1 );
+        ofs << plaq_s0[t] << std::endl;
       }
-      polyakov_s1.push_back( std::real( get_polyakov(U, 1) ) );
 
     }
     if(k%100==0){
@@ -683,148 +627,43 @@ int main(int argc, char* argv[]){
   r_mean /= kmax;
   std::cout << "# r_mean = " << r_mean << std::endl;
 
-  // int counter1 = 0;
-  // for(int i_face=0; i_face<base.n_faces; i_face++){
-  //   if( std::abs( base.vols[i_face]-base.vols[iface0] )>1.0e-12 ) continue;
-  //   counter1++;
-  // }
 
 
+//   std::vector<double> lengths;
+//   {
+//     auto sites = base.dual_sites;
+//     const auto x0 = sites[0];
+//     for(const auto& elem : sites){
+//       double len = Geodesic::geodesicLength(Geodesic::Pt(x0), Geodesic::Pt(elem));
+//       lengths.push_back(len);
+//     }
+//   }
 
+//   {
+//     std::vector<double> mean(Comp::Nt, 0.0), var(Comp::Nt, 0.0);
+// #ifdef _OPENMP
+// #pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE)
+// #endif
+//     for(int t=0; t<Comp::Nt; t++){
+//       for(const double elem : plaq_s0[t]) mean[t] += elem;
+//       mean[t] /= plaq_s0[t].size();
+//     }
+// #ifdef _OPENMP
+// #pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE)
+// #endif
+//     for(int t=0; t<Comp::Nt; t++){
+//       for(const double elem : plaq_s0[t]) var[t] += std::pow( elem-mean[t], 2);
+//       var[t] /= std::pow( plaq_s0[t].size(), 2 );
+//     }
 
+// // #ifdef IS_DUAL
+// //     path = "dual_"+path;
+// // #endif
+//     std::ofstream ofs(dir+path);
+//     ofs << "# kmax = " << kmax << std::endl;
+//     for(int t=0; t<Comp::Nt; t++) ofs << mean[t] << " " << std::sqrt(var[t]) << std::endl;
+//   }
 
-
-
-
-
-  std::vector<double> lengths;
-  {
-    auto sites = base.dual_sites;
-    const auto x0 = sites[0];
-    for(const auto& elem : sites){
-      double len = Geodesic::geodesicLength(Geodesic::Pt(x0), Geodesic::Pt(elem));
-      lengths.push_back(len);
-    }
-  }
-
-
-
-
-
-
-
-
-  {
-    std::vector<double> mean(base.n_faces, 0.0), var(base.n_faces, 0.0);
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE)
-#endif
-    for(int i_face=0; i_face<base.n_faces; i_face++){
-      for(const double elem : plaq_corr[i_face]) mean[i_face] += elem;
-      mean[i_face] /= plaq_corr[i_face].size();
-    }
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE)
-#endif
-    for(int i_face=0; i_face<base.n_faces; i_face++){
-      for(const double elem : plaq_corr[i_face]) var[i_face] += std::pow( elem-mean[i_face], 2);
-      var[i_face] /= std::pow( plaq_corr[i_face].size(), 2 );
-      // mean[i_face] /= plaq_corr[i_face].size();
-    }
-    // for(int t=0; t<Comp::Nt; t++){
-    //   for(const double elem : plaq_s1[t]) var[t] += std::pow( elem-mean[t], 2);
-    //   var[t] /= std::pow( plaq_s0[t].size(), 2 );
-    // }
-
-    std::string path = "plaq_corr.dat";
-#ifdef IS_DUAL
-    path = "dual_"+path;
-#endif
-    std::ofstream ofs(path);
-    ofs << "# kmax = " << kmax << std::endl;
-    for(int i_face=0; i_face<base.n_faces; i_face++){
-      ofs << lengths[i_face] << " "
-          << mean[i_face] << " "
-          << std::sqrt(var[i_face]) << " "
-          << base.dual_areas[i_face] << std::endl;
-    }
-  }
-
-  {
-    std::vector<double> mean(Comp::Nt, 0.0), var(Comp::Nt, 0.0);
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE)
-#endif
-    for(int t=0; t<Comp::Nt; t++){
-      for(const double elem : plaq_s0[t]) mean[t] += elem;
-      mean[t] /= plaq_s0[t].size();
-    }
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE)
-#endif
-    for(int t=0; t<Comp::Nt; t++){
-      for(const double elem : plaq_s1[t]) var[t] += std::pow( elem-mean[t], 2);
-      var[t] /= std::pow( plaq_s0[t].size(), 2 );
-    }
-
-    std::string path = "plaq_s0.dat";
-#ifdef IS_DUAL
-    path = "dual_"+path;
-#endif
-    std::ofstream ofs(path);
-    ofs << "# kmax = " << kmax << std::endl;
-    for(int t=0; t<Comp::Nt; t++){
-      ofs << mean[t] << " " << std::sqrt(var[t]) << " " << base.vols[iface0] << std::endl;
-    }
-  }
-  {
-    std::vector<double> mean(Comp::Nt, 0.0), var(Comp::Nt, 0.0);
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE)
-#endif
-    for(int t=0; t<Comp::Nt; t++){
-      for(const double elem : plaq_s1[t]) mean[t] += elem;
-      mean[t] /= plaq_s1[t].size();
-    }
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE)
-#endif
-    for(int t=0; t<Comp::Nt; t++){
-      for(const double elem : plaq_s1[t]) var[t] += std::pow( elem-mean[t], 2);
-      var[t] /= std::pow( plaq_s1[t].size(), 2 );
-    }
-
-    std::string path = "plaq_s1.dat";
-#ifdef IS_DUAL
-    path = "dual_"+path;
-#endif
-    std::ofstream ofs(path);
-    ofs << "# kmax = " << kmax << std::endl;
-    for(int t=0; t<Comp::Nt; t++){
-      ofs << mean[t] << " " << std::sqrt(var[t]) << " " << base.vols[iface1] << std::endl;
-    }
-  }
-
-  {
-    double mn=0.0, vr=0.0;
-    for(const double elem : polyakov_s0) mn += elem;
-    mn /= polyakov_s0.size();
-    for(const double elem : polyakov_s0) vr += std::pow(elem-mn, 2);
-    vr /= std::pow( polyakov_s0.size(), 2 );
-    std::cout << mn << " " << std::sqrt(vr) << " " << vr << std::endl;
-  }
-
-  {
-    double mn=0.0, vr=0.0;
-    for(const double elem : polyakov_s1) mn += elem;
-    mn /= polyakov_s1.size();
-    for(const double elem : polyakov_s1) vr += std::pow(elem-mn, 2);
-    vr /= std::pow( polyakov_s1.size(), 2 );
-    std::cout << mn << " " << std::sqrt(vr) << " " << vr << std::endl;
-  }
-
-  // CUDA_CHECK(cudaDeviceReset());
   return 0;
-
 }
 
