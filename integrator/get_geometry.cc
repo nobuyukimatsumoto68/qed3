@@ -33,7 +33,8 @@ using VE=V3;
 // using VC=Eigen::Matrix<Complex, Eigen::Dynamic, 1>;
 
 
-std::string dir = "/projectnb/qfe/nmatsum/qed3/dats/";
+// std::string dir = "/projectnb/qfe/nmatsum/qed3/dats/";
+std::string dir = "../dats/";
 
 int main(int argc, char* argv[]){
 

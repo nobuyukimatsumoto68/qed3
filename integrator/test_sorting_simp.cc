@@ -57,7 +57,8 @@ Double epsrel = 1.0e-13; // TOLLOOSE;
 int key = 5;
 
 
-std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
+// std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
+std::string dir = "../dats/";
 
 
 // we only need omega, alpha
