@@ -78,7 +78,7 @@ namespace Comp{
   const double TOL_OUTER=1.0e-8;
 }
 
-const std::string dir = "/projectnb/qfe/nmatsum/qed3/dats/";
+const std::string dir = "../../dats/";
 
 #include "timer.h"
 
@@ -190,6 +190,7 @@ int main(int argc, char* argv[]){
   // double beta_t = beta_s; // 1.0/(gR*gR);
   if(Comp::Nt==1) at=0.;
   Action SW( beta, at );
+  std::cout << "# alat = " << base.mean_ell << std::endl;
 
   Gauge U(base);
   srand( time(NULL) );

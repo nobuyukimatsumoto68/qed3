@@ -51,7 +51,7 @@ Double epsrel = 1.0e-13; // TOLLOOSE;
 int key = 5;
 
 
-std::string dir = "/projectnb/qfe/nmatsum/qed3/dats/";
+std::string dir = "../dats/";
 
 
 int main(int argc, char* argv[]){
