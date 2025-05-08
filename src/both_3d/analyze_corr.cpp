@@ -162,28 +162,42 @@ int main(int argc, char **argv){
 
   // std::vector<fs::path> files;
 
-  int bincount=0;
-  Corr binned;
   // std::vector<Corr> binavgs;
   Jackknife<Corr> jk(binsize);
 
-  for(int conf=conf_min; conf<conf_max; conf+= interval){
-    std::string file = path+"/"+header+std::to_string(conf)+".dat";
-    if( !fs::exists( file ) ) break;
-    Corr corr(file);
-
-    binned += corr;
-    bincount++;
-
-    if(bincount==binsize){
-      binned /= binsize;
-      jk.binavgs.push_back( binned );
-
-      binned.clear();
-      bincount=0;
+  {
+    int tmp=0;
+    for(int conf=conf_min; conf<conf_max; conf+= interval){
+      std::string file = path+"/"+header+std::to_string(conf)+".dat";
+      // std::cout << "# file = " << file << std::endl;
+      if( !fs::exists( file ) ) break;
+      tmp = conf;
     }
+    conf_max = tmp;
   }
+
+  int nbins = (conf_max-conf_min)/interval/binsize;
+  std::cout << "# nbins = " << nbins << std::endl;
+  jk.binavgs.resize(nbins);
+
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
+  for(int ib=0; ib<nbins; ib++){
+    Corr binned;
+    for(int conf = conf_min+ib*interval*binsize; conf<conf_min+(ib+1)*interval*binsize; conf+= interval){
+      std::string file = path+"/"+header+std::to_string(conf)+".dat";
+      if( !fs::exists( file ) ) assert(false);
+      Corr corr(file);
+      binned += corr;
+    }
+    binned /= binsize;
+    jk.binavgs[ib] = binned;
+  }
+
   jk.do_it();
+
+  std::cout << "# test " << std::endl;
 
   for( int i=0; i<jk.est.size(); i++ ){
     std::cout << jk.est[i] << " " << std::sqrt(jk.var[i]) << std::endl;

@@ -180,13 +180,13 @@ int main(int argc, char* argv[]){
   // ----------------------
 
   // const double gsqR = 0.02;
-  const double gsqR = 0.2;
+  const double gsqR = 0.05;
   // const double gsqR = 0.2;
   // double beta = 28.0; // 1.0/(gR*gR);
   double beta = 1.0/gsqR; // 1.0/(gR*gR);
   // double at = base.mean_ell * 0.125;
   // double ratio = 1.0/2.0;
-  double at = 0.05; // base.mean_ell * 0.125 * ratio;
+  double at = 0.025; // base.mean_ell * 0.125 * ratio;
   // double beta_t = beta_s; // 1.0/(gR*gR);
   if(Comp::Nt==1) at=0.;
   Action SW( beta, at );
@@ -197,7 +197,7 @@ int main(int argc, char* argv[]){
   U.gaussian( rng, 0.2 );
 
   // std::string dir2="beta"+std::to_string(beta)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"ratio"+std::to_string(ratio)+"/";
-  std::string dir2="beta"+std::to_string(beta)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
+  std::string dir2="beta"+std::to_string(beta)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"_short/";
   std::filesystem::create_directory(dir2);
 
 
@@ -232,7 +232,14 @@ int main(int argc, char* argv[]){
   const int kmax=2e7;
   // const int kmax=1e3;
 
-  for(int k=0; k<2e4; k++){
+  int k=0;
+  // for(k=0; k<kmax; k++){
+  //   isexist;
+  // }
+
+
+  // if(k!=0){
+  for(k=0; k<1e3; k++){
     // const int kmax=4000;
     // for(int k=0; k<100; k++){
     Timer timer;
@@ -242,7 +249,10 @@ int main(int argc, char* argv[]){
               << " is_accept : " << is_accept << std::endl;
     // std::cout << "# HMC : " << timer.currentSeconds() << " sec" << std::endl;
   }
-
+  //   k=0;
+  // }
+  // else{
+  // }
 
 
   std::vector<double> plaq_s0(Comp::Nt);
@@ -250,7 +260,7 @@ int main(int argc, char* argv[]){
   double r_mean;
   const int interval=20;
 
-  for(int k=0; k<kmax; k++){
+  for(k=0; k<kmax; k++){
     Timer timer;
     hmc.run( rate, dH, is_accept);
     if constexpr(Comp::is_compact) U.project();
