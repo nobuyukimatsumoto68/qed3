@@ -48,12 +48,13 @@ namespace Comp{
   constexpr int NSTREAMS=12; // for grad loop
 #endif
   constexpr int NPARALLEL_GAUGE=12; // 12
-  constexpr int NPARALLEL_SORT=12; // 12
+  constexpr int NPARALLEL_SORT=16; // 12
 
   constexpr int N_REFINE=16;
   constexpr int NS=2;
 
   constexpr int Nt=128;
+  // constexpr int Nt=2;
   // constexpr int Nt=16;
 
 #ifdef IS_DUAL
@@ -166,9 +167,12 @@ int main(int argc, char* argv[]){
   // U.gaussian( rng, 0.2 );
   // const double M5 = -1.8;
   const double M5 = 0.0;
-  const double c = 1.0;
+  const double at = 0.2;
+  // const double at = 0.0001;
 
-  WilsonDirac DW(base, 0.0, 1.0, M5, c);
+  std::cout << "# mean_ell = " << base.mean_ell << std::endl;
+
+  WilsonDirac DW(base, 0.0, 1.0, M5, at);
   std::cout << "# DW set. " << std::endl;
 
   Fermion D(DW);
@@ -192,6 +196,7 @@ int main(int argc, char* argv[]){
   FermionVector src1; // (base, Nt, rng);
   FermionVector src; // (base, Nt, rng);
   src1.set_pt_source(0, 0, 0);
+  // src1.set_pt_source(Comp::Nt/4, 0, 1);
   DH.from_cpu<N>( src.field, src1.field );
 
 
@@ -260,10 +265,16 @@ int main(int argc, char* argv[]){
 
   const double width = 0.05;
 
+  double factor = at*base.mean_ell;
+  if(Comp::Nt==1) factor = base.mean_ell;
+
   {
     std::string path = "prop_spacial_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+".dat";
 #ifdef IS_DUAL
     path = "dual_"+path;
+#endif
+#ifdef IS_OVERLAP
+    path = "ov_"+path;
 #endif
     std::ofstream ofs(path);
 
@@ -274,19 +285,19 @@ int main(int argc, char* argv[]){
         const auto elem = sink(0,ix,0);
         ofs << std::setw(25) << thetas[ix] << " "
           // ofs << std::setw(25) << lengths[ix] << " "
-            << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
-            << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
-        // << std::setw(25) << 1.0 * elem.real() << " "
-        // << std::setw(25) << 1.0 * elem.imag() << std::endl;
+            // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
+            // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
+        << std::setw(25) << 1.0 * elem.real() / factor << " "
+        << std::setw(25) << 1.0 * elem.imag() / factor << std::endl;
       }
       {
         const auto elem = sink(0,ix,1);
         ofs << std::setw(25) << thetas[ix] << " "
           // ofs << std::setw(25) << lengths[ix] << " "
-            << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
-            << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
-        // << std::setw(25) << 1.0 * elem.real() << " "
-        // << std::setw(25) << 1.0 * elem.imag() << std::endl;
+            // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
+            // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
+            << std::setw(25) << 1.0 * elem.real() / factor << " "
+            << std::setw(25) << 1.0 * elem.imag() / factor << std::endl;
       }
       // counter++;
     }
@@ -296,25 +307,30 @@ int main(int argc, char* argv[]){
 #ifdef IS_DUAL
     path = "dual_"+path;
 #endif
+#ifdef IS_OVERLAP
+    path = "ov_"+path;
+#endif
     std::ofstream ofs(path);
 
     // Idx counter=0;
     for(Idx s=0; s<Comp::Nt; s++) {
       {
         const auto elem = sink(s,0,0);
-        ofs << std::setw(25) << s << " "
-            << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
-            << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
-        // << std::setw(25) << 1.0 * elem.real() << " "
-        // << std::setw(25) << 1.0 * elem.imag() << std::endl;
+        ofs << std::setw(25) << at*s << " "
+          // ofs << std::setw(25) << s << " "
+            // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
+            // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
+        << std::setw(25) << 1.0 * elem.real() / factor << " "
+        << std::setw(25) << 1.0 * elem.imag() / factor << std::endl;
       }
       {
         const auto elem = sink(s,0,1);
-        ofs << std::setw(25) << s << " "
-            << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
-            << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
-        // << std::setw(25) << 1.0 * elem.real() << " "
-        // << std::setw(25) << 1.0 * elem.imag() << std::endl;
+        ofs << std::setw(25) << at*s << " "
+          // ofs << std::setw(25) << s << " "
+            // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
+            // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
+        << std::setw(25) << 1.0 * elem.real() / factor << " "
+        << std::setw(25) << 1.0 * elem.imag() / factor << std::endl;
       }
       // counter++;
     }

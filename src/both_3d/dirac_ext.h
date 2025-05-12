@@ -21,13 +21,14 @@ public:
   const double r;
   const double M5;
 
-  const double c;
+  const double at;
+
 
   DiracExt(Base& lattice_,
            const double m_=0.0,
            const double r_=1.0,
            const double M5_=0.0,
-           const double c_=1.0
+           const double at_=1.0
            )
     : lattice(lattice_)
     , bd(lattice_,m_,r_,M5_)
@@ -38,9 +39,10 @@ public:
     , r(r_)
     , M5(M5_)
     , kappa_t(lattice.n_sites)
-    , c(c_)
+    , at(at_)
   {
     set_kappa_t();
+    rescale_kappa();
   }
 
 
@@ -127,6 +129,8 @@ public:
           const Idx il = lattice.map2il.at(BaseLink{ix,iy});
 
           const MS tmp = 0.5 * bd.kappa[il] * ( -r * sigma[0] + bd.gamma(ix, iy) ) * std::exp( I*u.sp(s,BaseLink{ix,iy})) * bd.Omega(ix, iy);
+          // const MS tmp2 = 0.5 * bd.kappa[il] * ( -r * sigma[0] + bd.gamma(iy, ix) ) * std::exp( I*u.sp(s,BaseLink{iy,ix})) * bd.Omega(iy, ix);
+          // const MS tmp = 0.5*(tmp1 + tmp2.adjoint());
 
           // res[NS*ix] += -tmp(0,0)*v[NS*iy] - tmp(0,1)*v[NS*iy+1];
           v[counter] = tmp(0,0); counter++;
@@ -286,8 +290,20 @@ public:
 #pragma omp parallel for num_threads(Comp::NPARALLEL)
 #endif
     for(Idx ix=0; ix<lattice.n_sites; ix++) {
-      if(Nt!=1) kappa_t[ix] = c * lattice.dual_areas[ix]/lattice.mean_dual_area;
+      // if(Nt!=1) kappa_t[ix] = lattice.dual_areas[ix] / std::pow(lattice.mean_ell, 2);
+      if(Nt!=1) kappa_t[ix] = 0.5 * lattice.dual_areas[ix] / lattice.mean_ell / at;
+      // if(Nt!=1) kappa_t[ix] = lattice.dual_areas[ix];
       else kappa_t[ix] = 0.0;
+    }
+  }
+
+
+  void rescale_kappa() {
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(Comp::NPARALLEL)
+#endif
+    for(Idx il=0; il<lattice.n_links; il++) {
+      // if(Nt!=1) bd.kappa[il] *= at / lattice.mean_ell;
     }
   }
 

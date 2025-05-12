@@ -42,6 +42,12 @@ struct S2Simp {
 
   S2Simp(const int n_refine)
   {
+    // if(n_refine==0) {
+    //   n_sites=1;
+    //   n_links=0;
+    //   n_faces=0;
+    //   return;
+    // }
     {
       std::cout << "# reading simplicial points" << std::endl;
       std::ifstream file(dir+"pts_n"+std::to_string(n_refine)+"_singlepatch.dat");
