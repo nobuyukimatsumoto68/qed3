@@ -5,10 +5,10 @@
 
 #include <algorithm>
 
-// #include <stdfloat>
+#include <stdfloat>
 // #include "geodesic2.h"
-// using Double = std::float64_t;
-using Double = double; // std::float64_t;
+using Double = std::float64_t;
+// using Double = double; // std::float64_t;
 # include "geodesic.h"
 
 #include "s2.h"

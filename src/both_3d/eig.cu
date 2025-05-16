@@ -26,7 +26,7 @@ static constexpr Complex I = Complex(0.0, 1.0);
 
 
 // #define IS_DUAL
-// #define IS_OVERLAP
+#define IS_OVERLAP
 
 // // #define IsVerbose
 // #define IsVerbose2
@@ -51,10 +51,10 @@ namespace Comp{
   constexpr int NPARALLEL_GAUGE=12; // 12
   constexpr int NPARALLEL_SORT=12; // 12
 
-  constexpr int N_REFINE=1;
+  constexpr int N_REFINE=2;
   constexpr int NS=2;
 
-  constexpr int Nt=3;
+  constexpr int Nt=64;
 
 #ifdef IS_DUAL
   constexpr Idx N_SITES=20*N_REFINE*N_REFINE;
@@ -176,7 +176,7 @@ int main(int argc, char* argv[]){
   const double r = 1.0;
 #ifdef IS_DUAL
   // const double M5 = -1.6/2.0 * 0.5*3.0/2.0;
-  const double M5 = -1.2;
+  const double M5 = -1.0;
 #else
   // const double M5 = -1.6/2.0 * 0.5*(1.0 + std::sqrt( 5.0 + 2.0*std::sqrt(2.0) ));
   // const double M5 = -1.5;
@@ -188,7 +188,7 @@ int main(int argc, char* argv[]){
   const double M5 = 0.0;
 #endif
   // const double at = base.mean_ell * 1.0;
-  const double at = 0.01;
+  const double at = 0.2;
   // const double at = 2.0/Comp::Nt;
   WilsonDirac DW(base, 0.0, r, M5, at);
 
@@ -238,15 +238,15 @@ int main(int argc, char* argv[]){
   }
 
 
-  {
-    // Eigen::IOFormat fmt(Eigen::FullPrecision, 0, ", ", ",\n", "{", "}", "{", "}");
-    // Eigen::IOFormat CommaInitFmt(StreamPrecision, DontAlignCols, ", ", ", ", "", "", " << ", ";");
-    std::clog << mat.real() << std::endl;
-    std::clog << mat.imag() << std::endl;
-    // std::clog << mat.real().format(fmt) << std::endl;
-    // std::clog << mat.imag().format(fmt) << std::endl;
-    return 0;
-  }
+  // {
+  //   // Eigen::IOFormat fmt(Eigen::FullPrecision, 0, ", ", ",\n", "{", "}", "{", "}");
+  //   // Eigen::IOFormat CommaInitFmt(StreamPrecision, DontAlignCols, ", ", ", ", "", "", " << ", ";");
+  //   std::clog << mat.real() << std::endl;
+  //   std::clog << mat.imag() << std::endl;
+  //   // std::clog << mat.real().format(fmt) << std::endl;
+  //   // std::clog << mat.imag().format(fmt) << std::endl;
+  //   return 0;
+  // }
 
 
 

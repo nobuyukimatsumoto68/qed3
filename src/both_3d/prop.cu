@@ -50,11 +50,11 @@ namespace Comp{
   constexpr int NPARALLEL_GAUGE=12; // 12
   constexpr int NPARALLEL_SORT=16; // 12
 
-  constexpr int N_REFINE=16;
+  constexpr int N_REFINE=1;
   constexpr int NS=2;
 
-  constexpr int Nt=128;
-  // constexpr int Nt=2;
+  constexpr int Nt=512;
+  // constexpr int Nt=1;
   // constexpr int Nt=16;
 
 #ifdef IS_DUAL
@@ -106,6 +106,7 @@ using CuC = cuDoubleComplex;
 #include "matpoly.h"
 
 #include "dirac_pf.h"
+#include "overlap.h"
 
 #include "valence.h"
 
@@ -150,7 +151,6 @@ int main(int argc, char* argv[]){
 
   using Rng=ParallelRngExt<Base,Nt>;
 
-  using Fermion=DiracPf<WilsonDirac>;
 
   Base base(Comp::N_REFINE);
   std::cout << "# lattice set. " << std::endl;
@@ -164,19 +164,41 @@ int main(int argc, char* argv[]){
   Gauge U(base);
   srand( time(NULL) );
   Rng rng(base, rand());
-  // U.gaussian( rng, 0.2 );
-  // const double M5 = -1.8;
-  const double M5 = 0.0;
-  const double at = 0.2;
-  // const double at = 0.0001;
 
-  std::cout << "# mean_ell = " << base.mean_ell << std::endl;
+  const double at = 0.005;
 
+
+#ifdef IS_OVERLAP
+  // Overlap Dov(DW, 31);
+  // Dov.update(U);
+  // std::cout << "# Dov set; M5 = " << M5 << std::endl;
+  // std::cout << "# min max ratio: "
+  //           << Dov.lambda_min << " "
+  //           << Dov.lambda_max << " "
+  //           << Dov.lambda_min/Dov.lambda_max << std::endl;
+  // std::cout << "# delta = " << Dov.Delta() << std::endl;
+
+  // auto f_Op = std::bind(&Overlap::mult_deviceAsyncLaunch, &Dov, std::placeholders::_1, std::placeholders::_2);
+  // LinOpWrapper M_Op( f_Op );
+  // Op.push_back ( cplx(1.0), {&M_Op} );
+
+  const double M5 = -1.0;
   WilsonDirac DW(base, 0.0, 1.0, M5, at);
   std::cout << "# DW set. " << std::endl;
 
+  using Fermion=Overlap<WilsonDirac>;
+  Fermion D(DW, 51);
+  std::cout << "# D set. " << std::endl;
+#else
+  const double M5 = 0.0;
+  WilsonDirac DW(base, 0.0, 1.0, M5, at);
+  std::cout << "# DW set. " << std::endl;
+
+  using Fermion=DiracPf<WilsonDirac>;
   Fermion D(DW);
   std::cout << "# D set. " << std::endl;
+#endif
+
 
   D.update( U );
   std::cout << "# D updated. " << std::endl;
@@ -303,7 +325,7 @@ int main(int argc, char* argv[]){
     }
   }
   {
-    std::string path = "prop_temporal_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+".dat";
+    std::string path = "prop_temporal_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+".dat3";
 #ifdef IS_DUAL
     path = "dual_"+path;
 #endif

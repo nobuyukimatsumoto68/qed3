@@ -5,7 +5,7 @@
 #include <cmath>
 #include <map>
 #include <limits>
-// #include <stdfloat>
+#include <stdfloat>
 
 #include <Eigen/Dense>
 
@@ -13,8 +13,8 @@
 // #include "integral.h"
 
 
-using Double = double; // std::float64_t;
-// using Double = std::float128_t;
+// using Double = double; // std::float64_t;
+using Double = std::float64_t;
 #include "geodesic.h"
 #include "integral.h"
 

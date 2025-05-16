@@ -47,7 +47,7 @@ int main(int argc, char* argv[]){
     // for(int n=0; n<nmax; n++) tmp += (n+1) * std::cyl_bessel_k( 0, 1.0*(n+1)*t/nsteps );
     for(int n=0; n<nmax; n++) tmp += (n+1) * std::exp( -1.0*(n+1)*t/nsteps );
     // for(int n=1; n<nmax; n++) tmp += (n+1) * std::exp( -1.0*(n+1)*t/nsteps );
-    tmp /= 4.0*M_PI;
+    tmp /= 2.0*M_PI;
     std::cout << 1.0*t/nsteps << " " << tmp << std::endl;
   }
 
