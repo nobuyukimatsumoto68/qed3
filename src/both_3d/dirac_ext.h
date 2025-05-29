@@ -291,8 +291,9 @@ public:
 #endif
     for(Idx ix=0; ix<lattice.n_sites; ix++) {
       // if(Nt!=1) kappa_t[ix] = lattice.dual_areas[ix] / std::pow(lattice.mean_ell, 2);
-      if(Nt!=1) kappa_t[ix] = 0.5 * lattice.dual_areas[ix] / lattice.mean_ell / at;
-      // if(Nt!=1) kappa_t[ix] = lattice.dual_areas[ix];
+
+      if(Nt!=1) kappa_t[ix] = lattice.dual_areas[ix] / lattice.mean_ell / at;
+      // if(Nt!=1) kappa_t[ix] = 0.5 * lattice.dual_areas[ix] / lattice.mean_ell;
       else kappa_t[ix] = 0.0;
     }
   }

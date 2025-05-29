@@ -15,7 +15,7 @@
 
 
 
- using Double = std::float64_t;
+using Double = std::float64_t;
 // using Double = double; // std::float64_t;
 // using Double = std::float128_t;
 #include "geodesic.h"

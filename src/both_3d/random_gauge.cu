@@ -31,7 +31,6 @@ static constexpr Complex I = Complex(0.0, 1.0);
 
 // #define IS_DUAL
 #define IS_OVERLAP
-// #define IS_DAGGER
 // #undef _OPENMP
 
 
@@ -51,12 +50,12 @@ namespace Comp{
   constexpr int NPARALLEL_GAUGE=12; // 12
   constexpr int NPARALLEL_SORT=16; // 12
 
-  constexpr int N_REFINE=2;
+  constexpr int N_REFINE=1;
   constexpr int NS=2;
 
-  constexpr int Nt=192;
+  // constexpr int Nt=512;
   // constexpr int Nt=1;
-  // constexpr int Nt=16;
+  constexpr int Nt=16;
 
 #ifdef IS_DUAL
   constexpr Idx N_SITES=20*N_REFINE*N_REFINE;
@@ -156,6 +155,7 @@ int main(int argc, char* argv[]){
   Base base(Comp::N_REFINE);
   std::cout << "# lattice set. " << std::endl;
 
+
   // ----------------------
 
   // const double gR = 10.0;
@@ -166,23 +166,11 @@ int main(int argc, char* argv[]){
   srand( time(NULL) );
   Rng rng(base, rand());
 
-  const double at = 0.05;
+  // const double at = 0.005;
+  const double at = 0.00;
 
 
 #ifdef IS_OVERLAP
-  // Overlap Dov(DW, 31);
-  // Dov.update(U);
-  // std::cout << "# Dov set; M5 = " << M5 << std::endl;
-  // std::cout << "# min max ratio: "
-  //           << Dov.lambda_min << " "
-  //           << Dov.lambda_max << " "
-  //           << Dov.lambda_min/Dov.lambda_max << std::endl;
-  // std::cout << "# delta = " << Dov.Delta() << std::endl;
-
-  // auto f_Op = std::bind(&Overlap::mult_deviceAsyncLaunch, &Dov, std::placeholders::_1, std::placeholders::_2);
-  // LinOpWrapper M_Op( f_Op );
-  // Op.push_back ( cplx(1.0), {&M_Op} );
-
   const double M5 = -1.0;
   WilsonDirac DW(base, 0.0, 1.0, M5, at);
   std::cout << "# DW set. " << std::endl;
@@ -192,7 +180,9 @@ int main(int argc, char* argv[]){
   std::cout << "# D set. " << std::endl;
 #else
   const double M5 = 0.0;
-  WilsonDirac DW(base, 0.0, 1.0, M5, at);
+  const double r = -1.0;
+  // const double r = 1.0;
+  WilsonDirac DW(base, 0.0, r, M5, at);
   std::cout << "# DW set. " << std::endl;
 
   using Fermion=DiracPf<WilsonDirac>;
@@ -200,20 +190,116 @@ int main(int argc, char* argv[]){
   std::cout << "# D set. " << std::endl;
 #endif
 
+
+  std::string extension=".dat6";
+
+  {
+    // Idx ix=0;
+    // assert(ix<base.sites.size());
+    for(Idx ix=0; ix<base.sites.size(); ix++){
+      double shift = 2.0*rng.gaussian();
+      for(int iw=0; iw<base.nns[ix].size(); iw++){
+        Idx iy = base.nns[ix][iw];
+        Double& alpha1 = DW.bd.alpha.at(Link{ix,iy});
+        // Double alpha2 = DW.bd.alpha.at(Link{iy,ix});
+        Double& omega12 = DW.bd.omega.at(Link{ix,iy});
+        Double& omega21 = DW.bd.omega.at(Link{iy,ix});
+
+        alpha1 += shift;
+        // std::cout << "omega12 = " << omega12 << std::endl;
+        // std::cout << "omega12 = " << omega12 << std::endl;
+        // omega12 -= shift;
+        // omega21 += shift;
+        omega12 += shift;
+        omega21 -= shift;
+      }
+    }
+
+    // int iw=0;
+    // assert(iw<base.nns[ix].size());
+    // Idx iy = base.nns[ix][iw];
+  }
+
+
+  {
+    std::clog << "# checking spin structure" << std::endl;
+    for(Idx ix=0; ix<base.sites.size(); ix++){
+      // const auto x = base.sites[ix];
+      for(int iw=0; iw<base.nns[ix].size(); iw++){
+        Idx iy = base.nns[ix][iw];
+        const Double alpha1 = DW.bd.alpha.at(Link{ix,iy});
+        Double alpha2 = DW.bd.alpha.at(Link{iy,ix});
+        Double omega12 = DW.bd.omega.at(Link{ix,iy});
+
+        Double diff = (alpha2 + M_PI + omega12) - alpha1;
+        assert( Geodesic::isModdable(diff, 1.0e-14) );
+
+        // Double om = alpha1 - (alpha2 + M_PI);
+        // const int br = Geodesic::decide_branch( om-omega12 );
+        // om -= M_PI*br;
+        // DW.bd.omega[Link({ix, iy})] = om;
+      }}
+  }
+
+
+  {
+    std::clog << "# checking deficits" << std::endl;
+    int counter=0;
+    for(int ia=0; ia<base.n_faces; ia++){
+      int sign = 1;
+      {
+        VE x0 = base.sites[ base.faces[ia][0] ];
+        VE x1 = base.sites[ base.faces[ia][1] ];
+        VE x2 = base.sites[ base.faces[ia][2] ];
+        VE sum = x0+x1+x2;
+        if((x1-x0).cross(x2-x0).dot(sum) < 0) sign = -1;
+      }
+      // std::cout << "sign = " << sign << std::endl;
+
+      Double sum = 0.0;
+      for(int i=0; i<3; i++){
+        Idx ix = base.faces[ia][i];
+        Idx jx = base.faces[ia][(i+1)%3];
+        sum += DW.bd.omega.at( Link{ix,jx} );
+      }
+      sum *= sign;
+      // std::cout << "sum = " << sum << std::endl;
+      Double mod = Mod(sum, 4.0*M_PI);
+      // std::cout << "sum (mod4pi) = " << mod << std::endl;
+      if(mod>2.0*M_PI) mod -= 4.0*M_PI;
+      std::clog << "# sum (mod4pi, repr) = " << mod << std::endl;
+      assert( (-1.5 * 4.0*M_PI/base.n_faces < mod && mod < 0.0) );
+      counter++;
+    }
+  }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   D.update( U );
   std::cout << "# D updated. " << std::endl;
 
-#ifdef IS_DAGGER
-  auto f_pre = std::bind(&Fermion::mult_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
-  auto f_sq = std::bind(&Fermion::DDH_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
-#else
-  auto f_pre = std::bind(&Fermion::adj_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
-  auto f_sq = std::bind(&Fermion::DHD_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
-#endif
-  LinOpWrapper M_pre( f_pre );
-  MatPoly pre; pre.push_back ( cplx(1.0), {&M_pre} );
-  LinOpWrapper M_sq( f_sq );
-  MatPoly sq; sq.push_back ( cplx(1.0), {&M_sq} );
+  auto f_DH = std::bind(&Fermion::adj_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
+  //
+  auto f_DHD = std::bind(&Fermion::sq_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
+  LinOpWrapper M_DH( f_DH );
+  MatPoly DH; DH.push_back ( cplx(1.0), {&M_DH} );
+  LinOpWrapper M_DHD( f_DHD );
+  MatPoly DHD; DHD.push_back ( cplx(1.0), {&M_DHD} );
 
   // ---------------------
 
@@ -221,15 +307,16 @@ int main(int argc, char* argv[]){
 
   FermionVector src1; // (base, Nt, rng);
   FermionVector src; // (base, Nt, rng);
-  // src1.set_pt_source(0, 0, 0);
-  src1.set_pt_source(Comp::Nt/4, 0, 1);
-  pre.from_cpu<N>( src.field, src1.field );
+  src1.set_pt_source(0, 0, 0);
+  // src1.set_pt_source(Comp::Nt/4, 0, 1);
+  DH.from_cpu<N>( src.field, src1.field );
+
 
   FermionVector sink; // (base, Nt, rng);
 
   std::cout << "# calculating sink" << std::endl;
 
-  sq.solve<N>( sink.field, src.field );
+  DHD.solve<N>( sink.field, src.field );
 
   std::cout << "# done" << std::endl;
 
@@ -243,7 +330,7 @@ int main(int argc, char* argv[]){
     std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
     std::vector<Geodesic::V3> sites;
     {
-      std::ifstream file(dir+"pts_dual_n"+std::to_string(Comp::N_REFINE)+"_singlepatch.dat");
+      std::ifstream file(dir+"pts_dual_n"+std::to_string(Comp::N_REFINE)+"_singlepatch"+extension);
 
       std::string str;
       while (std::getline(file, str)){
@@ -294,15 +381,12 @@ int main(int argc, char* argv[]){
   if(Comp::Nt==1) factor = base.mean_ell;
 
   {
-    std::string path = "prop_spacial_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+".dat";
+    std::string path = "prop_spacial_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+extension;
 #ifdef IS_DUAL
     path = "dual_"+path;
 #endif
 #ifdef IS_OVERLAP
     path = "ov_"+path;
-#endif
-#ifdef IS_DAGGER
-    path = "dagger_"+path;
 #endif
     std::ofstream ofs(path);
 
@@ -331,15 +415,12 @@ int main(int argc, char* argv[]){
     }
   }
   {
-    std::string path = "prop_temporal_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+".dat3";
+    std::string path = "prop_temporal_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+extension;
 #ifdef IS_DUAL
     path = "dual_"+path;
 #endif
 #ifdef IS_OVERLAP
     path = "ov_"+path;
-#endif
-#ifdef IS_DAGGER
-    path = "dagger_"+path;
 #endif
     std::ofstream ofs(path);
 
