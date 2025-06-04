@@ -30,7 +30,7 @@ static constexpr Complex I = Complex(0.0, 1.0);
 
 
 // #define IS_DUAL
-#define IS_OVERLAP
+// #define IS_OVERLAP
 // #define IS_DAGGER
 // #undef _OPENMP
 
@@ -51,10 +51,10 @@ namespace Comp{
   constexpr int NPARALLEL_GAUGE=12; // 12
   constexpr int NPARALLEL_SORT=16; // 12
 
-  constexpr int N_REFINE=2;
+  constexpr int N_REFINE=4;
   constexpr int NS=2;
 
-  constexpr int Nt=192;
+  constexpr int Nt=24;
   // constexpr int Nt=1;
   // constexpr int Nt=16;
 
@@ -166,7 +166,10 @@ int main(int argc, char* argv[]){
   srand( time(NULL) );
   Rng rng(base, rand());
 
-  const double at = 0.05;
+  // const double at = 0.5;
+  const double T = 0.2;
+  const double at = T/Comp::Nt;
+  assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
 
 
 #ifdef IS_OVERLAP
@@ -183,7 +186,12 @@ int main(int argc, char* argv[]){
   // LinOpWrapper M_Op( f_Op );
   // Op.push_back ( cplx(1.0), {&M_Op} );
 
+#ifdef IS_DUAL
+  const double M5 = -1.5;
+#else
   const double M5 = -1.0;
+#endif
+
   WilsonDirac DW(base, 0.0, 1.0, M5, at);
   std::cout << "# DW set. " << std::endl;
 
@@ -221,8 +229,8 @@ int main(int argc, char* argv[]){
 
   FermionVector src1; // (base, Nt, rng);
   FermionVector src; // (base, Nt, rng);
-  // src1.set_pt_source(0, 0, 0);
-  src1.set_pt_source(Comp::Nt/4, 0, 1);
+  src1.set_pt_source(0, 0, 0);
+  // src1.set_pt_source(Comp::Nt/4, 0, 1);
   pre.from_cpu<N>( src.field, src1.field );
 
   FermionVector sink; // (base, Nt, rng);
@@ -294,7 +302,7 @@ int main(int argc, char* argv[]){
   if(Comp::Nt==1) factor = base.mean_ell;
 
   {
-    std::string path = "prop_spacial_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+".dat";
+    std::string path = "prop_spacial_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+".dat1";
 #ifdef IS_DUAL
     path = "dual_"+path;
 #endif
@@ -331,7 +339,7 @@ int main(int argc, char* argv[]){
     }
   }
   {
-    std::string path = "prop_temporal_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+".dat3";
+    std::string path = "prop_temporal_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+".dat1";
 #ifdef IS_DUAL
     path = "dual_"+path;
 #endif
@@ -358,7 +366,7 @@ int main(int argc, char* argv[]){
         const auto elem = sink(s,0,1);
         ofs << std::setw(25) << at*s << " "
           // ofs << std::setw(25) << s << " "
-            // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
+          // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
             // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
         << std::setw(25) << 1.0 * elem.real() / factor << " "
         << std::setw(25) << 1.0 * elem.imag() / factor << std::endl;

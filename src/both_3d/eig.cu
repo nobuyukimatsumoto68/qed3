@@ -55,12 +55,12 @@ namespace Comp{
   constexpr int NPARALLEL_GAUGE=12; // 12
   constexpr int NPARALLEL_SORT=12; // 12
 
-  constexpr int N_REFINE=1;
+  constexpr int N_REFINE=4;
   constexpr int NS=2;
 
-  // constexpr int Nt=64;
+  constexpr int Nt=24;
   // constexpr int Nt=1;
-  constexpr int Nt=1;
+  // constexpr int Nt=1;
 
 #ifdef IS_DUAL
   constexpr Idx N_SITES=20*N_REFINE*N_REFINE;
@@ -195,8 +195,12 @@ int main(int argc, char* argv[]){
   const double M5 = 0.0;
 #endif
   // const double at = base.mean_ell * 1.0;
-  const double at = 0.1;
-  // const double at = 0.005;
+  const double T = 4.0;
+  const double at = T/Comp::Nt;
+  // const double at = base.mean_ell * 3.0/4.0;
+  assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
+// #ifdef IS_OVERLAP
+// #endif
   // const double at = 0.00;
   // const double at = 2.0/Comp::Nt;
   WilsonDirac DW(base, 0.0, r, M5, at);

@@ -293,6 +293,8 @@ public:
       // if(Nt!=1) kappa_t[ix] = lattice.dual_areas[ix] / std::pow(lattice.mean_ell, 2);
 
       if(Nt!=1) kappa_t[ix] = lattice.dual_areas[ix] / lattice.mean_ell / at;
+      // if(Nt!=1) kappa_t[ix] = lattice.dual_areas[ix] / lattice.mean_ell / std::pow(at,2);
+      // if(Nt!=1) kappa_t[ix] = lattice.dual_areas[ix] / lattice.mean_ell;
       // if(Nt!=1) kappa_t[ix] = 0.5 * lattice.dual_areas[ix] / lattice.mean_ell;
       else kappa_t[ix] = 0.0;
     }
@@ -304,7 +306,7 @@ public:
 #pragma omp parallel for num_threads(Comp::NPARALLEL)
 #endif
     for(Idx il=0; il<lattice.n_links; il++) {
-      // if(Nt!=1) bd.kappa[il] *= at / lattice.mean_ell;
+      // if(Nt!=1) bd.kappa[il] /= at; // / lattice.mean_ell;
     }
   }
 

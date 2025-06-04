@@ -34,9 +34,9 @@ namespace Comp{
   constexpr Idx N=Nx*Nt; // matrix size of DW
 }
 
-const int nmax=100;
+const int nmax=1000;
 const double c = 1.0;
-const int nsteps = 1000;
+const int nsteps = 10000;
 
 int main(int argc, char* argv[]){
   std::cout << std::scientific << std::setprecision(15);
@@ -45,7 +45,7 @@ int main(int argc, char* argv[]){
   for(Idx t=0; t<10*nsteps; t++){
     Double tmp = 0.0;
     // for(int n=0; n<nmax; n++) tmp += (n+1) * std::cyl_bessel_k( 0, 1.0*(n+1)*t/nsteps );
-    for(int n=0; n<nmax; n++) tmp += (n+1) * std::exp( -1.0*(n+1)*t/nsteps );
+    for(int n=0; n<nmax; n++) tmp += (n+1)* std::exp( -1.0*(n+1)*t/nsteps );
     // for(int n=1; n<nmax; n++) tmp += (n+1) * std::exp( -1.0*(n+1)*t/nsteps );
     tmp /= 4.0*M_PI;
     std::cout << 1.0*t/nsteps << " " << tmp << std::endl;
