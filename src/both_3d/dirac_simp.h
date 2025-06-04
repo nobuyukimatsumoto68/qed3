@@ -12,11 +12,14 @@
 struct SpinStructureSimp{
   using Link = std::array<Idx,2>; // <int,int>;
 
-  std::map<const Link, const double> omega;
-  std::map<const Link, const double> alpha;
+  // std::map<const Link, const double> omega;
+  // std::map<const Link, const double> alpha;
+  std::map<const Link, double> omega;
+  std::map<const Link, double> alpha;
 
   SpinStructureSimp(const int n_refine)
   {
+    // if(n_refine==0) return;
     {
       std::ifstream file(dir+"/omega_n"+std::to_string(n_refine)+"_singlepatch.dat");
 
@@ -268,7 +271,9 @@ struct DiracS2Simp : public DiracBase, public SpinStructureSimp{
     kappa.clear();
     kappa.resize(lattice.n_links);
     for(Idx il=0; il<lattice.n_links; il++) {
-      kappa[il] = lattice.link_volume[il] / lattice.mean_link_volume * lattice.mean_ell / lattice.ell[il];
+      // kappa[il] = lattice.link_volume[il] / lattice.ell[il] / lattice.mean_ell;
+      kappa[il] = 2.0*lattice.link_volume[il] / lattice.ell[il] / lattice.mean_ell;
+      // kappa[il] = lattice.link_volume[il] / lattice.ell[il];
     }
   }
 

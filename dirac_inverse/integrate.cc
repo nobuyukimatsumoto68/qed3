@@ -30,8 +30,10 @@ const int limit = 10000; // 1000;
 
 // Real epsabs = 1.0e-15; // 0.;
 // Real epsrel = 1.0e-13; // TOLLOOSE;
-Real epsabs = 1.0e-2; // 0.;
-Real epsrel = 1.0e-2; // TOLLOOSE;
+// Real epsabs = 1.0e-2; // 0.;
+// Real epsrel = 1.0e-2; // TOLLOOSE;
+Real epsabs = 1.0e-5; // 0.;
+Real epsrel = 1.0e-5; // TOLLOOSE;
 
 int key = 5;
 
@@ -208,7 +210,7 @@ VC psi2( const int mpH, const int n, const int s, const double z, const double p
 
 
 
-const int mpH_max = 2000;
+const int mpH_max = 1000;
 const int n_max = mpH_max;
 
 
@@ -295,7 +297,7 @@ int main(int argc, char* argv[]){
   //     //           << std::endl;
   //   }}
 
-  const int nint=1000;
+  const int nint=2000;
   const Real delta=M_PI/nint;
 
   const int i0 = 0, i1=1;
@@ -349,7 +351,6 @@ int main(int argc, char* argv[]){
         test = spinor[i0] * std::conj(spinor0[i1]);
         // std::cout << "debug. test = " << test << std::endl;
         wf += I/(1.0*n+mpH) * spinor[i0] * std::conj(spinor0[i1]);
-
       }
       std::cout << theta << " " << std::abs(wf) << " " << std::sin(theta) << std::endl;
     }

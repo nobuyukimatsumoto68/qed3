@@ -360,13 +360,27 @@ struct Overlap : public Zolotarev {
   }
 
 
-  void sq_deviceAsyncLaunch( CuC* d_res, const CuC* d_xi ) const {
+  void DHD_deviceAsyncLaunch( CuC* d_res, const CuC* d_xi ) const {
     CuC *d_tmp1, *d_tmp2;
     CUDA_CHECK(cudaMalloc(&d_tmp1, N*CD));
     CUDA_CHECK(cudaMalloc(&d_tmp2, N*CD));
 
     this->mult_deviceAsyncLaunch(d_tmp1, d_xi);
     this->adj_deviceAsyncLaunch(d_tmp2, d_xi);
+
+    CUDA_CHECK(cudaMemcpy(d_res, d_tmp1, N*CD, D2D));
+    Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, 1.0, d_tmp2, d_res); // A[0]=1.0
+    CUDA_CHECK(cudaFree(d_tmp1));
+    CUDA_CHECK(cudaFree(d_tmp2));
+  }
+
+  void DDH_deviceAsyncLaunch( CuC* d_res, const CuC* d_xi ) const {
+    CuC *d_tmp1, *d_tmp2;
+    CUDA_CHECK(cudaMalloc(&d_tmp1, N*CD));
+    CUDA_CHECK(cudaMalloc(&d_tmp2, N*CD));
+
+    this->adj_deviceAsyncLaunch(d_tmp2, d_xi);
+    this->mult_deviceAsyncLaunch(d_tmp1, d_xi);
 
     CUDA_CHECK(cudaMemcpy(d_res, d_tmp1, N*CD, D2D));
     Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, 1.0, d_tmp2, d_res); // A[0]=1.0
