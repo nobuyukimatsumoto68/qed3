@@ -10,7 +10,7 @@
 #$ -l h_rt=0:30:00
 
 module load gcc/13.2.0
-# g++ analyze_corr.cpp -std=c++17 -O3
+g++ analyze_corr.cpp -std=c++17 -O3
 
 # key=beta50.000000at0.100000
 # key=beta20.000000at0.100000
@@ -21,7 +21,13 @@ module load gcc/13.2.0
 # key=beta20.000000at0.025000
 # key=beta50.000000at0.050000
 # key=beta20.000000at0.050000
-key=beta50.000000at0.100000
+# key=beta50.000000at0.100000
+
+# key=beta50.000000at0.100000
+# key=beta50.000000at0.050000
+# key=beta20.000000at0.050000
+key=beta20.000000at0.025000
+
 # drwxr-sr-x 2 nmatsum qfe   2097152 May 12 10:28 beta50.000000at0.050000nt96L2_short
 # drwxr-sr-x 2 nmatsum qfe   2097152 May 12 10:28 beta20.000000at0.025000nt96L2_short
 # drwxr-sr-x 2 nmatsum qfe   2097152 May 12 10:28 beta20.000000at0.050000nt96L2_short

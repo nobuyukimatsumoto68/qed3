@@ -1,6 +1,7 @@
 #!/bin/bash -l
 
-module load gcc/13.2.0
+# module load gcc/13.2.0
+source ../../env.sh
 
 # app='wolff.o'
 app="gauge${1}"

@@ -170,7 +170,7 @@ int main(int argc, char* argv[]){
 
   using Force=GaugeExt<Base,Nt,Comp::is_compact>;
   using Gauge=GaugeExt<Base,Nt,Comp::is_compact>;
-  using Action=U1WilsonExt;
+  using Action=U1WilsonExt<Base>;
 
   using Rng=ParallelRngExt<Base,Nt>;
 
@@ -180,16 +180,16 @@ int main(int argc, char* argv[]){
   // ----------------------
 
   // const double gsqR = 0.02;
-  const double gsqR = 0.02;
+  const double gsq = 0.05;
   // const double gsqR = 0.2;
   // double beta = 28.0; // 1.0/(gR*gR);
-  double beta = 1.0/gsqR; // 1.0/(gR*gR);
+  // double beta = 1.0/gsqR; // 1.0/(gR*gR);
   // double at = base.mean_ell * 0.125;
   // double ratio = 1.0/2.0;
   double at = 0.05; // base.mean_ell * 0.125 * ratio;
   // double beta_t = beta_s; // 1.0/(gR*gR);
   if(Comp::Nt==1) at=0.;
-  Action SW( beta, at );
+  Action SW( gsq, at, base );
   std::cout << "# alat = " << base.mean_ell << std::endl;
 
   Gauge U(base);
@@ -198,7 +198,7 @@ int main(int argc, char* argv[]){
   U.gaussian( rng, 0.2 );
 
   // std::string dir2="beta"+std::to_string(beta)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"ratio"+std::to_string(ratio)+"/";
-  std::string dir2="beta"+std::to_string(beta)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"_short/";
+  std::string dir2="gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"_v3/";
   std::filesystem::create_directory(dir2);
 
 
