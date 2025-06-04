@@ -195,6 +195,7 @@ int main(int argc, char* argv[]){
   Gauge U(base);
   srand( time(NULL) );
   Rng rng(base, rand());
+  // Rng rng(base);
   U.gaussian( rng, 0.2 );
 
   // std::string dir2="beta"+std::to_string(beta)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"ratio"+std::to_string(ratio)+"/";
@@ -205,66 +206,90 @@ int main(int argc, char* argv[]){
   // //--------------------------------
 
 
+  const double tmax = 1.0; // 0.1
+  // const int nsteps=250;
+  const int nsteps=40;
+
+
+  double rate, dH;
+  bool is_accept;
+
+  // const int kmax=2e7;
+  const int kmax=1e2;
+  const int interval=10;
+  const int k_ckpoint=10;
+  const int k_therm=1e1;
+
   Force pi(base);
   pi.gaussian( rng );
+
+
+  int k_tmp=0;
+  for(k_tmp=k_ckpoint; k_tmp<kmax; k_tmp+=k_ckpoint ){
+    const std::string str_lat=dir2+"ckpoint_lat."+std::to_string(k_tmp);
+    const std::string str_rng=dir2+"ckpoint_rng."+std::to_string(k_tmp);
+
+    const bool bool_lat = std::filesystem::exists(str_lat);
+    const bool bool_rng = std::filesystem::exists(str_rng);
+
+    if(!(bool_lat&&bool_rng)) break;
+  }
+  k_tmp -= k_ckpoint;
+
+  if(k_tmp>0){ // from existing
+    std::cout << "read from k_tmp = " << k_tmp << std::endl;
+    const std::string str_lat=dir2+"ckpoint_lat."+std::to_string(k_tmp);
+    const std::string str_rng=dir2+"ckpoint_rng."+std::to_string(k_tmp);
+    U.read( str_lat );
+
+    std::cout << SW(U) << std::endl;
+
+    rng.read( str_rng );
+
+    std::cout << rng.master.mt() << std::endl;
+    std::cout << rng.master.gaussian() << std::endl;
+    std::cout << rng.master.uniform() << std::endl;
+    std::cout << rng.master.z2() << std::endl;
+  }
+
+
   Force pi0=pi;
   Gauge U0=U;
 
-  const double tmax = 1.0; // 0.1
-  // const int nsteps=100;
-  const int nsteps=250;
-  // const int nsteps=30;
   pi = pi0;
   U = U0;
   HMCPureGauge hmc(rng, &SW, U, pi, tmax, nsteps);
 
-  double rate, dH;
-  bool is_accept;
-  for(int k=0; k<10; k++){
-    Timer timer;
-    hmc.run( rate, dH, is_accept, true );
-    if constexpr(Comp::is_compact) U.project();
-    std::cout << "# dH : " << dH
-              << " is_accept : " << is_accept << std::endl;
-    // std::cout << "# HMC : " << timer.currentSeconds() << " sec" << std::endl;
+
+  if(k_tmp<=0){ // thermalize
+    std::cout << "thermalize" << std::endl;
+
+    for(int k=0; k<10; k++){
+      Timer timer;
+      hmc.run( rate, dH, is_accept, true );
+      // if constexpr(Comp::is_compact) U.project();
+      std::cout << "# dH : " << dH
+                << " is_accept : " << is_accept << std::endl;
+      // std::cout << "# HMC : " << timer.currentSeconds() << " sec" << std::endl;
+    }
+
+    for(int k=0; k<k_therm; k++){
+      Timer timer;
+      hmc.run( rate, dH, is_accept );
+      std::cout << "# dH : " << dH
+                << " is_accept : " << is_accept << std::endl;
+    }
+    k_tmp = 0;
   }
-
-
-  const int kmax=2e7;
-  // const int kmax=1e3;
-
-  int k=0;
-  // for(k=0; k<kmax; k++){
-  //   isexist;
-  // }
-
-
-  // if(k!=0){
-  for(k=0; k<1e3; k++){
-    // const int kmax=4000;
-    // for(int k=0; k<100; k++){
-    Timer timer;
-    hmc.run( rate, dH, is_accept );
-    if constexpr(Comp::is_compact) U.project();
-    std::cout << "# dH : " << dH
-              << " is_accept : " << is_accept << std::endl;
-    // std::cout << "# HMC : " << timer.currentSeconds() << " sec" << std::endl;
-  }
-  //   k=0;
-  // }
-  // else{
-  // }
 
 
   std::vector<double> plaq_s0(Comp::Nt);
-
   double r_mean;
-  const int interval=20;
 
-  for(k=0; k<kmax; k++){
+  for(int k=k_tmp+1; k<kmax; k++){
     Timer timer;
     hmc.run( rate, dH, is_accept);
-    if constexpr(Comp::is_compact) U.project();
+    // if constexpr(Comp::is_compact) U.project();
     std::cout << "# dH : " << dH
               << " is_accept : " << is_accept << std::endl;
     r_mean += rate;
@@ -304,6 +329,14 @@ int main(int argc, char* argv[]){
     if(k%100==0){
       std::cout << "# k = " << k << std::endl;
     }
+
+    if(k%k_ckpoint==0){
+      const std::string str_lat=dir2+"ckpoint_lat."+std::to_string(k);
+      const std::string str_rng=dir2+"ckpoint_rng."+std::to_string(k);
+      U.ckpoint( str_lat );
+      rng.ckpoint( str_rng );
+    }
+
   }
   r_mean /= kmax;
   std::cout << "# r_mean = " << r_mean << std::endl;

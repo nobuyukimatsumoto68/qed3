@@ -202,4 +202,56 @@ struct GaugeExt {
                                              u, d_eta );
   }
 
+
+  void ckpoint( const std::string& str ) const {
+    std::ofstream of( str, std::ios::out | std::ios::binary | std::ios::trunc);
+    if(!of) assert(false);
+    double tmp = 0.0;
+
+    for(Idx i=0; i<spatial.size(); i++){
+      for(Idx j=0; j<spatial[i].size(); j++){
+        // std::cout << "debug. i,j = " << i << j << std::endl;
+        tmp = spatial[i][j];
+        of.write( (char*) &tmp, sizeof(double) );
+      }
+    }
+    for(Idx i=0; i<temporal.size(); i++){
+      for(Idx j=0; j<temporal[i].size(); j++){
+        // std::cout << "debug. i,j = " << i << j << std::endl;
+        tmp = temporal[i][j];
+        of.write( (char*) &tmp, sizeof(double) );
+      }
+    }
+
+    of.close();
+  }
+
+  void read( const std::string& str ) {
+    std::ifstream ifs( str, std::ios::in | std::ios::binary );
+    if(!ifs) assert(false);
+    double tmp;
+
+    // for(Idx i=0; i<Lx*Ly; ++i){
+    //   ifs.read((char*) &tmp, sizeof(double) );
+    //   (*this)[i] = tmp;
+    // }
+    for(Idx i=0; i<spatial.size(); i++){
+      for(Idx j=0; j<spatial[i].size(); j++){
+        // std::cout << "debug. i,j = " << i << j << std::endl;
+        ifs.read( (char*) &tmp, sizeof(double) );
+        // std::cout << tmp << std::endl;
+        spatial[i][j] = tmp;
+      }
+    }
+    for(Idx i=0; i<temporal.size(); i++){
+      for(Idx j=0; j<temporal[i].size(); j++){
+        ifs.read( (char*) &tmp, sizeof(double) );
+        // std::cout << tmp << std::endl;
+        temporal[i][j] = tmp;
+      }
+    }
+
+    ifs.close();
+  }
+
 };

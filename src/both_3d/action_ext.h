@@ -7,9 +7,9 @@ struct U1WilsonExt {
   using Face = std::vector<int>;
   using Action=U1WilsonExt;
 
+  const Base& base;
   const double gsq, at;
   std::vector<double> beta_t, beta_s;
-  const Base& base;
 
   U1WilsonExt() = delete;
   U1WilsonExt(const U1WilsonExt&) = delete;
@@ -17,12 +17,14 @@ struct U1WilsonExt {
   U1WilsonExt(const double gsq_,
               const double at_,
               const Base& base_)
-    : gsq(gsq_)
+    : base(base_)
+    , gsq(gsq_)
     , at(at_)
     , beta_t(base.n_links)
     , beta_s(base.n_faces)
-    , base(base_)
-  {}
+  {
+    set_beta();
+  }
 
   Action & operator=(const Action&) = delete;
 
