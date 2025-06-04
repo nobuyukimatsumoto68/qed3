@@ -57,7 +57,7 @@ namespace Comp{
   constexpr int NPARALLEL=1; // 12
   constexpr int NSTREAMS=12; // for grad loop
 #endif
-  constexpr int N_REFINE=4;
+  constexpr int N_REFINE=1;
   constexpr int NPARALLEL_GAUGE=12; // 12
   constexpr int NPARALLEL_SORT=NPARALLEL_GAUGE; // 12
 
@@ -180,13 +180,13 @@ int main(int argc, char* argv[]){
   // ----------------------
 
   // const double gsqR = 0.02;
-  const double gsqR = 0.05;
+  const double gsqR = 0.02;
   // const double gsqR = 0.2;
   // double beta = 28.0; // 1.0/(gR*gR);
   double beta = 1.0/gsqR; // 1.0/(gR*gR);
   // double at = base.mean_ell * 0.125;
   // double ratio = 1.0/2.0;
-  double at = 0.025; // base.mean_ell * 0.125 * ratio;
+  double at = 0.05; // base.mean_ell * 0.125 * ratio;
   // double beta_t = beta_s; // 1.0/(gR*gR);
   if(Comp::Nt==1) at=0.;
   Action SW( beta, at );
@@ -212,7 +212,7 @@ int main(int argc, char* argv[]){
 
   const double tmax = 1.0; // 0.1
   // const int nsteps=100;
-  const int nsteps=200;
+  const int nsteps=250;
   // const int nsteps=30;
   pi = pi0;
   U = U0;
