@@ -148,16 +148,37 @@ struct GaugeExt {
     for(Idx i=0; i<temporal.size(); i++) for(Idx j=0; j<temporal[i].size(); j++) temporal[i][j] = width*rng.gaussian_site(i,j);
   }
 
-  double Mod(double a, double b=2.0*M_PI){
-    int p = int(std::floor(a / b));
-    double r = a - p*b;
-    return r;
-  }
+  // double Mod(double a, double b=2.0*M_PI){
+  //   a += 100*b;
+  //   // int p = int(std::floor(a / b));
+  //   // double r = a - p*b;
+  //   return fmod(a, b);
+  // }
 
 
-  void project() {
-    for(Idx i=0; i<spatial.size(); i++) for(Idx j=0; j<spatial[i].size(); j++) spatial[i][j] = Mod( spatial[i][j], 2.0*M_PI );
-    for(Idx i=0; i<temporal.size(); i++) for(Idx j=0; j<temporal[i].size(); j++) temporal[i][j] = Mod( temporal[i][j], 2.0*M_PI );
+  // void project() {
+  //   for(Idx i=0; i<spatial.size(); i++) for(Idx j=0; j<spatial[i].size(); j++) spatial[i][j] = Mod( spatial[i][j], 2.0*M_PI );
+  //   for(Idx i=0; i<temporal.size(); i++) for(Idx j=0; j<temporal[i].size(); j++) temporal[i][j] = Mod( temporal[i][j], 2.0*M_PI );
+  // }
+
+
+  template <typename Rng>
+  void random_gauge_trsf(Rng& rng, const double width=1.0) {
+
+    for(int s=0; s<Nt; s++){
+      for(Idx ix=0; ix<lattice.n_sites; ix++){
+        const double phi = width*rng.gaussian_site(s,ix);
+        for(const Idx iy : lattice.nns[ix]){
+          const Idx il = lattice.map2il.at(BaseLink{ix,iy});
+          const int sign = lattice.map2sign.at(BaseLink{ix,iy});
+          sp(s,il) += sign*phi;
+        }
+        tp(s,ix) += phi;
+        tp(s-1,ix) -= phi;
+      }
+    }
+
+    // project();
   }
 
 
