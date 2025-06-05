@@ -33,11 +33,11 @@ static constexpr Complex I = Complex(0.0, 1.0);
 #define Nf4
 
 // #define IS_DUAL
-// #define IS_OVERLAP
+#define IS_OVERLAP
 
 // #define IsVerbose
-// #define InfoForce
-// #define InfoDelta
+#define InfoForce
+#define InfoDelta
 
 
 namespace Comp{
@@ -46,20 +46,20 @@ namespace Comp{
   // d_DW.update() is always done independently
 #ifdef IS_OVERLAP
   constexpr int NPARALLEL_DUPDATE=1;
-  constexpr int NPARALLEL=12; // 12
+  constexpr int NPARALLEL=16; // 12
   constexpr int NSTREAMS=4; // 4
 #else
   constexpr int NPARALLEL_DUPDATE=12;
   constexpr int NPARALLEL=1; // 12
   constexpr int NSTREAMS=12; // for grad loop
 #endif
-  constexpr int NPARALLEL_GAUGE=12; // 12
-  constexpr int NPARALLEL_SORT=12; // 12
+  constexpr int NPARALLEL_GAUGE=16; // 12
+  constexpr int NPARALLEL_SORT=16; // 12
 
-  constexpr int N_REFINE=2;
+  constexpr int N_REFINE=1;
   constexpr int NS=2;
 
-  constexpr int Nt=4;
+  constexpr int Nt=24;
 
   // constexpr int Nf=4; // even
 
@@ -162,7 +162,9 @@ int main(int argc, char* argv[]){
 #endif
   // const double c = 1.0;
   // double at = 0.05; // base.mean_ell * 0.125 * ratio;
-  double at = 0.1; // base.mean_ell * 0.125 * ratio;
+  const double T = 16;
+  const double at = T/Comp::Nt;
+  assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
   WilsonDirac DW(base, 0.0, 1.0, M5, at);
 
 
@@ -170,7 +172,7 @@ int main(int argc, char* argv[]){
 
   Gauge U(base);
   Rng rng(base);
-  U.gaussian( rng, 0.01 );
+  // U.gaussian( rng, 0.01 );
 
   // ---------------------
 
@@ -377,11 +379,11 @@ int main(int argc, char* argv[]){
     D.precalc_grad_deviceAsyncLaunch( U, pf->d_eta );
   }
 
-  const double tmax = 0.2; // 1.0; // 0.1
-  for(int nsteps=2; nsteps<=10; nsteps+=2){
+  const double tmax = 1.0; // 1.0; // 0.1
+  for(int nsteps=12; nsteps<=24; nsteps+=4){
     // const int nsteps=5;
-    ExplicitLeapfrogML integrator( tmax, nsteps, 10 );
-    // ExplicitLeapfrogML integrator( tmax, nsteps, 100 );
+    // ExplicitLeapfrogML integrator( tmax, nsteps, 20 );
+    ExplicitLeapfrogML integrator( tmax, nsteps, 100 );
     pi = pi0;
     U = U0;
     HMC2 hmc(rng, &SW, &D, U, pi, pfs, &integrator);
