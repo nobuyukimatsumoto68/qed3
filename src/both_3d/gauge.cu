@@ -58,6 +58,12 @@ namespace Comp{
   constexpr int NSTREAMS=12; // for grad loop
 #endif
   constexpr int N_REFINE=1;
+  constexpr int nsteps=150;
+  // constexpr int N_REFINE=2;
+  // constexpr int nsteps=180;
+  // constexpr int N_REFINE=4;
+  // constexpr int nsteps=240;
+
   constexpr int NPARALLEL_GAUGE=12; // 12
   constexpr int NPARALLEL_SORT=NPARALLEL_GAUGE; // 12
 
@@ -153,6 +159,11 @@ int main(int argc, char* argv[]){
   // CUDA_CHECK(cudaSetDevice(0));// "TITAN V"
   // std::cout << "# (GPU device is set.)" << std::endl;
 
+  std::string prefix = "";
+  if (argc > 1) {
+    prefix = argv[1]; // Convert the second argument to a string
+  }
+
   // ---------------------------------------
 
   std::cout << "# Nx = " << Comp::Nx << std::endl;
@@ -199,7 +210,7 @@ int main(int argc, char* argv[]){
   U.gaussian( rng, 0.2 );
 
   // std::string dir2="beta"+std::to_string(beta)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"ratio"+std::to_string(ratio)+"/";
-  std::string dir2="gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"_v3/";
+  std::string dir2="gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"_"+prefix+"/";
   std::filesystem::create_directory(dir2);
 
 
@@ -208,17 +219,17 @@ int main(int argc, char* argv[]){
 
   const double tmax = 1.0; // 0.1
   // const int nsteps=250;
-  const int nsteps=40;
 
 
   double rate, dH;
   bool is_accept;
 
-  // const int kmax=2e7;
+  // const int kmax=1e7;
   const int kmax=1e2;
-  const int interval=10;
-  const int k_ckpoint=10;
-  const int k_therm=1e1;
+  const int interval=50;
+  const int k_ckpoint=1e4;
+  const int k_therm=1e2;
+
 
   Force pi(base);
   pi.gaussian( rng );
@@ -250,7 +261,7 @@ int main(int argc, char* argv[]){
 
   pi = pi0;
   U = U0;
-  HMCPureGauge hmc(rng, &SW, U, pi, tmax, nsteps);
+  HMCPureGauge hmc(rng, &SW, U, pi, tmax, Comp::nsteps);
 
 
   if(k_tmp<=0){ // thermalize
