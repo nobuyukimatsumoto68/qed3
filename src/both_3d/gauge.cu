@@ -63,7 +63,7 @@ namespace Comp{
   // constexpr int N_REFINE=2;
   // constexpr int nsteps=180;
   constexpr int N_REFINE=4;
-  constexpr int nsteps=240;
+  constexpr int nsteps=250;
 
   constexpr int NPARALLEL_GAUGE=16; // 12
   constexpr int NPARALLEL_SORT=NPARALLEL_GAUGE; // 12
