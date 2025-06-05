@@ -223,7 +223,7 @@ int main(int argc, char* argv[]){
   for(int k=0; k<10; k++){
     Timer timer;
     hmc.run( rate, dH, is_accept, true );
-    if constexpr(Comp::is_compact) U.project();
+    // if constexpr(Comp::is_compact) U.project();
     std::cout << "# dH : " << dH
               << " is_accept : " << is_accept << std::endl;
     // std::cout << "# HMC : " << timer.currentSeconds() << " sec" << std::endl;
@@ -245,7 +245,7 @@ int main(int argc, char* argv[]){
     // for(int k=0; k<100; k++){
     Timer timer;
     hmc.run( rate, dH, is_accept );
-    if constexpr(Comp::is_compact) U.project();
+    // if constexpr(Comp::is_compact) U.project();
     std::cout << "# dH : " << dH
               << " is_accept : " << is_accept << std::endl;
     // std::cout << "# HMC : " << timer.currentSeconds() << " sec" << std::endl;
@@ -264,7 +264,7 @@ int main(int argc, char* argv[]){
   for(k=0; k<kmax; k++){
     Timer timer;
     hmc.run( rate, dH, is_accept);
-    if constexpr(Comp::is_compact) U.project();
+    // if constexpr(Comp::is_compact) U.project();
     std::cout << "# dH : " << dH
               << " is_accept : " << is_accept << std::endl;
     r_mean += rate;
