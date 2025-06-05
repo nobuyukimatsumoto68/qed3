@@ -148,11 +148,13 @@ struct U1WilsonExt {
   }
 
   void set_beta(){
-    for(Idx i=0; i<base.faces.size(); i++) {
-      beta_s[i] = at/base.vols[i] / gsq;
-    }
-    for(Idx il=0; il<base.n_links; il++) {
-      beta_t[il] = 2.0/at * base.link_volume[il]/std::pow(base.ell[il],2) / gsq;
+    if(std::abs(gsq)>1.0e-15){
+      for(Idx i=0; i<base.faces.size(); i++) {
+        beta_s[i] = at/base.vols[i] / gsq;
+      }
+      for(Idx il=0; il<base.n_links; il++) {
+        beta_t[il] = 2.0/at * base.link_volume[il]/std::pow(base.ell[il],2) / gsq;
+      }
     }
   }
 

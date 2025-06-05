@@ -284,8 +284,10 @@ public:
 
     // const MS tmpP = 0.5 * sign * kappa_t[ix] * ( -r*sigma[0] + sigma[3] ) * I*std::exp( I*u.tp(s,ix) );
     // const MS tmpM = -0.5 * sign * kappa_t[ix] * ( -r*sigma[0] - sigma[3] ) * I*std::exp( -I*u.tp(s,ix) ); // s-1 -> s
-    const MS tmpP = 0.5 * sign * kappa_t[ix] * ( -r*sigma[0] - sigma[3] ) * I*std::exp( -I*u.tp(s,ix) );
-    const MS tmpM = -0.5 * sign * kappa_t[ix] * ( -r*sigma[0] + sigma[3] ) * I*std::exp( I*u.tp(s,ix) ); // s-1 -> s
+    // const MS tmpP = 0.5 * sign * kappa_t[ix] * ( -r*sigma[0] - sigma[3] ) * I*std::exp( -I*u.tp(s,ix) );
+    // const MS tmpM = -0.5 * sign * kappa_t[ix] * ( -r*sigma[0] + sigma[3] ) * I*std::exp( I*u.tp(s,ix) ); // s-1 -> s
+    const MS tmpP = -0.5 * sign * kappa_t[ix] * ( -r*sigma[0] - sigma[3] ) * I*std::exp( -I*u.tp(s,ix) );
+    const MS tmpM = 0.5 * sign * kappa_t[ix] * ( -r*sigma[0] + sigma[3] ) * I*std::exp( I*u.tp(s,ix) ); // s-1 -> s
 
     // res[NS*ix] += -tmp(0,0)*v[NS*iy] - tmp(0,1)*v[NS*iy+1];
     elem.push_back(COOEntry(tmpP(0,0), ( Nx*(s+1)+NS*ix )%N, Nx*s+NS*ix ));

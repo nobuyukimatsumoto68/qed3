@@ -137,7 +137,7 @@ int main(int argc, char* argv[]){
 #endif
   using Force=GaugeExt<Base,Nt,Comp::is_compact>;
   using Gauge=GaugeExt<Base,Nt,Comp::is_compact>;
-  using Action=U1WilsonExt;
+  using Action=U1WilsonExt<Base>;
   using Rng=ParallelRngExt<Base,Nt>;
 
 
@@ -148,22 +148,24 @@ int main(int argc, char* argv[]){
 
 #ifdef IS_OVERLAP
   const double r = 1.0;
-  const double M5 = -1.6/2.0 * 0.5*(1.0 + std::sqrt( 5.0 + 2.0*std::sqrt(2.0) ));
+  const double M5 = -1.8; // -1.6/2.0 * 0.5*(1.0 + std::sqrt( 5.0 + 2.0*std::sqrt(2.0) ));
   using Fermion=Overlap<WilsonDirac>;
 #else
   const double r = 1.0;
   const double M5 = 0.0;
   using Fermion=DiracPf<WilsonDirac>;
 #endif
-  const double c = 1.0;
-  WilsonDirac DW(base, 0.0, 1.0, M5, c);
+  // const double c = 1.0;
+  // double at = 0.05; // base.mean_ell * 0.125 * ratio;
+  double at = 0.1; // base.mean_ell * 0.125 * ratio;
+  WilsonDirac DW(base, 0.0, 1.0, M5, at);
 
 
   std::cout << "# DW set" << std::endl;
 
   Gauge U(base);
   Rng rng(base);
-  U.gaussian( rng, 0.2 );
+  U.gaussian( rng, 0.01 );
 
   // ---------------------
 
@@ -186,9 +188,10 @@ int main(int argc, char* argv[]){
 
   // -----------------------------------------------------------
 
-  const double gR = 0.4;
-  const double beta = 1.0/(gR*gR);
-  Action SW(beta, beta);
+  const double gsq = 0.1;
+  // const double beta = 1.0/(gR*gR);
+  Action SW( gsq, at, base );
+  std::cout << "# alat = " << base.mean_ell << std::endl;
 
   PseudoFermion pf(D);
 
@@ -236,7 +239,7 @@ int main(int argc, char* argv[]){
   //   std::cout << "check = " << chck << std::endl;
   // }
 
-  // // -----------------
+  // // // -----------------
 
   // {
   //   int s=Nt-1;
@@ -305,7 +308,7 @@ int main(int argc, char* argv[]){
   // pi.gaussian( rng );
   // // Force pi0=pi;
 
-  // int s=2;
+  // int s=0;
   // for(Idx il=0; il<base.n_links; il++){
   //   //   Idx il=3;
   //   // Link ell = base.links[il];
@@ -314,7 +317,6 @@ int main(int argc, char* argv[]){
   //   UP.sp(s,il) += eps;
   //   Gauge UM(U);
   //   UM.sp(s,il) -= eps;
-
 
   //   double Hp, Hm;
   //   {
@@ -334,6 +336,7 @@ int main(int argc, char* argv[]){
   //   double chck = (Hp-Hm)/(2.0*eps);
   //   std::cout << "check = " << il << " " << chck << " " << dSf.sp(s,il) << std::endl;
   // }
+  // return 1;
 
   // -----------------
 
@@ -366,7 +369,9 @@ int main(int argc, char* argv[]){
   }
 
 
-  // -----------------
+
+
+  // -----------------// -----------------// -----------------// -----------------// -----------------
 
 
   // Force pi( base );

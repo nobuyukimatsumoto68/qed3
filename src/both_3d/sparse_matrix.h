@@ -69,11 +69,13 @@ struct LinOpDHDWrapper : public LinOp {
   {}
 
   void operator()( T* d_res, const T* d_v ) const {
-    D.sq_deviceAsyncLaunch( d_res, d_v );
+    // D.sq_deviceAsyncLaunch( d_res, d_v );
+    D.DHD_deviceAsyncLaunch( d_res, d_v );
   }
 
   void Async( T* d_res, const T* d_v, const cudaStream_t stream ) const {
-    D.sq_deviceAsyncLaunch( d_res, d_v );
+    // D.sq_deviceAsyncLaunch( d_res, d_v );
+    D.DHD_deviceAsyncLaunch( d_res, d_v );
     CUDA_CHECK( cudaStreamSynchronize(stream) );
   }
 };
