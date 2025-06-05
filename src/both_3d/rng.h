@@ -21,55 +21,70 @@ struct SingleRng {
 
 
   friend std::ostream& operator<<( std::ostream& os, const SingleRng& e ){
-    os << e.mt;
-    os << e.dist_gaussian;
-    os << e.dist_01;
-    os << e.dist_z2;
+    os << e.mt << std::endl;
+    os << e.dist_gaussian << std::endl;
+    os << e.dist_01 << std::endl;
+    os << e.dist_z2 << std::endl;
     return os;
   }
 
   friend std::istream& operator>>( std::istream& is, SingleRng& e ){
-    is >> e.mt;
-    is >> e.dist_gaussian;
-    is >> e.dist_01;
-    is >> e.dist_z2;
+    std::string str;
+    std::stringstream ss;
+
+    std::getline(is, str);
+    ss.str(str);
+    ss >> e.mt;
+
+    std::getline(is, str);
+    ss.str(str);
+    ss >> e.dist_gaussian;
+
+    std::getline(is, str);
+    ss.str(str);
+    ss >> e.dist_01;
+
+    std::getline(is, str);
+    ss.str(str);
+    ss >> e.dist_z2;
+
     return is;
   }
 
 };
 
 
-template<typename Lattice>
-struct ParallelRng {
-  const Lattice& lattice;
-  SingleRng master;
-  std::vector<SingleRng> links;
-  std::vector<SingleRng> sites;
+// template<typename Lattice>
+// struct ParallelRng {
+//   const Lattice& lattice;
+//   SingleRng master;
+//   std::vector<SingleRng> links;
+//   std::vector<SingleRng> sites;
 
-  explicit ParallelRng(const Lattice& lattice_, const int seed=0 )
-    : lattice(lattice_)
-    , links( lattice.n_links )
-    , sites( lattice.n_sites )
-  {
-    reseed(seed);
-  }
+//   explicit ParallelRng(const Lattice& lattice_, const int seed=0 )
+//     : lattice(lattice_)
+//     , links( lattice.n_links )
+//     , sites( lattice.n_sites )
+//   {
+//     reseed(seed);
+//   }
 
-  double gaussian_link( const int il ){ return links[il].gaussian(); }
-  double gaussian_site( const int ix ){ return sites[ix].gaussian(); }
-  double gaussian(){ return master.gaussian(); }
+//   double gaussian_link( const int il ){ return links[il].gaussian(); }
+//   double gaussian_site( const int ix ){ return sites[ix].gaussian(); }
+//   double gaussian(){ return master.gaussian(); }
 
-  double uniform_link( const int il ){ return links[il].uniform(); }
-  double uniform_site( const int ix ){ return sites[ix].uniform(); }
-  double uniform(){ return master.uniform(); }
+//   double uniform_link( const int il ){ return links[il].uniform(); }
+//   double uniform_site( const int ix ){ return sites[ix].uniform(); }
+//   double uniform(){ return master.uniform(); }
 
-  double z2_site( const Idx ix ){ return sites[ix].z2(); }
+//   double z2_site( const Idx ix ){ return sites[ix].z2(); }
 
-  void reseed(const int seed) {
-    master.reseed(seed);
-    for(auto& elem : links) elem.reseed( master.mt() );
-    for(auto& elem : sites) elem.reseed( master.mt() );
-  }
-};
+//   void reseed(const int seed) {
+//     master.reseed(seed);
+//     for(auto& elem : links) elem.reseed( master.mt() );
+//     for(auto& elem : sites) elem.reseed( master.mt() );
+//   }
+// };
 
 
 template<typename Lattice, int Nt>
@@ -103,6 +118,7 @@ struct ParallelRngExt {
     for(auto& v : sites) for(auto& elem : v) elem.reseed( master.mt() );
   }
 
+
   void fill_gaussian( std::vector<Complex>& xi ){
     for(int s=0; s<Comp::Nt; s++) {
       for(Idx ix=0; ix<Comp::N_SITES; ix++) {
@@ -133,6 +149,8 @@ struct ParallelRngExt {
   void read( const std::string& str ) {
     std::ifstream is( str );
     if(!is) assert(false);
+    std::string word;
+
     is >> master;
 
     for(Idx i=0; i<links.size(); i++){
@@ -146,12 +164,6 @@ struct ParallelRngExt {
       }
     }
 
-    // for(std::vector<SingleRng>& vector : links) {
-    //   for(SingleRng& rng : vector) is >> rng;
-    // }
-    // for(std::vector<SingleRng>& vector : sites) {
-    //   for(SingleRng& rng : vector) is >> rng;
-    // }
     is.close();
   }
 

@@ -241,15 +241,7 @@ int main(int argc, char* argv[]){
     const std::string str_lat=dir2+"ckpoint_lat."+std::to_string(k_tmp);
     const std::string str_rng=dir2+"ckpoint_rng."+std::to_string(k_tmp);
     U.read( str_lat );
-
-    std::cout << SW(U) << std::endl;
-
     rng.read( str_rng );
-
-    std::cout << rng.master.mt() << std::endl;
-    std::cout << rng.master.gaussian() << std::endl;
-    std::cout << rng.master.uniform() << std::endl;
-    std::cout << rng.master.z2() << std::endl;
   }
 
 
@@ -260,46 +252,6 @@ int main(int argc, char* argv[]){
   U = U0;
   HMCPureGauge hmc(rng, &SW, U, pi, tmax, nsteps);
 
-// <<<<<<< HEAD
-//   double rate, dH;
-//   bool is_accept;
-//   for(int k=0; k<10; k++){
-//     Timer timer;
-//     hmc.run( rate, dH, is_accept, true );
-//     // if constexpr(Comp::is_compact) U.project();
-//     std::cout << "# dH : " << dH
-//               << " is_accept : " << is_accept << std::endl;
-//     // std::cout << "# HMC : " << timer.currentSeconds() << " sec" << std::endl;
-//   }
-
-
-//   const int kmax=2e7;
-//   // const int kmax=1e3;
-
-//   int k=0;
-//   // for(k=0; k<kmax; k++){
-//   //   isexist;
-//   // }
-
-
-//   // if(k!=0){
-//   for(k=0; k<1e3; k++){
-//     // const int kmax=4000;
-//     // for(int k=0; k<100; k++){
-//     Timer timer;
-//     hmc.run( rate, dH, is_accept );
-//     // if constexpr(Comp::is_compact) U.project();
-//     std::cout << "# dH : " << dH
-//               << " is_accept : " << is_accept << std::endl;
-//     // std::cout << "# HMC : " << timer.currentSeconds() << " sec" << std::endl;
-//   }
-//   //   k=0;
-//   // }
-//   // else{
-//   // }
-
-
-// =======
 
   if(k_tmp<=0){ // thermalize
     std::cout << "thermalize" << std::endl;
@@ -323,7 +275,6 @@ int main(int argc, char* argv[]){
   }
 
 
-  // >>>>>>> 97896ed484ba2d1095b7ee7628ef83eed09eb799
   std::vector<double> plaq_s0(Comp::Nt);
   double r_mean;
 
