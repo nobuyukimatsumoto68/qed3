@@ -182,6 +182,25 @@ struct GaugeExt {
   }
 
 
+  void gauge_trsf(const FermionVector& gauge) {
+
+    for(int s=0; s<Nt; s++){
+      for(Idx ix=0; ix<lattice.n_sites; ix++){
+        const double phi = gauge(s,ix,0).real();
+        for(const Idx iy : lattice.nns[ix]){
+          const Idx il = lattice.map2il.at(BaseLink{ix,iy});
+          const int sign = lattice.map2sign.at(BaseLink{ix,iy});
+          sp(s,il) += sign*phi;
+        }
+        tp(s,ix) += phi;
+        tp(s-1,ix) -= phi;
+      }
+    }
+
+    // project();
+  }
+
+
   template<typename Gauge, typename ComplexType, typename Fermion>
   void compute( const Gauge& u, const ComplexType* d_eta, const Fermion& D ){
 

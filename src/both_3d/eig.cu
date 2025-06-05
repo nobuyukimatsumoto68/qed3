@@ -29,6 +29,8 @@ static constexpr int DIM = 2;
 static constexpr Complex I = Complex(0.0, 1.0);
 
 
+#define GAUGE_TRSF
+
 // #define IS_DUAL
 // #define IS_OVERLAP
 
@@ -58,8 +60,8 @@ namespace Comp{
   constexpr int N_REFINE=2;
   constexpr int NS=2;
 
-  // constexpr int Nt=24;
-  constexpr int Nt=2;
+  constexpr int Nt=24;
+  // constexpr int Nt=2;
   // constexpr int Nt=1;
 
 #ifdef IS_DUAL
@@ -83,6 +85,7 @@ const std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
 #include "s2n_simp.h"
 #include "s2n_dual.h"
 #include "rng.h"
+#include "valence.h"
 #include "gauge_ext.h"
 #include "action_ext.h"
 
@@ -192,7 +195,8 @@ int main(int argc, char* argv[]){
   const double M5 = 0.0;
 #endif
   // const double at = base.mean_ell * 1.0;
-  const double T = 4.0;
+  // const double T = 4.0;
+  const double T = 16.0;
   const double at = T/Comp::Nt;
   // const double at = base.mean_ell * 3.0/4.0;
 
@@ -358,8 +362,8 @@ int main(int argc, char* argv[]){
 #else
   auto f_Op = std::bind(&Fermion::mult_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
   LinOpWrapper M_Op( f_Op );
-  Op.push_back ( cplx(1.0), {&gmfourth, &M_Op, &gmfourth} );
-  // Op.push_back ( cplx(1.0), {&M_Op} );
+  // Op.push_back ( cplx(1.0), {&gmfourth, &M_Op, &gmfourth} );
+  Op.push_back ( cplx(1.0), {&M_Op} );
 #endif
 
   Eigen::MatrixXcd mat(N, N);

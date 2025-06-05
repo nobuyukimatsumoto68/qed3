@@ -1,6 +1,6 @@
 #pragma once
 
-// template<typename Rng>
+// template<typename Lattice>
 struct FermionVector {
   // const Lattice& lattice;
   std::vector<Complex> field;
@@ -22,7 +22,7 @@ struct FermionVector {
   FermionVector() // Rng& rng_)
     : Nt(Comp::Nt)
       // , Op(Op_)
-    // , rng(rng_)
+      // , rng(rng_)
     , field(Comp::N, 0.0)
   {}
 
@@ -70,6 +70,21 @@ struct FermionVector {
     // field(ix, i) /= std::sqrt(2.0);
     (*this)(s, ix, i) = 1.0;
   }
+
+  template <typename Rng>
+  void set_random_gauge(Rng& rng, const double width=1.0) {
+    for(int s=0; s<Nt; s++){
+      for(Idx ix=0; ix<rng.lattice.n_sites; ix++){
+        (*this)(s,ix,0) = width*rng.gaussian_site(s,ix);
+        (*this)(s,ix,1) = (*this)(s,ix,0);
+      }
+    }
+  }
+
+  void gauge_trsf(const FermionVector& gauge, const double sign=1.0) {
+    for(Idx i=0; i<field.size(); i++) field[i] *= std::exp( sign*I*gauge.field[i] );
+  }
+
 
   // void set_random() {
   //   for(Idx ix=0; ix<lattice.n_sites; ix++){

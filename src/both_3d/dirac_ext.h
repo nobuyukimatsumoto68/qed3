@@ -169,11 +169,10 @@ public:
 
         // const MS tmpP = 0.5 * signP * kappa_t[ix] * ( -r*sigma[0] + sigma[3] ) * std::exp( I*u.tp(s,ix) );
         // const MS tmpM = 0.5 * signM * kappa_t[ix] * ( -r*sigma[0] - sigma[3] ) * std::exp( -I*u.tp(s-1,ix) );
+
         const MS tmpP = 0.5 * signP * kappa_t[ix] * ( -r*sigma[0] - sigma[3] ) * std::exp( -I*u.tp(s,ix) );
         const MS tmpM = 0.5 * signM * kappa_t[ix] * ( -r*sigma[0] + sigma[3] ) * std::exp( I*u.tp(s-1,ix) );
-        // const MS tmpM = 0.5 * signM * kappa_t[ix] * ( -r*sigma[0] - sigma[3] ) * std::exp( I*u.tp(s-1,ix) );
-        // const MS tmpM = 0.5 * signM * kappa_t[ix] * ( -r*sigma[0] - sigma[3] ) * std::exp( -I*u.tp(s,ix) );
-        // const MS tmpM = 0.5 * signM * kappa_t[ix] * ( -r*sigma[0] - sigma[3] ) * std::exp( -I*u.tp(s,ix) );
+
 
         v[counter] = tmpP(0,0); counter++;
         v[counter] = tmpP(0,1); counter++;

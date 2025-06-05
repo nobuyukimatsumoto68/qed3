@@ -34,6 +34,8 @@ static constexpr Complex I = Complex(0.0, 1.0);
 // #define IS_DAGGER
 // #undef _OPENMP
 
+#define GAUGE_TRSF
+
 
 namespace Comp{
   constexpr bool is_compact=false;
@@ -51,10 +53,11 @@ namespace Comp{
   constexpr int NPARALLEL_GAUGE=12; // 12
   constexpr int NPARALLEL_SORT=16; // 12
 
-  constexpr int N_REFINE=4;
+  constexpr int N_REFINE=2;
   constexpr int NS=2;
 
-  constexpr int Nt=24;
+  // constexpr int Nt=24;
+  constexpr int Nt=192;
   // constexpr int Nt=1;
   // constexpr int Nt=16;
 
@@ -83,6 +86,7 @@ const std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
 #include "s2n_simp.h"
 #include "s2n_dual.h"
 #include "rng.h"
+#include "valence.h"
 #include "gauge_ext.h"
 #include "action_ext.h"
 
@@ -109,8 +113,6 @@ using CuC = cuDoubleComplex;
 
 #include "dirac_pf.h"
 #include "overlap.h"
-
-#include "valence.h"
 
 #include "../../integrator/geodesic.h"
 
@@ -153,6 +155,7 @@ int main(int argc, char* argv[]){
   using Action=U1WilsonExt<Base>;
 
   using Rng=ParallelRngExt<Base,Nt>;
+  // using FermionVector = FermionVector<Base>;
 
 
   Base base(Comp::N_REFINE);
@@ -160,7 +163,8 @@ int main(int argc, char* argv[]){
 
   // ----------------------
   // const double at = 0.5;
-  const double T = 0.2;
+  // const double T = 0.2;
+  const double T = 16;
   const double at = T/Comp::Nt;
   assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
 
@@ -176,9 +180,11 @@ int main(int argc, char* argv[]){
   srand( time(NULL) );
   Rng rng(base, rand());
 
-  std::cout << "SW = " << SW(U) << std::endl;
-  U.random_gauge_trsf(rng);
-  std::cout << "ch.= " << SW(U) << std::endl;
+#ifdef GAUGE_TRSF
+  // std::cout << "SW = " << SW(U) << std::endl;
+  // U.random_gauge_trsf(rng);
+  // std::cout << "ch.= " << SW(U) << std::endl;
+#endif
 
 
 
@@ -237,10 +243,22 @@ int main(int argc, char* argv[]){
 
   std::cout << "# calculating src " << std::endl;
 
+#ifdef GAUGE_TRSF
+  FermionVector gauge; // (base, Nt, rng);
+  gauge.set_random_gauge(rng);
+#endif
+
   FermionVector src1; // (base, Nt, rng);
   FermionVector src; // (base, Nt, rng);
   src1.set_pt_source(0, 0, 0);
   // src1.set_pt_source(Comp::Nt/4, 0, 1);
+
+#ifdef GAUGE_TRSF
+  src1.gauge_trsf( gauge );
+  U.gauge_trsf( gauge );
+  D.update( U );
+#endif
+
   pre.from_cpu<N>( src.field, src1.field );
 
   FermionVector sink; // (base, Nt, rng);
@@ -251,6 +269,9 @@ int main(int argc, char* argv[]){
 
   std::cout << "# done" << std::endl;
 
+#ifdef GAUGE_TRSF
+  sink.gauge_trsf( gauge, -1 );
+#endif
 
 
   std::vector<double> thetas;
