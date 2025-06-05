@@ -7,7 +7,7 @@ struct SingleRng {
   std::mt19937_64 mt;
 
   std::normal_distribution<double> dist_gaussian;
-  std::uniform_real_distribution<> dist_01;
+  std::uniform_real_distribution<double> dist_01;
   std::uniform_int_distribution<int> dist_z2;
 
   SingleRng()
@@ -18,6 +18,24 @@ struct SingleRng {
   double uniform(){ return dist_01(mt); }
   double z2(){ return dist_z2(mt); }
   void reseed(const int seed) { mt.seed(seed); }
+
+
+  friend std::ostream& operator<<( std::ostream& os, const SingleRng& e ){
+    os << e.mt;
+    os << e.dist_gaussian;
+    os << e.dist_01;
+    os << e.dist_z2;
+    return os;
+  }
+
+  friend std::istream& operator>>( std::istream& is, SingleRng& e ){
+    is >> e.mt;
+    is >> e.dist_gaussian;
+    is >> e.dist_01;
+    is >> e.dist_z2;
+    return is;
+  }
+
 };
 
 
@@ -93,6 +111,50 @@ struct ParallelRngExt {
       }
     }
   }
+
+  void ckpoint( const std::string& str ) {
+    std::ofstream os( str );
+    if(!os) assert(false);
+    os << master;
+
+    for(Idx i=0; i<links.size(); i++){
+      for(Idx j=0; j<links[i].size(); j++){
+        os << links[i][j];
+      }
+    }
+    for(Idx i=0; i<sites.size(); i++){
+      for(Idx j=0; j<sites[i].size(); j++){
+        os << sites[i][j];
+      }
+    }
+    os.close();
+  }
+
+  void read( const std::string& str ) {
+    std::ifstream is( str );
+    if(!is) assert(false);
+    is >> master;
+
+    for(Idx i=0; i<links.size(); i++){
+      for(Idx j=0; j<links[i].size(); j++){
+        is >> links[i][j];
+      }
+    }
+    for(Idx i=0; i<sites.size(); i++){
+      for(Idx j=0; j<sites[i].size(); j++){
+        is >> sites[i][j];
+      }
+    }
+
+    // for(std::vector<SingleRng>& vector : links) {
+    //   for(SingleRng& rng : vector) is >> rng;
+    // }
+    // for(std::vector<SingleRng>& vector : sites) {
+    //   for(SingleRng& rng : vector) is >> rng;
+    // }
+    is.close();
+  }
+
 };
 
 
