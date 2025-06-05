@@ -1,7 +1,7 @@
 #!/bin/bash -l
 
-# module load gcc/13.2.0
-source ../../env.sh
+module load gcc/13.2.0
+# source ../../env.sh
 
 # app='wolff.o'
 app="gauge${1}"
@@ -21,7 +21,7 @@ app="gauge${1}"
 #     cd ${dir}
 echo $app
 export app=${app}
-qsub -N ${app} -v app=${app} -j y run.sh
+qsub -N ${app} -v app=${app} -t 1-20 -j y run.sh
 #     echo $n
 #     cd ..
 # done

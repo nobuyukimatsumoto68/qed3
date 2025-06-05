@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <chrono>
 
 
 #include <cstdint>
@@ -50,21 +51,21 @@ namespace Comp{
   // d_DW.update() is always done independently
 #ifdef IS_OVERLAP
   constexpr int NPARALLEL_DUPDATE=1;
-  constexpr int NPARALLEL=12; // 12
+  constexpr int NPARALLEL=16; // 12
   constexpr int NSTREAMS=4; // 4
 #else
-  constexpr int NPARALLEL_DUPDATE=12;
+  constexpr int NPARALLEL_DUPDATE=16;
   constexpr int NPARALLEL=1; // 12
-  constexpr int NSTREAMS=12; // for grad loop
+  constexpr int NSTREAMS=16; // for grad loop
 #endif
-  constexpr int N_REFINE=1;
-  constexpr int nsteps=150;
+  // constexpr int N_REFINE=1;
+  // constexpr int nsteps=150;
   // constexpr int N_REFINE=2;
   // constexpr int nsteps=180;
-  // constexpr int N_REFINE=4;
-  // constexpr int nsteps=240;
+  constexpr int N_REFINE=4;
+  constexpr int nsteps=240;
 
-  constexpr int NPARALLEL_GAUGE=12; // 12
+  constexpr int NPARALLEL_GAUGE=16; // 12
   constexpr int NPARALLEL_SORT=NPARALLEL_GAUGE; // 12
 
   constexpr int Nt=96; // 10
@@ -204,8 +205,18 @@ int main(int argc, char* argv[]){
   std::cout << "# alat = " << base.mean_ell << std::endl;
 
   Gauge U(base);
-  srand( time(NULL) );
-  Rng rng(base, rand());
+  // {
+  uint64_t ms=0;
+  {
+    // using namespace std::chrono_literals;
+
+    using namespace std::chrono;
+    std::this_thread::sleep_for( milliseconds(std::atoi(prefix.c_str())) );
+    ms = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+  }
+  // srand( ms );
+  Rng rng(base, ms );
+  // }
   // Rng rng(base);
   U.gaussian( rng, 0.2 );
 
@@ -224,11 +235,11 @@ int main(int argc, char* argv[]){
   double rate, dH;
   bool is_accept;
 
-  // const int kmax=1e7;
-  const int kmax=1e2;
+  const int kmax=1e4;
+  // const int kmax=1e2;
   const int interval=50;
-  const int k_ckpoint=1e4;
-  const int k_therm=1e2;
+  const int k_ckpoint=1e3;
+  const int k_therm=1e3;
 
 
   Force pi(base);

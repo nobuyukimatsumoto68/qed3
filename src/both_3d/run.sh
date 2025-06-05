@@ -7,9 +7,10 @@
 #$ -P qfe
 #$ -M nmatsum@bu.edu
 ##### run time limit. format: hh:mm:ss; default 12 hrs
-#$ -l h_rt=96:00:00
+#### #$ -l h_rt=96:00:00
+#$ -l h_rt=12:00:00
 #$ -l cpu_arch=skylake
-#$ -pe omp 12
+#$ -pe omp 16
 
 
 
@@ -36,6 +37,6 @@ module load cuda/12.5
 
 echo "running program"
 pwd
-echo ${app}
-${app} # ${mult} ${binsize}
+echo ${app} ${SGE_TASK_ID}
+${app} ${SGE_TASK_ID} # ${mult} ${binsize}
 echo "finished"
