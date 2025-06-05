@@ -77,6 +77,17 @@ public:
       for(Idx ix=0; ix<lattice.n_sites; ix++){
         Idx counter = 4*lattice.counter_accum.back()*Nt + 8*(lattice.n_sites*s + ix);
         // assert( counter==4*lattice.counter_accum.back()*Nt + 8*(lattice.n_sites*s + ix) );
+
+        // is[counter] = ( Nx*s+NS*ix )%N; js[counter] = Nx*(s+1)+NS*ix; counter++;
+        // is[counter] = ( Nx*s+NS*ix )%N; js[counter] = Nx*(s+1)+NS*ix+1; counter++;
+        // is[counter] = ( Nx*s+NS*ix + N )%N; js[counter] = Nx*(s-1)+NS*ix; counter++;
+        // is[counter] = ( Nx*s+NS*ix + N )%N; js[counter] = Nx*(s-1)+NS*ix+1; counter++;
+
+        // is[counter] = ( Nx*s+NS*ix+1 )%N; js[counter] = Nx*(s+1)+NS*ix; counter++;
+        // is[counter] = ( Nx*s+NS*ix+1 )%N; js[counter] = Nx*(s+1)+NS*ix+1; counter++;
+        // is[counter] = ( Nx*s+NS*ix+1 + N )%N; js[counter] = Nx*(s-1)+NS*ix; counter++;
+        // is[counter] = ( Nx*s+NS*ix+1 + N )%N; js[counter] = Nx*(s-1)+NS*ix+1; counter++;
+
         is[counter] = ( Nx*(s+1)+NS*ix )%N; js[counter] = Nx*s+NS*ix; counter++;
         is[counter] = ( Nx*(s+1)+NS*ix )%N; js[counter] = Nx*s+NS*ix+1; counter++;
         is[counter] = ( Nx*(s-1)+NS*ix + N )%N; js[counter] = Nx*s+NS*ix; counter++;
@@ -156,8 +167,13 @@ public:
       for(Idx ix=0; ix<lattice.n_sites; ix++){
         Idx counter = 4*lattice.counter_accum.back()*Nt + 8*(lattice.n_sites*s + ix);
 
-        const MS tmpP = 0.5 * signP * kappa_t[ix] * ( -r*sigma[0] + sigma[3] ) * std::exp( I*u.tp(s,ix) );
-        const MS tmpM = 0.5 * signM * kappa_t[ix] * ( -r*sigma[0] - sigma[3] ) * std::exp( -I*u.tp(s-1,ix) );
+        // const MS tmpP = 0.5 * signP * kappa_t[ix] * ( -r*sigma[0] + sigma[3] ) * std::exp( I*u.tp(s,ix) );
+        // const MS tmpM = 0.5 * signM * kappa_t[ix] * ( -r*sigma[0] - sigma[3] ) * std::exp( -I*u.tp(s-1,ix) );
+        const MS tmpP = 0.5 * signP * kappa_t[ix] * ( -r*sigma[0] - sigma[3] ) * std::exp( -I*u.tp(s,ix) );
+        const MS tmpM = 0.5 * signM * kappa_t[ix] * ( -r*sigma[0] + sigma[3] ) * std::exp( I*u.tp(s-1,ix) );
+        // const MS tmpM = 0.5 * signM * kappa_t[ix] * ( -r*sigma[0] - sigma[3] ) * std::exp( I*u.tp(s-1,ix) );
+        // const MS tmpM = 0.5 * signM * kappa_t[ix] * ( -r*sigma[0] - sigma[3] ) * std::exp( -I*u.tp(s,ix) );
+        // const MS tmpM = 0.5 * signM * kappa_t[ix] * ( -r*sigma[0] - sigma[3] ) * std::exp( -I*u.tp(s,ix) );
 
         v[counter] = tmpP(0,0); counter++;
         v[counter] = tmpP(0,1); counter++;
@@ -266,8 +282,10 @@ public:
     int sign = 1;
     if(s==Nt-1) sign = -1;
 
-    const MS tmpP = 0.5 * sign * kappa_t[ix] * ( -r*sigma[0] + sigma[3] ) * I*std::exp( I*u.tp(s,ix) );
-    const MS tmpM = -0.5 * sign * kappa_t[ix] * ( -r*sigma[0] - sigma[3] ) * I*std::exp( -I*u.tp(s,ix) ); // s-1 -> s
+    // const MS tmpP = 0.5 * sign * kappa_t[ix] * ( -r*sigma[0] + sigma[3] ) * I*std::exp( I*u.tp(s,ix) );
+    // const MS tmpM = -0.5 * sign * kappa_t[ix] * ( -r*sigma[0] - sigma[3] ) * I*std::exp( -I*u.tp(s,ix) ); // s-1 -> s
+    const MS tmpP = 0.5 * sign * kappa_t[ix] * ( -r*sigma[0] - sigma[3] ) * I*std::exp( -I*u.tp(s,ix) );
+    const MS tmpM = -0.5 * sign * kappa_t[ix] * ( -r*sigma[0] + sigma[3] ) * I*std::exp( I*u.tp(s,ix) ); // s-1 -> s
 
     // res[NS*ix] += -tmp(0,0)*v[NS*iy] - tmp(0,1)*v[NS*iy+1];
     elem.push_back(COOEntry(tmpP(0,0), ( Nx*(s+1)+NS*ix )%N, Nx*s+NS*ix ));

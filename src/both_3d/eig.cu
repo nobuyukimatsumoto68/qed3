@@ -30,7 +30,7 @@ static constexpr Complex I = Complex(0.0, 1.0);
 
 
 // #define IS_DUAL
-#define IS_OVERLAP
+// #define IS_OVERLAP
 
 // // #define IsVerbose
 // #define IsVerbose2
@@ -55,11 +55,11 @@ namespace Comp{
   constexpr int NPARALLEL_GAUGE=12; // 12
   constexpr int NPARALLEL_SORT=12; // 12
 
-  constexpr int N_REFINE=4;
+  constexpr int N_REFINE=2;
   constexpr int NS=2;
 
-  constexpr int Nt=24;
-  // constexpr int Nt=1;
+  // constexpr int Nt=24;
+  constexpr int Nt=2;
   // constexpr int Nt=1;
 
 #ifdef IS_DUAL
@@ -84,6 +84,7 @@ const std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
 #include "s2n_dual.h"
 #include "rng.h"
 #include "gauge_ext.h"
+#include "action_ext.h"
 
 #include <cuComplex.h>
 #include <cuda_runtime.h>
@@ -158,6 +159,7 @@ int main(int argc, char* argv[]){
 
   using Force=GaugeExt<Base,Nt,Comp::is_compact>;
   using Gauge=GaugeExt<Base,Nt,Comp::is_compact>;
+  using Action=U1WilsonExt<Base>;
 
   using Rng=ParallelRngExt<Base,Nt>;
   using Overlap=Overlap<WilsonDirac>;
@@ -168,14 +170,9 @@ int main(int argc, char* argv[]){
 
   // ----------------------
 
-  // const double gR = 10.0;
-  // double beta = 4.0; // 1.0/(gR*gR);
-  // Action SW(beta, beta);
 
-  Gauge U(base);
-  srand( time(NULL) );
-  Rng rng(base, rand());
-  // U.gaussian( rng, 0.2 );
+  // U.random_gauge_trsf(rng);
+
 
 
 #ifdef IS_OVERLAP
@@ -198,13 +195,36 @@ int main(int argc, char* argv[]){
   const double T = 4.0;
   const double at = T/Comp::Nt;
   // const double at = base.mean_ell * 3.0/4.0;
-  assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
-// #ifdef IS_OVERLAP
-// #endif
+
+  // assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
+
+  // #ifdef IS_OVERLAP
+  // #endif
   // const double at = 0.00;
   // const double at = 2.0/Comp::Nt;
   WilsonDirac DW(base, 0.0, r, M5, at);
 
+
+
+
+  // const double gR = 10.0;
+  // double beta = 4.0; // 1.0/(gR*gR);
+  // Action SW(beta, beta);
+  const double gsq = 0.05;
+  // double at = 0.05; // base.mean_ell * 0.125 * ratio;
+  // if(Comp::Nt==1) at=0.;
+  Action SW( gsq, at, base );
+  std::cout << "# alat = " << base.mean_ell << std::endl;
+
+
+  Gauge U(base);
+  srand( time(NULL) );
+  Rng rng(base, rand());
+  // U.gaussian( rng, 0.2 );
+
+  std::cout << "SW = " << SW(U) << std::endl;
+  // U.random_gauge_trsf(rng);
+  std::cout << "ch.= " << SW(U) << std::endl;
 
 
 

@@ -84,6 +84,7 @@ const std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
 #include "s2n_dual.h"
 #include "rng.h"
 #include "gauge_ext.h"
+#include "action_ext.h"
 
 #include <cuComplex.h>
 #include <cuda_runtime.h>
@@ -149,6 +150,7 @@ int main(int argc, char* argv[]){
 
   using Force=GaugeExt<Base,Nt,Comp::is_compact>;
   using Gauge=GaugeExt<Base,Nt,Comp::is_compact>;
+  using Action=U1WilsonExt<Base>;
 
   using Rng=ParallelRngExt<Base,Nt>;
 
@@ -157,19 +159,27 @@ int main(int argc, char* argv[]){
   std::cout << "# lattice set. " << std::endl;
 
   // ----------------------
+  // const double at = 0.5;
+  const double T = 0.2;
+  const double at = T/Comp::Nt;
+  assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
 
-  // const double gR = 10.0;
-  // double beta = 4.0; // 1.0/(gR*gR);
-  // Action SW(beta, beta);
+
+  const double gsq = 0.05;
+  // double at = 0.05; // base.mean_ell * 0.125 * ratio;
+  // if(Comp::Nt==1) at=0.;
+  Action SW( gsq, at, base );
+  std::cout << "# alat = " << base.mean_ell << std::endl;
+
 
   Gauge U(base);
   srand( time(NULL) );
   Rng rng(base, rand());
 
-  // const double at = 0.5;
-  const double T = 0.2;
-  const double at = T/Comp::Nt;
-  assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
+  std::cout << "SW = " << SW(U) << std::endl;
+  U.random_gauge_trsf(rng);
+  std::cout << "ch.= " << SW(U) << std::endl;
+
 
 
 #ifdef IS_OVERLAP
