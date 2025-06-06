@@ -51,12 +51,12 @@ namespace Comp{
   // d_DW.update() is always done independently
 #ifdef IS_OVERLAP
   constexpr int NPARALLEL_DUPDATE=1;
-  constexpr int NPARALLEL=16; // 12
+  constexpr int NPARALLEL=12; // 12
   constexpr int NSTREAMS=4; // 4
 #else
-  constexpr int NPARALLEL_DUPDATE=16;
+  constexpr int NPARALLEL_DUPDATE=12;
   constexpr int NPARALLEL=1; // 12
-  constexpr int NSTREAMS=16; // for grad loop
+  constexpr int NSTREAMS=12; // for grad loop
 #endif
   constexpr int N_REFINE=1;
   constexpr int nsteps=150;
@@ -65,7 +65,7 @@ namespace Comp{
   // constexpr int N_REFINE=4;
   // constexpr int nsteps=250;
 
-  constexpr int NPARALLEL_GAUGE=16; // 12
+  constexpr int NPARALLEL_GAUGE=12; // 12
   constexpr int NPARALLEL_SORT=NPARALLEL_GAUGE; // 12
 
   constexpr int Nt=96; // 10

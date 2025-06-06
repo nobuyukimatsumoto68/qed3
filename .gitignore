@@ -7,9 +7,12 @@
 *.nvvp
 *.nvprof
 .ipynb_checkpoints/
-newQFE/
+# newQFE/
 *analysis*
 *dats*
 *boost*
 *old*
 *.virtual_documents*
+beta*
+*.o*
+*.e*

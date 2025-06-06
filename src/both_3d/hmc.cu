@@ -127,7 +127,7 @@ int main(int argc, char* argv[]){
   cudaDeviceProp device_prop[device];
   cudaGetDeviceProperties(&device_prop[0], 0);
   std::cout << "# dev = " << device_prop[0].name << std::endl;
-  CUDA_CHECK(cudaSetDevice(0));// "TITAN V"
+  // CUDA_CHECK(cudaSetDevice(0));// "TITAN V"
   std::cout << "# (GPU device is set.)" << std::endl;
 
   // ---------------------------------------
