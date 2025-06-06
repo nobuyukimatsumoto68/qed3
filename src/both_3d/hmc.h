@@ -147,7 +147,8 @@ struct HMC2 {
     , pfs(pfs_)
     , integrator(integrator_)
   {
-    for(CuC* d_eta_saved : d_eta_saveds ) CUDA_CHECK(cudaMalloc(&d_eta_saved, N*CD));
+    d_eta_saveds.resize(pfs.size());
+    for(int jf=0; jf<pfs.size(); jf++) CUDA_CHECK(cudaMalloc(&d_eta_saveds[jf], N*CD));
   }
 
   ~HMC2(){
@@ -193,7 +194,7 @@ struct HMC2 {
       U = U0;
       fermion->update( U );
       // pf->update_eta();
-      for(int jf=0; jf<pfs.size(); jf++) CUDA_CHECK(cudaMemcpy(pfs[jf]->d_eta, this->d_eta_saved[jf], N*CD, D2D));
+      for(int jf=0; jf<pfs.size(); jf++) CUDA_CHECK(cudaMemcpy(pfs[jf]->d_eta, this->d_eta_saveds[jf], N*CD, D2D));
       for(PseudoFermion* pf : pfs) fermion->precalc_grad_deviceAsyncLaunch( U, pf->d_eta );
     }
   }

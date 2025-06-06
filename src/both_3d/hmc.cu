@@ -6,6 +6,8 @@
 #include <cassert>
 
 #include <algorithm>
+#include <filesystem>
+#include <chrono>
 
 
 #include <cstdint>
@@ -36,7 +38,7 @@ static constexpr Complex I = Complex(0.0, 1.0);
 #define IS_OVERLAP
 
 // #define IsVerbose
-#define InfoForce
+// #define InfoForce
 #define InfoDelta
 
 
@@ -47,7 +49,7 @@ namespace Comp{
 #ifdef IS_OVERLAP
   constexpr int NPARALLEL_DUPDATE=1;
   constexpr int NPARALLEL=16; // 12
-  constexpr int NSTREAMS=4; // 4
+  constexpr int NSTREAMS=2; // 4
 #else
   constexpr int NPARALLEL_DUPDATE=12;
   constexpr int NPARALLEL=1; // 12
@@ -365,6 +367,54 @@ int main(int argc, char* argv[]){
   // -----------------
 
 
+  // Force pi( base );
+  // pi.gaussian( rng );
+  // Force pi0=pi;
+
+  // Gauge U0=U;
+  // D.update(U);
+
+  // for(PseudoFermion<Fermion>* pf : pfs){
+  //   // pf.gen( rng );
+  //   // D.precalc_grad_deviceAsyncLaunch( U, pf.d_eta );
+  //   pf->gen( rng );
+  //   D.precalc_grad_deviceAsyncLaunch( U, pf->d_eta );
+  // }
+
+  // const double tmax = 1.0; // 1.0; // 0.1
+  // for(int nsteps=12; nsteps<=24; nsteps+=4){
+  //   // const int nsteps=5;
+  //   // ExplicitLeapfrogML integrator( tmax, nsteps, 20 );
+  //   ExplicitLeapfrogML integrator( tmax, nsteps, 100 );
+  //   pi = pi0;
+  //   U = U0;
+  //   HMC2 hmc(rng, &SW, &D, U, pi, pfs, &integrator);
+
+  //   D.update( U );
+  //   for(PseudoFermion<Fermion>* pf : pfs){
+  //     // pf.update_eta();
+  //     // D.precalc_grad_deviceAsyncLaunch( U, pf.d_eta );
+  //     pf->update_eta();
+  //     D.precalc_grad_deviceAsyncLaunch( U, pf->d_eta );
+  //   }
+
+  //   const double h0 = hmc.H();
+  //   hmc.integrate();
+  //   const double h1 = hmc.H();
+  //   double dH = h1-h0;
+  //   std::cout << tmax/nsteps << " " << dH << std::endl;
+  //   std::cout << " --- hmc : " << timer.currentSeconds() << std::endl;
+  // }
+
+
+
+
+  // -----------------// -----------------// -----------------// -----------------// -----------------
+
+  std::string dir2="Nf4_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
+  std::filesystem::create_directory(dir2);
+  const int k_ckpoint=10;
+
   Force pi( base );
   pi.gaussian( rng );
   Force pi0=pi;
@@ -373,85 +423,56 @@ int main(int argc, char* argv[]){
   D.update(U);
 
   for(PseudoFermion<Fermion>* pf : pfs){
-    // pf.gen( rng );
-    // D.precalc_grad_deviceAsyncLaunch( U, pf.d_eta );
     pf->gen( rng );
     D.precalc_grad_deviceAsyncLaunch( U, pf->d_eta );
   }
 
-  const double tmax = 1.0; // 1.0; // 0.1
-  for(int nsteps=12; nsteps<=24; nsteps+=4){
-    // const int nsteps=5;
-    // ExplicitLeapfrogML integrator( tmax, nsteps, 20 );
-    ExplicitLeapfrogML integrator( tmax, nsteps, 100 );
-    pi = pi0;
-    U = U0;
-    HMC2 hmc(rng, &SW, &D, U, pi, pfs, &integrator);
+  const double tmax = 1.0; // 0.1
+  const int nsteps=20;
+  ExplicitLeapfrogML integrator( tmax, nsteps, 100 );
+  pi = pi0;
+  U = U0;
+  HMC2 hmc(rng, &SW, &D, U, pi, pfs, &integrator);
+  D.update( U );
 
-    D.update( U );
-    for(PseudoFermion<Fermion>* pf : pfs){
-      // pf.update_eta();
-      // D.precalc_grad_deviceAsyncLaunch( U, pf.d_eta );
-      pf->update_eta();
-      D.precalc_grad_deviceAsyncLaunch( U, pf->d_eta );
-    }
-
-    const double h0 = hmc.H();
-    hmc.integrate();
-    const double h1 = hmc.H();
-    double dH = h1-h0;
-    std::cout << tmax/nsteps << " " << dH << std::endl;
-    std::cout << " --- hmc : " << timer.currentSeconds() << std::endl;
+  for(PseudoFermion<Fermion>* pf : pfs){
+    pf->gen( rng );
+    D.precalc_grad_deviceAsyncLaunch( U, pf->d_eta );
   }
 
+  double rate, dH;
+  bool is_accept;
+  for(int k=0; k<10; k++){
+    Timer timer;
+    hmc.run( rate, dH, is_accept, true);
+    std::cout << "# dH : " << dH
+              << " is_accept : " << is_accept << std::endl;
+    std::cout << "# HMC : " << timer.currentSeconds() << " sec" << std::endl;
+  }
 
+  double r_mean;
+  const int kmax=1e5;
+  for(int k=0; k<kmax; k++){
+    Timer timer;
+    hmc.run( rate, dH, is_accept);
+    std::cout << "# dH : " << dH
+              << " is_accept : " << is_accept << std::endl;
+    r_mean += rate;
+    std::cout << "# HMC : " << timer.currentSeconds() << " sec" << std::endl;
 
+    if(k%100==0){
+      std::cout << "# k = " << k << std::endl;
+    }
 
-  // -----------------// -----------------// -----------------// -----------------// -----------------
-
-
-  // Force pi( base );
-  // pi.gaussian( rng );
-  // Force pi0=pi;
-
-  // Gauge U0=U;
-  // D.update(U);
-  // pf.gen( rng );
-  // D.precalc_grad_deviceAsyncLaunch( U, pf.d_eta );
-
-  // const double tmax = 1.0; // 0.1
-  // // for(int nsteps=1; nsteps<=5; nsteps+=1){
-  // const int nsteps=8;
-  // ExplicitLeapfrogML integrator( tmax, nsteps, 20 );
-  // // ExplicitLeapfrogML integrator( tmax, nsteps, 100 );
-  // pi = pi0;
-  // U = U0;
-  // HMC hmc(rng, &SW, &D, U, pi, &pf, &integrator);
-  // D.update( U ); pf.update_eta();
-  // D.precalc_grad_deviceAsyncLaunch( U, pf.d_eta );
-
-  // double rate, dH;
-  // bool is_accept;
-  // for(int k=0; k<10; k++){
-  //   Timer timer;
-  //   hmc.run( rate, dH, is_accept, true);
-  //   std::cout << "# dH : " << dH
-  //             << " is_accept : " << is_accept << std::endl;
-  //   std::cout << "# HMC : " << timer.currentSeconds() << " sec" << std::endl;
-  // }
-
-  // double r_mean;
-  // const int kmax=50;
-  // for(int k=0; k<kmax; k++){
-  //   Timer timer;
-  //   hmc.run( rate, dH, is_accept);
-  //   std::cout << "# dH : " << dH
-  //             << " is_accept : " << is_accept << std::endl;
-  //   r_mean += rate;
-  //   std::cout << "# HMC : " << timer.currentSeconds() << " sec" << std::endl;
-  // }
-  // r_mean /= kmax;
-  // std::cout << "# r_mean = " << r_mean << std::endl;
+    if(k%k_ckpoint==0){
+      const std::string str_lat=dir2+"ckpoint_lat."+std::to_string(k);
+      const std::string str_rng=dir2+"ckpoint_rng."+std::to_string(k);
+      U.ckpoint( str_lat );
+      rng.ckpoint( str_rng );
+    }
+  }
+  r_mean /= kmax;
+  std::cout << "# r_mean = " << r_mean << std::endl;
 
 
 
