@@ -10,7 +10,8 @@
 #### #$ -l h_rt=96:00:00
 #$ -l h_rt=12:00:00
 #$ -l gpus=1
-#$ -l gpu_type=A100
+#$ -l gpu_type=V100
+# #$ -l gpu_c=70
 #$ -pe omp 16
 
 

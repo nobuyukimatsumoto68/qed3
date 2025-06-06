@@ -78,7 +78,7 @@ namespace Comp{
   const double TOL_OUTER=1.0e-8;
 }
 
-const std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
+const std::string dir = "../../dats/";
 
 #include "timer.h"
 
@@ -411,8 +411,8 @@ int main(int argc, char* argv[]){
 
   // -----------------// -----------------// -----------------// -----------------// -----------------
 
-  std::string dir2="Nf4_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
-  std::filesystem::create_directory(dir2);
+  std::string dir3="Nf4_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
+  std::filesystem::create_directory(dir3);
   const int k_ckpoint=10;
   const int kmax=1e5;
 
@@ -420,8 +420,8 @@ int main(int argc, char* argv[]){
   {
     int k_tmp=0;
     for(k_tmp=k_ckpoint; k_tmp<=kmax; k_tmp+=k_ckpoint ){
-      const std::string str_lat=dir2+"ckpoint_lat."+std::to_string(k_tmp);
-      const std::string str_rng=dir2+"ckpoint_rng."+std::to_string(k_tmp);
+      const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k_tmp);
+      const std::string str_rng=dir3+"ckpoint_rng."+std::to_string(k_tmp);
 
       const bool bool_lat = std::filesystem::exists(str_lat);
       const bool bool_rng = std::filesystem::exists(str_rng);
@@ -432,8 +432,8 @@ int main(int argc, char* argv[]){
 
     if(k_tmp>0){ // from existing
       std::cout << "read from k_tmp = " << k_tmp << std::endl;
-      const std::string str_lat=dir2+"ckpoint_lat."+std::to_string(k_tmp);
-      const std::string str_rng=dir2+"ckpoint_rng."+std::to_string(k_tmp);
+      const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k_tmp);
+      const std::string str_rng=dir3+"ckpoint_rng."+std::to_string(k_tmp);
       U.read( str_lat );
       rng.read( str_rng );
     }
@@ -491,8 +491,8 @@ int main(int argc, char* argv[]){
     }
 
     if(k%k_ckpoint==0){
-      const std::string str_lat=dir2+"ckpoint_lat."+std::to_string(k);
-      const std::string str_rng=dir2+"ckpoint_rng."+std::to_string(k);
+      const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k);
+      const std::string str_rng=dir3+"ckpoint_rng."+std::to_string(k);
       U.ckpoint( str_lat );
       rng.ckpoint( str_rng );
     }
