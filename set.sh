@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-dir_qfe=$(pwd)/newQFE
+dir_qfe=$(pwd)/../qfe_mod
 
 #########################
 
@@ -13,9 +13,9 @@ fi
 #########################
 
 if [ ! -L ${dir_qfe} ] && [ ! -d ${dir_qfe} ]; then
-    echo "--- newQFE not found"
-    git clone https://github.com/brower/newQFE
-    echo "--- newQFE installed"
+    echo "--- qfe_mod not found"
+    git clone https://github.com/nobuyukimatsumoto68/qfe_mod.git
+    echo "---  qfe_mod installed"
 fi
 
 dir_eigen=${dir_qfe}/include/Eigen

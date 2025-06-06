@@ -169,7 +169,7 @@ int main(int argc, char **argv){
     int tmp=0;
     for(int conf=conf_min; conf<conf_max; conf+= interval){
       std::string file = path+"/"+header+std::to_string(conf)+".dat";
-      // std::cout << "# file = " << file << std::endl;
+      std::cout << "# file = " << file << std::endl;
       if( !fs::exists( file ) ) break;
       tmp = conf;
     }

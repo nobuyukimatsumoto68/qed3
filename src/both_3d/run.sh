@@ -10,7 +10,7 @@
 #### #$ -l h_rt=96:00:00
 #$ -l h_rt=12:00:00
 #$ -l cpu_arch=skylake
-#$ -pe omp 16
+#$ -pe omp 12
 
 
 
