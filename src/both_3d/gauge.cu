@@ -248,7 +248,7 @@ int main(int argc, char* argv[]){
 
 
   int k_tmp=0;
-  for(k_tmp=k_ckpoint; k_tmp<kmax; k_tmp+=k_ckpoint ){
+  for(k_tmp=k_ckpoint; k_tmp<=kmax; k_tmp+=k_ckpoint ){
     const std::string str_lat=dir2+"ckpoint_lat."+std::to_string(k_tmp);
     const std::string str_rng=dir2+"ckpoint_rng."+std::to_string(k_tmp);
 
@@ -301,7 +301,7 @@ int main(int argc, char* argv[]){
   std::vector<double> plaq_s0(Comp::Nt);
   double r_mean;
 
-  for(int k=k_tmp+1; k<kmax; k++){
+  for(int k=k_tmp+1; k<=kmax; k++){
     Timer timer;
     hmc.run( rate, dH, is_accept);
     // if constexpr(Comp::is_compact) U.project();

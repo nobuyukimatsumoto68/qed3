@@ -414,6 +414,31 @@ int main(int argc, char* argv[]){
   std::string dir2="Nf4_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
   std::filesystem::create_directory(dir2);
   const int k_ckpoint=10;
+  const int kmax=1e5;
+
+
+  {
+    int k_tmp=0;
+    for(k_tmp=k_ckpoint; k_tmp<=kmax; k_tmp+=k_ckpoint ){
+      const std::string str_lat=dir2+"ckpoint_lat."+std::to_string(k_tmp);
+      const std::string str_rng=dir2+"ckpoint_rng."+std::to_string(k_tmp);
+
+      const bool bool_lat = std::filesystem::exists(str_lat);
+      const bool bool_rng = std::filesystem::exists(str_rng);
+
+      if(!(bool_lat&&bool_rng)) break;
+    }
+    k_tmp -= k_ckpoint;
+
+    if(k_tmp>0){ // from existing
+      std::cout << "read from k_tmp = " << k_tmp << std::endl;
+      const std::string str_lat=dir2+"ckpoint_lat."+std::to_string(k_tmp);
+      const std::string str_rng=dir2+"ckpoint_rng."+std::to_string(k_tmp);
+      U.read( str_lat );
+      rng.read( str_rng );
+    }
+  }
+
 
   Force pi( base );
   pi.gaussian( rng );
@@ -446,17 +471,18 @@ int main(int argc, char* argv[]){
     Timer timer;
     hmc.run( rate, dH, is_accept, true);
     std::cout << "# dH : " << dH
-              << " is_accept : " << is_accept << std::endl;
+              << " is_accept : " << is_accept
+              << " rate : " << rate << std::endl;
     std::cout << "# HMC : " << timer.currentSeconds() << " sec" << std::endl;
   }
 
   double r_mean;
-  const int kmax=1e5;
   for(int k=0; k<kmax; k++){
     Timer timer;
     hmc.run( rate, dH, is_accept);
     std::cout << "# dH : " << dH
-              << " is_accept : " << is_accept << std::endl;
+              << " is_accept : " << is_accept
+              << " rate : " << rate << std::endl;
     r_mean += rate;
     std::cout << "# HMC : " << timer.currentSeconds() << " sec" << std::endl;
 

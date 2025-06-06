@@ -21,7 +21,7 @@ app="gauge${1}"
 #     cd ${dir}
 echo $app
 export app=${app}
-qsub -N ${app} -v app=${app} -t 1-20 -j y run.sh
+qsub -N ${app} -v app=${app} -t 1-4 -j y run.sh
 #     echo $n
 #     cd ..
 # done
