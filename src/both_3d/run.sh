@@ -8,7 +8,7 @@
 #$ -M nmatsum@bu.edu
 ##### run time limit. format: hh:mm:ss; default 12 hrs
 #### #$ -l h_rt=96:00:00
-#$ -l h_rt=12:00:00
+#$ -l h_rt=24:00:00
 #$ -l cpu_arch=skylake
 #$ -pe omp 12
 

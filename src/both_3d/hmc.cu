@@ -411,7 +411,14 @@ int main(int argc, char* argv[]){
 
   // -----------------// -----------------// -----------------// -----------------// -----------------
 
-  std::string dir3="Nf4_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
+  std::string dir3;
+#ifdef Nf2
+  dir3="Nf2_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
+#else
+#ifdef Nf4
+  dir3="Nf4_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
+#endif
+#endif
   std::filesystem::create_directory(dir3);
   const int k_ckpoint=10;
   const int kmax=1e5;

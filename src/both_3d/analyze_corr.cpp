@@ -1,3 +1,4 @@
+
 #include <iostream>
 #include <iomanip>
 #include <filesystem>
@@ -151,7 +152,7 @@ int main(int argc, char **argv){
   int Nt = atoi(argv[6]);
 
   int binsize = atoi(argv[7]);
-  // int Nt = atoi(argv[6]);
+  int prefix_max = atoi(argv[8]);
 
   std::cout << "# path = " << path << std::endl;
   std::cout << "# header = " << header << std::endl;
@@ -160,39 +161,43 @@ int main(int argc, char **argv){
   std::cout << "# Nt = " << Nt << std::endl;
   std::cout << "# binsize = " << binsize << std::endl;
 
-  // std::vector<fs::path> files;
-
-  // std::vector<Corr> binavgs;
   Jackknife<Corr> jk(binsize);
 
   {
-    int tmp=0;
-    for(int conf=conf_min; conf<conf_max; conf+= interval){
-      std::string file = path+"/"+header+std::to_string(conf)+".dat";
-      std::cout << "# file = " << file << std::endl;
-      if( !fs::exists( file ) ) break;
-      tmp = conf;
+    int min_min = conf_max;
+    for(int prefix=1; prefix<=prefix_max; prefix++){
+      int tmp=0;
+      for(int conf=conf_min; conf<conf_max; conf+= interval){
+        std::string file = path+std::to_string(prefix)+"/"+header+std::to_string(conf)+".dat";
+        std::cout << "# file = " << file << std::endl;
+        if( !fs::exists( file ) ) break;
+        tmp = conf;
+      }
+      if(min_min>tmp) min_min = tmp;
     }
-    conf_max = tmp;
+    conf_max = min_min;
   }
 
   int nbins = (conf_max-conf_min)/interval/binsize;
   std::cout << "# nbins = " << nbins << std::endl;
-  jk.binavgs.resize(nbins);
+  jk.binavgs.resize(nbins * prefix_max);
 
+
+  for(int prefix=1; prefix<=prefix_max; prefix++){
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
-  for(int ib=0; ib<nbins; ib++){
-    Corr binned;
-    for(int conf = conf_min+ib*interval*binsize; conf<conf_min+(ib+1)*interval*binsize; conf+= interval){
-      std::string file = path+"/"+header+std::to_string(conf)+".dat";
-      if( !fs::exists( file ) ) assert(false);
-      Corr corr(file);
-      binned += corr;
+    for(int ib=0; ib<nbins; ib++){
+      Corr binned;
+      for(int conf = conf_min+ib*interval*binsize; conf<conf_min+(ib+1)*interval*binsize; conf+= interval){
+        std::string file = path+std::to_string(prefix)+"/"+header+std::to_string(conf)+".dat";
+        if( !fs::exists( file ) ) assert(false);
+        Corr corr(file);
+        binned += corr;
+      }
+      binned /= binsize;
+      jk.binavgs[(prefix-1)*nbins + ib] = binned;
     }
-    binned /= binsize;
-    jk.binavgs[ib] = binned;
   }
 
   jk.do_it();
@@ -202,21 +207,6 @@ int main(int argc, char **argv){
   for( int i=0; i<jk.est.size(); i++ ){
     std::cout << jk.est[i] << " " << std::sqrt(jk.var[i]) << std::endl;
   }
-
-  // Iterate through the directory and add files to the vector
-  // for (const auto& entry : fs::directory_iterator(path)) {
-  //   if (fs::is_regular_file(entry)) {
-  //     files.push_back(entry.path());
-  //   }
-  // }
-
-  // // Sort the files alphabetically
-  // std::sort(files.begin(), files.end());
-
-  // // Print the sorted file names
-  // for (const auto& file : files) {
-  //   std::cout << file.filename().string() << std::endl;
-  // }
 
   return 0;
 }

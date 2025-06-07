@@ -58,12 +58,12 @@ namespace Comp{
   constexpr int NPARALLEL=1; // 12
   constexpr int NSTREAMS=12; // for grad loop
 #endif
-  constexpr int N_REFINE=1;
-  constexpr int nsteps=150;
-  // constexpr int N_REFINE=2;
+  // constexpr int N_REFINE=1;
   // constexpr int nsteps=180;
-  // constexpr int N_REFINE=4;
-  // constexpr int nsteps=250;
+  // constexpr int N_REFINE=2;
+  // constexpr int nsteps=220;
+  constexpr int N_REFINE=4;
+  constexpr int nsteps=300;
 
   constexpr int NPARALLEL_GAUGE=12; // 12
   constexpr int NPARALLEL_SORT=NPARALLEL_GAUGE; // 12
@@ -236,7 +236,7 @@ int main(int argc, char* argv[]){
   double rate, dH;
   bool is_accept;
 
-  const int kmax=1e5;
+  const int kmax=5e5;
   // const int kmax=1e2;
   const int interval=50;
   const int k_ckpoint=1e3;
