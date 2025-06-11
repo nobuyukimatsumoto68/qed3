@@ -13,5 +13,5 @@ source ../../env.sh
 
 echo "${key}"
 dir=${key}
-./a.out ${dir} plaq_ss_t_ 50 10000 50 96 10 | tee "corr_${dir}.dat"
+./a.out ${dir} plaq_ss_t_ 1000 100000 50 96 20 ${prefix_max} | tee "corr_${dir}.dat"
 
