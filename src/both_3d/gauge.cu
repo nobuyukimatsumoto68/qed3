@@ -60,15 +60,19 @@ namespace Comp{
 #endif
   // constexpr int N_REFINE=1;
   // constexpr int nsteps=180;
-  // constexpr int N_REFINE=2;
-  // constexpr int nsteps=220;
-  constexpr int N_REFINE=4;
-  constexpr int nsteps=300;
+  constexpr int N_REFINE=2;
+  constexpr int nsteps=220;
+  // constexpr int N_REFINE=4;
+  // constexpr int nsteps=300;
 
   constexpr int NPARALLEL_GAUGE=12; // 12
   constexpr int NPARALLEL_SORT=NPARALLEL_GAUGE; // 12
 
-  constexpr int Nt=96; // 10
+  // constexpr int Nt=192; // 10
+
+  // constexpr int Nt=96; // 10
+  // constexpr int Nt=64; // 10
+  constexpr int Nt=48; // 10
 
   constexpr int NS=2;
 
@@ -192,16 +196,22 @@ int main(int argc, char* argv[]){
 
   // ----------------------
 
-  // const double gsqR = 0.02;
   const double gsq = 0.05;
+  // const double gsq = 0.1;
   // const double gsqR = 0.2;
   // double beta = 28.0; // 1.0/(gR*gR);
   // double beta = 1.0/gsqR; // 1.0/(gR*gR);
   // double at = base.mean_ell * 0.125;
   // double ratio = 1.0/2.0;
-  double at = 0.05; // base.mean_ell * 0.125 * ratio;
+  // double at = 0.05; // base.mean_ell * 0.125 * ratio;
   // double beta_t = beta_s; // 1.0/(gR*gR);
+  const double T = 4.8;
+  double at = T/Comp::Nt;
+  // double at = 0.05;
   if(Comp::Nt==1) at=0.;
+  else{
+    assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
+  }
   Action SW( gsq, at, base );
   std::cout << "# alat = " << base.mean_ell << std::endl;
 
@@ -236,7 +246,7 @@ int main(int argc, char* argv[]){
   double rate, dH;
   bool is_accept;
 
-  const int kmax=5e5;
+  const int kmax=4e6;
   // const int kmax=1e2;
   const int interval=50;
   const int k_ckpoint=1e3;

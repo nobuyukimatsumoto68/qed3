@@ -53,6 +53,80 @@ struct SpinStructureSimp{
       }
     }
   }
+
+  template <typename Lattice>
+  void check(const Lattice& base) {
+    {
+      std::clog << "# checking spin structure" << std::endl;
+      for(Idx ix=0; ix<base.sites.size(); ix++){
+        // const auto x = base.sites[ix];
+        for(int iw=0; iw<base.nns[ix].size(); iw++){
+          Idx iy = base.nns[ix][iw];
+          const Double alpha1 = alpha.at(Link{ix,iy});
+          Double alpha2 = alpha.at(Link{iy,ix});
+          Double omega12 = omega.at(Link{ix,iy});
+
+          Double diff = (alpha2 + M_PI + omega12) - alpha1;
+          std::cout << "diff = " << diff << std::endl;
+          assert( Geodesic::isModdable(diff, 1.0e-14) );
+
+          // Double om = alpha1 - (alpha2 + M_PI);
+          // const int br = Geodesic::decide_branch( om-omega12 );
+          // om -= M_PI*br;
+          // omega[Link({ix, iy})] = om;
+        }}
+    }
+    {
+      std::clog << "# checking deficits" << std::endl;
+      int counter=0;
+      for(int ia=0; ia<base.n_faces; ia++){
+        int sign = 1;
+        {
+          VE x0 = base.sites[ base.faces[ia][0] ];
+          VE x1 = base.sites[ base.faces[ia][1] ];
+          VE x2 = base.sites[ base.faces[ia][2] ];
+          VE sum = x0+x1+x2;
+          if((x1-x0).cross(x2-x0).dot(sum) < 0) sign = -1;
+        }
+        // std::cout << "sign = " << sign << std::endl;
+
+        Double sum = 0.0;
+        for(int i=0; i<3; i++){
+          Idx ix = base.faces[ia][i];
+          Idx jx = base.faces[ia][(i+1)%3];
+          sum += omega.at( Link{ix,jx} );
+        }
+        sum *= sign;
+        // std::cout << "sum = " << sum << std::endl;
+        Double mod = Geodesic::Mod(sum, 4.0*M_PI);
+        // std::cout << "sum (mod4pi) = " << mod << std::endl;
+        if(mod>2.0*M_PI) mod -= 4.0*M_PI;
+        std::clog << "# sum (mod4pi, repr) = " << mod << std::endl;
+        assert( (-1.5 * 4.0*M_PI/base.n_faces < mod && mod < 0.0) );
+        counter++;
+      }
+    }
+  }
+
+  template <typename Lattice, typename Rng>
+  void random_gauge_trsf(const Lattice& base,
+                         Rng& rng, const double width=1.0){
+    for(Idx ix=0; ix<base.sites.size(); ix++){
+      double shift = 2.0*rng.gaussian();
+
+      for(int iw=0; iw<base.nns[ix].size(); iw++){
+        Idx iy = base.nns[ix][iw];
+        Double& alpha1 = alpha.at(Link{ix,iy});
+        Double& omega12 = omega.at(Link{ix,iy});
+        Double& omega21 = omega.at(Link{iy,ix});
+
+        alpha1 += shift;
+        omega12 += shift;
+        omega21 -= shift;
+      }
+      check(base);
+    }
+  }
 };
 
 

@@ -21,7 +21,24 @@ app="gauge${1}"
 #     cd ${dir}
 echo $app
 export app=${app}
-qsub -N ${app} -v app=${app} -t 1-4 -j y run.sh
+if [ "$#" -eq 2 ]; then
+    qsub -N ${app} -v app=${app} -t 1-20 -j y -hold_jid ${2} run.sh
+elif [ "$#" -eq 1 ]; then
+    qsub -N ${app} -v app=${app} -t 1-20 -j y run.sh
+fi
+
+
+
+# echo $app
+# export app=${app}
+# if [ "$#" -eq 2 ]; then
+#     qsub -N ${app} -v app=${app} -t 1-4 -j y -hold_jid ${2} run.sh
+# elif [ "$#" -eq 1 ]; then
+#      qsub -N ${app} -v app=${app} -t 1-4 -j y run.sh
+# fi
+
+
+
 #     echo $n
 #     cd ..
 # done
