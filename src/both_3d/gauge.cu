@@ -58,12 +58,27 @@ namespace Comp{
   constexpr int NPARALLEL=1; // 12
   constexpr int NSTREAMS=12; // for grad loop
 #endif
-  // constexpr int N_REFINE=1;
-  // constexpr int nsteps=180;
-  constexpr int N_REFINE=2;
-  constexpr int nsteps=220;
+  constexpr int N_REFINE=1;
+  constexpr int Nt=24; // 10
+  constexpr int nsteps=100;
+
+  // constexpr int N_REFINE=2;
+  // constexpr int Nt=96; // 10
+  // constexpr int nsteps=220;
+  // constexpr int Nt=64; // 10
+  // constexpr int nsteps=190;
+  // constexpr int Nt=48; // 10
+  // constexpr int nsteps=160;
+
   // constexpr int N_REFINE=4;
+  // constexpr int Nt=96; // 10
   // constexpr int nsteps=300;
+  // constexpr int Nt=64; // 10
+  // constexpr int nsteps=275;
+  // constexpr int Nt=48; // 10
+  // constexpr int nsteps=250;
+
+  
 
   constexpr int NPARALLEL_GAUGE=12; // 12
   constexpr int NPARALLEL_SORT=NPARALLEL_GAUGE; // 12
@@ -72,7 +87,6 @@ namespace Comp{
 
   // constexpr int Nt=96; // 10
   // constexpr int Nt=64; // 10
-  constexpr int Nt=48; // 10
 
   constexpr int NS=2;
 
@@ -196,7 +210,8 @@ int main(int argc, char* argv[]){
 
   // ----------------------
 
-  const double gsq = 0.05;
+  // const double gsq = 0.05;
+  const double gsq = 0.5;
   // const double gsq = 0.1;
   // const double gsqR = 0.2;
   // double beta = 28.0; // 1.0/(gR*gR);
@@ -205,7 +220,8 @@ int main(int argc, char* argv[]){
   // double ratio = 1.0/2.0;
   // double at = 0.05; // base.mean_ell * 0.125 * ratio;
   // double beta_t = beta_s; // 1.0/(gR*gR);
-  const double T = 4.8;
+  // const double T = 4.8;
+  const double T = 10.0;
   double at = T/Comp::Nt;
   // double at = 0.05;
   if(Comp::Nt==1) at=0.;
