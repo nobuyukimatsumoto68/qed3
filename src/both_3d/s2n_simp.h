@@ -261,7 +261,7 @@ struct S2Simp {
 
     // std::cout << "# debug5" << std::endl;
 
-    set_ell_ellstar_linkvols();
+    set_ell_linkvols();
     // std::cout << "# debug6" << std::endl;
     set_dual_areas();
     // std::cout << "# debug7" << std::endl;
@@ -298,7 +298,7 @@ struct S2Simp {
   }
 
 
-  void set_ell_ellstar_linkvols(){
+  void set_ell_linkvols(){
     ell.resize( n_links );
     link_volume.resize( n_links );
 

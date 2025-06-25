@@ -30,11 +30,11 @@ static constexpr Complex I = Complex(0.0, 1.0);
 
 
 // #define IS_DUAL
-// #define IS_OVERLAP
+#define IS_OVERLAP
 // #define IS_DAGGER
 // #undef _OPENMP
 
-#define GAUGE_TRSF
+// #define GAUGE_TRSF
 
 
 namespace Comp{
@@ -164,7 +164,7 @@ int main(int argc, char* argv[]){
   // ----------------------
   // const double at = 0.5;
   // const double T = 0.2;
-  const double T = 16;
+  const double T = 12;
   const double at = T/Comp::Nt;
   assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
 
