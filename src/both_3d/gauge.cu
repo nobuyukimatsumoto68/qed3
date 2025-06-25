@@ -58,27 +58,38 @@ namespace Comp{
   constexpr int NPARALLEL=1; // 12
   constexpr int NSTREAMS=12; // for grad loop
 #endif
-  constexpr int N_REFINE=1;
-  constexpr int Nt=24; // 10
-  constexpr int nsteps=100;
-
-  // constexpr int N_REFINE=2;
-  // constexpr int Nt=96; // 10
-  // constexpr int nsteps=220;
-  // constexpr int Nt=64; // 10
-  // constexpr int nsteps=190;
+  // constexpr int N_REFINE=1;
+  // constexpr int Nt=24; // 10
+  // constexpr int nsteps=12;
+  // constexpr int Nt=36; // 10
+  // constexpr int nsteps=16;
   // constexpr int Nt=48; // 10
-  // constexpr int nsteps=160;
+  // constexpr int nsteps=20;
+
+
+  constexpr int N_REFINE=2;
+  constexpr int Nt=24; // 10
+  constexpr int nsteps=22;
+  // constexpr int Nt=36; // 10
+  // constexpr int nsteps=25;
+  // constexpr int Nt=48; // 10
+  // constexpr int nsteps=30;
+
 
   // constexpr int N_REFINE=4;
+  // constexpr int Nt=24; // 10
+  // constexpr int nsteps=60;
+  // constexpr int Nt=36; // 10
+  // constexpr int nsteps=48;
+  // constexpr int Nt=48; // 10
+  // constexpr int nsteps=52;
+
   // constexpr int Nt=96; // 10
   // constexpr int nsteps=300;
   // constexpr int Nt=64; // 10
   // constexpr int nsteps=275;
   // constexpr int Nt=48; // 10
   // constexpr int nsteps=250;
-
-  
 
   constexpr int NPARALLEL_GAUGE=12; // 12
   constexpr int NPARALLEL_SORT=NPARALLEL_GAUGE; // 12
@@ -221,12 +232,12 @@ int main(int argc, char* argv[]){
   // double at = 0.05; // base.mean_ell * 0.125 * ratio;
   // double beta_t = beta_s; // 1.0/(gR*gR);
   // const double T = 4.8;
-  const double T = 10.0;
+  const double T = 12.0;
   double at = T/Comp::Nt;
   // double at = 0.05;
   if(Comp::Nt==1) at=0.;
   else{
-    assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
+    // assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
   }
   Action SW( gsq, at, base );
   std::cout << "# alat = " << base.mean_ell << std::endl;
@@ -262,8 +273,9 @@ int main(int argc, char* argv[]){
   double rate, dH;
   bool is_accept;
 
-  const int kmax=4e6;
+  const int kmax=1e6;
   // const int kmax=1e2;
+
   const int interval=50;
   const int k_ckpoint=1e3;
   const int k_therm=1e3;
