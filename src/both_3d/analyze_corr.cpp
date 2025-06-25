@@ -50,6 +50,7 @@ struct Corr {
       data = rhs.data;
     }
     else{
+      // std::cout << "# debug. " << data.size() << " " << rhs.data.size() << std::endl;
       assert( data.size()==rhs.data.size() );
       for(int i=0; i<data.size(); i++) data[i] += rhs.data[i];
     }
@@ -163,42 +164,77 @@ int main(int argc, char **argv){
 
   Jackknife<Corr> jk(binsize);
 
+  // {
+  //   int min_min = conf_max;
+  //   for(int prefix=1; prefix<=prefix_max; prefix++){
+  //     int tmp=0;
+  //     for(int conf=conf_min; conf<conf_max; conf+= interval){
+  //       std::string file = path+std::to_string(prefix)+"/"+header+std::to_string(conf)+".dat";
+  //       std::cout << "# file = " << file << std::endl;
+  //       if( !fs::exists( file ) ) break;
+  //       tmp = conf;
+  //     }
+  //     if(min_min>tmp) min_min = tmp;
+  //   }
+  //   conf_max = min_min;
+  // }
+
+  // int nbins = (conf_max-conf_min)/interval/binsize;
+  // std::cout << "# nbins = " << nbins << std::endl;
+  // jk.binavgs.resize(nbins * prefix_max);
+
+  // int nbins = (conf_max-conf_min)/interval/binsize;
+  std::vector<int> nbins;
+
   {
-    int min_min = conf_max;
     for(int prefix=1; prefix<=prefix_max; prefix++){
-      int tmp=0;
+      int conf_max_loc = conf_min;
+      // int tmp=0;
       for(int conf=conf_min; conf<conf_max; conf+= interval){
         std::string file = path+std::to_string(prefix)+"/"+header+std::to_string(conf)+".dat";
         std::cout << "# file = " << file << std::endl;
         if( !fs::exists( file ) ) break;
-        tmp = conf;
+        Corr corr(file);
+        if( corr.size()!=Nt ) break;
+        conf_max_loc = conf;
       }
-      if(min_min>tmp) min_min = tmp;
+      // if(min_min>tmp) min_min = tmp;
+      nbins.push_back( (conf_max_loc-conf_min)/interval/binsize ); // safety
+      // conf_max = min_min;
     }
-    conf_max = min_min;
   }
 
-  int nbins = (conf_max-conf_min)/interval/binsize;
-  std::cout << "# nbins = " << nbins << std::endl;
-  jk.binavgs.resize(nbins * prefix_max);
+  // int nbins = (conf_max-conf_min)/interval/binsize;
+  int nbins_tot = 0;
+  for(const int elem : nbins) nbins_tot += elem;
+  std::cout << "# nbins = " << nbins_tot << std::endl;
+  jk.binavgs.resize(nbins_tot);
 
 
   for(int prefix=1; prefix<=prefix_max; prefix++){
+    int accum=0;
+    for(int pre=1; pre<prefix; pre++) accum += nbins[pre-1];
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
-    for(int ib=0; ib<nbins; ib++){
+    for(int ib=0; ib<nbins[prefix-1]; ib++){
       Corr binned;
       for(int conf = conf_min+ib*interval*binsize; conf<conf_min+(ib+1)*interval*binsize; conf+= interval){
         std::string file = path+std::to_string(prefix)+"/"+header+std::to_string(conf)+".dat";
         if( !fs::exists( file ) ) assert(false);
         Corr corr(file);
+        if( corr.size()!=Nt ) assert(false);
+        // std::cout << "# debug. " << binned.size() << " " << corr.size() << std::endl;
         binned += corr;
       }
       binned /= binsize;
-      jk.binavgs[(prefix-1)*nbins + ib] = binned;
+      // std::cout << "# ib " << ib << " prefix " << prefix << std::endl;
+     
+      jk.binavgs[accum + ib] = binned;
     }
   }
+
+  std::cout << "# do it " << std::endl;
 
   jk.do_it();
 

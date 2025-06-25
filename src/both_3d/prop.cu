@@ -51,7 +51,7 @@ namespace Comp{
   constexpr int NSTREAMS=12; // for grad loop
 #endif
   constexpr int NPARALLEL_GAUGE=12; // 12
-  constexpr int NPARALLEL_SORT=16; // 12
+  constexpr int NPARALLEL_SORT=12; // 12
 
   constexpr int N_REFINE=2;
   constexpr int NS=2;
@@ -74,7 +74,7 @@ namespace Comp{
   const double TOL_OUTER=1.0e-14;
 }
 
-const std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
+const std::string dir = "../../dats/";
 
 // // #define IsVerbose
 // #define IsVerbose2
@@ -82,6 +82,8 @@ const std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
 // #define InfoDelta
 
 #include "timer.h"
+
+#include "../../integrator/geodesic.h"
 
 #include "s2n_simp.h"
 #include "s2n_dual.h"
@@ -113,8 +115,6 @@ using CuC = cuDoubleComplex;
 
 #include "dirac_pf.h"
 #include "overlap.h"
-
-#include "../../integrator/geodesic.h"
 
 
 // TODO: Cusparse for SparseMatrix::act_gpu, probably defining handle in matpoly.h
@@ -254,6 +254,8 @@ int main(int argc, char* argv[]){
   // src1.set_pt_source(Comp::Nt/4, 0, 1);
 
 #ifdef GAUGE_TRSF
+  DW.bd.random_gauge_trsf(base,rng);
+
   src1.gauge_trsf( gauge );
   U.gauge_trsf( gauge );
   D.update( U );
@@ -333,7 +335,7 @@ int main(int argc, char* argv[]){
   if(Comp::Nt==1) factor = base.mean_ell;
 
   {
-    std::string path = "prop_spacial_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+".dat1";
+    std::string path = "prop_spacial_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+".dat2";
 #ifdef IS_DUAL
     path = "dual_"+path;
 #endif
@@ -370,7 +372,7 @@ int main(int argc, char* argv[]){
     }
   }
   {
-    std::string path = "prop_temporal_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+".dat1";
+    std::string path = "prop_temporal_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+".dat2";
 #ifdef IS_DUAL
     path = "dual_"+path;
 #endif
