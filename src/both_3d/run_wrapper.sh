@@ -19,12 +19,19 @@ app="gauge${1}"
 #     cp run.sh ${dir}
 #     cp ${app} ${dir}
 #     cd ${dir}
-echo $app
-export app=${app}
-if [ "$#" -eq 2 ]; then
-    qsub -N ${app} -v app=${app} -t 1-20 -j y -hold_jid ${2} run.sh
+# echo $app
+# export app=${app}
+# if [ "$#" -eq 2 ]; then
+#     qsub -N ${app} -v app=${app} -t 1-10 -j y -hold_jid ${2} run.sh
+# elif [ "$#" -eq 1 ]; then
+#     qsub -N ${app} -v app=${app} -t 1-10 -j y run.sh
+# fi
+if [ "$#" -eq 3 ]; then
+    qsub -N ${app} -v app=${app} -t 1-${2} -j y -hold_jid ${3} run.sh
+elif [ "$#" -eq 2 ]; then
+    qsub -N ${app} -v app=${app} -t 1-${2} -j y run.sh
 elif [ "$#" -eq 1 ]; then
-    qsub -N ${app} -v app=${app} -t 1-20 -j y run.sh
+    qsub -N ${app} -v app=${app} -j y run.sh
 fi
 
 

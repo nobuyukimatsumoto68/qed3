@@ -58,18 +58,20 @@ namespace Comp{
   constexpr int NPARALLEL=1; // 12
   constexpr int NSTREAMS=12; // for grad loop
 #endif
-  // constexpr int N_REFINE=1;
+  constexpr int N_REFINE=1;
+  const int kmax=1e8;
   // constexpr int Nt=24; // 10
   // constexpr int nsteps=12;
   // constexpr int Nt=36; // 10
   // constexpr int nsteps=16;
-  // constexpr int Nt=48; // 10
-  // constexpr int nsteps=20;
+  constexpr int Nt=48; // 10
+  constexpr int nsteps=20;
 
 
-  constexpr int N_REFINE=2;
-  constexpr int Nt=24; // 10
-  constexpr int nsteps=22;
+  // constexpr int N_REFINE=2;
+  // const int kmax=1e7;
+  // constexpr int Nt=24; // 10
+  // constexpr int nsteps=22;
   // constexpr int Nt=36; // 10
   // constexpr int nsteps=25;
   // constexpr int Nt=48; // 10
@@ -77,12 +79,17 @@ namespace Comp{
 
 
   // constexpr int N_REFINE=4;
-  // constexpr int Nt=24; // 10
-  // constexpr int nsteps=60;
-  // constexpr int Nt=36; // 10
-  // constexpr int nsteps=48;
+  // const int kmax=1e7;
+  // // constexpr int Nt=24; // 10
+  // // constexpr int nsteps=60;
+  // // constexpr int Nt=36; // 10
+  // // constexpr int nsteps=48;
   // constexpr int Nt=48; // 10
   // constexpr int nsteps=52;
+
+
+
+
 
   // constexpr int Nt=96; // 10
   // constexpr int nsteps=300;
@@ -250,6 +257,8 @@ int main(int argc, char* argv[]){
 
     using namespace std::chrono;
     std::this_thread::sleep_for( milliseconds(std::atoi(prefix.c_str())) );
+    std::this_thread::sleep_for( milliseconds(Comp::Nt) );
+    std::this_thread::sleep_for( milliseconds(Comp::N_REFINE) );
     ms = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
   }
   // srand( ms );
@@ -273,7 +282,6 @@ int main(int argc, char* argv[]){
   double rate, dH;
   bool is_accept;
 
-  const int kmax=1e6;
   // const int kmax=1e2;
 
   const int interval=50;
@@ -286,7 +294,7 @@ int main(int argc, char* argv[]){
 
 
   int k_tmp=0;
-  for(k_tmp=k_ckpoint; k_tmp<=kmax; k_tmp+=k_ckpoint ){
+  for(k_tmp=k_ckpoint; k_tmp<=Comp::kmax; k_tmp+=k_ckpoint ){
     const std::string str_lat=dir2+"ckpoint_lat."+std::to_string(k_tmp);
     const std::string str_rng=dir2+"ckpoint_rng."+std::to_string(k_tmp);
 
@@ -333,13 +341,18 @@ int main(int argc, char* argv[]){
                 << " is_accept : " << is_accept << std::endl;
     }
     k_tmp = 0;
+
+    const std::string str_lat=dir2+"ckpoint_lat."+std::to_string(k_tmp);
+    const std::string str_rng=dir2+"ckpoint_rng."+std::to_string(k_tmp);
+    U.ckpoint( str_lat );
+    rng.ckpoint( str_rng );
   }
 
 
   std::vector<double> plaq_s0(Comp::Nt);
   double r_mean;
 
-  for(int k=k_tmp+1; k<=kmax; k++){
+  for(int k=k_tmp+1; k<=Comp::kmax; k++){
     Timer timer;
     hmc.run( rate, dH, is_accept);
     // if constexpr(Comp::is_compact) U.project();
@@ -391,7 +404,7 @@ int main(int argc, char* argv[]){
     }
 
   }
-  r_mean /= kmax;
+  r_mean /= Comp::kmax;
   std::cout << "# r_mean = " << r_mean << std::endl;
 
 

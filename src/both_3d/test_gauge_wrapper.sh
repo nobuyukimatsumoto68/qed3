@@ -7,11 +7,67 @@
 # key="gsq0.050000at0.050000nt96L1_"
 # prefix_max=4
 
-key="gsq0.050000at0.050000nt96L2_"
-prefix_max=10
+
+
+# key="gsq0.050000at0.100000nt48L2_"
+# prefix_max=20
+# Nt=48
+
+# key="gsq0.050000at0.075000nt64L2_"
+# prefix_max=20
+# Nt=64
+
+# key="gsq0.050000at0.050000nt96L2_"
+# prefix_max=10
+# Nt=96
 
 # key="gsq0.050000at0.050000nt96L4_"
 # prefix_max=20
+# Nt=96
+
+############################################
+
+# key="gsq0.500000at0.500000nt24L1_"
+# prefix_max=1
+# Nt=24
+
+# key="gsq0.500000at0.333333nt36L1_"
+# prefix_max=1
+# Nt=36
+
+# key="gsq0.500000at0.250000nt48L1_"
+# prefix_max=1
+# Nt=48
+
+
+# key="gsq0.500000at0.500000nt24L2_"
+# prefix_max=4
+# Nt=24
+
+# key="gsq0.500000at0.333333nt36L2_"
+# prefix_max=4
+# Nt=36
+
+# key="gsq0.500000at0.250000nt48L2_"
+# prefix_max=4
+# Nt=48
+
+
+# key="gsq0.500000at0.500000nt24L4_"
+# prefix_max=16
+# Nt=24
+
+# key="gsq0.500000at0.333333nt36L4_"
+# prefix_max=16
+# Nt=36
+
+key="gsq0.500000at0.250000nt48L4_"
+prefix_max=16
+Nt=48
+
+
+
+
 
 # L=1
 
@@ -23,11 +79,12 @@ g++ analyze_corr.cpp -std=c++23 -O3 # -fuse-ld=lld
 # do
 export key=$key
 export prefix_max=$prefix_max
+export Nt=$Nt
 echo $key
 # qsub test_gauge.sh -v key=${key}
 # bash test_gauge.sh -v key=${key} -v prefix_max=${prefix_max}
 
-qsub -j y -v key=${key} -v prefix_max=${prefix_max} -V test_gauge.sh
+qsub -j y -v key=${key} -v prefix_max=${prefix_max} -v Nt=${Nt} -V test_gauge.sh
 # bash -v key=${key} -v prefix_max=${prefix_max} -V test_gauge.sh
 
 # ./a.out ${dir} plaq_ss_t_ 0 10000 50 96 1000 | tee "corr_${dir}.dat"
