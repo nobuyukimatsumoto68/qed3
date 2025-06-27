@@ -58,32 +58,41 @@ namespace Comp{
   constexpr int NPARALLEL=1; // 12
   constexpr int NSTREAMS=12; // for grad loop
 #endif
-  constexpr int N_REFINE=1;
-  const int kmax=1e8;
-  // constexpr int Nt=24; // 10
-  // constexpr int nsteps=12;
-  // constexpr int Nt=36; // 10
-  // constexpr int nsteps=16;
-  constexpr int Nt=48; // 10
-  constexpr int nsteps=20;
+  // const int kmax=1e2;
+
+  // constexpr int N_REFINE=1;
+  // const int kmax=1e8;
+  // // constexpr int Nt=24; // 10
+  // // constexpr int nsteps=12;
+  // constexpr int Nt=32; // 10
+  // constexpr int nsteps=14;
+  // // constexpr int Nt=36; // 10
+  // // constexpr int nsteps=16;
+  // constexpr int Nt=48; // 10
+  // constexpr int nsteps=20;
 
 
   // constexpr int N_REFINE=2;
-  // const int kmax=1e7;
-  // constexpr int Nt=24; // 10
+  // // const int kmax=1e7;
+  // // constexpr int Nt=24; // 10
   // constexpr int nsteps=22;
-  // constexpr int Nt=36; // 10
-  // constexpr int nsteps=25;
-  // constexpr int Nt=48; // 10
-  // constexpr int nsteps=30;
+  // constexpr int Nt=34; // 10
+  // // constexpr int nsteps=22;
+  // // constexpr int Nt=36; // 10
+  // // constexpr int nsteps=25;
+  // // constexpr int Nt=48; // 10
+  // // constexpr int nsteps=30;
+
 
 
   // constexpr int N_REFINE=4;
   // const int kmax=1e7;
-  // // constexpr int Nt=24; // 10
-  // // constexpr int nsteps=60;
-  // // constexpr int Nt=36; // 10
-  // // constexpr int nsteps=48;
+  // constexpr int Nt=24; // 10
+  // constexpr int nsteps=60;
+  // constexpr int Nt=32; // 10
+  // constexpr int nsteps=52;
+  // constexpr int Nt=36; // 10
+  // constexpr int nsteps=48;
   // constexpr int Nt=48; // 10
   // constexpr int nsteps=52;
 
@@ -282,7 +291,6 @@ int main(int argc, char* argv[]){
   double rate, dH;
   bool is_accept;
 
-  // const int kmax=1e2;
 
   const int interval=50;
   const int k_ckpoint=1e3;
