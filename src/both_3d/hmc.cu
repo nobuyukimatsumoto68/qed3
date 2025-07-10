@@ -32,7 +32,8 @@ static constexpr int DIM = 2;
 static constexpr Complex I = Complex(0.0, 1.0);
 
 // #define Nf2
-#define Nf4
+// #define Nf4
+#define Nf6
 
 // #define IS_DUAL
 #define IS_OVERLAP
@@ -79,6 +80,7 @@ namespace Comp{
 }
 
 const std::string dir = "../../dats/";
+#include "../../integrator/geodesic.h"
 
 #include "timer.h"
 
@@ -115,7 +117,6 @@ using CuC = cuDoubleComplex;
 #include "hmc.h"
 
 // #include "obs.h" // to be developed
-
 
 
 int main(int argc, char* argv[]){
@@ -214,8 +215,17 @@ int main(int argc, char* argv[]){
   PseudoFermion pf2(D);
   pfs.push_back(&pf2);
 #else
+#ifdef Nf6
+  PseudoFermion pf1(D);
+  pfs.push_back(&pf1);
+  PseudoFermion pf2(D);
+  pfs.push_back(&pf2);
+  PseudoFermion pf3(D);
+  pfs.push_back(&pf3);
+#else
   static_assert(false, "inappropriate Nf");
 #endif
+  #endif
 #endif
   // }
   // if(Comp::Nf>=4){
@@ -417,6 +427,9 @@ int main(int argc, char* argv[]){
 #else
 #ifdef Nf4
   dir3="Nf4_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
+#endif
+#ifdef Nf6
+  dir3="Nf6_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
 #endif
 #endif
   std::filesystem::create_directory(dir3);

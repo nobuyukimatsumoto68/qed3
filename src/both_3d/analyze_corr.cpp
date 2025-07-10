@@ -10,11 +10,16 @@
 #include <fstream>
 #include <sstream>
 
+#include <sstream>
+
 namespace fs = std::filesystem;
+
+#include <stdfloat>
+using Real = std::float128_t;
 
 
 struct Corr {
-  std::vector<double> data;
+  std::vector<Real> data;
 
   Corr(){}
 
@@ -42,8 +47,8 @@ struct Corr {
     }
   }
 
-  double operator[](const int i) const { return data[i]; }
-  double& operator[](const int i) { return data[i]; }
+  Real operator[](const std::size_t i) const { return data[i]; }
+  Real& operator[](const std::size_t i) { return data[i]; }
 
   Corr& operator+=(const Corr& rhs){
     if( data.size()==0 ) {
@@ -52,7 +57,7 @@ struct Corr {
     else{
       // std::cout << "# debug. " << data.size() << " " << rhs.data.size() << std::endl;
       assert( data.size()==rhs.data.size() );
-      for(int i=0; i<data.size(); i++) data[i] += rhs.data[i];
+      for(std::size_t i=0; i<data.size(); i++) data[i] += rhs.data[i];
     }
     return *this;
   }
@@ -63,7 +68,7 @@ struct Corr {
     }
     else{
       assert( data.size()==rhs.data.size() );
-      for(int i=0; i<data.size(); i++) data[i] -= rhs.data[i];
+      for(std::size_t i=0; i<data.size(); i++) data[i] -= rhs.data[i];
     }
     return *this;
   }
@@ -72,24 +77,24 @@ struct Corr {
 
   Corr& operator*=(const Corr& rhs){
     assert( data.size()==rhs.data.size() );
-    for(int i=0; i<data.size(); i++) data[i] *= rhs[i];
+    for(std::size_t i=0; i<data.size(); i++) data[i] *= rhs[i];
     return *this;
   }
 
   friend Corr operator*(Corr v, const Corr& w) { v *= w; return v; }
 
-  Corr& operator*(const double& rhs){
-    for(int i=0; i<data.size(); i++) data[i] *= rhs;
+  Corr& operator*(const Real& rhs){
+    for(std::size_t i=0; i<data.size(); i++) data[i] *= rhs;
     return *this;
   }
 
-  Corr& operator*=(const double& rhs){
-    for(int i=0; i<data.size(); i++) data[i] *= rhs;
+  Corr& operator*=(const Real& rhs){
+    for(std::size_t i=0; i<data.size(); i++) data[i] *= rhs;
     return *this;
   }
 
-  Corr& operator/=(const double& rhs){
-    for(int i=0; i<data.size(); i++) data[i] /= rhs;
+  Corr& operator/=(const Real& rhs){
+    for(std::size_t i=0; i<data.size(); i++) data[i] /= rhs;
     return *this;
   }
 };
@@ -103,10 +108,10 @@ struct Jackknife {
   T est;
   T var;
 
-  int nbins;
-  const int binsize;
+  std::size_t nbins;
+  const std::size_t binsize;
 
-  Jackknife( const int binsize )
+  Jackknife( const std::size_t binsize )
     : binsize(binsize)
   {}
 
@@ -115,8 +120,8 @@ struct Jackknife {
 
     jackavgs.clear();
     jackavgs.resize( nbins );
-    for(int i=0; i<nbins; i++){
-      for(int j=0; j<nbins; j++){
+    for(std::size_t i=0; i<nbins; i++){
+      for(std::size_t j=0; j<nbins; j++){
         if(i==j) continue;
         jackavgs[i] += binavgs[j];
       }
@@ -124,19 +129,39 @@ struct Jackknife {
     }
 
     est.clear();
-    for(int i=0; i<nbins; i++){
+    for(std::size_t i=0; i<nbins; i++){
       est += jackavgs[i];
     }
     est /= nbins;
 
     var.clear();
-    for(int i=0; i<nbins; i++){
+    for(std::size_t i=0; i<nbins; i++){
       T diff = jackavgs[i] - est;
       var += diff * diff;
     }
     var /= nbins;
     var *= nbins-1.0;
   }
+
+
+  void half_done(){
+    nbins = jackavgs.size();
+
+    est.clear();
+    for(std::size_t i=0; i<nbins; i++){
+      est += jackavgs[i];
+    }
+    est /= nbins;
+
+    var.clear();
+    for(std::size_t i=0; i<nbins; i++){
+      T diff = jackavgs[i] - est;
+      var += diff * diff;
+    }
+    var /= nbins;
+    var *= nbins-1.0;
+  }
+
 
 };
 
@@ -146,90 +171,68 @@ struct Jackknife {
 int main(int argc, char **argv){
 
   std::string path = argv[1];
-  std::string header = argv[2];
-  int conf_min = atoi(argv[3]);
-  int conf_max = atoi(argv[4]);
-  int interval = atoi(argv[5]);
-  int Nt = atoi(argv[6]);
-
-  int binsize = atoi(argv[7]);
-  int prefix_max = atoi(argv[8]);
-
   std::cout << "# path = " << path << std::endl;
+  std::string header = argv[2];
   std::cout << "# header = " << header << std::endl;
+  std::size_t conf_min = atoi(argv[3]);
   std::cout << "# conf_min = " << conf_min << std::endl;
+  std::size_t conf_max = atoi(argv[4]);
+  std::size_t interval = atoi(argv[5]);
   std::cout << "# interval = " << interval << std::endl;
+  std::size_t Nt = atoi(argv[6]);
   std::cout << "# Nt = " << Nt << std::endl;
+
+  std::size_t binsize = atoi(argv[7]);
   std::cout << "# binsize = " << binsize << std::endl;
+  std::size_t prefix_max = atoi(argv[8]);
+
+  Real at = atof(argv[9]);
+  std::string path_save = argv[10];
+
 
   Jackknife<Corr> jk(binsize);
 
-  // {
-  //   int min_min = conf_max;
-  //   for(int prefix=1; prefix<=prefix_max; prefix++){
-  //     int tmp=0;
-  //     for(int conf=conf_min; conf<conf_max; conf+= interval){
-  //       std::string file = path+std::to_string(prefix)+"/"+header+std::to_string(conf)+".dat";
-  //       std::cout << "# file = " << file << std::endl;
-  //       if( !fs::exists( file ) ) break;
-  //       tmp = conf;
-  //     }
-  //     if(min_min>tmp) min_min = tmp;
-  //   }
-  //   conf_max = min_min;
-  // }
-
-  // int nbins = (conf_max-conf_min)/interval/binsize;
-  // std::cout << "# nbins = " << nbins << std::endl;
-  // jk.binavgs.resize(nbins * prefix_max);
-
-  // int nbins = (conf_max-conf_min)/interval/binsize;
-  std::vector<int> nbins;
+  std::vector<std::size_t> nbins;
 
   {
-    for(int prefix=1; prefix<=prefix_max; prefix++){
-      int conf_max_loc = conf_min;
-      // int tmp=0;
-      for(int conf=conf_min; conf<conf_max; conf+= interval){
+    for(std::size_t prefix=1; prefix<=prefix_max; prefix++){
+      std::size_t conf_max_loc = conf_min;
+      // std::size_t tmp=0;
+      for(std::size_t conf=conf_min; conf<conf_max; conf+= interval){
         std::string file = path+std::to_string(prefix)+"/"+header+std::to_string(conf)+".dat";
-        std::cout << "# file = " << file << std::endl;
+        // std::cout << "# file = " << file << std::endl;
         if( !fs::exists( file ) ) break;
         Corr corr(file);
         if( corr.size()!=Nt ) break;
         conf_max_loc = conf;
       }
-      // if(min_min>tmp) min_min = tmp;
       nbins.push_back( (conf_max_loc-conf_min)/interval/binsize ); // safety
-      // conf_max = min_min;
     }
   }
 
-  // int nbins = (conf_max-conf_min)/interval/binsize;
-  int nbins_tot = 0;
-  for(const int elem : nbins) nbins_tot += elem;
+  std::size_t nbins_tot = 0;
+  for(const std::size_t elem : nbins) nbins_tot += elem;
   std::cout << "# nbins = " << nbins_tot << std::endl;
   jk.binavgs.resize(nbins_tot);
 
 
-  for(int prefix=1; prefix<=prefix_max; prefix++){
-    int accum=0;
-    for(int pre=1; pre<prefix; pre++) accum += nbins[pre-1];
+  for(std::size_t prefix=1; prefix<=prefix_max; prefix++){
+    std::cout << "# prefix = " << prefix << std::endl;
+    std::size_t accum=0;
+    for(std::size_t pre=1; pre<prefix; pre++) accum += nbins[pre-1];
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
-    for(int ib=0; ib<nbins[prefix-1]; ib++){
+    for(std::size_t ib=0; ib<nbins[prefix-1]; ib++){
       Corr binned;
-      for(int conf = conf_min+ib*interval*binsize; conf<conf_min+(ib+1)*interval*binsize; conf+= interval){
+      for(std::size_t conf = conf_min+ib*interval*binsize; conf<conf_min+(ib+1)*interval*binsize; conf+= interval){
         std::string file = path+std::to_string(prefix)+"/"+header+std::to_string(conf)+".dat";
         if( !fs::exists( file ) ) assert(false);
         Corr corr(file);
         if( corr.size()!=Nt ) assert(false);
-        // std::cout << "# debug. " << binned.size() << " " << corr.size() << std::endl;
         binned += corr;
       }
       binned /= binsize;
-      // std::cout << "# ib " << ib << " prefix " << prefix << std::endl;
-     
       jk.binavgs[accum + ib] = binned;
     }
   }
@@ -239,10 +242,37 @@ int main(int argc, char **argv){
   jk.do_it();
 
   std::cout << "# test " << std::endl;
-
-  for( int i=0; i<jk.est.size(); i++ ){
-    std::cout << jk.est[i] << " " << std::sqrt(jk.var[i]) << std::endl;
+  {
+    std::ofstream file(path_save+"_corr.dat", std::ios::trunc);
+    for( std::size_t i=0; i<jk.est.size(); i++ ){
+      file << (double)(jk.est[i]) << " " << (double)(std::sqrt(jk.var[i])) << std::endl;
+    }
   }
+
+  std::cout << "# test " << std::endl;
+  Jackknife<Corr> jk_meff(binsize);
+  jk_meff.jackavgs.resize(nbins_tot);
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
+  for(std::size_t i=0; i<nbins_tot; i++) {
+    jk_meff.jackavgs[i].data.resize(Nt);
+    std::cout << "i = " << i << std::endl;
+    jk_meff.jackavgs[i][0] = 0.0;
+    for(int t=1; t<Nt; t++) {
+      jk_meff.jackavgs[i][t] = - 1.0/at * std::log( jk.jackavgs[i][t]/jk.jackavgs[i][t-1] );
+    }
+  }
+  std::cout << "# half_done " << std::endl;
+  jk_meff.half_done();
+  std::cout << "# half_done2 " << std::endl;
+  {
+    std::ofstream file(path_save+"_meff.dat", std::ios::trunc);
+    for( std::size_t i=0; i<jk_meff.est.size(); i++ ){
+      file << (double)(jk_meff.est[i]) << " " << (double)(std::sqrt(jk_meff.var[i])) << std::endl;
+    }
+  }
+
 
   return 0;
 }
