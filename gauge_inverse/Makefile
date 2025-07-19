@@ -1,5 +1,5 @@
 CXX=g++
-CXXFLAGS=-Wall -Wextra -std=c++23 -fuse-ld=lld -march=native -O3 -g
+CXXFLAGS=-Wall -Wextra -std=c++23 -fuse-ld=lld -march=native -O3 -g -pg
 INCLUDES=-I"/usr/include/c++/13" -I"/usr/include/x86_64-linux-gnu/c++/13/" -I"/opt/eigen-3.4.0/" -I"/opt/gsl-2.8/"
 
 LDFLAGS=-L"/lib/x86_64-linux-gnu/" -L"/lib/x86_64-linux-gnu/" -L"/lib64/" -L"/usr/local/lib" -lgsl -lgslcblas -lm
@@ -7,4 +7,4 @@ LDFLAGS=-L"/lib/x86_64-linux-gnu/" -L"/lib/x86_64-linux-gnu/" -L"/lib64/" -L"/us
 
 all:
 	$(CXX) integrate.cc $(INCLUDES) $(INCLUDES) $(LDFLAGS) $(CXXFLAGS)
-	$(CXX) integrate2.cc $(INCLUDES) $(INCLUDES) $(LDFLAGS) $(CXXFLAGS) -o b.out
+	# $(CXX) jacobi_contour.cc $(INCLUDES) $(INCLUDES) $(LDFLAGS) $(CXXFLAGS)

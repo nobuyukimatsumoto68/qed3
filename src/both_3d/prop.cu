@@ -30,7 +30,7 @@ static constexpr Complex I = Complex(0.0, 1.0);
 
 
 // #define IS_DUAL
-#define IS_OVERLAP
+// #define IS_OVERLAP
 // #define IS_DAGGER
 // #undef _OPENMP
 
