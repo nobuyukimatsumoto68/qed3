@@ -29,10 +29,10 @@ static constexpr int DIM = 2;
 static constexpr Complex I = Complex(0.0, 1.0);
 
 
-#define GAUGE_TRSF
+// #define GAUGE_TRSF
 
 // #define IS_DUAL
-// #define IS_OVERLAP
+#define IS_OVERLAP
 
 // // #define IsVerbose
 // #define IsVerbose2
@@ -57,7 +57,7 @@ namespace Comp{
   constexpr int NPARALLEL_GAUGE=12; // 12
   constexpr int NPARALLEL_SORT=12; // 12
 
-  constexpr int N_REFINE=2;
+  constexpr int N_REFINE=4;
   constexpr int NS=2;
 
   constexpr int Nt=24;
@@ -99,6 +99,8 @@ using CuC = cuDoubleComplex;
 
 // ======================================
 
+#include "../../integrator/geodesic.h"
+
 #include "sparse_matrix.h"
 #include "dirac_base.h"
 #include "dirac_simp.h"
@@ -119,7 +121,6 @@ using CuC = cuDoubleComplex;
 // #include "header_cusolver.hpp"
 
 
-#include "../../integrator/geodesic.h"
 
 // TODO: Cusparse for SparseMatrix::act_gpu, probably defining handle in matpoly.h
 // all the operation on GPU in Overlap::operator()
@@ -195,8 +196,8 @@ int main(int argc, char* argv[]){
   const double M5 = 0.0;
 #endif
   // const double at = base.mean_ell * 1.0;
-  // const double T = 4.0;
-  const double T = 16.0;
+  const double T = 4.0;
+  // const double T = 16.0;
   const double at = T/Comp::Nt;
   // const double at = base.mean_ell * 3.0/4.0;
 
@@ -357,6 +358,9 @@ int main(int argc, char* argv[]){
   CUDA_CHECK(cudaMalloc( &d_info, sizeof(int)));
 
   CUDA_CHECK( cudaMemcpy(d_A, A, CD*n*n, H2D) );
+  CUDA_CHECK( cudaMemset(d_W, 0, CD * n) );
+  CUDA_CHECK( cudaMemset(d_VL, 0, CD * n*n) );
+  CUDA_CHECK( cudaMemset(d_VR, 0, CD * n*n) );
 
   // step 3: query working space of syevd
   // cusolverEigMode_t jobvl = CUSOLVER_EIG_MODE_NOVECTOR;
