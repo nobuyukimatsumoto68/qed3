@@ -58,7 +58,7 @@ namespace Comp{
   constexpr int NPARALLEL=1; // 12
   constexpr int NSTREAMS=12; // for grad loop
 #endif
-  const int kmax=1e2;
+  // const int kmax=1e2;
 
   // gsq = 0.05
   // constexpr int N_REFINE=1;
@@ -85,13 +85,17 @@ namespace Comp{
 
 
   constexpr int N_REFINE=4;
-  // const int kmax=1e8;
+  const int kmax=1e8;
   // constexpr int Nt=24; // 10
   // constexpr int nsteps=52;
   // constexpr int Nt=32; // 10
   // constexpr int nsteps=58;
-  constexpr int Nt=48; // 10
-  constexpr int nsteps=52;
+  // constexpr int Nt=48; // 10
+  // constexpr int nsteps=52;
+  // constexpr int Nt=64; // 10
+  // constexpr int nsteps=60;
+  constexpr int Nt=96; // 10
+  constexpr int nsteps=64;
 
 
 
