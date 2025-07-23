@@ -26,10 +26,10 @@ app="gauge${1}"
 # elif [ "$#" -eq 1 ]; then
 #     qsub -N ${app} -v app=${app} -t 1-10 -j y run.sh
 # fi
-if [ "$#" -eq 3 ]; then
-    qsub -N ${app} -v app=${app} -t 1-${2} -j y -hold_jid ${3} run.sh
-elif [ "$#" -eq 2 ]; then
-    qsub -N ${app} -v app=${app} -t 1-${2} -j y run.sh
+if [ "$#" -eq 4 ]; then
+    qsub -N ${app} -v app=${app} -t ${2}-${3} -j y -hold_jid ${4} run.sh
+elif [ "$#" -eq 3 ]; then
+    qsub -N ${app} -v app=${app} -t ${2}-${3} -j y run.sh
 elif [ "$#" -eq 1 ]; then
     qsub -N ${app} -v app=${app} -j y run.sh
 fi
