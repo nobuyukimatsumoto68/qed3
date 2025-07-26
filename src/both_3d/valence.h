@@ -115,18 +115,19 @@ template<class Gauge>
 struct GaugeVector {
   using BaseLink = std::array<int,2>; // <int,int>;
 
-  std::vector<Complex> field;
-
   const int Nt;
   const Idx Ng;
+  std::vector<Complex> field;
   const Gauge U;
 
-  GaugeVector(const Gauge& U) // Rng& rng_)
+  GaugeVector(const Gauge& U_) // Rng& rng_)
     : Nt(Comp::Nt)
-    , Ng(Comp::Nt * (Comp::N_LINKS + Comp::N_SITES))
-    , field(Ng, 0.0)
-    , U(U)
-  {}
+    , Ng( Comp::Nt*(Comp::N_LINKS + Comp::N_SITES) )
+    , field(Ng)
+    , U(U_)
+  {
+    set_zero();
+  }
 
   auto begin(){ return field.begin(); }
   auto end(){ return field.end(); }
@@ -151,7 +152,11 @@ struct GaugeVector {
     for(auto& elem : field) elem = 0.0;
   }
 
-
+  Complex dot( const GaugeVector& other ) const {
+    Complex res = 0.0;
+    for(Idx i=0; i<Ng; i++) res += std::conj(this->field[i]) * other.field[i];
+    return res;
+  }
 
 
 

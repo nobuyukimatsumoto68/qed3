@@ -8,8 +8,8 @@ struct DiracPf {
 
   const WilsonDirac& DW;
   DWDevice<WilsonDirac> d_DW; // actual data used in M_DW, M_DWH
-  CSR M_DW;
-  CSR M_DWH;
+  CSR<N> M_DW;
+  CSR<N> M_DWH;
 
   std::vector<cudaStream_t> stream;
   std::vector<cublasHandle_t> handle;
@@ -108,7 +108,7 @@ struct DiracPf {
     assert( is_precalc );
     const int m = omp_get_thread_num();
 
-    COO coo;
+    COO<N> coo;
     DW.d_coo_format(coo.en, U, link);
     coo.do_it();
     coo.Async( d_dDeta[m], d_eta, stream[m] );

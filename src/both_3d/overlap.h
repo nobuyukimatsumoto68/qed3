@@ -140,8 +140,8 @@ struct Overlap : public Zolotarev {
 
   const WilsonDirac& DW;
   DWDevice<WilsonDirac> d_DW; // actual data used in M_DW, M_DWH
-  CSR M_DW;
-  CSR M_DWH;
+  CSR<N> M_DW;
+  CSR<N> M_DWH;
   double lambda_max, lambda_min;
 
   std::vector<cudaStream_t> stream;
@@ -418,7 +418,7 @@ struct Overlap : public Zolotarev {
   double grad_deviceAsyncLaunch( const Link& link, const Gauge& U, const CuC* d_eta ) const {
     assert( is_precalc );
 
-    COO coo;
+    COO<N> coo;
     DW.d_coo_format(coo.en, U, link);
     coo.do_it();
 

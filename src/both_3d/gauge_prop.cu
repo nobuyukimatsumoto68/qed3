@@ -58,8 +58,8 @@ namespace Comp{
   constexpr int NS=2;
 
 
-  constexpr int Nt=24;
-  // constexpr int Nt=192;
+  // constexpr int Nt=96;
+  constexpr int Nt=192;
   // constexpr int Nt=1;
   // constexpr int Nt=16;
 
@@ -143,7 +143,7 @@ int main(int argc, char* argv[]){
 
   // ---------------------------------------
 
-  constexpr Idx N = Comp::N;
+  // constexpr Idx N = Comp::N;
   constexpr int Nt = Comp::Nt;
 
   using Base=S2Simp;
@@ -170,93 +170,65 @@ int main(int argc, char* argv[]){
 
   Gauge U(base);
   srand( time(NULL) );
-  Rng rng(base, rand());
-  U.gaussian( rng, 0.3 );
-
-  // std::cout << "debug. pt2" << std::endl;
-  std::vector<Idx> is;
-  std::vector<Idx> js;
-  std::vector<Complex> vs;
-  SW.coo_format(is, js, vs, U);
-
-  const Idx len = vs.size();
+  // Rng rng(base, rand());
+  Rng rng(base, 1);
+  // U.gaussian( rng, 0.3 );
 
   std::vector<COOEntry> coo;
-  for(Idx i=0; i<len; i++) coo.push_back( COOEntry( vs[i], is[i], js[i] ) );
-
-  COO op; op.en = coo; op.do_it();
-  MatPoly mat; mat.push_back ( cplx(1.0), {&op} );
-
-  constexpr Idx Ng = Comp::Nt * (Comp::N_LINKS + Comp::N_SITES);
-  std::vector<Complex> res(Ng), v(Ng);
-  U.vectorize( v );
-  matmulcoo( reinterpret_cast<CuC*>(res.data()), reinterpret_cast<CuC*>(v.data()), coo, v.size() );
-
-  Complex action = 0.0;
-  for(Idx i=0; i<res.size(); i++) action += res[i] * v[i];
-  action *= 0.5;
-  std::cout << "action = " << action.real() << std::endl;
-  std::cout << "SW = " << SW(U) << std::endl;
-
-  // LinOpWrapper M_pre( f_pre );
-  // MatPoly mat;
-  // mat.push_back ( cplx(1.0), {&op} );
-  // @@@@ DEBUG HERE !!!!!
   {
-    // std::vector<Complex> res(Ng), v(Ng);
-    U.gaussian( rng, 1.2 );
-    U.vectorize( v );
-
-    mat.from_cpu<Ng>( res, v );
-    Complex action2 = 0.0;
-    for(Idx i=0; i<res.size(); i++) action2 += res[i] * v[i];
-    action2 *= 0.5;
-    std::cout << "action = " << action2 << std::endl;
-    std::cout << "SW = " << SW(U) << std::endl;
+    std::vector<Idx> is;
+    std::vector<Idx> js;
+    std::vector<Complex> vs;
+    SW.coo_format(is, js, vs, U);
+    const Idx len = vs.size();
+    for(Idx i=0; i<len; i++) coo.push_back( COOEntry( vs[i], is[i], js[i] ) );
   }
 
-  // const Face& face = base.faces[0];
-  // std::vector<double> res(Comp::Nt, 0.0);
+  constexpr Idx Ng = Comp::Nt * (Comp::N_LINKS + Comp::N_SITES);
+  COO<Ng> op; op.en = coo; op.do_it();
+  MatPoly mat; mat.push_back ( cplx(1.0), {&op} );
 
-  // for(Idx i=0; i<face.size(); i++) {
-  //   const Idx ix = face[i];
-  //   const Idx iy = face[(i+1)%face.size()];
-  //   const Link li{ix,iy};
+  GaugeVector v(U); U.vectorize( v.field );
 
-  //   std::cout << "# prepare source" << std::endl;
-  //   GaugeVector sink(U), source(U);
-  //   source.set_zero();
-  //   sink.set_zero();
-  //   source.sp(0, li) = 1.0 * base.map2sign.at(li);
+  const Face& face = base.faces[0];
+  std::vector<double> res(Comp::Nt, 0.0);
 
-  //   // project
-  //   mat.from_cpu<Ng>( sink.field, source.field );
-  //   source.set_zero();
-  //   mat.solve<Ng>( source.field, sink.field );
+  for(Idx i=0; i<face.size(); i++) {
+    const Idx ix = face[i];
+    const Idx iy = face[(i+1)%face.size()];
+    const Link li{ix,iy};
 
-  //   std::cout << "# calculate sink" << std::endl;
-  //   // invert
-  //   sink.set_zero();
-  //   mat.solve<Ng>( sink.field, source.field );
+    std::cout << "# prepare source" << std::endl;
+    GaugeVector sink(U), source(U);
+    source.set_zero();
+    sink.set_zero();
+    source.sp(0, li) = 1.0 * base.map2sign.at(li);
 
-  //   // std::cout << "sink = " << std::endl;
-  //   // for(const auto elem : sink) std::cout << elem.real() << std::endl;
+    // project
+    mat.from_cpu<Ng>( sink.field, source.field );
+    source.set_zero();
+    mat.solve<Ng>( source.field, sink.field, 1.0e-10 );
 
-  //   for(Idx j=0; j<face.size(); j++) {
-  //     const Idx jx = face[j];
-  //     const Idx jy = face[(j+1)%face.size()];
-  //     const Link lj{jx,jy};
-  //     for(int t=0; t<Comp::Nt; t++) res[t] += base.map2sign.at(lj) * sink.sp(t, lj).real();
-  //   }
-  // }
+    std::cout << "# calculate sink" << std::endl;
+    // invert
+    sink.set_zero();
+    mat.solve<Ng>( sink.field, source.field, 1.0e-10 );
 
-  // std::cout << "res = " << std::endl;
-  // for(const auto elem : res) std::cout << elem << std::endl;
+    for(Idx j=0; j<face.size(); j++) {
+      const Idx jx = face[j];
+      const Idx jy = face[(j+1)%face.size()];
+      const Link lj{jx,jy};
+      for(int t=0; t<Comp::Nt; t++) res[t] += base.map2sign.at(lj) * sink.sp(t, lj).real();
+    }
+  }
 
-  // std::cout << "# done" << std::endl;
-
-
-
+  std::cout << "# writing" << std::endl;
+  {
+    std::string path = "prop_gauge_gsq"+std::to_string(gsq)+"_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+".dat";
+    std::ofstream ofs(path);
+    for(const auto elem : res) ofs << elem << std::endl;
+  }
+  std::cout << "# done" << std::endl;
 
   // ------------------
 
@@ -265,3 +237,73 @@ int main(int argc, char* argv[]){
 
 }
 
+
+
+
+
+
+
+// GaugeVector res(U);
+
+
+
+// U.vectorize( v );
+
+// std::vector<Complex> res(Ng), v(Ng);
+// for(auto& elem : res ) elem = 0.0;
+// matmulcoo( reinterpret_cast<CuC*>(res.field.data()), reinterpret_cast<CuC*>(v.field.data()), coo, v.field.size() );
+// // matmulcoo( reinterpret_cast<CuC*>(res.data()), reinterpret_cast<CuC*>(v.data()), coo, v.size() );
+// // {
+// //   Complex action = 0.0;
+// //   for(Idx i=0; i<Ng; i++) action += res[i] * v[i];
+// //   std::cout << "action = " << 0.5 * action.real() << std::endl;
+// // }
+// std::cout << "action = " << 0.5 * res.dot(v).real() << std::endl;
+// std::cout << "SW = " << SW(U) << std::endl;
+
+// {
+//   res.set_zero();
+//   mat.from_cpu<Ng>( res.field, v.field );
+//   // mat.from_cpu<Ng>( res, v );
+
+//   // {
+//   //   Idx N = Ng;
+
+//   //   CuC *d_v, *d_Mv;
+//   //   CUDA_CHECK(cudaMalloc(&d_v, N*CD));
+//   //   CUDA_CHECK(cudaMalloc(&d_Mv, N*CD));
+
+//   //   CUDA_CHECK(cudaMemcpy(d_v, reinterpret_cast<const CuC*>(v.data()), N*CD, H2D));
+//   //   CUDA_CHECK(cudaMemset(d_Mv, 0, N*CD));
+
+//   //   // CuC *d_tmp, *d_Mv0;
+//   //   // CUDA_CHECK(cudaMalloc(&d_tmp, N*CD));
+//   //   // CUDA_CHECK(cudaMalloc(&d_Mv0, N*CD));
+//   //   // CUDA_CHECK(cudaMemset(d_v, 0, N*CD));
+
+//   //   // for(int i=0; i<vec_mats.size(); i++){
+//   //   //   CUDA_CHECK(cudaMemcpy(d_tmp, d_v0, N*CD, D2D));
+//   //   //   CUDA_CHECK(cudaMemcpy(d_Mv0, d_v0, N*CD, D2D));
+//   //   //   for(int j=0; j<vec_mats[i].size(); j++){
+//   //   op(d_Mv, d_v);
+//   //   // CUDA_CHECK(cudaMemcpy(d_tmp, d_Mv0, N*CD, D2D));
+//   //   // }
+//   //   // Taxpy<CuC, N><<<NBlocks, NThreadsPerBlock>>>(d_v,
+//   //   //                                                  coeffs[i],
+//   //   //                                                  d_Mv0,
+//   //   //                                                  d_v);
+//   //   // }
+//   //   // CUDA_CHECK(cudaFree(d_tmp));
+//   //   // CUDA_CHECK(cudaFree(d_Mv0));
+
+//   //   CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(res.data()), d_Mv, N*CD, D2H));
+//   //   CUDA_CHECK(cudaFree(d_Mv));
+//   //   CUDA_CHECK(cudaFree(d_v));
+//   // }
+
+
+//   std::cout << "action = " << 0.5 * res.dot(v).real() << std::endl;
+//   // Complex action = 0.0;
+//   // for(Idx i=0; i<Ng; i++) action += res[i] * v[i];
+//   // std::cout << "action = " << 0.5 * action.real() << std::endl;
+// }

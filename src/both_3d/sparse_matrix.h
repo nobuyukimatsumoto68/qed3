@@ -9,6 +9,7 @@ struct LinOp{
 };
 
 
+template<Idx N>
 struct CSR : public LinOp {
   using T = CuC;
 
@@ -17,7 +18,7 @@ struct CSR : public LinOp {
   Idx* rows;
 
   void operator()( T* d_res, const T* d_v ) const {
-    constexpr Idx N = Comp::N;
+    // constexpr Idx N = Comp::N;
     mult<T,N><<<NBlocks, NThreadsPerBlock>>>(d_res,
 					     d_v,
 					     this->val,
@@ -27,7 +28,7 @@ struct CSR : public LinOp {
 
   void Async( T* d_res, const T* d_v,
               const cudaStream_t stream) const {
-    constexpr Idx N = Comp::N;
+    // constexpr Idx N = Comp::N;
     mult<T,N><<<NBlocks, NThreadsPerBlock, 0, stream>>>(d_res,
                                                         d_v,
                                                         this->val,
@@ -125,6 +126,7 @@ struct COOEntry {
 
 
 // for gradients
+template<Idx N>
 struct COO : public LinOp {
   using T = CuC;
 
@@ -151,7 +153,7 @@ struct COO : public LinOp {
   }
 
   void do_it(){
-    constexpr Idx N = Comp::N;
+    // constexpr Idx N = Comp::N; // @@@@
     std::sort( en.begin(), en.end() );
 
     const Idx len=en.size();
@@ -187,7 +189,7 @@ struct COO : public LinOp {
   }
 
   void do_conjugate(){
-    constexpr Idx N = Comp::N;
+    // constexpr Idx N = Comp::N;
     const Idx len=en.size();
 
     std::vector<COOEntry> enH;
@@ -224,7 +226,7 @@ struct COO : public LinOp {
 
 
   void operator()( T* d_res, const T* d_v ) const {
-    constexpr Idx N = Comp::N;
+    // constexpr Idx N = Comp::N;
     mult<T,N><<<NBlocks, NThreadsPerBlock>>>(d_res,
 					     d_v,
 					     this->d_val,
@@ -233,7 +235,7 @@ struct COO : public LinOp {
   }
 
   void Async( T* d_res, const T* d_v, const cudaStream_t stream ) const {
-    constexpr Idx N = Comp::N;
+    // constexpr Idx N = Comp::N;
     mult<T,N><<<NBlocks, NThreadsPerBlock, 0, stream>>>(d_res,
                                                         d_v,
                                                         this->d_val,
