@@ -80,8 +80,8 @@ namespace Comp{
 
 const std::string dir = "../../dats/";
 
-// // #define IsVerbose
-// #define IsVerbose2
+#define IsVerbose
+#define IsVerbose2
 // // #define InfoForce
 // #define InfoDelta
 
@@ -171,7 +171,7 @@ int main(int argc, char* argv[]){
   Gauge U(base);
   srand( time(NULL) );
   Rng rng(base, rand());
-  // U.gaussian( rng, 0.2 );
+  U.gaussian( rng, 0.3 );
 
   // std::cout << "debug. pt2" << std::endl;
   std::vector<Idx> is;
@@ -184,99 +184,77 @@ int main(int argc, char* argv[]){
   std::vector<COOEntry> coo;
   for(Idx i=0; i<len; i++) coo.push_back( COOEntry( vs[i], is[i], js[i] ) );
 
+  COO op; op.en = coo; op.do_it();
+  MatPoly mat; mat.push_back ( cplx(1.0), {&op} );
+
   constexpr Idx Ng = Comp::Nt * (Comp::N_LINKS + Comp::N_SITES);
-  // const Idx Ng = Comp::Nt * (base.n_links+base.n_sites);
-  // std::vector<Complex> res(Ng), v(Ng);
-  // U.vectorize( v );
-  // matmulcoo( reinterpret_cast<CuC*>(res.data()), reinterpret_cast<CuC*>(v.data()), coo, v.size() );
+  std::vector<Complex> res(Ng), v(Ng);
+  U.vectorize( v );
+  matmulcoo( reinterpret_cast<CuC*>(res.data()), reinterpret_cast<CuC*>(v.data()), coo, v.size() );
 
+  Complex action = 0.0;
+  for(Idx i=0; i<res.size(); i++) action += res[i] * v[i];
+  action *= 0.5;
+  std::cout << "action = " << action.real() << std::endl;
+  std::cout << "SW = " << SW(U) << std::endl;
 
-  COO op;
-  op.en = coo;
-  op.do_it();
-
-  MatPoly mat;
-  mat.push_back ( cplx(1.0), {&op} );
-
-
-  // Complex action = 0.0;
-  // for(Idx i=0; i<res.size(); i++) action += res[i] * v[i];
-  // action *= 0.5;
-  // std::cout << "action = " << action << std::endl;
-  // std::cout << "SW = " << SW(U) << std::endl;
-  // std::cout << base.n_links << std::endl;
   // LinOpWrapper M_pre( f_pre );
   // MatPoly mat;
   // mat.push_back ( cplx(1.0), {&op} );
-  // mat.from_cpu<Ng>( res, v );
-  // action = 0.0;
-  // for(Idx i=0; i<res.size(); i++) action += res[i] * v[i];
-  // action *= 0.5;
-  // std::cout << "action = " << action << std::endl;
-  // std::cout << "SW = " << SW(U) << std::endl;
+  // @@@@ DEBUG HERE !!!!!
+  {
+    // std::vector<Complex> res(Ng), v(Ng);
+    U.gaussian( rng, 1.2 );
+    U.vectorize( v );
 
+    mat.from_cpu<Ng>( res, v );
+    Complex action2 = 0.0;
+    for(Idx i=0; i<res.size(); i++) action2 += res[i] * v[i];
+    action2 *= 0.5;
+    std::cout << "action = " << action2 << std::endl;
+    std::cout << "SW = " << SW(U) << std::endl;
+  }
 
-  std::cout << "# calculating sink" << std::endl;
+  // const Face& face = base.faces[0];
+  // std::vector<double> res(Comp::Nt, 0.0);
 
-  GaugeVector sink(U), source(U);
-  // std::vector<Complex> sink(Ng), source(Ng);
+  // for(Idx i=0; i<face.size(); i++) {
+  //   const Idx ix = face[i];
+  //   const Idx iy = face[(i+1)%face.size()];
+  //   const Link li{ix,iy};
 
-  source.set_zero();
-  sink.set_zero();
+  //   std::cout << "# prepare source" << std::endl;
+  //   GaugeVector sink(U), source(U);
+  //   source.set_zero();
+  //   sink.set_zero();
+  //   source.sp(0, li) = 1.0 * base.map2sign.at(li);
 
-  source.sp(0, 0) = 1.0;
-  // project
-  mat.from_cpu<Ng>( sink.field, source.field );
-  source.set_zero();
-  mat.solve<Ng>( source.field, sink.field );
+  //   // project
+  //   mat.from_cpu<Ng>( sink.field, source.field );
+  //   source.set_zero();
+  //   mat.solve<Ng>( source.field, sink.field );
 
-  // invert
-  sink.set_zero();
-  mat.solve<Ng>( sink.field, source.field );
+  //   std::cout << "# calculate sink" << std::endl;
+  //   // invert
+  //   sink.set_zero();
+  //   mat.solve<Ng>( sink.field, source.field );
 
-  std::cout << "# done" << std::endl;
+  //   // std::cout << "sink = " << std::endl;
+  //   // for(const auto elem : sink) std::cout << elem.real() << std::endl;
 
+  //   for(Idx j=0; j<face.size(); j++) {
+  //     const Idx jx = face[j];
+  //     const Idx jy = face[(j+1)%face.size()];
+  //     const Link lj{jx,jy};
+  //     for(int t=0; t<Comp::Nt; t++) res[t] += base.map2sign.at(lj) * sink.sp(t, lj).real();
+  //   }
+  // }
 
+  // std::cout << "res = " << std::endl;
+  // for(const auto elem : res) std::cout << elem << std::endl;
 
+  // std::cout << "# done" << std::endl;
 
-
-
-  //   LinOpWrapper M_pre( f_pre );
-//   MatPoly pre; pre.push_back ( cplx(1.0), {&M_pre} );
-//   LinOpWrapper M_sq( f_sq );
-//   MatPoly sq; sq.push_back ( cplx(1.0), {&M_sq} );
-
-//   // ---------------------
-
-//   std::cout << "# calculating src " << std::endl;
-
-// #ifdef GAUGE_TRSF
-//   FermionVector gauge; // (base, Nt, rng);
-//   gauge.set_random_gauge(rng);
-// #endif
-
-//   FermionVector src1; // (base, Nt, rng);
-//   FermionVector src; // (base, Nt, rng);
-//   src1.set_pt_source(0, 0, 0);
-//   // src1.set_pt_source(Comp::Nt/4, 0, 1);
-
-// #ifdef GAUGE_TRSF
-//   DW.bd.random_gauge_trsf(base,rng);
-
-//   src1.gauge_trsf( gauge );
-//   U.gauge_trsf( gauge );
-//   D.update( U );
-// #endif
-
-//   pre.from_cpu<N>( src.field, src1.field );
-
-//   FermionVector sink; // (base, Nt, rng);
-
-//   std::cout << "# calculating sink" << std::endl;
-
-//   sq.solve<N>( sink.field, src.field );
-
-//   std::cout << "# done" << std::endl;
 
 
 

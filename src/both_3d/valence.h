@@ -133,8 +133,6 @@ struct GaugeVector {
   auto begin() const { return field.begin(); }
   auto end() const { return field.end(); }
 
-
-
   // Complex operator()(const Idx ix, const int i) const { return field[NS*ix+i]; }
   // Complex& operator()(const Idx ix, const int i) { return field[NS*ix+i]; }
 
@@ -152,6 +150,11 @@ struct GaugeVector {
   void set_zero(){
     for(auto& elem : field) elem = 0.0;
   }
+
+
+
+
+
 
   // void set_pt_source(const Idx ix, const int i) {
   //   set_zero();
