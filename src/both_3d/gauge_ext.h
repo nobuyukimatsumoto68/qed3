@@ -73,6 +73,36 @@ struct GaugeExt {
   }
 
 
+
+  Idx idx_sp(const int s, const Idx& il) const {
+    Idx res = il;
+    res += ((s+Nt)%Nt)*(lattice.n_links+lattice.n_sites);
+    return res;
+  }
+
+  Idx idx_sp(const int s, const BaseLink& ell) const {
+    return idx_sp(s, lattice.map2il.at(ell));
+  }
+
+
+  Idx idx_tp(const int s, const Idx& ix) const {
+    Idx res = ix;
+    res += lattice.n_links;
+    res += ((s+Nt)%Nt)*(lattice.n_links+lattice.n_sites);
+    return res;
+  }
+
+
+  void vectorize( std::vector<Complex>& v ) const {
+    assert( v.size() == Nt*(lattice.n_links+lattice.n_sites) );
+
+    for(int s=0; s<Nt; s++){
+      for(Idx il=0; il<lattice.n_links; il++) v[ idx_sp(s, il) ] = sp( s, il );
+      for(Idx ix=0; ix<lattice.n_sites; ix++) v[ idx_tp(s, ix) ] = tp( s, ix );
+    }
+  }
+
+
   template <typename Force>
   GaugeExt& operator+=(const Force& rhs){
     for(Idx i=0; i<spatial.size(); i++) for(Idx j=0; j<spatial[i].size(); j++) spatial[i][j] += rhs.spatial[i][j];

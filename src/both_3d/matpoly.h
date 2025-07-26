@@ -47,6 +47,9 @@ struct MatPoly{
     CuC *d_v, *d_v0;
     CUDA_CHECK(cudaMalloc(&d_v, N*CD));
     CUDA_CHECK(cudaMalloc(&d_v0, N*CD));
+    // @@@
+    // CUDA_CHECK(cudaMemset(d_v, 0, N*CD));
+    // CUDA_CHECK(cudaMemset(d_v0, 0, N*CD));
 
     CUDA_CHECK(cudaMemcpy(d_v0, reinterpret_cast<const CuC*>(v0.data()), N*CD, H2D));
 
@@ -57,6 +60,7 @@ struct MatPoly{
     CUDA_CHECK(cudaFree(d_v));
     CUDA_CHECK(cudaFree(d_v0));
   }
+
 
 
   template<Idx N> __host__
@@ -78,7 +82,6 @@ struct MatPoly{
         					   d_Mv0,
         					   d_v);
     }
-
     CUDA_CHECK(cudaFree(d_tmp));
     CUDA_CHECK(cudaFree(d_Mv0));
   }

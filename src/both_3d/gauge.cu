@@ -96,6 +96,10 @@ namespace Comp{
   constexpr int nsteps=62;
   // constexpr int Nt=96; // 10
   // constexpr int nsteps=64;
+  // constexpr int Nt=64; // 10
+  // constexpr int nsteps=62;
+  // constexpr int Nt=96; // 10
+  // constexpr int nsteps=64;
 
 
 

@@ -151,7 +151,7 @@ struct DWDevice{
   }
 
 
-  void associateCSR( CSR& M, const bool is_transpose=false ){
+  void associateCSR( CSR<Comp::N>& M, const bool is_transpose=false ){
     if(!is_transpose){
       M.cols = this->d_cols;
       M.rows = this->d_rows;

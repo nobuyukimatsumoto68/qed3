@@ -9,6 +9,7 @@ struct LinOp{
 };
 
 
+template<Idx N>
 struct CSR : public LinOp {
   using T = CuC;
 
@@ -17,7 +18,7 @@ struct CSR : public LinOp {
   Idx* rows;
 
   void operator()( T* d_res, const T* d_v ) const {
-    constexpr Idx N = Comp::N;
+    // constexpr Idx N = Comp::N;
     mult<T,N><<<NBlocks, NThreadsPerBlock>>>(d_res,
 					     d_v,
 					     this->val,
@@ -27,7 +28,7 @@ struct CSR : public LinOp {
 
   void Async( T* d_res, const T* d_v,
               const cudaStream_t stream) const {
-    constexpr Idx N = Comp::N;
+    // constexpr Idx N = Comp::N;
     mult<T,N><<<NBlocks, NThreadsPerBlock, 0, stream>>>(d_res,
                                                         d_v,
                                                         this->val,
@@ -81,6 +82,7 @@ struct LinOpDHDWrapper : public LinOp {
 };
 
 
+// template<class T = CuC>
 struct COOEntry {
   using T = CuC;
   T v;
@@ -124,6 +126,7 @@ struct COOEntry {
 
 
 // for gradients
+template<Idx N>
 struct COO : public LinOp {
   using T = CuC;
 
@@ -150,7 +153,7 @@ struct COO : public LinOp {
   }
 
   void do_it(){
-    constexpr Idx N = Comp::N;
+    // constexpr Idx N = Comp::N; // @@@@
     std::sort( en.begin(), en.end() );
 
     const Idx len=en.size();
@@ -186,7 +189,7 @@ struct COO : public LinOp {
   }
 
   void do_conjugate(){
-    constexpr Idx N = Comp::N;
+    // constexpr Idx N = Comp::N;
     const Idx len=en.size();
 
     std::vector<COOEntry> enH;
@@ -223,7 +226,7 @@ struct COO : public LinOp {
 
 
   void operator()( T* d_res, const T* d_v ) const {
-    constexpr Idx N = Comp::N;
+    // constexpr Idx N = Comp::N;
     mult<T,N><<<NBlocks, NThreadsPerBlock>>>(d_res,
 					     d_v,
 					     this->d_val,
@@ -232,7 +235,7 @@ struct COO : public LinOp {
   }
 
   void Async( T* d_res, const T* d_v, const cudaStream_t stream ) const {
-    constexpr Idx N = Comp::N;
+    // constexpr Idx N = Comp::N;
     mult<T,N><<<NBlocks, NThreadsPerBlock, 0, stream>>>(d_res,
                                                         d_v,
                                                         this->d_val,
@@ -245,11 +248,10 @@ struct COO : public LinOp {
 };
 
 
-
-template <Idx N>
 void matmulcoo( CuC* res, const CuC* v,
-		const std::vector<COOEntry>& coo) {
-  for(int i=0; i<N; i++) res[i] = cplx(0.0);
+		const std::vector<COOEntry>& coo,
+                const Idx size) {
+  for(int i=0; i<size; i++) res[i] = cplx(0.0);
   for(int k=0; k<coo.size(); k++) res[coo[k].i] = res[coo[k].i] + coo[k].v * v[coo[k].j];
 }
 
