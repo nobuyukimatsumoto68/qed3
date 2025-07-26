@@ -80,6 +80,306 @@ struct U1WilsonExt {
     return res;
   }
 
+
+
+
+//   void coo_structure( std::vector<Idx>& is,
+//                       std::vector<Idx>& js ) const {
+//     const Idx len = 4*lattice.counter_accum.back()*Nt + 8*lattice.n_sites*Nt + 4*lattice.n_sites*Nt;
+//     is.resize(len);
+//     js.resize(len);
+
+// #ifdef _OPENMP
+// #pragma omp parallel for num_threads(Comp::NPARALLEL)
+// #endif
+//     for(int s=0; s<Nt; s++){
+//       for(Idx ix=0; ix<lattice.n_sites; ix++){
+//         Idx counter = 4*lattice.counter_accum.back()*s + 4*lattice.counter_accum[ix];
+//         for(const Idx iy : lattice.nns[ix]){
+//           is[counter] = Nx*s+NS*ix; js[counter] = Nx*s+NS*iy; counter++;
+//           is[counter] = Nx*s+NS*ix; js[counter] = Nx*s+NS*iy+1; counter++;
+
+//           is[counter] = Nx*s+NS*ix+1; js[counter] = Nx*s+NS*iy; counter++;
+//           is[counter] = Nx*s+NS*ix+1; js[counter] = Nx*s+NS*iy+1; counter++;
+//         }
+//       }
+//     }
+
+
+// #ifdef _OPENMP
+// #pragma omp parallel for num_threads(Comp::NPARALLEL)
+// #endif
+//     for(int s=0; s<Nt; s++){
+//       for(Idx ix=0; ix<lattice.n_sites; ix++){
+//         Idx counter = 4*lattice.counter_accum.back()*Nt + 8*(lattice.n_sites*s + ix);
+//         is[counter] = ( Nx*(s+1)+NS*ix )%N; js[counter] = Nx*s+NS*ix; counter++;
+//         is[counter] = ( Nx*(s+1)+NS*ix )%N; js[counter] = Nx*s+NS*ix+1; counter++;
+//         is[counter] = ( Nx*(s-1)+NS*ix + N )%N; js[counter] = Nx*s+NS*ix; counter++;
+//         is[counter] = ( Nx*(s-1)+NS*ix + N )%N; js[counter] = Nx*s+NS*ix+1; counter++;
+
+//         is[counter] = ( Nx*(s+1)+NS*ix+1 )%N; js[counter] = Nx*s+NS*ix; counter++;
+//         is[counter] = ( Nx*(s+1)+NS*ix+1 )%N; js[counter] = Nx*s+NS*ix+1; counter++;
+//         is[counter] = ( Nx*(s-1)+NS*ix+1 + N )%N; js[counter] = Nx*s+NS*ix; counter++;
+//         is[counter] = ( Nx*(s-1)+NS*ix+1 + N )%N; js[counter] = Nx*s+NS*ix+1; counter++;
+//       }
+//     }
+
+// #ifdef _OPENMP
+// #pragma omp parallel for num_threads(Comp::NPARALLEL)
+// #endif
+//     for(int s=0; s<Nt; s++){
+//       for(Idx ix=0; ix<lattice.n_sites; ix++){
+//         Idx counter = 4*lattice.counter_accum.back()*Nt + 8*lattice.n_sites*Nt + 4*(lattice.n_sites*s + ix);
+//         is[counter] = Nx*s+NS*ix; js[counter] = Nx*s+NS*ix; counter++;
+//         is[counter] = Nx*s+NS*ix; js[counter] = Nx*s+NS*ix+1; counter++;
+//         is[counter] = Nx*s+NS*ix+1; js[counter] = Nx*s+NS*ix; counter++;
+//         is[counter] = Nx*s+NS*ix+1; js[counter] = Nx*s+NS*ix+1; counter++;
+//       }
+//     }
+//   }
+
+
+
+
+
+  template<typename Gauge>
+  void coo_format( std::vector<Idx>& is,
+                   std::vector<Idx>& js,
+                   std::vector<Complex>& vs,
+		   const Gauge& U ) const {
+    const Idx Nx = Comp::Nx;
+    const int Nt = Comp::Nt;
+
+    // const Idx len = 4*lattice.counter_accum.back()*Nt + 8*lattice.n_sites*Nt + 4*lattice.n_sites*Nt;
+    // is.resize(len);
+    // js.resize(len);
+    is.clear();
+    js.clear();
+    vs.clear();
+
+    // std::cout << "debug." << std::endl;
+
+
+    // for(Idx i=0; i<v.size(); i++) v[i] = 0.0;
+
+    // spatial
+// #ifdef _OPENMP
+// #pragma omp parallel for num_threads(Comp::NPARALLEL_DUPDATE)  schedule(static)
+// #endif
+    Idx counter=0;
+    for(int s=0; s<Nt; s++){
+      for(Idx ib=0; ib<base.faces.size(); ib++) {
+        const Face& face = base.faces[ib];
+
+        // tmp[s] += 0.5*beta_s[i] * std::pow( U.plaquette_angle(s, face), 2 );
+        for(Idx i=0; i<face.size(); i++) {
+          for(Idx j=0; j<face.size(); j++) {
+            // std::cout << "debug. pt0" << std::endl;
+            const Idx ix = face[i];
+            const Idx iy = face[(i+1)%face.size()];
+            const Idx jx = face[j];
+            const Idx jy = face[(j+1)%face.size()];
+            const Link li{ix,iy};
+            const Link lj{jx,jy};
+
+            // std::cout << "debug. pt1" << std::endl;
+
+            // (ix,iy), (jx,jy) = 0.5*beta_s[ib] * U.sp( s, BaseLink{ix,iy} ) * U.sp( s, BaseLink{jx,jy} );
+            // idx_sp(s, ix,iy), idx_sp(s, jx,jy) = sign(ix,iy) * sign(jx,jy) * 0.5*beta_s[ib];
+            is.push_back( U.idx_sp(s, li) );
+            // std::cout << "debug. pt2" << std::endl;
+            js.push_back( U.idx_sp(s, lj) );
+            // std::cout << "debug. pt3" << std::endl;
+            vs.push_back( base.map2sign.at(li) * base.map2sign.at(lj) * beta_s[ib] );
+            counter++;
+            // std::cout << "debug. counter = " << counter << std::endl;
+          }}
+      } // faces
+    } // s
+
+
+// #ifdef _OPENMP
+// #pragma omp parallel for num_threads(Comp::NPARALLEL_DUPDATE) schedule(static)
+// #endif
+    for(int s=0; s<Nt; s++){
+      for(const Link& link : base.links) {
+        const Idx il = base.map2il.at(link);
+
+        // tmp[s] += 0.5*beta_t[il] * std::pow( U.plaquette_angle(s, link), 2 );
+        // sum += U.sp( s, link );
+        {
+          // sum += 0.5*beta_t[il] * U.sp( s, link ) * U.sp( s, link );
+          // idx_sp(s, link),idx_sp(s, link) = 0.5*beta_t[il];
+          is.push_back( U.idx_sp(s, il) );
+          js.push_back( U.idx_sp(s, il) );
+          vs.push_back( beta_t[il] );
+          counter++;
+
+          // sum += 0.5*beta_t[il] * U.sp( s, link ) * U.tp( s, link[1] );
+          // idx_sp(s, link),idx_tp(s, link[1]) = 0.5*beta_t[il];
+          is.push_back( U.idx_sp(s, il) );
+          js.push_back( U.idx_tp(s, link[1]) );
+          vs.push_back( beta_t[il] );
+          counter++;
+
+          // sum -= 0.5*beta_t[il] * U.sp( s, link ) * U.sp( s+1, link );
+          // idx_sp(s, link),idx_sp(s+1, link) = -0.5*beta_t[il];
+          is.push_back( U.idx_sp(s, il) );
+          js.push_back( U.idx_sp(s+1, link) );
+          vs.push_back( -beta_t[il] );
+          counter++;
+
+          // sum -= 0.5*beta_t[il] * U.sp( s, link ) * U.tp( s, link[0] );
+          // idx_sp(s, link),idx_tp(s, link[0]) = -0.5*beta_t[il];
+          is.push_back( U.idx_sp(s, il) );
+          js.push_back( U.idx_tp(s, link[0]) );
+          vs.push_back( -beta_t[il] );
+          counter++;
+        }
+
+        // sum += U.tp( s, link[1] );
+        {
+          // sum += 0.5*beta_t[il] * U.tp( s, link[1] ) * U.sp( s, link );
+          // idx_tp(s, link[1]),idx_sp(s, link) = 0.5*beta_t[il];
+          is.push_back( U.idx_tp(s, link[1]) );
+          js.push_back( U.idx_sp(s, il) );
+          vs.push_back( beta_t[il] );
+          counter++;
+
+          // sum += 0.5*beta_t[il] * U.tp( s, link[1] ) * U.tp( s, link[1] );
+          // idx_tp(s, link[1]),idx_sr(s, link[1]) = 0.5*beta_t[il];
+          is.push_back( U.idx_tp(s, link[1]) );
+          js.push_back( U.idx_tp(s, link[1]) );
+          vs.push_back( beta_t[il] );
+          counter++;
+
+          // sum -= 0.5*beta_t[il] * U.tp( s, link[1] ) * U.sp( s+1, link );
+          // idx_tp(s, link[1]),idx_sp(s+1, link) = -0.5*beta_t[il];
+          is.push_back( U.idx_tp(s, link[1]) );
+          js.push_back( U.idx_sp(s+1, link) );
+          vs.push_back( -beta_t[il] );
+          counter++;
+
+          // sum -= 0.5*beta_t[il] * U.tp( s, link[1] ) * U.tp( s, link[0] );
+          // idx_tp(s, link[1]),idx_sp(s, link[0]) = -0.5*beta_t[il];
+          is.push_back( U.idx_tp(s, link[1]) );
+          js.push_back( U.idx_tp(s, link[0]) );
+          vs.push_back( -beta_t[il] );
+          counter++;
+        }
+
+        // sum -= U.sp( s+1, link );
+        {
+          // sum -= 0.5*beta_t[il] * U.sp( s+1, link ) * U.sp( s, link );
+          // idx_sp(s+1, link),idx_sp(s, link) = -0.5*beta_t[il];
+          is.push_back( U.idx_sp(s+1, link) );
+          js.push_back( U.idx_sp(s, il) );
+          vs.push_back( -beta_t[il] );
+          counter++;
+
+          // sum -= 0.5*beta_t[il] * U.sp( s+1, link ) * U.tp( s, link[1] );
+          // idx_sp(s+1, link),idx_sr(s, link[1]) = -0.5*beta_t[il];
+          is.push_back( U.idx_sp(s+1, link) );
+          js.push_back( U.idx_tp(s, link[1]) );
+          vs.push_back( -beta_t[il] );
+          counter++;
+
+          // sum += 0.5*beta_t[il] * U.sp( s+1, link ) * U.sp( s+1, link );
+          // idx_sp(s+1, link),idx_sp(s+1, link) = 0.5*beta_t[il];
+          is.push_back( U.idx_sp(s+1, link) );
+          js.push_back( U.idx_sp(s+1, link) );
+          vs.push_back( beta_t[il] );
+          counter++;
+
+          // sum += 0.5*beta_t[il] * U.sp( s+1, link ) * U.tp( s, link[0] );
+          // idx_sp(s+1, link),idx_sp(s, link[0]) = 0.5*beta_t[il];
+          is.push_back( U.idx_sp(s+1, link) );
+          js.push_back( U.idx_tp(s, link[0]) );
+          vs.push_back( beta_t[il] );
+          counter++;
+        }
+
+        // sum -= U.tp( s, link[0] );
+        {
+          // sum -= 0.5*beta_t[il] * U.tp( s, link[0] ) * U.sp( s, link );
+          // idx_tp(s, link[0]),idx_sp(s, link) = -0.5*beta_t[il];
+          is.push_back( U.idx_tp(s, link[0]) );
+          js.push_back( U.idx_sp(s, il) );
+          vs.push_back( -beta_t[il] );
+          counter++;
+
+          // sum -= 0.5*beta_t[il] * U.tp( s, link[0] ) * U.tp( s, link[1] );
+          // idx_tp(s, link[0]),idx_sr(s, link[1]) = -0.5*beta_t[il];
+          is.push_back( U.idx_tp(s, link[0]) );
+          js.push_back( U.idx_tp(s, link[1]) );
+          vs.push_back( -beta_t[il] );
+          counter++;
+
+          // sum += 0.5*beta_t[il] * U.tp( s, link[0] ) * U.sp( s+1, link );
+          // idx_tp(s, link[0]),idx_sp(s+1, link) = 0.5*beta_t[il];
+          is.push_back( U.idx_tp(s, link[0]) );
+          js.push_back( U.idx_sp(s+1, link) );
+          vs.push_back( beta_t[il] );
+          counter++;
+
+          // sum += 0.5*beta_t[il] * U.tp( s, link[0] ) * U.tp( s, link[0] );
+          // idx_tp(s, link[0]),idx_sp(s, link[0]) = 0.5*beta_t[il];
+          is.push_back( U.idx_tp(s, link[0]) );
+          js.push_back( U.idx_tp(s, link[0]) );
+          vs.push_back( beta_t[il] );
+          counter++;
+        }
+      }
+    }
+
+
+// #ifdef _OPENMP
+// #pragma omp parallel for num_threads(Comp::NPARALLEL_DUPDATE) schedule(static)
+// #endif
+//     for(int s=0; s<Nt; s++){
+//       for(Idx ix=0; ix<lattice.n_sites; ix++){
+//         double coeff = 0.0;
+//         for(const Idx iy : lattice.nns[ix]){
+//           const Idx il = lattice.map2il.at(BaseLink{ix,iy});
+//           coeff += 0.5 * r*bd.kappa[il];
+//         }
+//         coeff += r*kappa_t[ix];
+//         coeff += M5;
+
+//         Idx counter = 4*lattice.counter_accum.back()*Nt + 8*lattice.n_sites*Nt + 4*(lattice.n_sites*s + ix);
+//         const MS tmp2 = coeff * sigma[0];
+
+//         v[counter] = tmp2(0,0); counter++;
+//         v[counter] = tmp2(0,1); counter++;
+
+//         v[counter] = tmp2(1,0); counter++;
+//         v[counter] = tmp2(1,1); counter++;
+//       }
+//     }
+  }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   template <typename Force, typename Gauge>
   void get_force( Force& pi, const Gauge& U ) const {
     // const auto& base = U.lattice;

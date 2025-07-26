@@ -96,3 +96,72 @@ struct FermionVector {
 
 
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+template<class Gauge>
+struct GaugeVector {
+  using BaseLink = std::array<int,2>; // <int,int>;
+
+  std::vector<Complex> field;
+
+  const int Nt;
+  const Idx Ng;
+  const Gauge U;
+
+  GaugeVector(const Gauge& U) // Rng& rng_)
+    : Nt(Comp::Nt)
+    , Ng(Comp::Nt * (Comp::N_LINKS + Comp::N_SITES))
+    , field(Ng, 0.0)
+    , U(U)
+  {}
+
+  auto begin(){ return field.begin(); }
+  auto end(){ return field.end(); }
+  auto begin() const { return field.begin(); }
+  auto end() const { return field.end(); }
+
+
+
+  // Complex operator()(const Idx ix, const int i) const { return field[NS*ix+i]; }
+  // Complex& operator()(const Idx ix, const int i) { return field[NS*ix+i]; }
+
+  // Complex operator()(const int s, const Idx ix, const int i) const { return field[Comp::Nx*s+NS*ix+i]; }
+  // Complex& operator()(const int s, const Idx ix, const int i) { return field[Comp::Nx*s+NS*ix+i]; }
+
+  Complex sp(const int s, const Idx& il) const { return field[ U.idx_sp(s,il) ]; }
+  Complex& sp(const int s, const Idx& il) { return field[ U.idx_sp(s,il) ]; }
+  Complex sp(const int s, const BaseLink& ell) const { return field[ U.idx_sp(s,ell) ]; }
+  Complex& sp(const int s, const BaseLink& ell) { return field[ U.idx_sp(s,ell) ]; }
+
+  Complex tp(const int s, const Idx& ix) const { return field[ U.idx_tp(s,ix) ]; }
+  Complex& tp(const int s, const Idx& ix) { return field[ U.idx_tp(s,ix) ]; }
+
+  void set_zero(){
+    for(auto& elem : field) elem = 0.0;
+  }
+
+  // void set_pt_source(const Idx ix, const int i) {
+  //   set_zero();
+  //   (*this)(ix, i) = 1.0;
+  // }
+  // void set_pt_source(const int s, const Idx ix, const int i) {
+  //   set_zero();
+  //   (*this)(s, ix, i) = 1.0;
+  // }
+
+
+
+};

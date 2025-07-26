@@ -81,6 +81,7 @@ struct LinOpDHDWrapper : public LinOp {
 };
 
 
+// template<class T = CuC>
 struct COOEntry {
   using T = CuC;
   T v;
@@ -245,11 +246,10 @@ struct COO : public LinOp {
 };
 
 
-
-template <Idx N>
 void matmulcoo( CuC* res, const CuC* v,
-		const std::vector<COOEntry>& coo) {
-  for(int i=0; i<N; i++) res[i] = cplx(0.0);
+		const std::vector<COOEntry>& coo,
+                const Idx size) {
+  for(int i=0; i<size; i++) res[i] = cplx(0.0);
   for(int k=0; k<coo.size(); k++) res[coo[k].i] = res[coo[k].i] + coo[k].v * v[coo[k].j];
 }
 

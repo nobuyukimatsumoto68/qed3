@@ -59,6 +59,7 @@ struct MatPoly{
   }
 
 
+
   template<Idx N> __host__
   void on_gpu(CuC* d_v, const CuC* d_v0) const {
     CuC *d_tmp, *d_Mv0;
