@@ -190,7 +190,8 @@ int main(int argc, char* argv[]){
 
   GaugeVector v(U); U.vectorize( v.field );
 
-  const Face& face = base.faces[0];
+  const Idx iface=0;
+  const Face& face = base.faces[iface];
   std::vector<double> res(Comp::Nt, 0.0);
 
   for(Idx i=0; i<face.size(); i++) {
@@ -221,6 +222,9 @@ int main(int argc, char* argv[]){
       for(int t=0; t<Comp::Nt; t++) res[t] += base.map2sign.at(lj) * sink.sp(t, lj).real();
     }
   }
+
+  const double factor = base.vols[iface];
+  for(int t=0; t<Comp::Nt; t++) res[t] /= factor*factor;
 
   std::cout << "# writing" << std::endl;
   {
