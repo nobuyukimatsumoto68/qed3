@@ -53,14 +53,21 @@ namespace Comp{
   constexpr int NPARALLEL_GAUGE=12; // 12
   constexpr int NPARALLEL_SORT=12; // 12
 
-  constexpr int N_REFINE=8;
+  constexpr int N_REFINE=1;
 
   constexpr int NS=2;
 
 
-  constexpr int Nt=96;
+  // constexpr int Nt=24;
+  // constexpr int Nt=48;
+  // constexpr int Nt=64;
+  // constexpr int Nt=96;
+  constexpr int Nt=120;
+
   // constexpr int Nt=144;
+  // constexpr int Nt=168;
   // constexpr int Nt=192;
+  // constexpr int Nt=216;
   // constexpr int Nt=240;
   // constexpr int Nt=1;
   // constexpr int Nt=16;
