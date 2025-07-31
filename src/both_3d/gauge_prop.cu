@@ -53,13 +53,15 @@ namespace Comp{
   constexpr int NPARALLEL_GAUGE=12; // 12
   constexpr int NPARALLEL_SORT=12; // 12
 
-  constexpr int N_REFINE=1;
+  constexpr int N_REFINE=8;
 
   constexpr int NS=2;
 
 
-  // constexpr int Nt=96;
-  constexpr int Nt=192;
+  constexpr int Nt=96;
+  // constexpr int Nt=144;
+  // constexpr int Nt=192;
+  // constexpr int Nt=240;
   // constexpr int Nt=1;
   // constexpr int Nt=16;
 
@@ -160,7 +162,7 @@ int main(int argc, char* argv[]){
   std::cout << "# lattice set. " << std::endl;
 
   // ----------------------
-  const double T = 12;
+  const double T = 16;
   const double at = T/Comp::Nt;
   // assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
 
@@ -208,12 +210,12 @@ int main(int argc, char* argv[]){
     // project
     mat.from_cpu<Ng>( sink.field, source.field );
     source.set_zero();
-    mat.solve<Ng>( source.field, sink.field, 1.0e-10 );
+    mat.solve<Ng>( source.field, sink.field, 1.0e-11 );
 
     std::cout << "# calculate sink" << std::endl;
     // invert
     sink.set_zero();
-    mat.solve<Ng>( sink.field, source.field, 1.0e-10 );
+    mat.solve<Ng>( sink.field, source.field, 1.0e-11 );
 
     for(Idx j=0; j<face.size(); j++) {
       const Idx jx = face[j];
@@ -228,11 +230,12 @@ int main(int argc, char* argv[]){
 
   std::cout << "# writing" << std::endl;
   {
-    std::string path = "prop_gauge_gsq"+std::to_string(gsq)+"_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+".dat";
+    std::string path = "prop_gauge_gsq"+std::to_string(gsq)+"_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_T"+std::to_string(T)+".dat";
     std::ofstream ofs(path);
     for(const auto elem : res) ofs << elem << std::endl;
   }
   std::cout << "# done" << std::endl;
+  std::cout << "ellbar = " << base.mean_ell << std::endl;
 
   // ------------------
 
