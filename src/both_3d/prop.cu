@@ -30,7 +30,7 @@ static constexpr Complex I = Complex(0.0, 1.0);
 
 
 // #define IS_DUAL
-// #define IS_OVERLAP
+#define IS_OVERLAP
 // #define IS_DAGGER
 // #undef _OPENMP
 
@@ -53,11 +53,19 @@ namespace Comp{
   constexpr int NPARALLEL_GAUGE=12; // 12
   constexpr int NPARALLEL_SORT=12; // 12
 
-  constexpr int N_REFINE=4;
+  constexpr int N_REFINE=1;
   constexpr int NS=2;
 
   // constexpr int Nt=24;
-  constexpr int Nt=192;
+  // constexpr int Nt=48; // add 2
+  // constexpr int Nt=64;
+  // constexpr int Nt=96; // add 4
+  // constexpr int Nt=120;
+  // constexpr int Nt=144; // add 8
+  constexpr int Nt=160;
+
+  // constexpr int Nt=24;
+  // constexpr int Nt=192;
   // constexpr int Nt=1;
   // constexpr int Nt=16;
 
@@ -65,6 +73,7 @@ namespace Comp{
   constexpr Idx N_SITES=20*N_REFINE*N_REFINE;
 #else
   constexpr Idx N_SITES=10*N_REFINE*N_REFINE+2;
+  constexpr int N_LINKS=30*N_REFINE*N_REFINE; // 30, 120, 480
 #endif
 
   constexpr Idx Nx=NS*N_SITES; // matrix size of DW
@@ -164,7 +173,7 @@ int main(int argc, char* argv[]){
   // ----------------------
   // const double at = 0.5;
   // const double T = 0.2;
-  const double T = 12;
+  const double T = 16;
   const double at = T/Comp::Nt;
   assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
 
@@ -335,7 +344,7 @@ int main(int argc, char* argv[]){
   if(Comp::Nt==1) factor = base.mean_ell;
 
   {
-    std::string path = "prop_spacial_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+".dat2";
+    std::string path = "prop_spacial_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_T"+std::to_string(T)+".dat";
 #ifdef IS_DUAL
     path = "dual_"+path;
 #endif
@@ -372,7 +381,7 @@ int main(int argc, char* argv[]){
     }
   }
   {
-    std::string path = "prop_temporal_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+".dat2";
+    std::string path = "prop_temporal_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_T"+std::to_string(T)+".dat";
 #ifdef IS_DUAL
     path = "dual_"+path;
 #endif
