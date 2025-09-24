@@ -1,0 +1,2 @@
+# g++ test_integrator.cc -I"/opt/eigen-3.4.0/" -I"/opt/gsl-2.8/" -L"/lib/x86_64-linux-gnu/" -L"/lib/x86_64-linux-gnu/" -L"/lib64/" -L"/usr/local/lib" -lgsl -lgslcblas -lm -Wall -Wextra -std=c++11 
+g++ test_sorting.cc -I"/opt/eigen-3.4.0/" -I"/opt/gsl-2.8/" -I"/opt/eigen-3.4.0/" -I"/opt/gsl-2.8/" -L"/lib/x86_64-linux-gnu/" -L"/lib/x86_64-linux-gnu/" -L"/lib64/" -L"/usr/local/lib" -lgsl -lgslcblas -lm -Wall -Wextra -std=c++11 

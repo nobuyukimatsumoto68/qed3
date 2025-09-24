@@ -53,10 +53,9 @@ namespace Comp{
   constexpr int NPARALLEL_GAUGE=12; // 12
   constexpr int NPARALLEL_SORT=12; // 12
 
-  constexpr int N_REFINE=2;
+  constexpr int N_REFINE=1;
 
   constexpr int NS=2;
-
 
   // constexpr int Nt=24;
   // constexpr int Nt=48;
@@ -168,7 +167,7 @@ int main(int argc, char* argv[]){
   std::cout << "# lattice set. " << std::endl;
 
   // ----------------------
-  const double T = 16;
+  const double T = 12;
   const double at = T/Comp::Nt;
   // assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
 

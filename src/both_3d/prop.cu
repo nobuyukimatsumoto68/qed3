@@ -62,7 +62,7 @@ namespace Comp{
   // constexpr int Nt=96; // add 4
   // constexpr int Nt=120;
   // constexpr int Nt=144; // add 8
-  constexpr int Nt=160;
+  constexpr int Nt=168;
 
   // constexpr int Nt=24;
   // constexpr int Nt=192;
@@ -173,7 +173,7 @@ int main(int argc, char* argv[]){
   // ----------------------
   // const double at = 0.5;
   // const double T = 0.2;
-  const double T = 16;
+  const double T = 12;
   const double at = T/Comp::Nt;
   assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
 
