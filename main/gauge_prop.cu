@@ -125,12 +125,6 @@ using CuC = cuDoubleComplex;
 #include "overlap.h"
 
 
-// TODO: Cusparse for SparseMatrix::act_gpu, probably defining handle in matpoly.h
-// make 2 streams in V Vdag in square in Overlap
-// all the operation on GPU in Overlap::operator()
-// pseudofermion
-// 3d
-// __m256 to vectorize with AVX2
 
 
 int main(int argc, char* argv[]){
@@ -234,6 +228,7 @@ int main(int argc, char* argv[]){
   {
     std::string path = "prop_gauge_gsq"+std::to_string(gsq)+"_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_T"+std::to_string(T)+".dat";
     std::ofstream ofs("./data/"+path);
+    ofs << std::scientific << std::setprecision(15);
     for(const auto elem : res) ofs << elem << std::endl;
   }
   std::cout << "# done" << std::endl;

@@ -61,8 +61,8 @@ namespace Comp{
   // constexpr int Nt=64;
   // constexpr int Nt=96; // add 4
   // constexpr int Nt=120;
-  constexpr int Nt=144; // add 8
-  // constexpr int Nt=168;
+  // constexpr int Nt=144; // add 8
+  constexpr int Nt=168;
 
   constexpr double T = 12.;
 
@@ -241,6 +241,7 @@ int main(int argc, char* argv[]){
     path = "dagger_"+path;
 #endif
     std::ofstream ofs("./data/"+path);
+    ofs << std::scientific << std::setprecision(15);
 
     // Idx counter=0;
     for(Idx s=0; s<Comp::Nt; s++) {
