@@ -1,5 +1,6 @@
 # qed3
 
+All data is available in the data/ subdirectories.
 
 ## To Setup
 
