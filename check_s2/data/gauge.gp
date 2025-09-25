@@ -19,5 +19,5 @@ set key box vertical width 2 height 0.4 spacing 1.5
 set xlabel 'z'
 set title 'J^t-J^t correlator on S^2'
 
-plot "delta_n40.dat" u 1:2 ti 'n_{max}=40' w l ls 1 lw 7
-replot "delta_n20.dat" u 1:2 ti 'n_{max}=20' w l ls 2 lw 7 dashtype 4
+plot "gauge_n40.dat" u 1:2 ti 'n_{max}=40' w l ls 1 lw 7
+replot "gauge_n20.dat" u 1:2 ti 'n_{max}=20' w l ls 2 lw 7 dashtype 4
