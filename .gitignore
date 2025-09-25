@@ -1,3 +1,4 @@
+include
 *.out
 *.o
 *.d
@@ -7,6 +8,7 @@
 *.nvvp
 *.nvprof
 *.ipynb
+*.nb
 .ipynb_checkpoints/
 *boost*
 *eigen*
