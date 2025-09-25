@@ -6,9 +6,7 @@ All data is available in the data/ subdirectories.
 
 $ source setup.sh
 
-This script clones a copy of an edited copy of [newQFE](https://github.com/brower/newQFE):
-https://github.com/nobuyukimatsumoto68/QFE_copy/tree/main
-to generate the basic geometrical information of the refined icosahedra.
+This script clones a copy of an edited [copy](https://github.com/nobuyukimatsumoto68/QFE_copy/tree/main) of [newQFE](https://github.com/brower/newQFE) to generate the basic geometrical information of the refined icosahedra.
 
 
 ## Generate geometry data (Appendix B) for refinement level L
