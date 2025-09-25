@@ -1,18 +1,33 @@
 # qed3
 
-In terminal:
 
-- TO DOWNLOAD
-$ git clone https://github.com/nobuyukimatsumoto68/qed3.git
+## To Setup
 
-- TO SETUP
-$ bash setup.sh
+$ source setup.sh
 
-- TO COMPILE
+
+## Geometry data (Appendix B) for the refinement level L
+
+$ cd geometry
+
 $ make
 
-- TO RUN (currently, compact U(1) on icosahedron)
-$ ./a.out
+$ ./geom.out L
 
-Supply an argument to specify the Wilson coupling (e.g., $\beta = 1.4$):
-$ ./a.out 1.4
+$ ./simp.out L
+
+$ ./dual.out L
+
+
+## Eigenvalues and propagators
+
+
+## S2 check (Appendix C.3)
+
+$ cd check_s2
+
+$ make
+
+$ ./ferm.out nmax
+
+$ ./gauge.out nmax
