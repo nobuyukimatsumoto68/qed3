@@ -12,27 +12,12 @@
 #include <numbers>
 
 
-
 #include <Eigen/Dense>
 #include "boost/math/special_functions/jacobi.hpp"
 
 using Real = double; // std::float64_t;
 using Complex = std::complex<Real>;
-using F=std::function<Real(const Real)>;
-using VC=Eigen::Vector2cd;
-
 constexpr Complex I = Complex(0.0, 1.0);
-
-#include "integral.h"
-
-
-const int limit = 10000; // 1000;
-
-Real epsabs = 1.0e-5; // 0.;
-Real epsrel = 1.0e-5; // TOLLOOSE;
-
-int key = 5;
-
 
 
 Real jacobi( const int n, const double alpha, const double beta, const double z ){
