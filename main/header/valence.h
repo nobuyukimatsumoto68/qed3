@@ -1,0 +1,134 @@
+#pragma once
+
+struct FermionVector {
+  std::vector<Complex> field;
+
+  int Nt;
+
+  FermionVector() // Rng& rng_)
+    : Nt(Comp::Nt)
+    , field(Comp::N, 0.0)
+  {}
+
+  auto begin(){ return field.begin(); }
+  auto end(){ return field.end(); }
+  auto begin() const { return field.begin(); }
+  auto end() const { return field.end(); }
+
+  Complex operator()(const Idx ix, const int i) const { return field[NS*ix+i]; }
+  Complex& operator()(const Idx ix, const int i) { return field[NS*ix+i]; }
+
+  Complex operator()(const int s, const Idx ix, const int i) const { return field[Comp::Nx*s+NS*ix+i]; }
+  Complex& operator()(const int s, const Idx ix, const int i) { return field[Comp::Nx*s+NS*ix+i]; }
+
+  void set_pt_source(const Idx ix, const int i) {
+    for(auto& elem : field) elem = 0.0;
+    (*this)(ix, i) = 1.0;
+  }
+
+  void set_pt_source(const int s, const Idx ix, const int i) {
+    for(auto& elem : field) elem = 0.0;
+    (*this)(s, ix, i) = 1.0;
+  }
+
+  template <typename Rng>
+  void set_random_gauge(Rng& rng, const double width=1.0) {
+    for(int s=0; s<Nt; s++){
+      for(Idx ix=0; ix<rng.lattice.n_sites; ix++){
+        (*this)(s,ix,0) = width*rng.gaussian_site(s,ix);
+        (*this)(s,ix,1) = (*this)(s,ix,0);
+      }
+    }
+  }
+
+  void gauge_trsf(const FermionVector& gauge, const double sign=1.0) {
+    for(Idx i=0; i<field.size(); i++) field[i] *= std::exp( sign*I*gauge.field[i] );
+  }
+
+  // void set_random() {
+  //   for(Idx ix=0; ix<lattice.n_sites; ix++){
+  //     for(int i=0; i<NS; i++){
+  //       (*this)(ix, i) = rng.z2_site( ix ) + I*rng.z2_site( ix );
+  //       (*this)(ix, i) /= std::sqrt(2.0*lattice.n_sites);
+  //     }}
+  // }
+
+
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+template<class Gauge>
+struct GaugeVector {
+  using BaseLink = std::array<int,2>; // <int,int>;
+
+  const int Nt;
+  const Idx Ng;
+  std::vector<Complex> field;
+  const Gauge U;
+
+  GaugeVector(const Gauge& U_) // Rng& rng_)
+    : Nt(Comp::Nt)
+    , Ng( Comp::Nt*(Comp::N_LINKS + Comp::N_SITES) )
+    , field(Ng)
+    , U(U_)
+  {
+    set_zero();
+  }
+
+  auto begin(){ return field.begin(); }
+  auto end(){ return field.end(); }
+  auto begin() const { return field.begin(); }
+  auto end() const { return field.end(); }
+
+  // Complex operator()(const Idx ix, const int i) const { return field[NS*ix+i]; }
+  // Complex& operator()(const Idx ix, const int i) { return field[NS*ix+i]; }
+
+  // Complex operator()(const int s, const Idx ix, const int i) const { return field[Comp::Nx*s+NS*ix+i]; }
+  // Complex& operator()(const int s, const Idx ix, const int i) { return field[Comp::Nx*s+NS*ix+i]; }
+
+  Complex sp(const int s, const Idx& il) const { return field[ U.idx_sp(s,il) ]; }
+  Complex& sp(const int s, const Idx& il) { return field[ U.idx_sp(s,il) ]; }
+  Complex sp(const int s, const BaseLink& ell) const { return field[ U.idx_sp(s,ell) ]; }
+  Complex& sp(const int s, const BaseLink& ell) { return field[ U.idx_sp(s,ell) ]; }
+
+  Complex tp(const int s, const Idx& ix) const { return field[ U.idx_tp(s,ix) ]; }
+  Complex& tp(const int s, const Idx& ix) { return field[ U.idx_tp(s,ix) ]; }
+
+  void set_zero(){
+    for(auto& elem : field) elem = 0.0;
+  }
+
+  Complex dot( const GaugeVector& other ) const {
+    Complex res = 0.0;
+    for(Idx i=0; i<Ng; i++) res += std::conj(this->field[i]) * other.field[i];
+    return res;
+  }
+
+
+
+
+  // void set_pt_source(const Idx ix, const int i) {
+  //   set_zero();
+  //   (*this)(ix, i) = 1.0;
+  // }
+  // void set_pt_source(const int s, const Idx ix, const int i) {
+  //   set_zero();
+  //   (*this)(s, ix, i) = 1.0;
+  // }
+
+
+
+};

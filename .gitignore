@@ -1,0 +1,15 @@
+include
+*.out
+*.o
+*.d
+*.pdf
+*.plt
+*.gp
+*.nvvp
+*.nvprof
+*.ipynb
+*.nb
+.ipynb_checkpoints/
+*boost*
+*eigen*
+*.virtual_documents*
