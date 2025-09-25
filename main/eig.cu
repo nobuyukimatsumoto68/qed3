@@ -72,7 +72,7 @@ namespace Comp{
   const double TOL_OUTER=1.0e-8;
 }
 
-const std::string dir = "../dats/";
+const std::string dir = "../geometry/data/";
 
 
 #include "timer.h"
@@ -93,7 +93,7 @@ using CuC = cuDoubleComplex;
 
 // ======================================
 
-#include "../connection/geodesic.h"
+#include "../geometry/geodesic.h"
 
 #include "sparse_matrix.h"
 #include "dirac_base.h"

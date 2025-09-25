@@ -75,7 +75,7 @@ namespace Comp{
 }
 
 const std::string dir = "../dats/";
-#include "../connection/geodesic.h"
+#include "../geometry/geodesic.h"
 
 #include "timer.h"
 

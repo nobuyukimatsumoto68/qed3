@@ -76,7 +76,7 @@ namespace Comp{
   const double TOL_OUTER=1.0e-14;
 }
 
-const std::string dir = "../dats/";
+const std::string dir = "../geometry/data/";
 
 // // #define IsVerbose
 // #define IsVerbose2
@@ -85,7 +85,7 @@ const std::string dir = "../dats/";
 
 #include "timer.h"
 
-#include "../connection/geodesic.h"
+#include "../geometry/geodesic.h"
 
 #include "s2n_simp.h"
 #include "rng.h"

@@ -1,8 +1,8 @@
 CXX=g++
-INCLUDES=-I"../newQFE_copy/include" -I"./header/"
+INCLUDES=-I"../include/newQFE_copy/include" -I"./header/"
 
 NVCC=/usr/local/cuda-12.6/bin/nvcc # nvcc
-NVCCFLAGS=-arch=sm_70 -pg -O3 -std=c++20 -lcublas -lcusolver -lcusparse -lgomp -Xcompiler -fopenmp,-march=native # -diag-suppress<1650-D>
+NVCCFLAGS=-arch=sm_70 -O3 -std=c++20 -lcublas -lcusolver -lcusparse -lgomp -Xcompiler -fopenmp,-march=native # -diag-suppress<1650-D>
 # =======
 
 INCLUDES_CUDA= #-I/usr/local/cuda-12.6/include/
@@ -24,3 +24,7 @@ include $(SRCS:.cu=.d)
 %.o: %.cu
 	$(NVCC) $(NVCCFLAGS) $(INCLUDES_CUDA) $(LDFLAGS_CUDA) $< -o $@ # $(<:.d=.cu)
 
+
+.PHONY: clean
+clean:
+	rm *.o *.d
