@@ -22,6 +22,15 @@ $ ./dual.out L
 
 ## Eigenvalues and propagators
 
+$ cd main
+
+$ make
+
+$ ./eig.o
+
+$ ./ferm_prop.o
+
+$ ./gauge_prop.o
 
 ## S2 check (Appendix C.3)
 
