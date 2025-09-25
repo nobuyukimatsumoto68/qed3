@@ -7,7 +7,7 @@ All data is available in the data/ subdirectories.
 $ source setup.sh
 
 
-## Geometry data (Appendix B) for the refinement level L
+## Generate geometry data (Appendix B) for refinement level L
 
 $ cd geometry
 
@@ -20,7 +20,7 @@ $ ./simp.out L
 $ ./dual.out L
 
 
-## Eigenvalues and propagators
+## Calculate eigenvalues and propagators
 
 $ cd main
 
