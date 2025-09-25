@@ -52,7 +52,7 @@ namespace Comp{
   constexpr int NPARALLEL_GAUGE=12; // 12
   constexpr int NPARALLEL_SORT=12; // 12
 
-  constexpr int N_REFINE=1;
+  constexpr int N_REFINE=8;
   constexpr int NS=2;
 
   // constexpr int Nt=24;
@@ -61,8 +61,8 @@ namespace Comp{
   // constexpr int Nt=64;
   // constexpr int Nt=96; // add 4
   // constexpr int Nt=120;
-  // constexpr int Nt=144; // add 8
-  constexpr int Nt=168;
+  constexpr int Nt=144; // add 8
+  // constexpr int Nt=168;
 
   constexpr double T = 12.;
 
@@ -240,7 +240,7 @@ int main(int argc, char* argv[]){
 #ifdef IS_DAGGER
     path = "dagger_"+path;
 #endif
-    std::ofstream ofs(path);
+    std::ofstream ofs("./data/"+path);
 
     // Idx counter=0;
     for(Idx s=0; s<Comp::Nt; s++) {

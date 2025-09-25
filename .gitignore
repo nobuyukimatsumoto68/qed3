@@ -3,8 +3,10 @@
 *.d
 *.pdf
 *.plt
+*.gp
 *.nvvp
 *.nvprof
+*.ipynb
 .ipynb_checkpoints/
 *boost*
 *eigen*

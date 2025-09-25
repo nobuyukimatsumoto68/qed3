@@ -53,7 +53,7 @@ namespace Comp{
   constexpr int NPARALLEL_GAUGE=12; // 12
   constexpr int NPARALLEL_SORT=12; // 12
 
-  constexpr int N_REFINE=1;
+  constexpr int N_REFINE=8;
 
   constexpr int NS=2;
 
@@ -233,7 +233,7 @@ int main(int argc, char* argv[]){
   std::cout << "# writing" << std::endl;
   {
     std::string path = "prop_gauge_gsq"+std::to_string(gsq)+"_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_T"+std::to_string(T)+".dat";
-    std::ofstream ofs(path);
+    std::ofstream ofs("./data/"+path);
     for(const auto elem : res) ofs << elem << std::endl;
   }
   std::cout << "# done" << std::endl;

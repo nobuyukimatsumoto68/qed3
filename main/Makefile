@@ -27,4 +27,4 @@ include $(SRCS:.cu=.d)
 
 .PHONY: clean
 clean:
-	rm *.o *.d
+	rm *.o *.d *.out

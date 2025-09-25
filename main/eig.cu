@@ -30,7 +30,8 @@ static constexpr Complex I = Complex(0.0, 1.0);
 
 // #define GAUGE_TRSF
 
-// #define IS_OVERLAP
+#define IS_OVERLAP
+#define IS_VOLUME_INCLUDED
 
 // #define IsVerbose
 // #define IsVerbose2
@@ -157,11 +158,9 @@ int main(int argc, char* argv[]){
   const double r = 1.0;
   const double M5 = 0.0;
 #endif
-  // const double at = base.mean_ell * 1.0;
   const double T = 4.0;
   // const double T = 16.0;
   const double at = T/Comp::Nt;
-  // const double at = base.mean_ell * 3.0/4.0;
 
   assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
 
@@ -197,13 +196,17 @@ int main(int argc, char* argv[]){
   std::cout << "# delta = " << Dov.Delta() << std::endl;
 
   auto f_Op = std::bind(&Overlap::mult_deviceAsyncLaunch, &Dov, std::placeholders::_1, std::placeholders::_2);
-  LinOpWrapper M_Op( f_Op );
-  Op.push_back ( cplx(1.0), {&gmfourth, &M_Op, &gmfourth} );
 #else
   auto f_Op = std::bind(&Fermion::mult_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
-  LinOpWrapper M_Op( f_Op );
-  Op.push_back ( cplx(1.0), {&gmfourth, &M_Op, &gmfourth} );
 #endif
+
+  LinOpWrapper M_Op( f_Op );
+#ifdef IS_VOLUME_INCLUDED
+  Op.push_back ( cplx(1.0), {&gmfourth, &M_Op, &gmfourth} );
+#else
+  Op.push_back ( cplx(1.0), {&M_Op} );
+#endif
+
 
   Eigen::MatrixXcd mat(N, N);
   {
@@ -367,6 +370,5 @@ int main(int argc, char* argv[]){
 
 
   return 0; // EXIT_SUCCESS;
-
 }
 
