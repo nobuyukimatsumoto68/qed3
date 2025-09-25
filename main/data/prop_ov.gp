@@ -1,0 +1,28 @@
+set terminal pdfcairo color size 20cm,20cm font 'Helvetica, 34'
+set output 'prop_ov_.pdf'
+
+set xrange [-0.:12.0]
+set size square
+
+set logscale y
+
+set lmargin at screen 0.15
+set rmargin at screen 0.95
+set bmargin at screen 0.15
+set tmargin at screen 0.9
+
+set yrange [0.0001:20.0]
+set format y "10^{%T}"
+
+set xlabel 't'
+set title 'D_{ov} propagator with T=12, L_t=168'
+
+plot "ferm_exact.dat" u 1:2 ti "exact" w l ls 3 lw 3 lt rgb "black" dashtype 7
+
+set key opaque
+set key box vertical width 1.2 height 0.1 maxcols 0 spacing 1.1
+set pointsize 2
+
+replot "ov_prop_temporal_L4_Nt168_T12.000000.dat" u 1:($2) every 2:2 ti "L=4" w p ls 4 lw 3
+replot "ov_prop_temporal_L2_Nt168_T12.000000.dat" u 1:($2) every 2:2 ti "L=2" w p ls 2 lw 3
+replot "ov_prop_temporal_L1_Nt168_T12.000000.dat" u 1:($2) every 2:2 ti "L=1" w p ls 1 lw 3
