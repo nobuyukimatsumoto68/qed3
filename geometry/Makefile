@@ -2,9 +2,11 @@ CXX=g++
 CXXFLAGS=-Wall -Wextra -std=c++23 -fuse-ld=lld -march=native -O3 -g
 INCLUDES=-I"/usr/include/c++/13" -I"/usr/include/x86_64-linux-gnu/c++/13/" -I"/opt/eigen-3.4.0/" -I"/opt/gsl-2.8/"
 
-QFEINCLUDES=-I"../qfe_mod/include"
+qfe_dir="../include/newQFE_copy/"
 
-GRP_DIR="../qfe_mod/grp/"
+QFEINCLUDES=-I"${qfe_dir}/include"
+
+GRP_DIR="${qfe_dir}/grp/"
 QFECXXFLAGS=-DGRP_DIR="\"$(GRP_DIR)\""
 
 LDFLAGS=-L"/lib/x86_64-linux-gnu/" -L"/lib/x86_64-linux-gnu/" -L"/lib64/" -L"/usr/local/lib" -lgsl -lgslcblas -lm

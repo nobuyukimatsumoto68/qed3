@@ -23,7 +23,7 @@ using VD=V2;
 using VE=V3;
 
 
-std::string dir = "../dats/";
+std::string dir = "./data/";
 
 int main(int argc, char* argv[]){
 
