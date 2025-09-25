@@ -1,12 +1,7 @@
 # qed3
 
-In terminal:
-
-- TO DOWNLOAD
-$ git clone https://github.com/nobuyukimatsumoto68/qed3.git
-
 - TO SETUP
-$ bash setup.sh
+$ source setup.sh
 
 - TO COMPILE
 $ make
