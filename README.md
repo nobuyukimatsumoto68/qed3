@@ -9,6 +9,8 @@ $ source setup.sh
 
 ## Geometry data (Appendix B) for the refinement level L
 
+This script clones a copy of an edited [copy](https://github.com/nobuyukimatsumoto68/QFE_copy/tree/main) of [newQFE](https://github.com/brower/newQFE) to generate the basic geometrical information of the refined icosahedra.
+
 $ cd geometry
 
 $ make
@@ -20,7 +22,7 @@ $ ./simp.out L
 $ ./dual.out L
 
 
-## Eigenvalues and propagators
+## Calculate eigenvalues and propagators
 
 $ cd main
 
@@ -31,6 +33,7 @@ $ ./eig.o
 $ ./ferm_prop.o
 
 $ ./gauge_prop.o
+
 
 ## S2 check (Appendix C.3)
 
