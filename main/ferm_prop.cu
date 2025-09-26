@@ -52,19 +52,20 @@ namespace Comp{
   constexpr int NPARALLEL_GAUGE=12; // 12
   constexpr int NPARALLEL_SORT=12; // 12
 
-  constexpr int N_REFINE=1;
+  constexpr int N_REFINE=4;
   constexpr int NS=2;
 
-  constexpr int Nt=24;
+  // constexpr int Nt=24;
   // constexpr int Nt=48; // add 2
   //
   // constexpr int Nt=64;
   // constexpr int Nt=96; // add 4
   // constexpr int Nt=120;
   // constexpr int Nt=144; // add 8
-  // constexpr int Nt=168;
+  constexpr int Nt=168;
 
   constexpr double T = 12.;
+  // constexpr double T = 16.;
 
   constexpr Idx N_SITES=10*N_REFINE*N_REFINE+2;
   constexpr int N_LINKS=30*N_REFINE*N_REFINE; // 30, 120, 480

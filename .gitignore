@@ -4,10 +4,10 @@ include
 *.d
 *.pdf
 *.plt
-# *.gp
+*.gp
 *.nvvp
 *.nvprof
-# *.ipynb
+*.ipynb
 *.nb
 .ipynb_checkpoints/
 *boost*

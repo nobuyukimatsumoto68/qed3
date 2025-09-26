@@ -70,6 +70,8 @@ namespace Comp{
   // constexpr int Nt=1;
   // constexpr int Nt=16;
 
+  const double T = 16;
+
   constexpr Idx N_SITES=10*N_REFINE*N_REFINE+2;
   constexpr int N_LINKS=30*N_REFINE*N_REFINE; // 30, 120, 480
 
@@ -158,7 +160,7 @@ int main(int argc, char* argv[]){
   std::cout << "# lattice set. " << std::endl;
 
   // ----------------------
-  const double T = 12;
+  const double T = Comp::T;
   const double at = T/Comp::Nt;
   // assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
 
