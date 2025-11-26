@@ -293,6 +293,7 @@ struct MatPoly{
 
     double b_norm_sq;
     this->dot2selfAsync<N>(&b_norm_sq, d_r);
+    CUDA_CHECK( cudaStreamSynchronize(stream) );
     assert(b_norm_sq>=0.0);
     double mu_crit = tol*tol*b_norm_sq;
 
@@ -308,19 +309,22 @@ struct MatPoly{
 
         CuC gam;
         this->dotAsync<N>(&gam, d_p, d_q);
-	const CuC al = mu/gam;
-        Taxpy<CuC,N><<<NBlocks, NThreadsPerBlock, 0, stream>>>(d_x, al, d_p, d_x);
-        Taxpy<CuC,N><<<NBlocks, NThreadsPerBlock, 0, stream>>>(d_r, -al, d_q, d_r);
         CUDA_CHECK( cudaStreamSynchronize(stream) );
 
+        const CuC al = mu/gam;
+        Taxpy<CuC,N><<<NBlocks, NThreadsPerBlock, 0, stream>>>(d_x, al, d_p, d_x);
+        Taxpy<CuC,N><<<NBlocks, NThreadsPerBlock, 0, stream>>>(d_r, -al, d_q, d_r);
+        // CUDA_CHECK( cudaStreamSynchronize(stream) ); @@@
+
 	this->dot2selfAsync<N>(&mu, d_r);
+        CUDA_CHECK( cudaStreamSynchronize(stream) );
         assert(mu>=0.0);
 	if(mu<mu_crit || std::isnan(mu)) break;
 	const CuC bet = cplx(mu/mu_old);
 	mu_old = mu;
 
         Taxpy<CuC,N><<<NBlocks, NThreadsPerBlock, 0, stream>>>(d_p, bet, d_p, d_r);
-        CUDA_CHECK( cudaStreamSynchronize(stream) );
+        // CUDA_CHECK( cudaStreamSynchronize(stream) ); @@@
 
 	if(k%100==0) {
 #ifdef IsVerbose
