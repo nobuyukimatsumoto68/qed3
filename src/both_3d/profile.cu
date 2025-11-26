@@ -53,7 +53,7 @@ namespace Comp{
   constexpr int NPARALLEL_GAUGE=12; // 12
   constexpr int NPARALLEL_SORT=12; // 12
 
-  constexpr int N_REFINE=1;
+  constexpr int N_REFINE=8;
   constexpr int NS=2;
 
   // constexpr int Nt=24;
@@ -62,7 +62,10 @@ namespace Comp{
   // constexpr int Nt=96; // add 4
   // constexpr int Nt=120;
   // constexpr int Nt=144; // add 8
-  constexpr int Nt=24;
+
+  // constexpr int Nt=24;
+  // constexpr int Nt=48;
+  constexpr int Nt=96;
 
   // constexpr int Nt=24;
   // constexpr int Nt=192;
@@ -174,6 +177,7 @@ int main(int argc, char* argv[]){
   // const double at = 0.5;
   // const double T = 0.2;
   const double T = 12;
+  // const double T = 48;
   const double at = T/Comp::Nt;
   assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
 
@@ -241,6 +245,7 @@ int main(int argc, char* argv[]){
   auto f_sq = std::bind(&Fermion::DDH_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
 #else
   auto f_pre = std::bind(&Fermion::adj_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
+  // auto f_sq = std::bind(&Fermion::DHD_device, &D, std::placeholders::_1, std::placeholders::_2);
   auto f_sq = std::bind(&Fermion::DHD_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
 #endif
   LinOpWrapper M_pre( f_pre );
@@ -276,7 +281,10 @@ int main(int argc, char* argv[]){
 
   std::cout << "# calculating sink" << std::endl;
 
-  for(int i=0; i<10; i++) sq.solve<N>( sink.field, src.field );
+  for(int i=0; i<100; i++) {
+    // sq.solve<N>( sink.field, src.field );
+    sq.solveAsync<N>( sink.field, src.field );
+  }
 
   std::cout << "# done" << std::endl;
 
@@ -285,6 +293,35 @@ int main(int argc, char* argv[]){
 #endif
 
 
+  {
+    // Idx counter=0;
+    for(Idx ix=0; ix<base.n_sites; ix++) {
+      // if( phis[ix]>width || phis[ix]<0. ) continue;
+      {
+        const auto elem = sink(0,ix,0);
+        // std::cout << std::setw(25) << thetas[ix] << " "
+          // ofs << std::setw(25) << lengths[ix] << " "
+          // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
+          // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
+        std::cout << std::setw(25) << 1.0 * elem.real() << " "
+                  << std::setw(25) << 1.0 * elem.imag() << std::endl;
+      }
+      // {
+      //   const auto elem = sink(0,ix,1);
+      //   std::cout << std::setw(25) << thetas[ix] << " "
+      //     // ofs << std::setw(25) << lengths[ix] << " "
+      //     // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
+      //     // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
+      //             << std::setw(25) << 1.0 * elem.real() / factor << " "
+      //             << std::setw(25) << 1.0 * elem.imag() / factor << std::endl;
+      //   // }
+      //   // counter++;
+      // }
+    }
+  }
+
+
+  
 //   std::vector<double> thetas;
 //   std::vector<double> phis;
 //   std::vector<double> lengths;
