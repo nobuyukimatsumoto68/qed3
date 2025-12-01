@@ -31,12 +31,12 @@ static constexpr int NS = 2;
 static constexpr int DIM = 2;
 static constexpr Complex I = Complex(0.0, 1.0);
 
-#define Nf2
-const int nsteps=12; // changed from 20 nov 20
+// #define Nf2
+// const int nsteps=4; // changed from 20 nov 20
 // #define Nf4
-// const int nsteps=24; // changed from 20 nov 20
-// #define Nf6
-// const int nsteps=32; // changed from 20 nov 20
+// const int nsteps=6; // changed from 20 nov 20
+#define Nf6
+const int nsteps=8; // changed from 20 nov 20
 
 const double gsq = 0.1;
 // const double gsq = 0.5;
@@ -390,6 +390,7 @@ int main(int argc, char* argv[]){
   Force pi( base );
   pi.gaussian( rng );
   Force pi0=pi;
+  Force pi1=pi;
 
   Gauge U0=U;
   D.update(U);
@@ -400,8 +401,11 @@ int main(int argc, char* argv[]){
   }
 
   const double tmax = 1.0; // 1.0; // 0.1
-  for(int nsteps=8; nsteps<=24; nsteps+=4){
-    MinimumNorm2 integrator( tmax, nsteps, 20 );
+  for(int nsteps=4; nsteps<=24; nsteps+=4){
+    // for(int nsteps=8; nsteps<=40; nsteps+=8){
+    MinimumNorm2 integrator( tmax, nsteps, 100 );
+    // MinimumNorm2 integrator( tmax, nsteps, 1 );
+    // ExplicitLeapfrogML integrator( tmax, nsteps, 1 );
     HMC2 hmc(rng, &SW, &D, U, pi, pfs, &integrator);
 
     pi = pi0;
@@ -418,7 +422,14 @@ int main(int argc, char* argv[]){
 
     double dH = h1-h0;
     std::cout << tmax/nsteps << " " << dH << std::endl;
-    std::cout << " --- hmc : " << timer.currentSeconds() << std::endl;
+    std::cout << "# --- hmc : " << timer.currentSeconds() << std::endl;
+
+    // reversibility
+    // pi *= -1.0;
+    // hmc.integrate();
+    // std::cout << "# rev. check = " << (pi+pi0).norm() << std::endl;
+    // U *= -1.0;
+    // std::cout << "# rev. check = " << (U+U0).norm() << std::endl;
   }
 
 

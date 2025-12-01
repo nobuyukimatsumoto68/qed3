@@ -194,7 +194,7 @@ struct HMC2 {
     else {
       is_accept=false;
       U = U0;
-      fermion->update( U ); // update the D(U) matrix
+      fermion->update( U ); // update the D(U) matrix to original
       // pf->update_eta();
       // for(int jf=0; jf<pfs.size(); jf++) CUDA_CHECK(cudaMemcpy(pfs[jf]->d_eta, this->d_eta_saveds[jf], N*CD, D2D));
     }

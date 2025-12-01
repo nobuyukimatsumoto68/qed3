@@ -281,10 +281,10 @@ int main(int argc, char* argv[]){
 
   std::cout << "# calculating sink" << std::endl;
 
-  for(int i=0; i<100; i++) {
-    // sq.solve<N>( sink.field, src.field );
-    sq.solveAsync<N>( sink.field, src.field );
-  }
+  // for(int i=0; i<100; i++) {
+  sq.solve<N>( sink.field, src.field );
+  // sq.solveAsync<N>( sink.field, src.field );
+  // }
 
   std::cout << "# done" << std::endl;
 

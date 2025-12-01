@@ -126,6 +126,8 @@ struct ExplicitLeapfrogML {
 
     // 0th
     for(PseudoFermion* pf : pfs){
+      pf->update_eta(); // may be omitted; but for safety
+      fermion->precalc_grad_deviceAsyncLaunch( U, pf->d_eta );
       pf->get_force( dSf, U );
 #ifdef InfoForce
       dSf.print2log_norm( "# Sf : " );
@@ -192,51 +194,6 @@ struct MinimumNorm2 {
   {}
 
 
-//   template <typename Action, typename Fermion,
-//             typename Gauge, typename Force, typename PseudoFermion>
-//   void integrate( Gauge& U, Force& pi,
-//                   const Action* Sg, Fermion* fermion,
-//                   PseudoFermion* pf ) const {
-//     Force dSg(U.lattice), dSf(U.lattice);
-
-//     // 0th
-//     pf->get_force( dSf, U );
-// #ifdef InfoForce
-//     dSf.print2log_norm( "# Sf : " );
-// #endif
-//     pi += -0.5*tau * dSf;
-
-//     for(int n=0; n<nsteps; n++) {
-//       { //------------------
-//         // 0th
-//         Sg->get_force( dSg, U );
-// #ifdef InfoForce
-//         dSg.print2log_norm( "# Sg : " );
-// #endif
-//         pi += -0.5*tau_inner * dSg;
-//         for(int n_inner=0; n_inner<nsteps_inner; n_inner++) {
-//           U += tau_inner * pi;
-
-//           Sg->get_force( dSg, U );
-// #ifdef InfoForce
-//           dSg.print2log_norm( "# Sg : " );
-// #endif
-//           if(n_inner!=nsteps_inner-1) pi += -1.0*tau_inner * dSg;
-//           else pi += -0.5*tau_inner * dSg;
-//         }
-//       } //------------------
-//       fermion->update( U ); pf->update_eta();
-//       fermion->precalc_grad_deviceAsyncLaunch( U, pf->d_eta );
-
-//       pf->get_force( dSf, U );
-// #ifdef InfoForce
-//       dSf.print2log_norm( "# Sf : " );
-// #endif
-//       if(n!=nsteps-1) pi += -1.0*tau * dSf;
-//       else pi += -0.5*tau * dSf;
-//     }
-//   }
-
   template <typename Action, typename Fermion,
             typename Gauge, typename Force, typename PseudoFermion>
   void integrate( Gauge& U, Force& pi,
@@ -246,6 +203,8 @@ struct MinimumNorm2 {
 
     // 0th
     for(PseudoFermion* pf : pfs){
+      pf->update_eta(); // may be omitted; but for safety
+      fermion->precalc_grad_deviceAsyncLaunch( U, pf->d_eta ); // to omit, Xs in D needs to be flavored
       pf->get_force( dSf, U );
 #ifdef InfoForce
       dSf.print2log_norm( "# Sf : " );
@@ -287,6 +246,9 @@ struct MinimumNorm2 {
 
       // inner (1-2lambda) pi fermion update
       for(PseudoFermion* pf : pfs){
+        pf->update_eta();
+        fermion->precalc_grad_deviceAsyncLaunch( U, pf->d_eta );
+
         pf->get_force( dSf, U );
 #ifdef InfoForce
         dSf.print2log_norm( "# Sf : " );
@@ -324,7 +286,7 @@ struct MinimumNorm2 {
       fermion->update( U );
 
 
-      // inner (2*)lambda pi fermion update
+      // last (2*)lambda pi fermion update
       for(PseudoFermion* pf : pfs){
         pf->update_eta();
         fermion->precalc_grad_deviceAsyncLaunch( U, pf->d_eta );

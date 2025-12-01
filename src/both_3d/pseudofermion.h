@@ -61,3 +61,21 @@ struct PseudoFermion {
 };
 
 
+
+// struct OverlapPseudoFermion : public PseudoFermion<Overlap>{
+
+//   OverlapPseudoFermion()=delete;
+
+//   std::vector<CuC*> d_Ys, d_Zs, d_XYs, d_XZs;
+
+//   explicit OverlapPseudoFermion( Overlap& D_ )
+//     : PseudoFermion<Overlap>D(D_)
+//     , d_Ys(D.size)
+//     , d_Zs(D.size)
+//     , d_XYs(D.size)
+//     , d_XZs(D.size)
+//   {}
+
+  
+
+// };
