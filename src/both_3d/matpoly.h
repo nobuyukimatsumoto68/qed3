@@ -203,6 +203,23 @@ struct MatPoly{
   }
 
 
+  template<Idx N> __host__
+  void solveAsync(std::vector<Complex>& x, const std::vector<Complex>& b,
+             const double tol=1.0e-13, const int maxiter=1e8) const {
+    // CG
+    CuC *d_x, *d_r; // , *d_tmp, *d_tmp2;
+    CUDA_CHECK(cudaMalloc(&d_x, N*CD));
+    CUDA_CHECK(cudaMalloc(&d_r, N*CD));
+    CUDA_CHECK(cudaMemcpy(d_r, reinterpret_cast<const CuC*>(b.data()), N*CD, H2D));
+
+    solveAsync<N>(d_x, d_r, tol, maxiter);
+
+    CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(x.data()), d_x, N*CD, D2H));
+    CUDA_CHECK(cudaFree(d_x));
+    CUDA_CHECK(cudaFree(d_r));
+  }
+
+
   // necessary for outer loop
   template<Idx N> __host__
   void solve(CuC* d_x, const CuC* d_b,
@@ -286,14 +303,14 @@ struct MatPoly{
     CUDA_CHECK(cudaMemcpyAsync(d_r, d_b, N*CD, D2D, stream));
     CUDA_CHECK(cudaMemcpyAsync(d_p, d_r, N*CD, D2D, stream));
 
-    double mu;
+    double mu, b_norm_sq;
     this->dot2selfAsync<N>(&mu, d_r);
-    assert(mu>=0.0);
-    double mu_old = mu;
-
-    double b_norm_sq;
     this->dot2selfAsync<N>(&b_norm_sq, d_r);
+    CUDA_CHECK( cudaStreamSynchronize(stream) );
+
+    assert(mu>=0.0);
     assert(b_norm_sq>=0.0);
+    double mu_old = mu;
     double mu_crit = tol*tol*b_norm_sq;
 
     if(mu<mu_crit) {
@@ -308,19 +325,22 @@ struct MatPoly{
 
         CuC gam;
         this->dotAsync<N>(&gam, d_p, d_q);
-	const CuC al = mu/gam;
-        Taxpy<CuC,N><<<NBlocks, NThreadsPerBlock, 0, stream>>>(d_x, al, d_p, d_x);
-        Taxpy<CuC,N><<<NBlocks, NThreadsPerBlock, 0, stream>>>(d_r, -al, d_q, d_r);
         CUDA_CHECK( cudaStreamSynchronize(stream) );
 
+        const CuC al = mu/gam;
+        Taxpy<CuC,N><<<NBlocks, NThreadsPerBlock, 0, stream>>>(d_x, al, d_p, d_x);
+        Taxpy<CuC,N><<<NBlocks, NThreadsPerBlock, 0, stream>>>(d_r, -al, d_q, d_r);
+        // CUDA_CHECK( cudaStreamSynchronize(stream) ); @@@
+
 	this->dot2selfAsync<N>(&mu, d_r);
+        CUDA_CHECK( cudaStreamSynchronize(stream) );
         assert(mu>=0.0);
 	if(mu<mu_crit || std::isnan(mu)) break;
 	const CuC bet = cplx(mu/mu_old);
 	mu_old = mu;
 
         Taxpy<CuC,N><<<NBlocks, NThreadsPerBlock, 0, stream>>>(d_p, bet, d_p, d_r);
-        CUDA_CHECK( cudaStreamSynchronize(stream) );
+        // CUDA_CHECK( cudaStreamSynchronize(stream) ); @@@
 
 	if(k%100==0) {
 #ifdef IsVerbose

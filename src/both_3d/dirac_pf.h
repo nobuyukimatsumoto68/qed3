@@ -63,6 +63,13 @@ struct DiracPf {
     is_precalc = false;
   }
 
+  void DHD_device( CuC* d_res, const CuC* d_xi ) const {
+    MatPoly X(handle[0], stream[0]);
+    X.push_back ( cplx(1.0), {&M_DW, &M_DWH} );
+    X.on_gpu<N>(d_res, d_xi);
+    CUDA_CHECK(cudaDeviceSynchronize());
+  }
+
   void DHD_deviceAsyncLaunch( CuC* d_res, const CuC* d_xi ) const {
     MatPoly X(handle[0], stream[0]);
     X.push_back ( cplx(1.0), {&M_DW, &M_DWH} );

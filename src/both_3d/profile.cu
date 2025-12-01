@@ -30,7 +30,7 @@ static constexpr Complex I = Complex(0.0, 1.0);
 
 
 // #define IS_DUAL
-#define IS_OVERLAP
+// #define IS_OVERLAP
 // #define IS_DAGGER
 // #undef _OPENMP
 
@@ -53,7 +53,7 @@ namespace Comp{
   constexpr int NPARALLEL_GAUGE=12; // 12
   constexpr int NPARALLEL_SORT=12; // 12
 
-  constexpr int N_REFINE=1;
+  constexpr int N_REFINE=4;
   constexpr int NS=2;
 
   // constexpr int Nt=24;
@@ -62,7 +62,10 @@ namespace Comp{
   // constexpr int Nt=96; // add 4
   // constexpr int Nt=120;
   // constexpr int Nt=144; // add 8
-  constexpr int Nt=168;
+
+  // constexpr int Nt=24;
+  // constexpr int Nt=48;
+  constexpr int Nt=96;
 
   // constexpr int Nt=24;
   // constexpr int Nt=192;
@@ -174,11 +177,12 @@ int main(int argc, char* argv[]){
   // const double at = 0.5;
   // const double T = 0.2;
   const double T = 12;
+  // const double T = 48;
   const double at = T/Comp::Nt;
   assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
 
 
-  const double gsq = 0.05;
+  const double gsq = 0.2;
   // double at = 0.05; // base.mean_ell * 0.125 * ratio;
   // if(Comp::Nt==1) at=0.;
   Action SW( gsq, at, base );
@@ -221,7 +225,7 @@ int main(int argc, char* argv[]){
   std::cout << "# DW set. " << std::endl;
 
   using Fermion=Overlap<WilsonDirac>;
-  Fermion D(DW, 51);
+  Fermion D(DW, 21);
   std::cout << "# D set. " << std::endl;
 #else
   const double M5 = 0.0;
@@ -241,6 +245,7 @@ int main(int argc, char* argv[]){
   auto f_sq = std::bind(&Fermion::DDH_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
 #else
   auto f_pre = std::bind(&Fermion::adj_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
+  // auto f_sq = std::bind(&Fermion::DHD_device, &D, std::placeholders::_1, std::placeholders::_2);
   auto f_sq = std::bind(&Fermion::DHD_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
 #endif
   LinOpWrapper M_pre( f_pre );
@@ -276,7 +281,10 @@ int main(int argc, char* argv[]){
 
   std::cout << "# calculating sink" << std::endl;
 
-  sq.solve<N>( sink.field, src.field );
+  for(int i=0; i<100; i++) {
+    // sq.solve<N>( sink.field, src.field );
+    sq.solveAsync<N>( sink.field, src.field );
+  }
 
   std::cout << "# done" << std::endl;
 
@@ -285,137 +293,166 @@ int main(int argc, char* argv[]){
 #endif
 
 
-  std::vector<double> thetas;
-  std::vector<double> phis;
-  std::vector<double> lengths;
-#ifdef IS_DUAL
   {
-    std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
-    std::vector<Geodesic::V3> sites;
-    {
-      std::ifstream file(dir+"pts_dual_n"+std::to_string(Comp::N_REFINE)+"_singlepatch.dat");
-
-      std::string str;
-      while (std::getline(file, str)){
-        std::istringstream iss(str);
-        double v1, v2, v3;
-        iss >> v1;
-        iss >> v2;
-        iss >> v3;
-        sites.push_back( Geodesic::V3(v1, v2, v3) );
-      }
-    }
-    const auto x0 = sites[0];
-    for(const auto& elem : sites){
-      double len = Geodesic::geodesicLength(Geodesic::Pt(x0), Geodesic::Pt(elem));
-      // std::cout << "len = " << len << std::endl;
-      lengths.push_back(len);
-      thetas.push_back( Geodesic::projectionS2(elem)[0] );
-      phis.push_back( Geodesic::projectionS2(elem)[1] );
-    }
-  }
-  // double alat;
-  // {
-  //   std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
-  //   std::ifstream file(dir+"alat_n"+std::to_string(Comp::N_REFINE)+"_singlepatch.dat");
-
-  //   std::string str;
-  //   std::getline(file, str);
-  //   std::istringstream iss(str);
-  //   iss >> alat;
-  // }
-#else
-  {
-    const auto x0 = base.sites[0];
-    for(int ix=0; ix<base.n_sites; ix++){
-      const auto x1 = base.sites[ix];
-      double len = Geodesic::geodesicLength(Geodesic::Pt(x0), Geodesic::Pt(x1));
-      // std::cout << "len = " << len << std::endl;
-      lengths.push_back(len);
-      thetas.push_back( Geodesic::projectionS2(x1)[0] );
-      phis.push_back( Geodesic::projectionS2(x1)[1] );
-    }
-  }
-#endif
-
-  const double width = 0.05;
-
-  double factor = at*base.mean_ell;
-  if(Comp::Nt==1) factor = base.mean_ell;
-
-  {
-    std::string path = "prop_spacial_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_T"+std::to_string(T)+".dat";
-#ifdef IS_DUAL
-    path = "dual_"+path;
-#endif
-#ifdef IS_OVERLAP
-    path = "ov_"+path;
-#endif
-#ifdef IS_DAGGER
-    path = "dagger_"+path;
-#endif
-    std::ofstream ofs(path);
-
     // Idx counter=0;
     for(Idx ix=0; ix<base.n_sites; ix++) {
-      if( phis[ix]>width || phis[ix]<0. ) continue;
+      // if( phis[ix]>width || phis[ix]<0. ) continue;
       {
         const auto elem = sink(0,ix,0);
-        ofs << std::setw(25) << thetas[ix] << " "
+        // std::cout << std::setw(25) << thetas[ix] << " "
           // ofs << std::setw(25) << lengths[ix] << " "
-            // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
-            // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
-        << std::setw(25) << 1.0 * elem.real() / factor << " "
-        << std::setw(25) << 1.0 * elem.imag() / factor << std::endl;
-      }
-      {
-        const auto elem = sink(0,ix,1);
-        ofs << std::setw(25) << thetas[ix] << " "
-          // ofs << std::setw(25) << lengths[ix] << " "
-            // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
-            // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
-            << std::setw(25) << 1.0 * elem.real() / factor << " "
-            << std::setw(25) << 1.0 * elem.imag() / factor << std::endl;
-      }
-      // counter++;
-    }
-  }
-  {
-    std::string path = "prop_temporal_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_T"+std::to_string(T)+".dat";
-#ifdef IS_DUAL
-    path = "dual_"+path;
-#endif
-#ifdef IS_OVERLAP
-    path = "ov_"+path;
-#endif
-#ifdef IS_DAGGER
-    path = "dagger_"+path;
-#endif
-    std::ofstream ofs(path);
-
-    // Idx counter=0;
-    for(Idx s=0; s<Comp::Nt; s++) {
-      {
-        const auto elem = sink(s,0,0);
-        ofs << std::setw(25) << at*s << " "
-          // ofs << std::setw(25) << s << " "
-            // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
-            // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
-        << std::setw(25) << 1.0 * elem.real() / factor << " "
-        << std::setw(25) << 1.0 * elem.imag() / factor << std::endl;
-      }
-      {
-        const auto elem = sink(s,0,1);
-        ofs << std::setw(25) << at*s << " "
-          // ofs << std::setw(25) << s << " "
           // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
-            // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
-        << std::setw(25) << 1.0 * elem.real() / factor << " "
-        << std::setw(25) << 1.0 * elem.imag() / factor << std::endl;
+          // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
+        std::cout << std::setw(25) << 1.0 * elem.real() << " "
+                  << std::setw(25) << 1.0 * elem.imag() << std::endl;
       }
-      // counter++;
+      // {
+      //   const auto elem = sink(0,ix,1);
+      //   std::cout << std::setw(25) << thetas[ix] << " "
+      //     // ofs << std::setw(25) << lengths[ix] << " "
+      //     // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
+      //     // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
+      //             << std::setw(25) << 1.0 * elem.real() / factor << " "
+      //             << std::setw(25) << 1.0 * elem.imag() / factor << std::endl;
+      //   // }
+      //   // counter++;
+      // }
     }
   }
+
+
+  
+//   std::vector<double> thetas;
+//   std::vector<double> phis;
+//   std::vector<double> lengths;
+// #ifdef IS_DUAL
+//   {
+//     std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
+//     std::vector<Geodesic::V3> sites;
+//     {
+//       std::ifstream file(dir+"pts_dual_n"+std::to_string(Comp::N_REFINE)+"_singlepatch.dat");
+
+//       std::string str;
+//       while (std::getline(file, str)){
+//         std::istringstream iss(str);
+//         double v1, v2, v3;
+//         iss >> v1;
+//         iss >> v2;
+//         iss >> v3;
+//         sites.push_back( Geodesic::V3(v1, v2, v3) );
+//       }
+//     }
+//     const auto x0 = sites[0];
+//     for(const auto& elem : sites){
+//       double len = Geodesic::geodesicLength(Geodesic::Pt(x0), Geodesic::Pt(elem));
+//       // std::cout << "len = " << len << std::endl;
+//       lengths.push_back(len);
+//       thetas.push_back( Geodesic::projectionS2(elem)[0] );
+//       phis.push_back( Geodesic::projectionS2(elem)[1] );
+//     }
+//   }
+//   // double alat;
+//   // {
+//   //   std::string dir = "/mnt/hdd_barracuda/qed3/dats/";
+//   //   std::ifstream file(dir+"alat_n"+std::to_string(Comp::N_REFINE)+"_singlepatch.dat");
+
+//   //   std::string str;
+//   //   std::getline(file, str);
+//   //   std::istringstream iss(str);
+//   //   iss >> alat;
+//   // }
+// #else
+//   {
+//     const auto x0 = base.sites[0];
+//     for(int ix=0; ix<base.n_sites; ix++){
+//       const auto x1 = base.sites[ix];
+//       double len = Geodesic::geodesicLength(Geodesic::Pt(x0), Geodesic::Pt(x1));
+//       // std::cout << "len = " << len << std::endl;
+//       lengths.push_back(len);
+//       thetas.push_back( Geodesic::projectionS2(x1)[0] );
+//       phis.push_back( Geodesic::projectionS2(x1)[1] );
+//     }
+//   }
+// #endif
+
+//   const double width = 0.05;
+
+//   double factor = at*base.mean_ell;
+//   if(Comp::Nt==1) factor = base.mean_ell;
+
+//   {
+//     std::string path = "prop_spacial_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_T"+std::to_string(T)+".dat";
+// #ifdef IS_DUAL
+//     path = "dual_"+path;
+// #endif
+// #ifdef IS_OVERLAP
+//     path = "ov_"+path;
+// #endif
+// #ifdef IS_DAGGER
+//     path = "dagger_"+path;
+// #endif
+//     std::ofstream ofs(path);
+
+//     // Idx counter=0;
+//     for(Idx ix=0; ix<base.n_sites; ix++) {
+//       if( phis[ix]>width || phis[ix]<0. ) continue;
+//       {
+//         const auto elem = sink(0,ix,0);
+//         ofs << std::setw(25) << thetas[ix] << " "
+//           // ofs << std::setw(25) << lengths[ix] << " "
+//             // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
+//             // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
+//         << std::setw(25) << 1.0 * elem.real() / factor << " "
+//         << std::setw(25) << 1.0 * elem.imag() / factor << std::endl;
+//       }
+//       {
+//         const auto elem = sink(0,ix,1);
+//         ofs << std::setw(25) << thetas[ix] << " "
+//           // ofs << std::setw(25) << lengths[ix] << " "
+//             // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
+//             // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
+//             << std::setw(25) << 1.0 * elem.real() / factor << " "
+//             << std::setw(25) << 1.0 * elem.imag() / factor << std::endl;
+//       }
+//       // counter++;
+//     }
+//   }
+//   {
+//     std::string path = "prop_temporal_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_T"+std::to_string(T)+".dat";
+// #ifdef IS_DUAL
+//     path = "dual_"+path;
+// #endif
+// #ifdef IS_OVERLAP
+//     path = "ov_"+path;
+// #endif
+// #ifdef IS_DAGGER
+//     path = "dagger_"+path;
+// #endif
+//     std::ofstream ofs(path);
+
+//     // Idx counter=0;
+//     for(Idx s=0; s<Comp::Nt; s++) {
+//       {
+//         const auto elem = sink(s,0,0);
+//         ofs << std::setw(25) << at*s << " "
+//           // ofs << std::setw(25) << s << " "
+//             // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
+//             // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
+//         << std::setw(25) << 1.0 * elem.real() / factor << " "
+//         << std::setw(25) << 1.0 * elem.imag() / factor << std::endl;
+//       }
+//       {
+//         const auto elem = sink(s,0,1);
+//         ofs << std::setw(25) << at*s << " "
+//           // ofs << std::setw(25) << s << " "
+//           // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
+//             // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
+//         << std::setw(25) << 1.0 * elem.real() / factor << " "
+//         << std::setw(25) << 1.0 * elem.imag() / factor << std::endl;
+//       }
+//       // counter++;
+//     }
+//   }
 
 
 

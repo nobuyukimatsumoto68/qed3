@@ -57,9 +57,16 @@ namespace Comp{
 
   constexpr int NS=2;
 
-
+  // constexpr int Nt=24;
+  // constexpr int Nt=48;
+  // constexpr int Nt=64;
   // constexpr int Nt=96;
-  constexpr int Nt=192;
+  constexpr int Nt=120;
+  // constexpr int Nt=144;
+  // constexpr int Nt=168;
+  // constexpr int Nt=192;
+  // constexpr int Nt=216;
+  // constexpr int Nt=240;
   // constexpr int Nt=1;
   // constexpr int Nt=16;
 
@@ -190,7 +197,8 @@ int main(int argc, char* argv[]){
 
   GaugeVector v(U); U.vectorize( v.field );
 
-  const Face& face = base.faces[0];
+  const Idx iface=0;
+  const Face& face = base.faces[iface];
   std::vector<double> res(Comp::Nt, 0.0);
 
   for(Idx i=0; i<face.size(); i++) {
@@ -207,12 +215,12 @@ int main(int argc, char* argv[]){
     // project
     mat.from_cpu<Ng>( sink.field, source.field );
     source.set_zero();
-    mat.solve<Ng>( source.field, sink.field, 1.0e-10 );
+    mat.solve<Ng>( source.field, sink.field, 1.0e-11 );
 
     std::cout << "# calculate sink" << std::endl;
     // invert
     sink.set_zero();
-    mat.solve<Ng>( sink.field, source.field, 1.0e-10 );
+    mat.solve<Ng>( sink.field, source.field, 1.0e-11 );
 
     for(Idx j=0; j<face.size(); j++) {
       const Idx jx = face[j];
@@ -222,13 +230,17 @@ int main(int argc, char* argv[]){
     }
   }
 
+  const double factor = base.vols[iface];
+  for(int t=0; t<Comp::Nt; t++) res[t] /= factor*factor;
+
   std::cout << "# writing" << std::endl;
   {
-    std::string path = "prop_gauge_gsq"+std::to_string(gsq)+"_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+".dat";
+    std::string path = "prop_gauge_gsq"+std::to_string(gsq)+"_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_T"+std::to_string(T)+".dat";
     std::ofstream ofs(path);
     for(const auto elem : res) ofs << elem << std::endl;
   }
   std::cout << "# done" << std::endl;
+  std::cout << "ellbar = " << base.mean_ell << std::endl;
 
   // ------------------
 
