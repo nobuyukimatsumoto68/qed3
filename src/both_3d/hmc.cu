@@ -219,7 +219,8 @@ int main(int argc, char* argv[]){
   std::cout << "# alat = " << base.mean_ell << std::endl;
 
   std::vector<std::shared_ptr<PseudoFermion<Fermion>>> pfs;
-  for(int f=0; f<Nf; f++) pfs.push_back( std::shared_ptr<PseudoFermion<Fermion>>( new PseudoFermion<Fermion>(D) ) );
+  assert(Nf%2==0);
+  for(int f=0; f<Nf/2; f++) pfs.push_back( std::shared_ptr<PseudoFermion<Fermion>>( new PseudoFermion<Fermion>(D) ) );
   // for(auto pf : pfs) pf->PseudoFermion( D );
   //if(Comp::Nf>=2){
 
@@ -406,7 +407,7 @@ int main(int argc, char* argv[]){
   // Gauge U0=U;
   // D.update(U);
 
-  // for(PseudoFermion<Fermion>* pf : pfs){
+  // for(auto pf : pfs){
   //   pf->gen( rng );
   //   D.precalc_grad_deviceAsyncLaunch( U, pf->d_eta );
   // }
@@ -422,7 +423,7 @@ int main(int argc, char* argv[]){
   //   pi = pi0;
   //   U = U0;
   //   D.update( U );
-  //   for(PseudoFermion<Fermion>* pf : pfs){
+  //   for(auto pf : pfs){
   //     pf->update_eta(); // fixed phi; update eta according to U
   //     D.precalc_grad_deviceAsyncLaunch( U, pf->d_eta );
   //   }
