@@ -122,7 +122,7 @@ struct HMC2 {
   Gauge& U;
   Force& pi;
   // PseudoFermion* pf;
-  std::vector<PseudoFermion*>& pfs;
+  std::vector<PseudoFermion>& pfs;
 
   Integrator* integrator;
 
@@ -137,7 +137,7 @@ struct HMC2 {
                 Fermion* fermion_,
                 Gauge& U_,
                 Force& pi_,
-                std::vector<PseudoFermion*>& pfs_,
+                std::vector<PseudoFermion>& pfs_,
                 Integrator* integrator_)
     : rng(rng_)
     , Sg(Sg_)
@@ -160,7 +160,7 @@ struct HMC2 {
     double res = pi.squared_norm();
     res *= 0.5;
     res += Sg->operator()(U);
-    for(PseudoFermion* pf : pfs) res += pf->S();
+    for(PseudoFermion pf : pfs) res += pf->S();
     return res;
   }
 
@@ -175,7 +175,7 @@ struct HMC2 {
     pi.gaussian( rng );
 
     Gauge U0( U );
-    for(PseudoFermion* pf : pfs) {
+    for(PseudoFermion pf : pfs) {
       pf->gen( rng );
       fermion->precalc_grad_deviceAsyncLaunch( U, pf->d_eta ); // calculate eta for new phi
     }

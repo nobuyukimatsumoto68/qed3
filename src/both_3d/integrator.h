@@ -197,12 +197,12 @@ struct MinimumNorm2 {
   template <typename Action, typename Fermion,
             typename Gauge, typename Force, typename PseudoFermion>
   void integrate( Gauge& U, Force& pi,
-                  const Action* Sg, Fermion* fermion,
-                  std::vector<PseudoFermion*>& pfs ) const {
+                  const Action* Sg, Fermion fermion,
+                  std::vector<PseudoFermion>& pfs ) const {
     Force dSg(U.lattice), dSf(U.lattice);
 
     // 0th
-    for(PseudoFermion* pf : pfs){
+    for(PseudoFermion pf : pfs){
       pf->update_eta(); // may be omitted; but for safety
       fermion->precalc_grad_deviceAsyncLaunch( U, pf->d_eta ); // to omit, Xs in D needs to be flavored
       pf->get_force( dSf, U );
@@ -245,7 +245,7 @@ struct MinimumNorm2 {
 
 
       // inner (1-2lambda) pi fermion update
-      for(PseudoFermion* pf : pfs){
+      for(PseudoFermion pf : pfs){
         pf->update_eta();
         fermion->precalc_grad_deviceAsyncLaunch( U, pf->d_eta );
 
@@ -287,7 +287,7 @@ struct MinimumNorm2 {
 
 
       // last (2*)lambda pi fermion update
-      for(PseudoFermion* pf : pfs){
+      for(PseudoFermion pf : pfs){
         pf->update_eta();
         fermion->precalc_grad_deviceAsyncLaunch( U, pf->d_eta );
 
