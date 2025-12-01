@@ -165,7 +165,6 @@ struct HMC2 {
   }
 
   inline void integrate() {
-    // integrator->integrate( U, pi, Sg, fermion, pf );
     integrator->integrate( U, pi, Sg, fermion, pfs );
   }
 
@@ -178,7 +177,7 @@ struct HMC2 {
     Gauge U0( U );
     for(PseudoFermion* pf : pfs) {
       pf->gen( rng );
-      fermion->precalc_grad_deviceAsyncLaunch( U, pf->d_eta );
+      fermion->precalc_grad_deviceAsyncLaunch( U, pf->d_eta ); // calculate eta for new phi
     }
     // for(int jf=0; jf<pfs.size(); jf++) CUDA_CHECK(cudaMemcpy(this->d_eta_saveds[jf], pfs[jf]->d_eta, N*CD, D2D));
 
@@ -195,7 +194,7 @@ struct HMC2 {
     else {
       is_accept=false;
       U = U0;
-      fermion->update( U );
+      fermion->update( U ); // update the D(U) matrix
       // pf->update_eta();
       // for(int jf=0; jf<pfs.size(); jf++) CUDA_CHECK(cudaMemcpy(pfs[jf]->d_eta, this->d_eta_saveds[jf], N*CD, D2D));
     }

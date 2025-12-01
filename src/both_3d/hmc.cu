@@ -32,9 +32,9 @@ static constexpr int DIM = 2;
 static constexpr Complex I = Complex(0.0, 1.0);
 
 #define Nf2
-const int nsteps=20; // changed from 20 nov 20
+const int nsteps=12; // changed from 20 nov 20
 // #define Nf4
-// const int nsteps=28; // changed from 20 nov 20
+// const int nsteps=24; // changed from 20 nov 20
 // #define Nf6
 // const int nsteps=32; // changed from 20 nov 20
 
@@ -71,7 +71,7 @@ namespace Comp{
   constexpr int N_REFINE=1;
   constexpr int NS=2;
 
-  constexpr int Nt=24;
+  constexpr int Nt=96;
 
   // constexpr int Nf=4; // even
 
@@ -175,7 +175,7 @@ int main(int argc, char* argv[]){
 #endif
   // const double c = 1.0;
   // double at = 0.05; // base.mean_ell * 0.125 * ratio;
-  const double T = 16;
+  const double T = 24;
   const double at = T/Comp::Nt;
   assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
   WilsonDirac DW(base, 0.0, 1.0, M5, at);
@@ -202,7 +202,6 @@ int main(int argc, char* argv[]){
 #else
   Fermion D(DW);
   D.update( U );
-
 #endif
 
 
@@ -242,6 +241,7 @@ int main(int argc, char* argv[]){
   // }
 
   Timer timer;
+
 
   // ------------------
 
@@ -387,144 +387,140 @@ int main(int argc, char* argv[]){
   // -----------------
 
 
-  // Force pi( base );
-  // pi.gaussian( rng );
-  // Force pi0=pi;
-
-  // Gauge U0=U;
-  // D.update(U);
-
-  // for(PseudoFermion<Fermion>* pf : pfs){
-  //   // pf.gen( rng );
-  //   // D.precalc_grad_deviceAsyncLaunch( U, pf.d_eta );
-  //   pf->gen( rng );
-  //   D.precalc_grad_deviceAsyncLaunch( U, pf->d_eta );
-  // }
-
-  // const double tmax = 1.0; // 1.0; // 0.1
-  // for(int nsteps=12; nsteps<=24; nsteps+=4){
-  //   // const int nsteps=5;
-  //   // ExplicitLeapfrogML integrator( tmax, nsteps, 20 );
-  //   ExplicitLeapfrogML integrator( tmax, nsteps, 100 );
-  //   pi = pi0;
-  //   U = U0;
-  //   HMC2 hmc(rng, &SW, &D, U, pi, pfs, &integrator);
-
-  //   D.update( U );
-  //   for(PseudoFermion<Fermion>* pf : pfs){
-  //     // pf.update_eta();
-  //     // D.precalc_grad_deviceAsyncLaunch( U, pf.d_eta );
-  //     pf->update_eta();
-  //     D.precalc_grad_deviceAsyncLaunch( U, pf->d_eta );
-  //   }
-
-  //   const double h0 = hmc.H();
-  //   hmc.integrate();
-  //   const double h1 = hmc.H();
-  //   double dH = h1-h0;
-  //   std::cout << tmax/nsteps << " " << dH << std::endl;
-  //   std::cout << " --- hmc : " << timer.currentSeconds() << std::endl;
-  // }
-
-
-
-
-  // -----------------// -----------------// -----------------// -----------------// -----------------
-
-  std::string dir3;
-#ifdef Nf2
-  dir3="Nf2_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
-#else
-#ifdef Nf4
-  dir3="Nf4_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
-#endif
-#ifdef Nf6
-  dir3="Nf6_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
-#endif
-#endif
-  std::filesystem::create_directory(dir3);
-  const int k_ckpoint=10;
-  const int kmax=1e5;
-
-  int k_tmp=0;
-  {
-    for(k_tmp=k_ckpoint; k_tmp<=kmax; k_tmp+=k_ckpoint ){
-      const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k_tmp);
-      const std::string str_rng=dir3+"ckpoint_rng."+std::to_string(k_tmp);
-
-      const bool bool_lat = std::filesystem::exists(str_lat);
-      const bool bool_rng = std::filesystem::exists(str_rng);
-
-      if(!(bool_lat&&bool_rng)) break;
-    }
-    k_tmp -= k_ckpoint;
-
-    if(k_tmp>0){ // from existing
-      std::cout << "read from k_tmp = " << k_tmp << std::endl;
-      const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k_tmp);
-      const std::string str_rng=dir3+"ckpoint_rng."+std::to_string(k_tmp);
-      U.read( str_lat );
-      rng.read( str_rng );
-    }
-  }
-
-
   Force pi( base );
-  // pi.gaussian( rng );
-  // Force pi0=pi;
-  // Gauge U0=U;
-  // D.update(U);
-  // for(PseudoFermion<Fermion>* pf : pfs){
-  //   pf->gen( rng );
-  //   D.precalc_grad_deviceAsyncLaunch( U, pf->d_eta );
-  // }
+  pi.gaussian( rng );
+  Force pi0=pi;
 
-  const double tmax = 1.0; // 0.1
-  ExplicitLeapfrogML integrator( tmax, nsteps, 100 );
-  // pi = pi0;
-  // U = U0;
-  HMC2 hmc(rng, &SW, &D, U, pi, pfs, &integrator);
-  D.update( U );
+  Gauge U0=U;
+  D.update(U);
 
-  // for(PseudoFermion<Fermion>* pf : pfs){
-  //   pf->gen( rng );
-  //   D.precalc_grad_deviceAsyncLaunch( U, pf->d_eta );
-  // }
-
-  double rate, dH;
-  bool is_accept;
-  // for(int k=k_tmp; k<10; k++){
-  //   Timer timer;
-  //   hmc.run( rate, dH, is_accept, true);
-  //   std::cout << "# dH : " << dH
-  //             << " is_accept : " << is_accept
-  //             << " rate : " << rate << std::endl;
-  //   std::cout << "# HMC : " << timer.currentSeconds() << " sec" << std::endl;
-  // }
-
-  double r_mean;
-  for(int k=k_tmp+1; k<kmax; k++){
-    Timer timer;
-    hmc.run( rate, dH, is_accept);
-    std::cout << "# dH : " << dH
-              << " is_accept : " << is_accept
-              << " rate : " << rate << std::endl;
-    r_mean += rate;
-    std::cout << "# HMC : " << timer.currentSeconds() << " sec" << std::endl;
-
-    if(k%100==0){
-      std::cout << "# k = " << k << std::endl;
-    }
-
-    if(k%k_ckpoint==0){
-      const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k);
-      const std::string str_rng=dir3+"ckpoint_rng."+std::to_string(k);
-      U.ckpoint( str_lat );
-      rng.ckpoint( str_rng );
-    }
+  for(PseudoFermion<Fermion>* pf : pfs){
+    pf->gen( rng );
+    D.precalc_grad_deviceAsyncLaunch( U, pf->d_eta );
   }
-  r_mean /= kmax;
-  std::cout << "# r_mean = " << r_mean << std::endl;
+
+  const double tmax = 1.0; // 1.0; // 0.1
+  for(int nsteps=8; nsteps<=24; nsteps+=4){
+    MinimumNorm2 integrator( tmax, nsteps, 20 );
+    HMC2 hmc(rng, &SW, &D, U, pi, pfs, &integrator);
+
+    pi = pi0;
+    U = U0;
+    D.update( U );
+    for(PseudoFermion<Fermion>* pf : pfs){
+      pf->update_eta(); // fixed phi; update eta according to U
+      D.precalc_grad_deviceAsyncLaunch( U, pf->d_eta );
+    }
+
+    const double h0 = hmc.H();
+    hmc.integrate();
+    const double h1 = hmc.H();
+
+    double dH = h1-h0;
+    std::cout << tmax/nsteps << " " << dH << std::endl;
+    std::cout << " --- hmc : " << timer.currentSeconds() << std::endl;
+  }
+
+
+
+
+//   // -----------------// -----------------// -----------------// -----------------// -----------------
+
+//   std::string dir3;
+// #ifdef Nf2
+//   dir3="Nf2_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
+// #else
+// #ifdef Nf4
+//   dir3="Nf4_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
+// #endif
+// #ifdef Nf6
+//   dir3="Nf6_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
+// #endif
+// #endif
+//   std::filesystem::create_directory(dir3);
+//   const int k_ckpoint=10;
+//   const int kmax=1e5;
+
+//   int k_tmp=0;
+//   {
+//     for(k_tmp=k_ckpoint; k_tmp<=kmax; k_tmp+=k_ckpoint ){
+//       const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k_tmp);
+//       const std::string str_rng=dir3+"ckpoint_rng."+std::to_string(k_tmp);
+
+//       const bool bool_lat = std::filesystem::exists(str_lat);
+//       const bool bool_rng = std::filesystem::exists(str_rng);
+
+//       if(!(bool_lat&&bool_rng)) break;
+//     }
+//     k_tmp -= k_ckpoint;
+
+//     if(k_tmp>0){ // from existing
+//       std::cout << "read from k_tmp = " << k_tmp << std::endl;
+//       const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k_tmp);
+//       const std::string str_rng=dir3+"ckpoint_rng."+std::to_string(k_tmp);
+//       U.read( str_lat );
+//       rng.read( str_rng );
+//     }
+//   }
+
+
+//   Force pi( base );
+//   // pi.gaussian( rng );
+//   // Force pi0=pi;
+//   // Gauge U0=U;
+//   // D.update(U);
+//   // for(PseudoFermion<Fermion>* pf : pfs){
+//   //   pf->gen( rng );
+//   //   D.precalc_grad_deviceAsyncLaunch( U, pf->d_eta );
+//   // }
+
+//   const double tmax = 1.0; // 0.1
+//   // ExplicitLeapfrogML integrator( tmax, nsteps, 100 );
+//   MinimumNorm2 integrator( tmax, nsteps, 100 );
+//   // pi = pi0;
+//   // U = U0;
+//   HMC2 hmc(rng, &SW, &D, U, pi, pfs, &integrator);
+//   D.update( U );
+
+//   // for(PseudoFermion<Fermion>* pf : pfs){
+//   //   pf->gen( rng );
+//   //   D.precalc_grad_deviceAsyncLaunch( U, pf->d_eta );
+//   // }
+
+//   double rate, dH;
+//   bool is_accept;
+//   // for(int k=k_tmp; k<10; k++){
+//   //   Timer timer;
+//   //   hmc.run( rate, dH, is_accept, true);
+//   //   std::cout << "# dH : " << dH
+//   //             << " is_accept : " << is_accept
+//   //             << " rate : " << rate << std::endl;
+//   //   std::cout << "# HMC : " << timer.currentSeconds() << " sec" << std::endl;
+//   // }
+
+//   double r_mean;
+//   for(int k=k_tmp+1; k<kmax; k++){
+//     Timer timer;
+//     hmc.run( rate, dH, is_accept);
+//     std::cout << "# dH : " << dH
+//               << " is_accept : " << is_accept
+//               << " rate : " << rate << std::endl;
+//     r_mean += rate;
+//     std::cout << "# HMC : " << timer.currentSeconds() << " sec" << std::endl;
+
+//     if(k%100==0){
+//       std::cout << "# k = " << k << std::endl;
+//     }
+
+//     if(k%k_ckpoint==0){
+//       const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k);
+//       const std::string str_rng=dir3+"ckpoint_rng."+std::to_string(k);
+//       U.ckpoint( str_lat );
+//       rng.ckpoint( str_rng );
+//     }
+//   }
+//   r_mean /= kmax;
+//   std::cout << "# r_mean = " << r_mean << std::endl;
 
 
 
