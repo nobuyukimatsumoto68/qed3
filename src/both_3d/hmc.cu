@@ -31,9 +31,18 @@ static constexpr int NS = 2;
 static constexpr int DIM = 2;
 static constexpr Complex I = Complex(0.0, 1.0);
 
-// #define Nf2
+#define Nf2
+const int nsteps=20; // changed from 20 nov 20
 // #define Nf4
-#define Nf6
+// const int nsteps=28; // changed from 20 nov 20
+// #define Nf6
+// const int nsteps=32; // changed from 20 nov 20
+
+const double gsq = 0.1;
+// const double gsq = 0.5;
+// const double gsq = 1.0;
+// const double gsq = 2.0;
+
 
 // #define IS_DUAL
 #define IS_OVERLAP
@@ -70,6 +79,7 @@ namespace Comp{
   constexpr Idx N_SITES=20*N_REFINE*N_REFINE;
 #else
   constexpr Idx N_SITES=10*N_REFINE*N_REFINE+2;
+  constexpr int N_LINKS=30*N_REFINE*N_REFINE; // 30, 120, 480
 #endif
 
   constexpr Idx Nx=NS*N_SITES; // matrix size of DW
@@ -156,7 +166,7 @@ int main(int argc, char* argv[]){
 
 #ifdef IS_OVERLAP
   const double r = 1.0;
-  const double M5 = -1.8; // -1.6/2.0 * 0.5*(1.0 + std::sqrt( 5.0 + 2.0*std::sqrt(2.0) ));
+  const double M5 = -1.0; // -1.6/2.0 * 0.5*(1.0 + std::sqrt( 5.0 + 2.0*std::sqrt(2.0) ));
   using Fermion=Overlap<WilsonDirac>;
 #else
   const double r = 1.0;
@@ -180,7 +190,7 @@ int main(int argc, char* argv[]){
   // ---------------------
 
 #ifdef IS_OVERLAP
-  Fermion D(DW, 31);
+  Fermion D(DW, 21);
   std::cout << "# Dov set; M5 = " << M5 << std::endl;
   D.update(U);
   std::cout << "# min max ratio: "
@@ -198,7 +208,7 @@ int main(int argc, char* argv[]){
 
   // -----------------------------------------------------------
 
-  const double gsq = 0.1;
+
   // const double beta = 1.0/(gR*gR);
   Action SW( gsq, at, base );
   std::cout << "# alat = " << base.mean_ell << std::endl;
@@ -436,9 +446,8 @@ int main(int argc, char* argv[]){
   const int k_ckpoint=10;
   const int kmax=1e5;
 
-
+  int k_tmp=0;
   {
-    int k_tmp=0;
     for(k_tmp=k_ckpoint; k_tmp<=kmax; k_tmp+=k_ckpoint ){
       const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k_tmp);
       const std::string str_rng=dir3+"ckpoint_rng."+std::to_string(k_tmp);
@@ -461,43 +470,40 @@ int main(int argc, char* argv[]){
 
 
   Force pi( base );
-  pi.gaussian( rng );
-  Force pi0=pi;
-
-  Gauge U0=U;
-  D.update(U);
-
-  for(PseudoFermion<Fermion>* pf : pfs){
-    pf->gen( rng );
-    D.precalc_grad_deviceAsyncLaunch( U, pf->d_eta );
-  }
+  // pi.gaussian( rng );
+  // Force pi0=pi;
+  // Gauge U0=U;
+  // D.update(U);
+  // for(PseudoFermion<Fermion>* pf : pfs){
+  //   pf->gen( rng );
+  //   D.precalc_grad_deviceAsyncLaunch( U, pf->d_eta );
+  // }
 
   const double tmax = 1.0; // 0.1
-  const int nsteps=20;
   ExplicitLeapfrogML integrator( tmax, nsteps, 100 );
-  pi = pi0;
-  U = U0;
+  // pi = pi0;
+  // U = U0;
   HMC2 hmc(rng, &SW, &D, U, pi, pfs, &integrator);
   D.update( U );
 
-  for(PseudoFermion<Fermion>* pf : pfs){
-    pf->gen( rng );
-    D.precalc_grad_deviceAsyncLaunch( U, pf->d_eta );
-  }
+  // for(PseudoFermion<Fermion>* pf : pfs){
+  //   pf->gen( rng );
+  //   D.precalc_grad_deviceAsyncLaunch( U, pf->d_eta );
+  // }
 
   double rate, dH;
   bool is_accept;
-  for(int k=0; k<10; k++){
-    Timer timer;
-    hmc.run( rate, dH, is_accept, true);
-    std::cout << "# dH : " << dH
-              << " is_accept : " << is_accept
-              << " rate : " << rate << std::endl;
-    std::cout << "# HMC : " << timer.currentSeconds() << " sec" << std::endl;
-  }
+  // for(int k=k_tmp; k<10; k++){
+  //   Timer timer;
+  //   hmc.run( rate, dH, is_accept, true);
+  //   std::cout << "# dH : " << dH
+  //             << " is_accept : " << is_accept
+  //             << " rate : " << rate << std::endl;
+  //   std::cout << "# HMC : " << timer.currentSeconds() << " sec" << std::endl;
+  // }
 
   double r_mean;
-  for(int k=0; k<kmax; k++){
+  for(int k=k_tmp+1; k<kmax; k++){
     Timer timer;
     hmc.run( rate, dH, is_accept);
     std::cout << "# dH : " << dH

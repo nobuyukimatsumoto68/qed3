@@ -126,7 +126,7 @@ struct HMC2 {
 
   Integrator* integrator;
 
-  std::vector<CuC*> d_eta_saveds;
+  // std::vector<CuC*> d_eta_saveds;
   static constexpr Idx N = Comp::N;
 
 
@@ -147,13 +147,13 @@ struct HMC2 {
     , pfs(pfs_)
     , integrator(integrator_)
   {
-    d_eta_saveds.resize(pfs.size());
-    for(int jf=0; jf<pfs.size(); jf++) CUDA_CHECK(cudaMalloc(&d_eta_saveds[jf], N*CD));
+    // d_eta_saveds.resize(pfs.size());
+    // for(int jf=0; jf<pfs.size(); jf++) CUDA_CHECK(cudaMalloc(&d_eta_saveds[jf], N*CD));
   }
 
   ~HMC2(){
     // CUDA_CHECK(cudaFree(d_eta_saved));
-    for(CuC* d_eta_saved : d_eta_saveds ) CUDA_CHECK(cudaFree(d_eta_saved));
+    // for(CuC* d_eta_saved : d_eta_saveds ) CUDA_CHECK(cudaFree(d_eta_saved));
   }
 
   double H() {
@@ -176,8 +176,11 @@ struct HMC2 {
     pi.gaussian( rng );
 
     Gauge U0( U );
-    for(PseudoFermion* pf : pfs) pf->gen( rng );
-    for(int jf=0; jf<pfs.size(); jf++) CUDA_CHECK(cudaMemcpy(this->d_eta_saveds[jf], pfs[jf]->d_eta, N*CD, D2D));
+    for(PseudoFermion* pf : pfs) {
+      pf->gen( rng );
+      fermion->precalc_grad_deviceAsyncLaunch( U, pf->d_eta );
+    }
+    // for(int jf=0; jf<pfs.size(); jf++) CUDA_CHECK(cudaMemcpy(this->d_eta_saveds[jf], pfs[jf]->d_eta, N*CD, D2D));
 
     const double h0 = H();
     integrate();
@@ -194,8 +197,7 @@ struct HMC2 {
       U = U0;
       fermion->update( U );
       // pf->update_eta();
-      for(int jf=0; jf<pfs.size(); jf++) CUDA_CHECK(cudaMemcpy(pfs[jf]->d_eta, this->d_eta_saveds[jf], N*CD, D2D));
-      for(PseudoFermion* pf : pfs) fermion->precalc_grad_deviceAsyncLaunch( U, pf->d_eta );
+      // for(int jf=0; jf<pfs.size(); jf++) CUDA_CHECK(cudaMemcpy(pfs[jf]->d_eta, this->d_eta_saveds[jf], N*CD, D2D));
     }
   }
 

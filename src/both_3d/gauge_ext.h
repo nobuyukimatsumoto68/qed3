@@ -277,7 +277,10 @@ struct GaugeExt {
 
   void read( const std::string& str ) {
     std::ifstream ifs( str, std::ios::in | std::ios::binary );
-    if(!ifs) assert(false);
+    if(!ifs) {
+      std::cout << str << " not found." << std::endl;
+      assert(false);
+    }
     double tmp;
 
     // for(Idx i=0; i<Lx*Ly; ++i){
