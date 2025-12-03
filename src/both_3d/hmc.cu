@@ -485,6 +485,7 @@ int main(int argc, char* argv[]){
       rng.read( str_rng );
     }
   }
+  std::cout << "#starting from k_tmp = " << k_tmp << std::endl;
 
 
   Force pi( base );
@@ -497,8 +498,16 @@ int main(int argc, char* argv[]){
   //   D.precalc_grad_deviceAsyncLaunch( U, pf->d_eta );
   // }
 
-  const double tmax = 1.0; // 0.1
-  const int nsteps = Nf+2;
+  // const double tmax = 1.0; // 0.1
+  const double tmax = 1.8; // 0.1
+  int nsteps;
+  if(Nf==2) nsteps = 6;
+  else if(Nf==4) nsteps = 7;
+  else if(Nf==6) nsteps = 8;
+  else nsteps = 10;
+  std::cout << "# tmax = " << tmax << std::endl
+            << "# nsteps = " << nsteps << std::endl;
+
   // ExplicitLeapfrogML integrator( tmax, nsteps, 100 );
   MinimumNorm2 integrator( tmax, nsteps, 100 );
   // pi = pi0;

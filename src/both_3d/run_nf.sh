@@ -40,5 +40,5 @@ module load cuda/12.5
 echo "running program"
 pwd
 echo ${app} ${SGE_TASK_ID}
-${app} ${SGE_TASK_ID} # ${mult} ${binsize}
+${app} ${gsq} ${Nf} # ${mult} ${binsize}
 echo "finished"
