@@ -5,6 +5,8 @@
 #include <cstdlib>
 #include <cassert>
 #include <algorithm>
+#include <filesystem>
+#include <chrono>
 #include <cstdint>
 #include <complex>
 #include <array>
@@ -140,6 +142,12 @@ int main(int argc, char* argv[]){
   std::cout << std::scientific << std::setprecision(15);
   std::clog << std::scientific << std::setprecision(15);
 
+  double gsq = 1.0;
+  if(argc>1) gsq = atof(argv[1]);
+  int Nf = 2;
+  if(argc>2) Nf = atoi(argv[2]);
+  std::cout << "# gsq = " << gsq << " Nf = " << Nf << std::endl;
+
   int device;
   CUDA_CHECK(cudaGetDeviceCount(&device));
   cudaDeviceProp device_prop[device];
@@ -180,11 +188,18 @@ int main(int argc, char* argv[]){
   if(Nt!=1) assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
 
 
-  const double gsq = 0.05;
+  // const double gsq = 0.05;
   // double at = 0.05; // base.mean_ell * 0.125 * ratio;
   // if(Comp::Nt==1) at=0.;
   Action SW( gsq, at, base );
   std::cout << "# alat = " << base.mean_ell << std::endl;
+
+  std::string dir3, dir4;
+  // #ifdef Nf2
+  dir3="Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
+  dir4="data_Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
+
+  std::filesystem::create_directory(dir4);
 
 
   Gauge U(base);
@@ -299,54 +314,56 @@ int main(int argc, char* argv[]){
 
   std::cout << "# calculating sink" << std::endl;
 
-  op_DHD.solve<N>( DHDinv0.field, src0.field );
-  op_DHD.solve<N>( DHDinv1.field, src1.field );
+  const int k_ckpoint=10;
+  const int kmax=1e5;
 
-  // op_DHD.solve<N>( Dinv0.field, DHsrc0.field );
-  // op_DHD.solve<N>( Dinv1.field, DHsrc1.field );
-
-  // op_DDH.solve<N>( DHinv0.field, Dsrc0.field );
-  // op_DDH.solve<N>( DHinv1.field, Dsrc1.field );
-
-  std::cout << "# done" << std::endl;
-
-#ifdef GAUGE_TRSF
-  sink.gauge_trsf( gauge, -1 );
-#endif
-
-
-  // MS gam_s = D.sigma[0];
-  // MS gam_O = D.sigma[0];
-
-  for(Idx s=0; s<Comp::Nt; s++) {
-    // const auto Dinv_s0_O0 = Dinv0(s,iy,0);
-    // const auto Dinv_s1_O0 = Dinv0(s,iy,1);
-
-    // const auto Dinv_s0_O1 = Dinv1(s,iy,0);
-    // const auto Dinv_s1_O1 = Dinv1(s,iy,1);
-
-    // const auto DHinv_O0_s0 = DHinv0(s,iy,0);
-    // const auto DHinv_O1_s0 = DHinv0(s,iy,1);
-
-    // const auto DHinv_O0_s1 = DHinv1(s,iy,0);
-    // const auto DHinv_O1_s1 = DHinv1(s,iy,1);
-
-    const auto DHDinv_s0_O0 = DHDinv0(s,iy,0);
-    const auto DHDinv_s1_O0 = DHDinv0(s,iy,1);
-
-    const auto DHDinv_s0_O1 = DHDinv1(s,iy,0);
-    const auto DHDinv_s1_O1 = DHDinv1(s,iy,1);
-
-    MS DHDinv_sO; // << inits in row major way
-    DHDinv_sO << DHDinv_s0_O0, DHDinv_s0_O1, DHDinv_s1_O0, DHDinv_s1_O1;
-    Complex tr = DHDinv_sO.trace();
-    std::cout << s << " " <<  tr.real() << " " << tr.imag() << std::endl;
-
-    // DHinv_sO << DHinv_s0_O0, DHinv_s0_O1, DHinv_s1_O0, DHinv_s1_O1;
-    // Dinv_sO << Dinv_s0_O0, Dinv_s0_O1, Dinv_s1_O0, Dinv_s1_O1;
+  int k_tmp=0;
+  {
+    for(k_tmp=k_ckpoint; k_tmp<=kmax; k_tmp+=k_ckpoint ){
+      const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k_tmp);
+      const bool bool_lat = std::filesystem::exists(str_lat);
+      if(!bool_lat) break;
+    }
+    k_tmp -= k_ckpoint;
   }
 
 
+  for(int k=k_ckpoint; k<=k_tmp; k+=k_ckpoint ){
+    std::cout << "# read from k = " << k << std::endl;
+    const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k);
+    U.read( str_lat );
+
+    D.update( U );
+
+    op_DHD.solve<N>( DHDinv0.field, src0.field );
+    op_DHD.solve<N>( DHDinv1.field, src1.field );
+
+    std::cout << "# done" << std::endl;
+
+#ifdef GAUGE_TRSF
+    sink.gauge_trsf( gauge, -1 );
+#endif
+
+    const std::string path=dir4+"meson_corr."+std::to_string(k);
+    std::ofstream ofs(path);
+    ofs << std::scientific << std::setprecision(15);
+
+    for(Idx s=0; s<Comp::Nt; s++) {
+      const auto DHDinv_s0_O0 = DHDinv0(s,iy,0);
+      const auto DHDinv_s1_O0 = DHDinv0(s,iy,1);
+
+      const auto DHDinv_s0_O1 = DHDinv1(s,iy,0);
+      const auto DHDinv_s1_O1 = DHDinv1(s,iy,1);
+
+      MS DHDinv_sO; // << inits in row major way
+      DHDinv_sO << DHDinv_s0_O0, DHDinv_s0_O1, DHDinv_s1_O0, DHDinv_s1_O1;
+      Complex tr = DHDinv_sO.trace();
+
+      // std::cout << s << " " <<  tr.real() << " " << tr.imag() << std::endl;
+      ofs << s << " " <<  tr.real() << " " << tr.imag() << std::endl;
+    }
+
+  } // end for k
 
 
 
