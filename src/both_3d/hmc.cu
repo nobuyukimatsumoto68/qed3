@@ -499,11 +499,11 @@ int main(int argc, char* argv[]){
   // }
 
   // const double tmax = 1.0; // 0.1
-  const double tmax = 1.8; // 0.1
+  const double tmax = 1.2; // 0.1
   int nsteps;
-  if(Nf==2) nsteps = 6;
-  else if(Nf==4) nsteps = 7;
-  else if(Nf==6) nsteps = 8;
+  if(Nf==2) nsteps = 4;
+  else if(Nf==4) nsteps = 5;
+  else if(Nf==6) nsteps = 5;
   else nsteps = 10;
   std::cout << "# tmax = " << tmax << std::endl
             << "# nsteps = " << nsteps << std::endl;
