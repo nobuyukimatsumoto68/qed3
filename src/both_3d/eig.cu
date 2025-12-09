@@ -31,8 +31,8 @@ static constexpr Complex I = Complex(0.0, 1.0);
 
 // #define GAUGE_TRSF
 
-// #define IS_DUAL
-#define IS_OVERLAP
+#define IS_DUAL
+// #define IS_OVERLAP
 
 // // #define IsVerbose
 // #define IsVerbose2
@@ -57,7 +57,7 @@ namespace Comp{
   constexpr int NPARALLEL_GAUGE=12; // 12
   constexpr int NPARALLEL_SORT=12; // 12
 
-  constexpr int N_REFINE=4;
+  constexpr int N_REFINE=2;
   constexpr int NS=2;
 
   constexpr int Nt=24;
@@ -69,6 +69,7 @@ namespace Comp{
 #else
   constexpr Idx N_SITES=10*N_REFINE*N_REFINE+2;
 #endif
+    constexpr int N_LINKS=30*N_REFINE*N_REFINE; // 30, 120, 480
 
   constexpr Idx Nx=NS*N_SITES; // matrix size of DW
   constexpr Idx N=Nx*Nt; // matrix size of DW
@@ -259,7 +260,7 @@ int main(int argc, char* argv[]){
   Fermion D(DW);
   D.update( U );
 
-  COO gmfourth;
+  COO<N> gmfourth;
   DW.volume_matrix( gmfourth.en, -0.5 );
   gmfourth.do_it();
 

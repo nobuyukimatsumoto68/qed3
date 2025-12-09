@@ -74,8 +74,8 @@ namespace Comp{
   constexpr Idx N_SITES=20*N_REFINE*N_REFINE;
 #else
   constexpr Idx N_SITES=10*N_REFINE*N_REFINE+2;
-  constexpr int N_LINKS=30*N_REFINE*N_REFINE; // 30, 120, 480
 #endif
+  constexpr int N_LINKS=30*N_REFINE*N_REFINE; // 30, 120, 480
 
 
   constexpr Idx Nx=NS*N_SITES; // matrix size of DW
@@ -153,8 +153,13 @@ int main(int argc, char* argv[]){
   // constexpr Idx N = Comp::N;
   constexpr int Nt = Comp::Nt;
 
+#ifdef IS_DUAL
+  using Base=S2Trivalent;
+  using WilsonDirac=DiracExt<Base, DiracS2Dual>;
+#else
   using Base=S2Simp;
   using WilsonDirac=DiracExt<Base, DiracS2Simp>;
+#endif
 
   using Force=GaugeExt<Base,Nt,Comp::is_compact>;
   using Gauge=GaugeExt<Base,Nt,Comp::is_compact>;
@@ -236,6 +241,10 @@ int main(int argc, char* argv[]){
   std::cout << "# writing" << std::endl;
   {
     std::string path = "prop_gauge_gsq"+std::to_string(gsq)+"_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_T"+std::to_string(T)+".dat";
+#ifdef IS_DUAL
+    path = "dual_"+path;
+#endif
+
     std::ofstream ofs(path);
     for(const auto elem : res) ofs << elem << std::endl;
   }

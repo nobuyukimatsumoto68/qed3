@@ -30,9 +30,11 @@ static constexpr Complex I = Complex(0.0, 1.0);
 
 
 #define IS_DUAL
-// #define IS_OVERLAP
+#define IS_OVERLAP
 // #define IS_DAGGER
 // #undef _OPENMP
+
+// #define IS_FLAT
 
 // #define GAUGE_TRSF
 
@@ -53,7 +55,7 @@ namespace Comp{
   constexpr int NPARALLEL_GAUGE=12; // 12
   constexpr int NPARALLEL_SORT=12; // 12
 
-  constexpr int N_REFINE=16;
+  constexpr int N_REFINE=1;
   constexpr int NS=2;
 
   // constexpr int Nt=24;
@@ -61,12 +63,12 @@ namespace Comp{
   // constexpr int Nt=64;
   // constexpr int Nt=96; // add 4
   // constexpr int Nt=120;
-  // constexpr int Nt=144; // add 8
+  constexpr int Nt=144; // add 8
   // constexpr int Nt=168;
 
   // constexpr int Nt=24;
   // constexpr int Nt=192;
-  constexpr int Nt=1;
+  // constexpr int Nt=1;
   // constexpr int Nt=16;
 
 #ifdef IS_DUAL
@@ -173,7 +175,7 @@ int main(int argc, char* argv[]){
   // ----------------------
   // const double at = 0.5;
   // const double T = 0.2;
-  const double T = 12;
+  const double T = 16;
   const double at = T/Comp::Nt;
   if(Nt!=1) assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
 
@@ -212,7 +214,8 @@ int main(int argc, char* argv[]){
   // Op.push_back ( cplx(1.0), {&M_Op} );
 
 #ifdef IS_DUAL
-  const double M5 = -1.5;
+  // const double M5 = -1.5;
+  const double M5 = -1.0;
 #else
   const double M5 = -1.0;
 #endif
@@ -341,11 +344,11 @@ int main(int argc, char* argv[]){
   const double width = 0.05;
 
   double factor = at*base.mean_ell;
-#ifdef IS_DUAL
-  if(Comp::Nt==1) factor = 1.0; // /base.mean_ell;
-#else
+// #ifdef IS_DUAL
+//   if(Comp::Nt==1) factor = 1.0; // /base.mean_ell;
+// #else
   if(Comp::Nt==1) factor = base.mean_ell;
-#endif
+  //#endif
 
   {
     std::string path = "prop_spacial_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_T"+std::to_string(T)+".dat";
@@ -358,7 +361,14 @@ int main(int argc, char* argv[]){
 #ifdef IS_DAGGER
     path = "dagger_"+path;
 #endif
+#ifdef IS_FLAT
+    path = "flat_"+path;
+#endif
+
     std::ofstream ofs(path);
+    ofs << std::scientific << std::setprecision(15);
+    ofs << std::scientific << std::setprecision(15);
+
 
     // Idx counter=0;
     for(Idx ix=0; ix<base.n_sites; ix++) {
@@ -384,42 +394,48 @@ int main(int argc, char* argv[]){
       // counter++;
     }
   }
-//   {
-//     std::string path = "prop_temporal_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_T"+std::to_string(T)+".dat";
-// #ifdef IS_DUAL
-//     path = "dual_"+path;
-// #endif
-// #ifdef IS_OVERLAP
-//     path = "ov_"+path;
-// #endif
-// #ifdef IS_DAGGER
-//     path = "dagger_"+path;
-// #endif
-//     std::ofstream ofs(path);
+  if(Nt!=1){
+    std::string path = "prop_temporal_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_T"+std::to_string(T)+".dat";
+#ifdef IS_DUAL
+    path = "dual_"+path;
+#endif
+#ifdef IS_OVERLAP
+    path = "ov_"+path;
+#endif
+#ifdef IS_DAGGER
+    path = "dagger_"+path;
+#endif
+#ifdef IS_FLAT
+    path = "flat_"+path;
+#endif
+    std::ofstream ofs(path);
+    ofs << std::scientific << std::setprecision(15);
+    ofs << std::scientific << std::setprecision(15);
 
-//     // Idx counter=0;
-//     for(Idx s=0; s<Comp::Nt; s++) {
-//       {
-//         const auto elem = sink(s,0,0);
-//         ofs << std::setw(25) << at*s << " "
-//           // ofs << std::setw(25) << s << " "
-//             // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
-//             // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
-//         << std::setw(25) << 1.0 * elem.real() / factor << " "
-//         << std::setw(25) << 1.0 * elem.imag() / factor << std::endl;
-//       }
-//       {
-//         const auto elem = sink(s,0,1);
-//         ofs << std::setw(25) << at*s << " "
-//           // ofs << std::setw(25) << s << " "
-//           // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
-//             // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
-//         << std::setw(25) << 1.0 * elem.real() / factor << " "
-//         << std::setw(25) << 1.0 * elem.imag() / factor << std::endl;
-//       }
-//       // counter++;
-//     }
-//   }
+
+    // Idx counter=0;
+    for(Idx s=0; s<Comp::Nt; s++) {
+      {
+        const auto elem = sink(s,0,0);
+        ofs << std::setw(25) << at*s << " "
+          // ofs << std::setw(25) << s << " "
+          // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
+          // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
+        << std::setw(25) << 1.0 * elem.real() / factor << " "
+        << std::setw(25) << 1.0 * elem.imag() / factor << std::endl;
+      }
+      {
+        const auto elem = sink(s,0,1);
+        ofs << std::setw(25) << at*s << " "
+          // ofs << std::setw(25) << s << " "
+          // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
+            // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
+        << std::setw(25) << 1.0 * elem.real() / factor << " "
+        << std::setw(25) << 1.0 * elem.imag() / factor << std::endl;
+      }
+      // counter++;
+    }
+  }
 
 
 
