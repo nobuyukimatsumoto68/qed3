@@ -240,6 +240,7 @@ struct S2Simp {
         const VE x1 = sites[ i1 ];
         const VE x2 = sites[ i2 ];
 
+#ifndef IS_FLAT
         double a_ = std::acos( x0.dot(x1) );
         double b_ = std::acos( x1.dot(x2) );
         double c_ = std::acos( x2.dot(x0) );
@@ -247,13 +248,24 @@ struct S2Simp {
         double s_ = 0.5*(a_+b_+c_);
         double tmp = std::tan(0.5*s_) * std::tan(0.5*(s_-a_)) * std::tan(0.5*(s_-b_)) * std::tan(0.5*(s_-c_));
         double area = 4.0*std::atan( std::sqrt( tmp ) );
+#else
+        double a_ = (x0-x1).norm();
+        double b_ = (x1-x2).norm();
+        double c_ = (x2-x0).norm();
+
+        double s_ = 0.5*(a_+b_+c_);
+        double tmp = s_*(s_-a_)*(s_-b_)*(s_-c_);
+        double area = std::sqrt( tmp );
+#endif
 
         vols.push_back( area );
         mean_vol += area;
         counter++;
       }
       assert( vols.size()==n_faces );
+#ifndef IS_FLAT
       assert( std::abs(mean_vol-4.0*M_PI)<1.0e-10 );
+#endif
 
       mean_vol /= counter;
       alat = std::sqrt( mean_vol*4.0/std::sqrt(3.0) );
@@ -317,6 +329,7 @@ struct S2Simp {
       {
         const VE p = dual_sites[iA];
 
+#ifndef IS_FLAT
         double a_ = std::acos( x.dot(p) /(x.norm()* p.norm()) );
         double b_ = std::acos( y.dot(p) /(y.norm()* p.norm()) );
         double c_ = std::acos( x.dot(y)/(x.norm()*y.norm()) ); // ell
@@ -324,6 +337,16 @@ struct S2Simp {
         double s_ = 0.5*(a_+b_+c_);
         double tmp = std::tan(0.5*s_) * std::tan(0.5*(s_-a_)) * std::tan(0.5*(s_-b_)) * std::tan(0.5*(s_-c_));
         double area_ = 4.0*std::atan( std::sqrt( tmp ) );
+#else
+        double a_ = (x-p).norm();
+        double b_ = (y-p).norm();
+        double c_ = (x-y).norm();
+
+        double s_ = 0.5*(a_+b_+c_);
+        double tmp = s_*(s_-a_)*(s_-b_)*(s_-c_);
+        double area_ = std::sqrt( tmp );
+#endif
+
 
         ellA = c_;
         areaA = area_;
@@ -331,6 +354,7 @@ struct S2Simp {
       {
         const VE p = dual_sites[iB];
 
+#ifndef IS_FLAT
         double a_ = std::acos( x.dot(p) /(x.norm()* p.norm()) );
         double b_ = std::acos( y.dot(p) /(y.norm()* p.norm()) );
         double c_ = std::acos( x.dot(y)/(x.norm()*y.norm()) ); // ell
@@ -338,6 +362,16 @@ struct S2Simp {
         double s_ = 0.5*(a_+b_+c_);
         double tmp = std::tan(0.5*s_) * std::tan(0.5*(s_-a_)) * std::tan(0.5*(s_-b_)) * std::tan(0.5*(s_-c_));
         double area_ = 4.0*std::atan( std::sqrt( tmp ) );
+#else
+        double a_ = (x-p).norm();
+        double b_ = (y-p).norm();
+        double c_ = (x-y).norm();
+
+        double s_ = 0.5*(a_+b_+c_);
+        double tmp = s_*(s_-a_)*(s_-b_)*(s_-c_);
+        double area_ = std::sqrt( tmp );
+#endif
+
 
         ellB = c_;
         areaB = area_;
@@ -355,7 +389,9 @@ struct S2Simp {
     }
     // std::cout << "debug. mean_link_volume = " << 
     // mean_link_volume << std::endl;
+#ifndef IS_FLAT
     assert( std::abs(mean_link_volume-4.0*M_PI)<1.0e-10 );
+#endif
     mean_link_volume /= link_volume.size();
 
     mean_ell = 0.0;
@@ -383,6 +419,7 @@ struct S2Simp {
         const VE x = dual_sites[ ix ];
         const VE y = dual_sites[ iy ];
 
+#ifndef IS_FLAT
         double a_ = std::acos( x.dot(p) / (x.norm()* p.norm()) );
         double b_ = std::acos( y.dot(p) / (y.norm()* p.norm()) );
         double c_ = std::acos( x.dot(y) / (x.norm()*y.norm()) ); // ell
@@ -390,6 +427,15 @@ struct S2Simp {
         double s_ = 0.5*(a_+b_+c_);
         double tmp = std::tan(0.5*s_) * std::tan(0.5*(s_-a_)) * std::tan(0.5*(s_-b_)) * std::tan(0.5*(s_-c_));
         area += 4.0*std::atan( std::sqrt( tmp ) );
+#else
+        double a_ = (x-p).norm();
+        double b_ = (y-p).norm();
+        double c_ = (x-y).norm();
+
+        double s_ = 0.5*(a_+b_+c_);
+        double tmp = s_*(s_-a_)*(s_-b_)*(s_-c_);
+        area += std::sqrt( tmp );
+#endif
       }
 
       dual_areas[ip] = area;
@@ -397,7 +443,9 @@ struct S2Simp {
 
     mean_dual_area = 0.0;
     for(const double elem : dual_areas) mean_dual_area+=elem;
+#ifndef IS_FLAT
     assert( std::abs(mean_dual_area-4.0*M_PI)<1.0e-10 );
+#endif
     mean_dual_area /= dual_areas.size();
   }
 

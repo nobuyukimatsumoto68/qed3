@@ -124,6 +124,7 @@ struct S2Trivalent {
       {
         const VE p = dual_sites[iA];
 
+#ifndef IS_FLAT
         double a_ = std::acos( x.dot(p) /(x.norm()* p.norm()) );
 	double b_ = std::acos( y.dot(p) /(y.norm()* p.norm()) );
 	double c_ = std::acos( x.dot(y)/(x.norm()*y.norm()) ); // ell
@@ -131,6 +132,15 @@ struct S2Trivalent {
 	double s_ = 0.5*(a_+b_+c_);
 	double tmp = std::tan(0.5*s_) * std::tan(0.5*(s_-a_)) * std::tan(0.5*(s_-b_)) * std::tan(0.5*(s_-c_));
 	double area_ = 4.0*std::atan( std::sqrt( tmp ) );
+#else
+        double a_ = (x-p).norm();
+        double b_ = (y-p).norm();
+        double c_ = (x-y).norm();
+
+        double s_ = 0.5*(a_+b_+c_);
+        double tmp = s_*(s_-a_)*(s_-b_)*(s_-c_);
+        double area_ = std::sqrt( tmp );
+#endif
 
 	ellA = c_;
 	areaA = area_;
@@ -138,6 +148,7 @@ struct S2Trivalent {
       {
         const VE p = dual_sites[iB];
 
+#ifndef IS_FLAT
         double a_ = std::acos( x.dot(p) /(x.norm()* p.norm()) );
 	double b_ = std::acos( y.dot(p) /(y.norm()* p.norm()) );
 	double c_ = std::acos( x.dot(y)/(x.norm()*y.norm()) ); // ell
@@ -145,6 +156,15 @@ struct S2Trivalent {
 	double s_ = 0.5*(a_+b_+c_);
 	double tmp = std::tan(0.5*s_) * std::tan(0.5*(s_-a_)) * std::tan(0.5*(s_-b_)) * std::tan(0.5*(s_-c_));
 	double area_ = 4.0*std::atan( std::sqrt( tmp ) );
+#else
+        double a_ = (x-p).norm();
+        double b_ = (y-p).norm();
+        double c_ = (x-y).norm();
+
+        double s_ = 0.5*(a_+b_+c_);
+        double tmp = s_*(s_-a_)*(s_-b_)*(s_-c_);
+        double area_ = std::sqrt( tmp );
+#endif
 
 	ellB = c_;
 	areaB = area_;
@@ -157,7 +177,9 @@ struct S2Trivalent {
 
     mean_link_volume = 0.0;
     for(const double elem : link_volume) mean_link_volume+=elem;
+#ifndef IS_FLAT
     assert( std::abs(mean_link_volume-4.0*M_PI)<1.0e-12 );
+#endif
     mean_link_volume /= link_volume.size();
 
     mean_ell = 0.0;

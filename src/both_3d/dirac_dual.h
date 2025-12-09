@@ -209,7 +209,7 @@ struct DiracS2Dual : public DiracBase, public SpinStructureDual{
     kappa.clear();
     kappa.resize(dual.n_links);
     for(Idx il=0; il<dual.n_links; il++) {
-      kappa[il] = 2.0*dual.link_volume[il] / dual.ell[il];
+      kappa[il] = 2.0*dual.link_volume[il] / dual.ell[il] / dual.mean_ell;
     }
   }
 
