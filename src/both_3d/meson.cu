@@ -47,15 +47,15 @@ namespace Comp{
   constexpr int NPARALLEL_DUPDATE=1;
   // constexpr int NPARALLEL=12; // 12
   // constexpr int NSTREAMS=4; // 4
-  constexpr int NPARALLEL=1; // 12
-  constexpr int NSTREAMS=1; // 4
+  constexpr int NPARALLEL=4; // 12
+  constexpr int NSTREAMS=4; // 4
 #else
   constexpr int NPARALLEL_DUPDATE=12;
   constexpr int NPARALLEL=1; // 12
   constexpr int NSTREAMS=12; // for grad loop
 #endif
-  constexpr int NPARALLEL_GAUGE=1; // 12
-  constexpr int NPARALLEL_SORT=1; // 12
+  constexpr int NPARALLEL_GAUGE=4; // 12
+  constexpr int NPARALLEL_SORT=4; // 12
 
   constexpr int N_REFINE=1;
   constexpr int NS=2;
@@ -147,6 +147,12 @@ int main(int argc, char* argv[]){
   int Nf = 2;
   if(argc>2) Nf = atoi(argv[2]);
   std::cout << "# gsq = " << gsq << " Nf = " << Nf << std::endl;
+
+  // int igam=0;
+  // if(argc>3) igam = atoi(argv[3]);
+  // std::cout << "# igam = " << igam << " where 0=id., i=sigma_3" << std::endl;
+
+
 
   int device;
   CUDA_CHECK(cudaGetDeviceCount(&device));
@@ -279,11 +285,11 @@ int main(int argc, char* argv[]){
 #endif
 
   FermionVector src0; // (base, Nt, rng);
-  // FermionVector DHsrc0; // (base, Nt, rng);
+  FermionVector DHsrc0; // (base, Nt, rng);
   // FermionVector Dsrc0; // (base, Nt, rng);
 
   FermionVector src1; // (base, Nt, rng);
-  // FermionVector DHsrc1; // (base, Nt, rng);
+  FermionVector DHsrc1; // (base, Nt, rng);
   // FermionVector Dsrc1; // (base, Nt, rng);
 
   // pt source
@@ -299,20 +305,56 @@ int main(int argc, char* argv[]){
   D.update( U );
 #endif
 
-  // op_DH.from_cpu<N>( DHsrc0.field, src0.field );
-  // op_DH.from_cpu<N>( DHsrc1.field, src1.field );
+
   // op_D.from_cpu<N>( Dsrc0.field, src0.field );
   // op_D.from_cpu<N>( Dsrc1.field, src1.field );
 
-  // FermionVector Dinv0; // (base, Nt, rng);
-  // FermionVector Dinv1; // (base, Nt, rng);
+  FermionVector Dinv0; // (base, Nt, rng);
+  FermionVector Dinv1; // (base, Nt, rng);
   // FermionVector DHinv0; // (base, Nt, rng);
   // FermionVector DHinv1; // (base, Nt, rng);
 
-  FermionVector DHDinv0; // (base, Nt, rng);
-  FermionVector DHDinv1; // (base, Nt, rng);
+  // FermionVector DHDinv0; // (base, Nt, rng);
+  // FermionVector DHDinv1; // (base, Nt, rng);
 
   std::cout << "# calculating sink" << std::endl;
+
+
+  // free
+  op_DH.from_cpu<N>( DHsrc0.field, src0.field );
+  op_DH.from_cpu<N>( DHsrc1.field, src1.field );
+  op_DHD.solve<N>( Dinv0.field, DHsrc0.field );
+  op_DHD.solve<N>( Dinv1.field, DHsrc1.field );
+
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(Comp::NPARALLEL_SORT) schedule(static)
+#endif
+  for(int igam=0; igam<=3; igam++){
+    const std::string path=dir4+"meson_"+std::to_string(igam)+"_corr.free";
+    // const std::string path=dir4+"meson_free_corr."+std::to_string(k);
+    std::ofstream ofs(path);
+    ofs << std::scientific << std::setprecision(15);
+
+    for(Idx s=0; s<Comp::Nt; s++) {
+      const auto Dinv_s0_O0 = Dinv0(s,iy,0);
+      const auto Dinv_s1_O0 = Dinv0(s,iy,1);
+
+      const auto Dinv_s0_O1 = Dinv1(s,iy,0);
+      const auto Dinv_s1_O1 = Dinv1(s,iy,1);
+
+      MS Dinv_sO; // << inits in row major way
+      Dinv_sO << Dinv_s0_O0, Dinv_s0_O1, Dinv_s1_O0, Dinv_s1_O1;
+
+      MS DinvH_sO = Dinv_sO.adjoint(); // << inits in row major way
+      Complex tr = (DinvH_sO * DW.sigma[igam] * Dinv_sO * DW.sigma[igam] ).trace();
+
+      // std::cout << s << " " <<  tr.real() << " " << tr.imag() << std::endl;
+      ofs << s << " " <<  tr.real() << " " << tr.imag() << std::endl;
+    }
+  }
+
+
+
 
   const int k_ckpoint=10;
   const int kmax=1e5;
@@ -335,8 +377,10 @@ int main(int argc, char* argv[]){
 
     D.update( U );
 
-    op_DHD.solve<N>( DHDinv0.field, src0.field );
-    op_DHD.solve<N>( DHDinv1.field, src1.field );
+    op_DH.from_cpu<N>( DHsrc0.field, src0.field );
+    op_DH.from_cpu<N>( DHsrc1.field, src1.field );
+    op_DHD.solve<N>( Dinv0.field, DHsrc0.field );
+    op_DHD.solve<N>( Dinv1.field, DHsrc1.field );
 
     std::cout << "# done" << std::endl;
 
@@ -344,23 +388,32 @@ int main(int argc, char* argv[]){
     sink.gauge_trsf( gauge, -1 );
 #endif
 
-    const std::string path=dir4+"meson_corr."+std::to_string(k);
-    std::ofstream ofs(path);
-    ofs << std::scientific << std::setprecision(15);
 
-    for(Idx s=0; s<Comp::Nt; s++) {
-      const auto DHDinv_s0_O0 = DHDinv0(s,iy,0);
-      const auto DHDinv_s1_O0 = DHDinv0(s,iy,1);
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(Comp::NPARALLEL_SORT) schedule(static)
+#endif
+    for(int igam=0; igam<=3; igam++){
 
-      const auto DHDinv_s0_O1 = DHDinv1(s,iy,0);
-      const auto DHDinv_s1_O1 = DHDinv1(s,iy,1);
+      const std::string path=dir4+"meson_"+std::to_string(igam)+"_corr."+std::to_string(k);
+      std::ofstream ofs(path);
+      ofs << std::scientific << std::setprecision(15);
 
-      MS DHDinv_sO; // << inits in row major way
-      DHDinv_sO << DHDinv_s0_O0, DHDinv_s0_O1, DHDinv_s1_O0, DHDinv_s1_O1;
-      Complex tr = DHDinv_sO.trace();
+      for(Idx s=0; s<Comp::Nt; s++) {
+        const auto Dinv_s0_O0 = Dinv0(s,iy,0);
+        const auto Dinv_s1_O0 = Dinv0(s,iy,1);
 
-      // std::cout << s << " " <<  tr.real() << " " << tr.imag() << std::endl;
-      ofs << s << " " <<  tr.real() << " " << tr.imag() << std::endl;
+        const auto Dinv_s0_O1 = Dinv1(s,iy,0);
+        const auto Dinv_s1_O1 = Dinv1(s,iy,1);
+
+        MS Dinv_sO; // << inits in row major way
+        Dinv_sO << Dinv_s0_O0, Dinv_s0_O1, Dinv_s1_O0, Dinv_s1_O1;
+
+        MS DinvH_sO = Dinv_sO.adjoint(); // << inits in row major way
+        Complex tr = (DinvH_sO * DW.sigma[igam] * Dinv_sO * DW.sigma[igam] ).trace();
+
+        // std::cout << s << " " <<  tr.real() << " " << tr.imag() << std::endl;
+        ofs << s << " " <<  tr.real() << " " << tr.imag() << std::endl;
+      }
     }
 
   } // end for k

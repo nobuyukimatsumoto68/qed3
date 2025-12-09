@@ -22,13 +22,14 @@ public:
   const double M5;
 
   const double at;
-
+  const double nu0;
 
   DiracExt(Base& lattice_,
            const double m_=0.0,
            const double r_=1.0,
            const double M5_=0.0,
-           const double at_=1.0
+           const double at_=1.0,
+           const double nu0_=1.0
            )
     : lattice(lattice_)
     , bd(lattice_,m_,r_,M5_)
@@ -40,6 +41,7 @@ public:
     , M5(M5_)
     , kappa_t(lattice.n_sites)
     , at(at_)
+    , nu0(nu0_)
   {
     set_kappa_t();
     rescale_kappa();
@@ -311,7 +313,7 @@ public:
     for(Idx ix=0; ix<lattice.n_sites; ix++) {
       // if(Nt!=1) kappa_t[ix] = lattice.dual_areas[ix] / std::pow(lattice.mean_ell, 2);
 
-      if(Nt!=1) kappa_t[ix] = lattice.dual_areas[ix] / lattice.mean_ell / at;
+      if(Nt!=1) kappa_t[ix] = 1.0/nu0*lattice.dual_areas[ix] / lattice.mean_ell / at;
       // if(Nt!=1) kappa_t[ix] = lattice.dual_areas[ix] / lattice.mean_ell / std::pow(at,2);
       // if(Nt!=1) kappa_t[ix] = lattice.dual_areas[ix] / lattice.mean_ell;
       // if(Nt!=1) kappa_t[ix] = 0.5 * lattice.dual_areas[ix] / lattice.mean_ell;

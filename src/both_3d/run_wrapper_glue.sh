@@ -6,7 +6,7 @@ source /projectnb/qfe/nmatsum/qed3/env.sh
 # Nf=$2
 # igam=$3
 
-app='meson.o'
+app='glue.o'
 
 echo $app
 # if [ "$#" -eq 2 ]; then
@@ -18,7 +18,7 @@ do
     for Nf in 2 4 6
     do
         echo $Nf $gsq
-        qsub -N "mesonNf${Nf}gsq${gsq}" -v app=${app} -v gsq=${gsq} -v Nf=${Nf} run_meson.sh
+        qsub -N "glueNf${Nf}gsq${gsq}" -v app=${app} -v gsq=${gsq} -v Nf=${Nf} run_glue.sh
     done
 done
 # elif [ "$#" -eq 3 ]; then

@@ -22,6 +22,9 @@ using Double = double;
 using Idx = std::int32_t;
 using Complex = std::complex<double>;
 
+using Face = std::vector<Idx>;
+
+
 using MS=Eigen::Matrix2cd;
 using VD=Eigen::Vector2d;
 using VE=Eigen::Vector3d;
@@ -58,15 +61,15 @@ namespace Comp{
   // d_DW.update() is always done independently
 #ifdef IS_OVERLAP
   constexpr int NPARALLEL_DUPDATE=1;
-  constexpr int NPARALLEL=16; // 12
-  constexpr int NSTREAMS=2; // 4
+  constexpr int NPARALLEL=4; // 12
+  constexpr int NSTREAMS=4; // 4
 #else
   constexpr int NPARALLEL_DUPDATE=12;
   constexpr int NPARALLEL=1; // 12
   constexpr int NSTREAMS=12; // for grad loop
 #endif
-  constexpr int NPARALLEL_GAUGE=16; // 12
-  constexpr int NPARALLEL_SORT=16; // 12
+  constexpr int NPARALLEL_GAUGE=4; // 12
+  constexpr int NPARALLEL_SORT=4; // 12
 
   constexpr int N_REFINE=1;
   constexpr int NS=2;
@@ -137,7 +140,9 @@ int main(int argc, char* argv[]){
   if(argc>1) gsq = atof(argv[1]);
   int Nf = 2;
   if(argc>2) Nf = atoi(argv[2]);
-  std::cout << "# gsq = " << gsq << " Nf = " << Nf << std::endl;
+  double nu0=1.0;
+  if(argc>3) nu0 = atof(argv[3]);
+  std::cout << "# gsq = " << gsq << " Nf = " << Nf << " nu0 = " << nu0 << std::endl;
 
   int device;
   CUDA_CHECK(cudaGetDeviceCount(&device));
@@ -181,9 +186,10 @@ int main(int argc, char* argv[]){
 #endif
   // const double c = 1.0;
   // double at = 0.05; // base.mean_ell * 0.125 * ratio;
-  const double T = 24;
-  const double at = T/Comp::Nt;
+  // const double T = 24;
+  const double at = 0.2; // T/Comp::Nt;
   assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
+  
   WilsonDirac DW(base, 0.0, 1.0, M5, at);
 
 
@@ -451,7 +457,7 @@ int main(int argc, char* argv[]){
 
   std::string dir3;
 // #ifdef Nf2
-  dir3="Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
+  dir3="Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
 // #else
 // #ifdef Nf4
 //   dir3="Nf4_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
@@ -499,7 +505,7 @@ int main(int argc, char* argv[]){
   // }
 
   // const double tmax = 1.0; // 0.1
-  const double tmax = 1.2; // 0.1
+  const double tmax = 1.6; // 0.1
   int nsteps;
   if(Nf==2) nsteps = 4;
   else if(Nf==4) nsteps = 5;

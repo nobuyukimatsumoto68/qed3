@@ -161,6 +161,16 @@ struct GaugeExt {
     return sum;
   }
 
+  double plaquette_angle_avg(const int s) const {
+    double avg = 0.0;
+    for(const Face& face : lattice.faces ){
+      avg += plaquette_angle( s, face );
+    }
+    avg /= lattice.faces.size();
+    return avg;
+  }
+
+
   double plaquette_angle(const int s, const BaseLink& link) const {
     double sum = 0.0;
 

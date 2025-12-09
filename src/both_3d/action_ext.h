@@ -447,6 +447,41 @@ struct U1WilsonExt {
     }
   }
 
+
+  template <typename Force, typename Gauge>
+  void get_spatial( Force& pi, const Gauge& U ) const {
+    // const auto& base = U.lattice;
+
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE)
+#endif
+    for(Idx i=0; i<pi.spatial.size(); i++) for(Idx j=0; j<pi.spatial[i].size(); j++) pi.spatial[i][j] = 0.0;
+
+    // spatial
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE) // collapse(2)
+#endif
+    for(int s=0; s<U.Nt; s++){
+      for(int i_face=0; i_face<base.n_faces; i_face++){
+        const Face& face = base.faces[i_face];
+        double grad;
+        // const double factor = base.mean_vol/base.vols[i_face];
+        // if constexpr(U.is_compact) grad = beta_s*factor * std::sin( U.plaquette_angle(s, face) );
+        // else grad = beta_s*factor * U.plaquette_angle(s, face);
+        grad = beta_s[i_face] * U.plaquette_angle(s, face);
+
+        for(int i=0; i<face.size(); i++) {
+          const Idx ix = face[i];
+          const Idx iy = face[(i+1)%face.size()];
+          const Link ell{ix, iy};
+          const Idx il = base.map2il.at(ell);
+          pi.sp( s, il ) += grad * base.map2sign.at(ell);
+        }
+      }
+    }
+  }
+
+
   void set_beta(){
     if(std::abs(gsq)>1.0e-15){
       for(Idx i=0; i<base.faces.size(); i++) {

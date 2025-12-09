@@ -8,11 +8,11 @@
 #$ -M nmatsum@bu.edu
 ##### run time limit. format: hh:mm:ss; default 12 hrs
 #### #$ -l h_rt=96:00:00
-#$ -l h_rt=4:00:00
+#$ -l h_rt=1:00:00
 #$ -l gpus=1
 #$ -l gpu_type=V100
 # #$ -l gpu_c=70
-#$ -pe omp 1
+#$ -pe omp 4
 
 
 
@@ -40,5 +40,5 @@ module load cuda/12.5
 echo "running program"
 pwd
 echo ${app} ${SGE_TASK_ID}
-${app} ${gsq} ${Nf} # ${mult} ${binsize}
+${app} ${gsq} ${Nf} ${igam} # ${mult} ${binsize}
 echo "finished"
