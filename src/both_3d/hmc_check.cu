@@ -74,8 +74,8 @@ namespace Comp{
   constexpr int N_REFINE=1;
   constexpr int NS=2;
 
-  constexpr int Nt=96; // @@@
-  // constexpr int Nt=16;
+  // constexpr int Nt=96; // @@@
+  constexpr int Nt=16;
 
   // constexpr int Nf=4; // even
 
@@ -469,8 +469,8 @@ int main(int argc, char* argv[]){
 // #endif
   std::filesystem::create_directory(dir3);
   const int k_ckpoint=10;
-  const int kmax=1e5; // @@@@
-  // const int kmax=1e1;
+  // const int kmax=1e5; // @@@@
+  const int kmax=2;
 
   int k_tmp=0;
   {
@@ -507,7 +507,7 @@ int main(int argc, char* argv[]){
   // }
 
   // const double tmax = 1.0; // 0.1
-  const double tmax = 1.9; // 0.1
+  const double tmax = 2.0; // 0.1
   int nsteps;
   if(Nf==2) nsteps = 4;
   else if(Nf==4) nsteps = 5;
