@@ -182,6 +182,28 @@ struct GaugeExt {
     return sum;
   }
 
+  double chair_angle_localavg(const int s, const BaseFace& face) const {
+    double sum = plaquette_angle(s, face);
+    for(Idx i=0; i<face.size(); i++) {
+      const Idx ix = face[i];
+      const Idx iy = face[(i+1)%face.size()];
+      sum -= plaquette_angle( s, BaseLink{ix,iy} );
+      sum += plaquette_angle( (s-1+Nt)%Nt, BaseLink{ix,iy} );
+    }
+    return sum/6;
+  }
+
+  double chair_angle_avg(const int s) const {
+    double avg = 0.0;
+    for(const Face& face : lattice.faces ){
+      avg += chair_angle_localavg( s, face );
+    }
+    avg /= lattice.faces.size();
+    return avg;
+  }
+
+
+
   template <typename Rng>
   void gaussian(Rng& rng, const double width=1.0) {
     for(Idx i=0; i<spatial.size(); i++) for(Idx j=0; j<spatial[i].size(); j++) spatial[i][j] = width*rng.gaussian_link(i,j);

@@ -150,7 +150,10 @@ int main(int argc, char* argv[]){
   if(argc>1) gsq = atof(argv[1]);
   int Nf = 2;
   if(argc>2) Nf = atoi(argv[2]);
-  std::cout << "# gsq = " << gsq << " Nf = " << Nf << std::endl;
+  double nu0 = 1.0;
+  if(argc>3) nu0 = atof(argv[3]);
+  std::cout << "# gsq = " << gsq << " Nf = " << Nf << " nu0 = " << nu0 << std::endl;
+
 
   // int igam=0;
   // if(argc>3) igam = atoi(argv[3]);
@@ -206,8 +209,10 @@ int main(int argc, char* argv[]){
 
   std::string dir3, dir4;
   // #ifdef Nf2
-  dir3="Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
-  dir4="data_Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
+  dir3="Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
+  // dir3="Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
+  dir4="data_Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
+  // dir4="data_Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
 
   std::filesystem::create_directory(dir4);
 
@@ -227,9 +232,9 @@ int main(int argc, char* argv[]){
     k_tmp -= k_ckpoint;
   }
 
-#ifdef IS_FLOW
+  // #ifdef IS_FLOW
   Flow flow(&SW);
-#endif
+  // #endif
 
 #ifdef _OPENMP
 #pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE)
@@ -239,12 +244,25 @@ int main(int argc, char* argv[]){
     const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k);
     U.read( str_lat );
 
-#ifdef IS_FLOW
-    flow(U);
-#endif
+// #ifdef IS_FLOW
+    Gauge Uflow = U;
+    flow(Uflow);
+// #endif
 
     std::vector<double> plaq_avg(Comp::Nt);
     for(int t=0; t<Comp::Nt; t++) plaq_avg[t] = U.plaquette_angle_avg(t);
+
+    std::vector<double> flow_plaq_avg(Comp::Nt);
+    for(int t=0; t<Comp::Nt; t++) flow_plaq_avg[t] = Uflow.plaquette_angle_avg(t);
+
+    std::vector<double> chair_avg(Comp::Nt);
+    for(int t=0; t<Comp::Nt; t++) chair_avg[t] = U.chair_angle_avg(t);
+
+    std::vector<std::vector<double>*> obs_ptrs;
+    obs_ptrs.push_back( &plaq_avg );
+    obs_ptrs.push_back( &flow_plaq_avg );
+    obs_ptrs.push_back( &chair_avg );
+    const int nops = obs_ptrs.size();
 
     {
       const std::string path=dir4+"F_corr."+std::to_string(k);
@@ -252,10 +270,38 @@ int main(int argc, char* argv[]){
       ofs << std::scientific << std::setprecision(15);
 
       for(int dt=0; dt<Comp::Nt; dt++){
-        double cdt_avg = 0.0;
-        for(int t=0; t<Comp::Nt; t++) cdt_avg += plaq_avg[t]*plaq_avg[(t+dt)%Comp::Nt];
-        cdt_avg /= Comp::Nt;
-        ofs << dt << " " << cdt_avg << std::endl;
+        // double cdt_avg1 = 0.0;
+        // double cdt_avg2 = 0.0;
+        // double cdt_avg3 = 0.0;
+        // double cdt_avg4 = 0.0;
+        Eigen::MatrixXd cdt_avg = Eigen::MatrixXd::Zero( nops, nops );
+
+        for(int t=0; t<Comp::Nt; t++) {
+          for(int i=0; i<nops; i++){
+            for(int j=0; j<nops; j++){
+              cdt_avg(i,j) += (*obs_ptrs[i])[t] * (*obs_ptrs[j])[(t+dt)%Comp::Nt];
+            }
+          }
+          // cdt_avg1 += plaq_avg[t]*plaq_avg[(t+dt)%Comp::Nt];
+          // cdt_avg2 += plaq_avg[t]*flow_plaq_avg[(t+dt)%Comp::Nt];
+          // cdt_avg3 += flow_plaq_avg[t]*plaq_avg[(t+dt)%Comp::Nt];
+          // cdt_avg4 += flow_plaq_avg[t]*flow_plaq_avg[(t+dt)%Comp::Nt];
+        }
+        for(int i=0; i<nops; i++){
+          for(int j=0; j<nops; j++){
+            cdt_avg(i,j) / Comp::Nt;
+          }}
+        // cdt_avg1 /= Comp::Nt;
+        // cdt_avg2 /= Comp::Nt;
+        // cdt_avg3 /= Comp::Nt;
+        // cdt_avg4 /= Comp::Nt;
+        ofs << dt << " ";
+        for(int i=0; i<nops; i++){
+          for(int j=0; j<nops; j++){
+            ofs << cdt_avg(i,j) << " ";
+          }}
+        ofs << std::endl;
+        // << cdt_avg2 << " " << cdt_avg3 << " " << cdt_avg4 << std::endl;
         // std::cout << dt << " " << cdt_avg << std::endl;
       }
     }
@@ -265,10 +311,20 @@ int main(int argc, char* argv[]){
       std::ofstream ofs(path);
       ofs << std::scientific << std::setprecision(15);
 
-      double avg = 0.0;
-      for(int t=0; t<Comp::Nt; t++) avg += plaq_avg[t];
-      avg /= Comp::Nt;
-      ofs << avg << std::endl;
+      // double avg1 = 0.0;
+      // double avg2 = 0.0;
+      Eigen::VectorXd avg = Eigen::VectorXd::Zero( nops );
+      for(int t=0; t<Comp::Nt; t++) {
+        for(int i=0; i<nops; i++) avg(i) += (*obs_ptrs[i])[t];
+        // avg1 += plaq_avg[t];
+        // avg2 += flow_plaq_avg[t];
+      }
+      for(int i=0; i<nops; i++) avg(i) /= Comp::Nt;
+      // avg1 /= Comp::Nt;
+      // avg2 /= Comp::Nt;
+      // ofs << avg1 << " " << avg2 << std::endl;
+      for(int i=0; i<nops; i++) ofs << avg(i) << " ";
+      ofs << std::endl;
       // std::cout << avg << std::endl;
     }
   } // end for k (omp)
