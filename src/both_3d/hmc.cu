@@ -137,7 +137,7 @@ int main(int argc, char* argv[]){
   std::cout << std::scientific << std::setprecision(15);
   std::clog << std::scientific << std::setprecision(15);
 
-  double gsq = 1.0;
+  double gsq = 2.0;
   if(argc>1) gsq = atof(argv[1]);
   int Nf = 2;
   if(argc>2) Nf = atoi(argv[2]);
@@ -191,7 +191,7 @@ int main(int argc, char* argv[]){
   const double at = 0.2; // T/Comp::Nt;
   assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
   
-  WilsonDirac DW(base, 0.0, 1.0, M5, at);
+  WilsonDirac DW(base, 0.0, 1.0, M5, at, nu0);
 
 
   std::cout << "# DW set" << std::endl;
@@ -470,7 +470,7 @@ int main(int argc, char* argv[]){
   std::filesystem::create_directory(dir3);
   const int k_ckpoint=10;
   const int kmax=1e5; // @@@@
-  // const int kmax=1e1;
+  // const int kmax=2;
 
   int k_tmp=0;
   {

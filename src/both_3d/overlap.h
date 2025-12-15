@@ -220,32 +220,27 @@ struct Overlap : public Zolotarev {
     q[0] = std::sqrt(1.0/2.0);
     q[1] = std::sqrt(1.0/2.0);
 
-    MatPoly Op( handle[0], stream[0] );
+    MatPoly Op;
     Op.push_back ( cplx(1.0), {&M_DW, &M_DWH} );
 
     CuC *d_x, *d_q;
-    CUDA_CHECK(cudaMallocAsync(&d_x, N*CD, stream[0]));
-    CUDA_CHECK(cudaMallocAsync(&d_q, N*CD, stream[nstreams-1]));
+    CUDA_CHECK(cudaMalloc(&d_x, N*CD));
+    CUDA_CHECK(cudaMalloc(&d_q, N*CD));
     CUDA_CHECK(cudaDeviceSynchronize());
-
-    CUDA_CHECK(cudaMemcpyAsync(d_q, reinterpret_cast<const CuC*>(q.data()), N*CD, H2D, stream[nstreams-1]));
-    CUDA_CHECK(cudaDeviceSynchronize());
+    CUDA_CHECK(cudaMemcpy(d_q, reinterpret_cast<const CuC*>(q.data()), N*CD, H2D));
 
     Complex dot;
     double norm=1.0, mu_0=1.0, mu_m1=1.0, mu_m2=1.0;
     double lambda=100.0, lambda_old=1000.0;
 
     for(int i=0; i<MAXITER; i++){
-      Op.on_gpuAsync<N>( d_x, d_q );
-      CUDA_CHECK(cudaDeviceSynchronize());
+      Op.on_gpu<N>( d_x, d_q );
       //
-      CUDA_CHECK(cudaMemcpyAsync(d_q, d_x, N*CD, D2D, stream[nstreams-1])); // stream 2
-      Op.dot2selfAsync<N>(&norm, d_x); // stream 1
-      CUDA_CHECK(cudaDeviceSynchronize());
+      CUDA_CHECK(cudaMemcpy(d_q, d_x, N*CD, D2D)); // stream 2
+      Op.dot2self<N>(&norm, d_x); // stream 1
       //
-      Op.ZdscalAsync<N>( 1.0/std::sqrt(norm), d_q );
-      Op.dotAsync<N>(reinterpret_cast<CuC*>(&dot), d_x, d_q);
-      CUDA_CHECK(cudaDeviceSynchronize());
+      Op.Zdscal<N>( 1.0/std::sqrt(norm), d_q );
+      Op.dot<N>(reinterpret_cast<CuC*>(&dot), d_x, d_q);
 
       mu_m2=mu_m1;
       mu_m1=mu_0;
@@ -268,18 +263,14 @@ struct Overlap : public Zolotarev {
     double lambda2=100.0, lambda2_old=1000.0;
 
     for(int i=0; i<MAXITER; i++){
-      Op.solveAsync<N>( d_x, d_q, Comp::TOL_OUTER );
-      CUDA_CHECK(cudaDeviceSynchronize());
+      Op.solve<N>( d_x, d_q, Comp::TOL_OUTER );
       //
-      CUDA_CHECK(cudaMemcpyAsync(d_q, d_x, N*CD, D2D, stream[nstreams-1])); // stream 2
-      Op.dot2selfAsync<N>(&norm, d_x);
-      CUDA_CHECK(cudaDeviceSynchronize());
+      CUDA_CHECK(cudaMemcpy(d_q, d_x, N*CD, D2D)); // stream 2
+      Op.dot2self<N>(&norm, d_x);
       //
-      Op.ZdscalAsync<N>( 1.0/std::sqrt(norm), d_q );
-      CUDA_CHECK(cudaDeviceSynchronize());
+      Op.Zdscal<N>( 1.0/std::sqrt(norm), d_q );
 
-      Op.dotAsync<N>(reinterpret_cast<CuC*>(&dot), d_x, d_q);
-      CUDA_CHECK(cudaDeviceSynchronize());
+      Op.dot<N>(reinterpret_cast<CuC*>(&dot), d_x, d_q);
 
       mu_m2=mu_m1;
       mu_m1=mu_0;
@@ -298,9 +289,8 @@ struct Overlap : public Zolotarev {
       }
     }
 
-    CUDA_CHECK(cudaFreeAsync(d_x, stream[0]));
-    CUDA_CHECK(cudaFreeAsync(d_q, stream[nstreams-1]));
-    CUDA_CHECK(cudaDeviceSynchronize());
+    CUDA_CHECK(cudaFree(d_x));
+    CUDA_CHECK(cudaFree(d_q));
 
     // lambda_min = 0.5*std::sqrt( 1.0/lambda2 );
     // lambda_max = 2.0*std::sqrt( lambda );
@@ -309,6 +299,109 @@ struct Overlap : public Zolotarev {
     // lambda_min = 0.01; // std::sqrt( (1.0-100*TOL)/lambda2 );
     // lambda_max = 16; // std::sqrt( (1.0+100*TOL)*lambda );
   }
+
+
+//   void compute_lambda_max( const double TOL=1.0e-8, const int MAXITER=500 ) {
+//     std::vector<Complex> q(N, 0.0);
+
+//     q[0] = std::sqrt(1.0/2.0);
+//     q[1] = std::sqrt(1.0/2.0);
+
+//     MatPoly Op( handle[0], stream[0] );
+//     Op.push_back ( cplx(1.0), {&M_DW, &M_DWH} );
+
+//     CuC *d_x, *d_q;
+//     // CUDA_CHECK(cudaMallocAsync(&d_x, N*CD, stream[0]));
+//     // CUDA_CHECK(cudaMallocAsync(&d_q, N*CD, stream[nstreams-1]));
+//     // CUDA_CHECK(cudaDeviceSynchronize());
+//     CUDA_CHECK(cudaMalloc(&d_x, N*CD));
+//     CUDA_CHECK(cudaMalloc(&d_q, N*CD));
+
+//     // CUDA_CHECK(cudaMemcpyAsync(d_q, reinterpret_cast<const CuC*>(q.data()), N*CD, H2D, stream[nstreams-1]));
+//     CUDA_CHECK(cudaMemcpy(d_q, reinterpret_cast<const CuC*>(q.data()), N*CD, H2D));
+//     // CUDA_CHECK(cudaDeviceSynchronize());
+
+//     Complex dot;
+//     double norm=1.0, mu_0=1.0, mu_m1=1.0, mu_m2=1.0;
+//     double lambda=100.0, lambda_old=1000.0;
+
+//     for(int i=0; i<MAXITER; i++){
+//       // Op.on_gpuAsync<N>( d_x, d_q );
+//       // CUDA_CHECK(cudaDeviceSynchronize());
+//       Op.on_gpu<N>( d_x, d_q );
+//       //
+//       // CUDA_CHECK(cudaMemcpyAsync(d_q, d_x, N*CD, D2D, stream[nstreams-1])); // stream 2
+//       // Op.dot2selfAsync<N>(&norm, d_x); // stream 1
+//       // CUDA_CHECK(cudaDeviceSynchronize());
+//       CUDA_CHECK(cudaMemcpyAsync(d_q, d_x, N*CD, D2D, stream[nstreams-1])); // stream 2
+//       Op.dot2selfAsync<N>(&norm, d_x); // stream 1
+//       //
+//       Op.ZdscalAsync<N>( 1.0/std::sqrt(norm), d_q );
+//       Op.dotAsync<N>(reinterpret_cast<CuC*>(&dot), d_x, d_q);
+//       CUDA_CHECK(cudaDeviceSynchronize());
+
+//       mu_m2=mu_m1;
+//       mu_m1=mu_0;
+//       mu_0=dot.real();
+
+//       const double r = (mu_0-mu_m1)/(mu_m1-mu_m2);
+//       const double a = (mu_0-mu_m1)/std::pow(r,i-1)/(r-1);
+//       lambda_old = lambda;
+//       lambda = mu_0 - a*std::pow(r,i);
+
+//       if(std::abs(lambda_old-lambda)/std::abs(lambda)<TOL) {
+// #ifdef IsVerbose
+// 	std::clog << "# lambda_max estimate escaped in i = " << i << std::endl;
+// #endif
+// 	break;
+//       }
+//     }
+
+//     CUDA_CHECK(cudaMemcpy(d_q, reinterpret_cast<const CuC*>(q.data()), N*CD, H2D));
+//     double lambda2=100.0, lambda2_old=1000.0;
+
+//     for(int i=0; i<MAXITER; i++){
+//       Op.solveAsync<N>( d_x, d_q, Comp::TOL_OUTER );
+//       CUDA_CHECK(cudaDeviceSynchronize());
+//       //
+//       CUDA_CHECK(cudaMemcpyAsync(d_q, d_x, N*CD, D2D, stream[nstreams-1])); // stream 2
+//       Op.dot2selfAsync<N>(&norm, d_x);
+//       CUDA_CHECK(cudaDeviceSynchronize());
+//       //
+//       Op.ZdscalAsync<N>( 1.0/std::sqrt(norm), d_q );
+//       CUDA_CHECK(cudaDeviceSynchronize());
+
+//       Op.dotAsync<N>(reinterpret_cast<CuC*>(&dot), d_x, d_q);
+//       CUDA_CHECK(cudaDeviceSynchronize());
+
+//       mu_m2=mu_m1;
+//       mu_m1=mu_0;
+//       mu_0=dot.real();
+
+//       const double r = (mu_0-mu_m1)/(mu_m1-mu_m2);
+//       const double a = (mu_0-mu_m1)/std::pow(r,i-1)/(r-1);
+//       lambda2_old = lambda2;
+//       lambda2 = mu_0 - a*std::pow(r,i);
+
+//       if(std::abs(lambda2_old-lambda2)/std::abs(lambda2)<TOL) {
+// #ifdef IsVerbose
+// 	std::clog << "# lambda_min estimate escaped in i = " << i << std::endl;
+// #endif
+// 	break;
+//       }
+//     }
+
+//     CUDA_CHECK(cudaFreeAsync(d_x, stream[0]));
+//     CUDA_CHECK(cudaFreeAsync(d_q, stream[nstreams-1]));
+//     CUDA_CHECK(cudaDeviceSynchronize());
+
+//     // lambda_min = 0.5*std::sqrt( 1.0/lambda2 );
+//     // lambda_max = 2.0*std::sqrt( lambda );
+//     lambda_min = std::sqrt( (1.0-100*TOL)/lambda2 );
+//     lambda_max = std::sqrt( (1.0+100*TOL)*lambda );
+//     // lambda_min = 0.01; // std::sqrt( (1.0-100*TOL)/lambda2 );
+//     // lambda_max = 16; // std::sqrt( (1.0+100*TOL)*lambda );
+//   }
 
 
   void mult_deviceAsyncLaunch(CuC* d_res, const CuC* d_xi) const {
@@ -323,27 +416,35 @@ struct Overlap : public Zolotarev {
       const CuC a = cplx(-k*k/cp[m]);
       Op.push_back ( a, {} );
       Op.solveAsync<N>( d_Zs[m], d_xi, Comp::TOL_INNER );
+      // CUDA_CHECK(cudaStreamSynchronize(stream[istream]));
     }
+    CUDA_CHECK(cudaDeviceSynchronize());
 
     CUDA_CHECK(cudaMemcpy(d_Zs[0], d_xi, N*CD, D2D)); // E(1+Z)
-    CUDA_CHECK(cudaDeviceSynchronize());
     // reduction
     for(int m=1; m<size; m++) Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_Zs[0], A[m], d_Zs[m], d_Zs[0]);
 
-    MatPoly Op( handle[0], stream[0] );
+    // MatPoly Op( handle[0], stream[0] );
+    // Op.push_back( cplx(1.0/(lambda_max)), {&M_DW} );
+    // Op.on_gpuAsync<N>( d_res, d_Zs[0] );
+    // CUDA_CHECK(cudaDeviceSynchronize());
+    MatPoly Op;
     Op.push_back( cplx(1.0/(lambda_max)), {&M_DW} );
-    Op.on_gpuAsync<N>( d_res, d_Zs[0] );
-    CUDA_CHECK(cudaDeviceSynchronize());
+    Op.on_gpu<N>( d_res, d_Zs[0] );
     Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, C, d_res, d_xi); // 1+V
+    CUDA_CHECK(cudaDeviceSynchronize());
   }
 
   void adj_deviceAsyncLaunch(CuC* d_res, const CuC* d_xi) const {
     CUDA_CHECK(cudaMemcpy(d_Ys[0], d_xi, N*CD, D2D)); // E(1+Y)
     {
-      MatPoly OpGlob( handle[0], stream[0] );
+      // MatPoly OpGlob( handle[0], stream[0] );
+      // OpGlob.push_back ( cplx(1.0/(lambda_max)), {&M_DWH} );
+      // OpGlob.on_gpuAsync<N>( d_Ys[0], d_xi );
+      // CUDA_CHECK(cudaDeviceSynchronize());
+      MatPoly OpGlob;
       OpGlob.push_back ( cplx(1.0/(lambda_max)), {&M_DWH} );
-      OpGlob.on_gpuAsync<N>( d_Ys[0], d_xi );
-      CUDA_CHECK(cudaDeviceSynchronize());
+      OpGlob.on_gpu<N>( d_Ys[0], d_xi );
     }
 
     CUDA_CHECK(cudaMemcpy(d_res, d_Ys[0], N*CD, D2D));
@@ -359,6 +460,7 @@ struct Overlap : public Zolotarev {
       const CuC a = cplx(-k*k/cp[m]);
       Op.push_back ( a, {} );
       Op.solveAsync<N>( d_Ys[m], d_Ys[0], Comp::TOL_INNER );
+      CUDA_CHECK(cudaStreamSynchronize(stream[istream]));
     }
     CUDA_CHECK(cudaDeviceSynchronize());
 
@@ -373,22 +475,26 @@ struct Overlap : public Zolotarev {
     CuC *d_tmp1, *d_tmp2;
     CUDA_CHECK(cudaMalloc(&d_tmp1, N*CD));
     CUDA_CHECK(cudaMalloc(&d_tmp2, N*CD));
+    CUDA_CHECK(cudaDeviceSynchronize());
 
+    // sequential
     this->mult_deviceAsyncLaunch(d_tmp1, d_xi);
     this->adj_deviceAsyncLaunch(d_tmp2, d_xi);
-    CUDA_CHECK(cudaDeviceSynchronize());
 
     CUDA_CHECK(cudaMemcpy(d_res, d_tmp1, N*CD, D2D));
     Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, 1.0, d_tmp2, d_res); // A[0]=1.0
     CUDA_CHECK(cudaFree(d_tmp1));
     CUDA_CHECK(cudaFree(d_tmp2));
+    CUDA_CHECK(cudaDeviceSynchronize());
   }
 
   void DDH_deviceAsyncLaunch( CuC* d_res, const CuC* d_xi ) const {
     CuC *d_tmp1, *d_tmp2;
     CUDA_CHECK(cudaMalloc(&d_tmp1, N*CD));
     CUDA_CHECK(cudaMalloc(&d_tmp2, N*CD));
+    CUDA_CHECK(cudaDeviceSynchronize());
 
+    // sequential
     this->adj_deviceAsyncLaunch(d_tmp2, d_xi);
     this->mult_deviceAsyncLaunch(d_tmp1, d_xi);
     CUDA_CHECK(cudaDeviceSynchronize());
@@ -397,14 +503,19 @@ struct Overlap : public Zolotarev {
     Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, 1.0, d_tmp2, d_res); // A[0]=1.0
     CUDA_CHECK(cudaFree(d_tmp1));
     CUDA_CHECK(cudaFree(d_tmp2));
+    CUDA_CHECK(cudaDeviceSynchronize());
   }
 
 
   template<typename Gauge>
   void precalc_grad_deviceAsyncLaunch( const Gauge& U, const CuC* d_eta ) {
     {
-      MatPoly XH(handle[0], stream[0]);   XH.push_back ( cplx(1.0/(lambda_max)), {&M_DWH} );
-      XH.on_gpuAsync<N>(d_Ys[0], d_eta);
+      // MatPoly XH(handle[0], stream[0]);
+      // XH.push_back ( cplx(1.0/(lambda_max)), {&M_DWH} );
+      // XH.on_gpuAsync<N>(d_Ys[0], d_eta);
+      MatPoly XH;
+      XH.push_back ( cplx(1.0/(lambda_max)), {&M_DWH} );
+      XH.on_gpu<N>(d_Ys[0], d_eta);
     }
     CUDA_CHECK(cudaDeviceSynchronize());
 
@@ -420,6 +531,7 @@ struct Overlap : public Zolotarev {
 
       Op.solveAsync<N>( d_Zs[m], d_eta, Comp::TOL_INNER );
       Op.solveAsync<N>( d_Ys[m], d_Ys[0], Comp::TOL_INNER );
+      CUDA_CHECK(cudaStreamSynchronize(stream[istream]));
     }
 
     is_precalc = true;
@@ -445,15 +557,19 @@ struct Overlap : public Zolotarev {
 
       X.on_gpuAsync<N>(d_XZs[m], d_Zs[m]);
       coo.Async( d_XYs[m], d_Ys[m], stream[istream] );
+      CUDA_CHECK(cudaStreamSynchronize(stream[istream]));
 
       CuC inner;
       X.dotAsync<N>( &inner, d_XZs[m], d_XYs[m] );
+      CUDA_CHECK(cudaStreamSynchronize(stream[istream]));
       tmp2reduce[m] -= real(inner);
 
       X.on_gpuAsync<N>(d_XYs[m], d_Ys[m]);
       coo.Async( d_XZs[m], d_Zs[m], stream[istream] );
+      CUDA_CHECK(cudaStreamSynchronize(stream[istream]));
 
       X.dotAsync<N>( &inner, d_XYs[m], d_XZs[m] );
+      CUDA_CHECK(cudaStreamSynchronize(stream[istream]));
       tmp2reduce[m] -= real(inner);
 
       tmp2reduce[m] *= A[m];
@@ -469,8 +585,10 @@ struct Overlap : public Zolotarev {
     coo( d_Ys[0], d_Zs[0] );
     CuC inner;
     {
-      MatPoly XH(handle[0], stream[0]);
-      XH.dotAsync<N>( &inner, d_eta, d_Ys[0] );
+      MatPoly XH;
+      XH.dot<N>( &inner, d_eta, d_Ys[0] );
+      // MatPoly XH(handle[0], stream[0]);
+      // XH.dotAsync<N>( &inner, d_eta, d_Ys[0] );
     }
     CUDA_CHECK(cudaDeviceSynchronize());
     res += real(inner);
@@ -480,7 +598,7 @@ struct Overlap : public Zolotarev {
 
 
 
-    // void mult(std::vector<Complex>& x, const std::vector<Complex>& b) const {
+  // void mult(std::vector<Complex>& x, const std::vector<Complex>& b) const {
   //   CuC *d_x, *d_r; // , *d_tmp, *d_tmp2;
   //   CUDA_CHECK(cudaMalloc(&d_x, N*CD));
   //   CUDA_CHECK(cudaMalloc(&d_r, N*CD));

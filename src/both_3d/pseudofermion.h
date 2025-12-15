@@ -25,6 +25,7 @@ struct PseudoFermion {
     CUDA_CHECK(cudaMalloc(&d_phi, N*CD));
     CUDA_CHECK(cudaMalloc(&d_eta, N*CD));
     Op_DHD.push_back ( cplx(1.0), {&M_DHD} );
+    CUDA_CHECK(cudaDeviceSynchronize());
   }
 
   ~PseudoFermion(){
@@ -40,8 +41,10 @@ struct PseudoFermion {
 
     CuC *d_xi;
     CUDA_CHECK(cudaMalloc(&d_xi, N*CD));
+    CUDA_CHECK(cudaDeviceSynchronize());
     CUDA_CHECK(cudaMemcpy(d_xi, reinterpret_cast<const CuC*>(xi.data()), N*CD, H2D));
     // f_DH( d_phi, d_xi );
+
     D.adj_deviceAsyncLaunch( d_phi, d_xi );
     CUDA_CHECK(cudaFree(d_xi));
 
@@ -53,6 +56,7 @@ struct PseudoFermion {
   double S() const {
     CuC tmp;
     Op_DHD.dot<N>(&tmp, d_phi, d_eta);
+    CUDA_CHECK(cudaDeviceSynchronize());
     return real(tmp);
   }
 

@@ -196,8 +196,8 @@ int main(int argc, char* argv[]){
   // ----------------------
   // const double at = 0.5;
   // const double T = 0.2;
-  const double T = 24;
-  const double at = T/Comp::Nt;
+  // const double T = 24;
+  const double at = 0.2; // T/Comp::Nt;
   if(Nt!=1) assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
 
 

@@ -146,7 +146,11 @@ int main(int argc, char* argv[]){
   if(argc>1) gsq = atof(argv[1]);
   int Nf = 2;
   if(argc>2) Nf = atoi(argv[2]);
-  std::cout << "# gsq = " << gsq << " Nf = " << Nf << std::endl;
+  // std::cout << "# gsq = " << gsq << " Nf = " << Nf << std::endl;
+  double nu0 = 1.0;
+  if(argc>3) nu0 = atof(argv[3]);
+  std::cout << "# gsq = " << gsq << " Nf = " << Nf << " nu0 = " << nu0 << std::endl;
+
 
   // int igam=0;
   // if(argc>3) igam = atoi(argv[3]);
@@ -189,8 +193,8 @@ int main(int argc, char* argv[]){
   // ----------------------
   // const double at = 0.5;
   // const double T = 0.2;
-  const double T = 24;
-  const double at = T/Comp::Nt;
+  // const double T = 24;
+  const double at = 0.2; // T/Comp::Nt;
   if(Nt!=1) assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
 
 
@@ -200,10 +204,17 @@ int main(int argc, char* argv[]){
   Action SW( gsq, at, base );
   std::cout << "# alat = " << base.mean_ell << std::endl;
 
+  // std::string dir3, dir4;
+  // // #ifdef Nf2
+  // dir3="Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
+  // dir4="data_Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
   std::string dir3, dir4;
   // #ifdef Nf2
-  dir3="Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
-  dir4="data_Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
+  dir3="Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
+  // dir3="Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
+  dir4="data_Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
+  // dir4="data_Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
+
 
   std::filesystem::create_directory(dir4);
 
@@ -240,7 +251,7 @@ int main(int argc, char* argv[]){
   const double M5 = -1.0;
 #endif
 
-  WilsonDirac DW(base, 0.0, 1.0, M5, at);
+  WilsonDirac DW(base, 0.0, 1.0, M5, at, nu0);
   std::cout << "# DW set. " << std::endl;
 
   using Fermion=Overlap<WilsonDirac>;

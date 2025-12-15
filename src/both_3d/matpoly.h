@@ -47,6 +47,7 @@ struct MatPoly{
     CuC *d_v, *d_v0;
     CUDA_CHECK(cudaMalloc(&d_v, N*CD));
     CUDA_CHECK(cudaMalloc(&d_v0, N*CD));
+    CUDA_CHECK(cudaDeviceSynchronize());
     // @@@
     // CUDA_CHECK(cudaMemset(d_v, 0, N*CD));
     // CUDA_CHECK(cudaMemset(d_v0, 0, N*CD));
@@ -68,6 +69,7 @@ struct MatPoly{
     CuC *d_tmp, *d_Mv0;
     CUDA_CHECK(cudaMalloc(&d_tmp, N*CD));
     CUDA_CHECK(cudaMalloc(&d_Mv0, N*CD));
+    CUDA_CHECK(cudaDeviceSynchronize());
     CUDA_CHECK(cudaMemset(d_v, 0, N*CD));
 
     for(int i=0; i<vec_mats.size(); i++){
@@ -199,6 +201,7 @@ struct MatPoly{
     CuC *d_x, *d_r; // , *d_tmp, *d_tmp2;
     CUDA_CHECK(cudaMalloc(&d_x, N*CD));
     CUDA_CHECK(cudaMalloc(&d_r, N*CD));
+    CUDA_CHECK(cudaDeviceSynchronize());
     CUDA_CHECK(cudaMemcpy(d_r, reinterpret_cast<const CuC*>(b.data()), N*CD, H2D));
 
     solve<N>(d_x, d_r, tol, maxiter);
@@ -242,6 +245,7 @@ struct MatPoly{
     CUDA_CHECK(cudaMalloc(&d_p, N*CD));
     CUDA_CHECK(cudaMalloc(&d_q, N*CD));
     CUDA_CHECK(cudaMalloc(&d_r, N*CD));
+    CUDA_CHECK(cudaDeviceSynchronize());
     //
     CUDA_CHECK(cudaMemset(d_x, 0, N*CD));
     CUDA_CHECK(cudaMemset(d_q, 0, N*CD));
