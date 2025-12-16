@@ -119,7 +119,15 @@ struct ParallelRngExt {
   }
 
 
-  void fill_gaussian( std::vector<Complex>& xi ){
+  // void fill_gaussian( std::vector<Complex>& xi ){
+  //   for(int s=0; s<Comp::Nt; s++) {
+  //     for(Idx ix=0; ix<Comp::N_SITES; ix++) {
+  //       for(int a=0; a<Comp::NS; a++) xi[Comp::Nx*s + NS*ix+a] = ( gaussian_site(s,ix)
+  //                                                                  + I*gaussian_site(s,ix) ) / std::sqrt(2.0);
+  //     }
+  //   }
+  // }
+  void fill_gaussian( Complex* xi ){
     for(int s=0; s<Comp::Nt; s++) {
       for(Idx ix=0; ix<Comp::N_SITES; ix++) {
         for(int a=0; a<Comp::NS; a++) xi[Comp::Nx*s + NS*ix+a] = ( gaussian_site(s,ix)

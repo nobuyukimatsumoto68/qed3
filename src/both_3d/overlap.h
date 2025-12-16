@@ -170,37 +170,32 @@ struct Overlap : public Zolotarev {
     d_DW.associateCSR( M_DWH, true );
 
     for(int istream=0; istream<nstreams; istream++) {
-      // CUDA_CHECK(cudaStreamCreateWithFlags(&stream[istream], cudaStreamNonBlocking));
       CUDA_CHECK(cudaStreamCreate( &stream[istream] ));
       CUBLAS_CHECK(cublasCreate(&handle[istream]));
       CUBLAS_CHECK(cublasSetStream(handle[istream], stream[istream]));
     }
 
     for(int m=0; m<size; m++) {
-      const int istream = m%nstreams;
-      CUDA_CHECK(cudaMallocAsync(&d_Zs[m], N*CD, stream[istream]));
-      CUDA_CHECK(cudaMallocAsync(&d_Ys[m], N*CD, stream[istream]));
-      CUDA_CHECK(cudaMallocAsync(&d_XZs[m], N*CD, stream[istream]));
-      CUDA_CHECK(cudaMallocAsync(&d_XYs[m], N*CD, stream[istream]));
+      CUDA_CHECK(cudaMalloc(&d_Zs[m], N*CD));
+      CUDA_CHECK(cudaMalloc(&d_Ys[m], N*CD));
+      CUDA_CHECK(cudaMalloc(&d_XZs[m], N*CD));
+      CUDA_CHECK(cudaMalloc(&d_XYs[m], N*CD));
     }
-    CUDA_CHECK(cudaDeviceSynchronize());
   }
 
   ~Overlap()
   {
     for(int m=0; m<size; m++) {
-      const int istream = m%nstreams;
-      CUDA_CHECK(cudaFreeAsync(d_Zs[m], stream[istream]));
-      CUDA_CHECK(cudaFreeAsync(d_Ys[m], stream[istream]));
-      CUDA_CHECK(cudaFreeAsync(d_XZs[m], stream[istream]));
-      CUDA_CHECK(cudaFreeAsync(d_XYs[m], stream[istream]));
+      CUDA_CHECK(cudaFree(d_Zs[m]));
+      CUDA_CHECK(cudaFree(d_Ys[m]));
+      CUDA_CHECK(cudaFree(d_XZs[m]));
+      CUDA_CHECK(cudaFree(d_XYs[m]));
     }
     for(int istream=0; istream<nstreams; istream++) {
       CUDA_CHECK(cudaStreamSynchronize(stream[istream]));
       CUDA_CHECK(cudaStreamDestroy(stream[istream]));
       CUBLAS_CHECK(cublasDestroy(handle[istream]));
     }
-    CUDA_CHECK(cudaDeviceSynchronize());
   }
 
   template<typename Gauge>
@@ -226,7 +221,6 @@ struct Overlap : public Zolotarev {
     CuC *d_x, *d_q;
     CUDA_CHECK(cudaMalloc(&d_x, N*CD));
     CUDA_CHECK(cudaMalloc(&d_q, N*CD));
-    CUDA_CHECK(cudaDeviceSynchronize());
     CUDA_CHECK(cudaMemcpy(d_q, reinterpret_cast<const CuC*>(q.data()), N*CD, H2D));
 
     Complex dot;
@@ -292,13 +286,185 @@ struct Overlap : public Zolotarev {
     CUDA_CHECK(cudaFree(d_x));
     CUDA_CHECK(cudaFree(d_q));
 
-    // lambda_min = 0.5*std::sqrt( 1.0/lambda2 );
-    // lambda_max = 2.0*std::sqrt( lambda );
     lambda_min = std::sqrt( (1.0-100*TOL)/lambda2 );
     lambda_max = std::sqrt( (1.0+100*TOL)*lambda );
-    // lambda_min = 0.01; // std::sqrt( (1.0-100*TOL)/lambda2 );
-    // lambda_max = 16; // std::sqrt( (1.0+100*TOL)*lambda );
   }
+
+
+
+  void mult_deviceAsyncLaunch(CuC* d_res, const CuC* d_xi) const {
+    // can parallelize
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(nstreams) // schedule(static)
+#endif
+    for(int m=1; m<size; m++) {
+      const int istream = omp_get_thread_num(); // m%nstreams;
+      MatPoly Op(handle[istream], stream[istream], istream);
+      Op.push_back ( cplx(1.0/(lambda_max*lambda_max)), {&M_DW, &M_DWH} );
+      const CuC a = cplx(-k*k/cp[m]);
+      Op.push_back ( a, {} );
+      Op.solveAsync<N>( d_Zs[m], d_xi, Comp::TOL_INNER );
+      CUDA_CHECK(cudaStreamSynchronize(stream[istream]));
+    }
+
+    CUDA_CHECK(cudaMemcpy(d_Zs[0], d_xi, N*CD, D2D)); // E(1+Z)
+    // reduction
+    for(int m=1; m<size; m++) Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_Zs[0], A[m], d_Zs[m], d_Zs[0]);
+
+    MatPoly Op;
+    Op.push_back( cplx(1.0/(lambda_max)), {&M_DW} );
+    Op.on_gpu<N>( d_res, d_Zs[0] );
+    Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, C, d_res, d_xi); // 1+V
+    CUDA_CHECK(cudaDeviceSynchronize());
+  }
+
+  void adj_deviceAsyncLaunch(CuC* d_res, const CuC* d_xi) const {
+    CUDA_CHECK(cudaMemcpy(d_Ys[0], d_xi, N*CD, D2D)); // E(1+Y)
+    {
+      MatPoly OpGlob;
+      OpGlob.push_back ( cplx(1.0/(lambda_max)), {&M_DWH} );
+      OpGlob.on_gpu<N>( d_Ys[0], d_xi );
+    }
+
+    CUDA_CHECK(cudaMemcpy(d_res, d_Ys[0], N*CD, D2D));
+
+    // can parallelize
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(nstreams) // schedule(static)
+#endif
+    for(int m=1; m<size; m++) {
+      const int istream = omp_get_thread_num(); // m%nstreams;
+      MatPoly Op(handle[istream], stream[istream], istream);
+      Op.push_back ( cplx(1.0/(lambda_max*lambda_max)), {&M_DW, &M_DWH} );
+      const CuC a = cplx(-k*k/cp[m]);
+      Op.push_back ( a, {} );
+      Op.solveAsync<N>( d_Ys[m], d_Ys[0], Comp::TOL_INNER );
+      CUDA_CHECK(cudaStreamSynchronize(stream[istream]));
+    }
+
+    // reduction
+    for(int m=1; m<size; m++) Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, A[m], d_Ys[m], d_res);
+    Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, C, d_res, d_xi); // A[0]=1.0
+    CUDA_CHECK(cudaDeviceSynchronize());
+  }
+
+
+  void DHD_deviceAsyncLaunch( CuC* d_res, const CuC* d_xi ) const {
+    CuC *d_tmp1, *d_tmp2;
+    CUDA_CHECK(cudaMalloc(&d_tmp1, N*CD));
+    CUDA_CHECK(cudaMalloc(&d_tmp2, N*CD));
+
+    // sequential
+    this->mult_deviceAsyncLaunch(d_tmp1, d_xi);
+    this->adj_deviceAsyncLaunch(d_tmp2, d_xi);
+
+    CUDA_CHECK(cudaMemcpy(d_res, d_tmp1, N*CD, D2D));
+    Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, 1.0, d_tmp2, d_res); // A[0]=1.0
+    CUDA_CHECK(cudaFree(d_tmp1));
+    CUDA_CHECK(cudaFree(d_tmp2));
+  }
+
+  void DDH_deviceAsyncLaunch( CuC* d_res, const CuC* d_xi ) const {
+    CuC *d_tmp1, *d_tmp2;
+    CUDA_CHECK(cudaMalloc(&d_tmp1, N*CD));
+    CUDA_CHECK(cudaMalloc(&d_tmp2, N*CD));
+
+    // sequential
+    this->adj_deviceAsyncLaunch(d_tmp2, d_xi);
+    this->mult_deviceAsyncLaunch(d_tmp1, d_xi);
+
+    CUDA_CHECK(cudaMemcpy(d_res, d_tmp1, N*CD, D2D));
+    Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, 1.0, d_tmp2, d_res); // A[0]=1.0
+    CUDA_CHECK(cudaFree(d_tmp1));
+    CUDA_CHECK(cudaFree(d_tmp2));
+  }
+
+
+  template<typename Gauge>
+  void precalc_grad_deviceAsyncLaunch( const Gauge& U, const CuC* d_eta ) {
+    {
+      MatPoly XH;
+      XH.push_back ( cplx(1.0/(lambda_max)), {&M_DWH} );
+      XH.on_gpu<N>(d_Ys[0], d_eta);
+    }
+
+    // can parallelize omp parallel nparallel=nstreams static assert(nparallel>=nstreams)
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(nstreams) // schedule(static)
+#endif
+    for(int m=1; m<size; m++) {
+      const int istream = omp_get_thread_num(); // m%nstreams;
+      MatPoly Op(handle[istream], stream[istream], istream);
+      Op.push_back ( cplx(1.0/(lambda_max*lambda_max)), {&M_DW, &M_DWH} );
+      const CuC a = cplx(-k*k/cp[m]); Op.push_back ( a, {} );
+
+      Op.solveAsync<N>( d_Zs[m], d_eta, Comp::TOL_INNER );
+      Op.solveAsync<N>( d_Ys[m], d_Ys[0], Comp::TOL_INNER );
+      CUDA_CHECK(cudaStreamSynchronize(stream[istream]));
+    }
+
+    is_precalc = true;
+    CUDA_CHECK(cudaDeviceSynchronize());
+  }
+
+  template<typename Link, typename Gauge>
+  double grad_deviceAsyncLaunch( const Link& link, const Gauge& U, const CuC* d_eta ) const {
+    assert( is_precalc );
+
+    COO<N> coo;
+    DW.d_coo_format(coo.en, U, link);
+    coo.do_it();
+
+    std::vector<double> tmp2reduce(size, 0.0);
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(nstreams) // schedule(static)
+#endif
+    for(int m=1; m<size; m++) {
+      const int istream = omp_get_thread_num(); // m%nstreams;
+      MatPoly X(handle[istream], stream[istream], istream);
+      X.push_back ( cplx(1.0/(lambda_max)), {&M_DW} );
+
+      X.on_gpuAsync<N>(d_XZs[m], d_Zs[m]);
+      coo.Async( d_XYs[m], d_Ys[m], stream[istream] );
+
+      CuC inner;
+      X.dotAsync<N>( &inner, d_XZs[m], d_XYs[m] );
+      CUDA_CHECK(cudaStreamSynchronize(stream[istream]));
+      tmp2reduce[m] -= real(inner);
+
+      X.on_gpuAsync<N>(d_XYs[m], d_Ys[m]);
+      coo.Async( d_XZs[m], d_Zs[m], stream[istream] );
+
+      X.dotAsync<N>( &inner, d_XYs[m], d_XZs[m] );
+      CUDA_CHECK(cudaStreamSynchronize(stream[istream]));
+      tmp2reduce[m] -= real(inner);
+
+      tmp2reduce[m] *= A[m];
+      CUDA_CHECK(cudaStreamSynchronize(stream[istream]));
+    }
+    CUDA_CHECK(cudaDeviceSynchronize());
+
+    double res = 0.0;
+    // reductions
+    for(int m=1; m<size; m++) res+=tmp2reduce[m];
+
+    CUDA_CHECK(cudaMemcpy(d_Zs[0], d_eta, N*CD, D2D));
+    for(int m=1; m<size; m++) Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_Zs[0], A[m], d_Zs[m], d_Zs[0]);
+    coo( d_Ys[0], d_Zs[0] );
+    CuC inner;
+    {
+      MatPoly XH;
+      XH.dot<N>( &inner, d_eta, d_Ys[0] );
+    }
+    res += real(inner);
+    res *= -2.0*C/lambda_max;
+    return res;
+  }
+
+
+};
+
+
 
 
 //   void compute_lambda_max( const double TOL=1.0e-8, const int MAXITER=500 ) {
@@ -403,198 +569,6 @@ struct Overlap : public Zolotarev {
 //     // lambda_max = 16; // std::sqrt( (1.0+100*TOL)*lambda );
 //   }
 
-
-  void mult_deviceAsyncLaunch(CuC* d_res, const CuC* d_xi) const {
-    // can parallelize
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(nstreams) schedule(static)
-#endif
-    for(int m=1; m<size; m++) {
-      const int istream = m%nstreams;
-      MatPoly Op(handle[istream], stream[istream]);
-      Op.push_back ( cplx(1.0/(lambda_max*lambda_max)), {&M_DW, &M_DWH} );
-      const CuC a = cplx(-k*k/cp[m]);
-      Op.push_back ( a, {} );
-      Op.solveAsync<N>( d_Zs[m], d_xi, Comp::TOL_INNER );
-      // CUDA_CHECK(cudaStreamSynchronize(stream[istream]));
-    }
-    CUDA_CHECK(cudaDeviceSynchronize());
-
-    CUDA_CHECK(cudaMemcpy(d_Zs[0], d_xi, N*CD, D2D)); // E(1+Z)
-    // reduction
-    for(int m=1; m<size; m++) Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_Zs[0], A[m], d_Zs[m], d_Zs[0]);
-
-    // MatPoly Op( handle[0], stream[0] );
-    // Op.push_back( cplx(1.0/(lambda_max)), {&M_DW} );
-    // Op.on_gpuAsync<N>( d_res, d_Zs[0] );
-    // CUDA_CHECK(cudaDeviceSynchronize());
-    MatPoly Op;
-    Op.push_back( cplx(1.0/(lambda_max)), {&M_DW} );
-    Op.on_gpu<N>( d_res, d_Zs[0] );
-    Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, C, d_res, d_xi); // 1+V
-    CUDA_CHECK(cudaDeviceSynchronize());
-  }
-
-  void adj_deviceAsyncLaunch(CuC* d_res, const CuC* d_xi) const {
-    CUDA_CHECK(cudaMemcpy(d_Ys[0], d_xi, N*CD, D2D)); // E(1+Y)
-    {
-      // MatPoly OpGlob( handle[0], stream[0] );
-      // OpGlob.push_back ( cplx(1.0/(lambda_max)), {&M_DWH} );
-      // OpGlob.on_gpuAsync<N>( d_Ys[0], d_xi );
-      // CUDA_CHECK(cudaDeviceSynchronize());
-      MatPoly OpGlob;
-      OpGlob.push_back ( cplx(1.0/(lambda_max)), {&M_DWH} );
-      OpGlob.on_gpu<N>( d_Ys[0], d_xi );
-    }
-
-    CUDA_CHECK(cudaMemcpy(d_res, d_Ys[0], N*CD, D2D));
-
-    // can parallelize
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(nstreams) schedule(static)
-#endif
-    for(int m=1; m<size; m++) {
-      const int istream = m%nstreams;
-      MatPoly Op(handle[istream], stream[istream]);
-      Op.push_back ( cplx(1.0/(lambda_max*lambda_max)), {&M_DW, &M_DWH} );
-      const CuC a = cplx(-k*k/cp[m]);
-      Op.push_back ( a, {} );
-      Op.solveAsync<N>( d_Ys[m], d_Ys[0], Comp::TOL_INNER );
-      CUDA_CHECK(cudaStreamSynchronize(stream[istream]));
-    }
-    CUDA_CHECK(cudaDeviceSynchronize());
-
-    // reduction
-    for(int m=1; m<size; m++) Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, A[m], d_Ys[m], d_res);
-    Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, C, d_res, d_xi); // A[0]=1.0
-    CUDA_CHECK(cudaDeviceSynchronize());
-  }
-
-
-  void DHD_deviceAsyncLaunch( CuC* d_res, const CuC* d_xi ) const {
-    CuC *d_tmp1, *d_tmp2;
-    CUDA_CHECK(cudaMalloc(&d_tmp1, N*CD));
-    CUDA_CHECK(cudaMalloc(&d_tmp2, N*CD));
-    CUDA_CHECK(cudaDeviceSynchronize());
-
-    // sequential
-    this->mult_deviceAsyncLaunch(d_tmp1, d_xi);
-    this->adj_deviceAsyncLaunch(d_tmp2, d_xi);
-
-    CUDA_CHECK(cudaMemcpy(d_res, d_tmp1, N*CD, D2D));
-    Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, 1.0, d_tmp2, d_res); // A[0]=1.0
-    CUDA_CHECK(cudaFree(d_tmp1));
-    CUDA_CHECK(cudaFree(d_tmp2));
-    CUDA_CHECK(cudaDeviceSynchronize());
-  }
-
-  void DDH_deviceAsyncLaunch( CuC* d_res, const CuC* d_xi ) const {
-    CuC *d_tmp1, *d_tmp2;
-    CUDA_CHECK(cudaMalloc(&d_tmp1, N*CD));
-    CUDA_CHECK(cudaMalloc(&d_tmp2, N*CD));
-    CUDA_CHECK(cudaDeviceSynchronize());
-
-    // sequential
-    this->adj_deviceAsyncLaunch(d_tmp2, d_xi);
-    this->mult_deviceAsyncLaunch(d_tmp1, d_xi);
-    CUDA_CHECK(cudaDeviceSynchronize());
-
-    CUDA_CHECK(cudaMemcpy(d_res, d_tmp1, N*CD, D2D));
-    Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, 1.0, d_tmp2, d_res); // A[0]=1.0
-    CUDA_CHECK(cudaFree(d_tmp1));
-    CUDA_CHECK(cudaFree(d_tmp2));
-    CUDA_CHECK(cudaDeviceSynchronize());
-  }
-
-
-  template<typename Gauge>
-  void precalc_grad_deviceAsyncLaunch( const Gauge& U, const CuC* d_eta ) {
-    {
-      // MatPoly XH(handle[0], stream[0]);
-      // XH.push_back ( cplx(1.0/(lambda_max)), {&M_DWH} );
-      // XH.on_gpuAsync<N>(d_Ys[0], d_eta);
-      MatPoly XH;
-      XH.push_back ( cplx(1.0/(lambda_max)), {&M_DWH} );
-      XH.on_gpu<N>(d_Ys[0], d_eta);
-    }
-    CUDA_CHECK(cudaDeviceSynchronize());
-
-    // can parallelize omp parallel nparallel=nstreams static assert(nparallel>=nstreams)
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(nstreams) schedule(static)
-#endif
-    for(int m=1; m<size; m++) {
-      const int istream = m%nstreams;
-      MatPoly Op(handle[istream], stream[istream]);
-      Op.push_back ( cplx(1.0/(lambda_max*lambda_max)), {&M_DW, &M_DWH} );
-      const CuC a = cplx(-k*k/cp[m]); Op.push_back ( a, {} );
-
-      Op.solveAsync<N>( d_Zs[m], d_eta, Comp::TOL_INNER );
-      Op.solveAsync<N>( d_Ys[m], d_Ys[0], Comp::TOL_INNER );
-      CUDA_CHECK(cudaStreamSynchronize(stream[istream]));
-    }
-
-    is_precalc = true;
-    CUDA_CHECK(cudaDeviceSynchronize());
-  }
-
-  template<typename Link, typename Gauge>
-  double grad_deviceAsyncLaunch( const Link& link, const Gauge& U, const CuC* d_eta ) const {
-    assert( is_precalc );
-
-    COO<N> coo;
-    DW.d_coo_format(coo.en, U, link);
-    coo.do_it();
-
-    std::vector<double> tmp2reduce(size, 0.0);
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(nstreams) schedule(static)
-#endif
-    for(int m=1; m<size; m++) {
-      const int istream = m%nstreams;
-      MatPoly X(handle[istream], stream[istream]);
-      X.push_back ( cplx(1.0/(lambda_max)), {&M_DW} );
-
-      X.on_gpuAsync<N>(d_XZs[m], d_Zs[m]);
-      coo.Async( d_XYs[m], d_Ys[m], stream[istream] );
-      CUDA_CHECK(cudaStreamSynchronize(stream[istream]));
-
-      CuC inner;
-      X.dotAsync<N>( &inner, d_XZs[m], d_XYs[m] );
-      CUDA_CHECK(cudaStreamSynchronize(stream[istream]));
-      tmp2reduce[m] -= real(inner);
-
-      X.on_gpuAsync<N>(d_XYs[m], d_Ys[m]);
-      coo.Async( d_XZs[m], d_Zs[m], stream[istream] );
-      CUDA_CHECK(cudaStreamSynchronize(stream[istream]));
-
-      X.dotAsync<N>( &inner, d_XYs[m], d_XZs[m] );
-      CUDA_CHECK(cudaStreamSynchronize(stream[istream]));
-      tmp2reduce[m] -= real(inner);
-
-      tmp2reduce[m] *= A[m];
-    }
-    CUDA_CHECK(cudaDeviceSynchronize());
-
-    double res = 0.0;
-    // reductions
-    for(int m=1; m<size; m++) res+=tmp2reduce[m];
-
-    CUDA_CHECK(cudaMemcpy(d_Zs[0], d_eta, N*CD, D2D));
-    for(int m=1; m<size; m++) Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_Zs[0], A[m], d_Zs[m], d_Zs[0]);
-    coo( d_Ys[0], d_Zs[0] );
-    CuC inner;
-    {
-      MatPoly XH;
-      XH.dot<N>( &inner, d_eta, d_Ys[0] );
-      // MatPoly XH(handle[0], stream[0]);
-      // XH.dotAsync<N>( &inner, d_eta, d_Ys[0] );
-    }
-    CUDA_CHECK(cudaDeviceSynchronize());
-    res += real(inner);
-    res *= -2.0*C/lambda_max;
-    return res;
-  }
 
 
 
@@ -742,8 +716,4 @@ struct Overlap : public Zolotarev {
   //   res *= -2.0*C/lambda_max;
   //   return res;
   // }
-
-
-};
-
 

@@ -112,19 +112,16 @@ struct DWDevice{
 
     CUDA_CHECK(cudaMalloc(&d_cols, len*sizeof(Idx)));
     CUDA_CHECK(cudaMalloc(&d_rows, (N+1)*sizeof(Idx)));
-    CUDA_CHECK(cudaDeviceSynchronize());
     CUDA_CHECK(cudaMemcpy(d_cols, cols.data(), len*sizeof(Idx), H2D));
     CUDA_CHECK(cudaMemcpy(d_rows, rows.data(), (N+1)*sizeof(Idx), H2D));
     //
     CUDA_CHECK(cudaMalloc(&d_colsT, len*sizeof(Idx)));
     CUDA_CHECK(cudaMalloc(&d_rowsT, (N+1)*sizeof(Idx)));
-    CUDA_CHECK(cudaDeviceSynchronize());
     CUDA_CHECK(cudaMemcpy(d_colsT, colsT.data(), len*sizeof(Idx), H2D));
     CUDA_CHECK(cudaMemcpy(d_rowsT, rowsT.data(), (N+1)*sizeof(Idx), H2D));
     //
     CUDA_CHECK(cudaMalloc(&d_val, len*CD));
     CUDA_CHECK(cudaMalloc(&d_valH, len*CD));
-    CUDA_CHECK(cudaDeviceSynchronize());
 
     v_coo.resize(len);
     v_csr.resize(len);
@@ -151,7 +148,6 @@ struct DWDevice{
 
     CUDA_CHECK(cudaMemcpy(d_val, reinterpret_cast<const CuC*>(v_csr.data()), len*CD, H2D));
     CUDA_CHECK(cudaMemcpy(d_valH, reinterpret_cast<const CuC*>(v_csrH.data()), len*CD, H2D));
-    CUDA_CHECK(cudaDeviceSynchronize());
   }
 
 

@@ -1,5 +1,47 @@
 #pragma once
 
+// device memory set
+struct DeviceMemorySetN{
+  // d_x, ...;
+  CuC *d_tmp, *d_Mv0;
+  CuC *d_x, *d_r0; // , *d_tmp, *d_tmp2;
+  CuC *d_p, *d_q, *d_r;
+
+  void allocate(){
+    CUDA_CHECK(cudaMalloc(&d_tmp, Comp::N*CD));
+    CUDA_CHECK(cudaMalloc(&d_Mv0, Comp::N*CD));
+    CUDA_CHECK(cudaMemset(d_tmp, 0, Comp::N*CD));
+    CUDA_CHECK(cudaMemset(d_Mv0, 0, Comp::N*CD));
+
+    CUDA_CHECK(cudaMalloc(&d_x, Comp::N*CD));
+    CUDA_CHECK(cudaMalloc(&d_r0, Comp::N*CD));
+    CUDA_CHECK(cudaMemset(d_x, 0, Comp::N*CD));
+    CUDA_CHECK(cudaMemset(d_r0, 0, Comp::N*CD));
+
+    CUDA_CHECK(cudaMalloc(&d_p, Comp::N*CD));
+    CUDA_CHECK(cudaMalloc(&d_q, Comp::N*CD));
+    CUDA_CHECK(cudaMalloc(&d_r, Comp::N*CD));
+    CUDA_CHECK(cudaMemset(d_p, 0, Comp::N*CD));
+    CUDA_CHECK(cudaMemset(d_q, 0, Comp::N*CD));
+    CUDA_CHECK(cudaMemset(d_r, 0, Comp::N*CD));
+  }
+  void deallocate(){
+    CUDA_CHECK(cudaFree(d_tmp));
+    CUDA_CHECK(cudaFree(d_Mv0));
+
+    CUDA_CHECK(cudaFree(d_x));
+    CUDA_CHECK(cudaFree(d_r0));
+
+    CUDA_CHECK(cudaFree(d_r));
+    CUDA_CHECK(cudaFree(d_p));
+    CUDA_CHECK(cudaFree(d_q));
+  }
+};
+
+
+DeviceMemorySetN d_MemorySets[Comp::NSTREAMS];
+
+
 // template<typename T>
 struct MatPoly{
   using T = CuC;
@@ -10,18 +52,20 @@ struct MatPoly{
   cublasHandle_t handle;
   cudaStream_t stream;
   const bool is_external;
+  const int istream;
 
   MatPoly()
     : is_external(false)
+    , istream(-1)
   {
     handle = NULL;
     stream = NULL;
     CUBLAS_CHECK(cublasCreate(&handle));
-    // CUBLAS_CHECK(cublasSetStream(handle, stream));
   }
 
-  MatPoly( cublasHandle_t handle_, cudaStream_t stream_ )
+  MatPoly( cublasHandle_t handle_, cudaStream_t stream_, const int istream_)
     : is_external(true)
+    , istream(istream_)
   {
     handle = handle_;
     stream = stream_; // pointer
@@ -47,17 +91,11 @@ struct MatPoly{
     CuC *d_v, *d_v0;
     CUDA_CHECK(cudaMalloc(&d_v, N*CD));
     CUDA_CHECK(cudaMalloc(&d_v0, N*CD));
-    CUDA_CHECK(cudaDeviceSynchronize());
-    // @@@
-    // CUDA_CHECK(cudaMemset(d_v, 0, N*CD));
-    // CUDA_CHECK(cudaMemset(d_v0, 0, N*CD));
-
     CUDA_CHECK(cudaMemcpy(d_v0, reinterpret_cast<const CuC*>(v0.data()), N*CD, H2D));
 
     on_gpu<N>( d_v, d_v0 );
 
     CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(v.data()), d_v, N*CD, D2H));
-
     CUDA_CHECK(cudaFree(d_v));
     CUDA_CHECK(cudaFree(d_v0));
   }
@@ -69,7 +107,6 @@ struct MatPoly{
     CuC *d_tmp, *d_Mv0;
     CUDA_CHECK(cudaMalloc(&d_tmp, N*CD));
     CUDA_CHECK(cudaMalloc(&d_Mv0, N*CD));
-    CUDA_CHECK(cudaDeviceSynchronize());
     CUDA_CHECK(cudaMemset(d_v, 0, N*CD));
 
     for(int i=0; i<vec_mats.size(); i++){
@@ -91,32 +128,24 @@ struct MatPoly{
 
   template<Idx N> __host__
   void on_gpuAsync(CuC* d_v, const CuC* d_v0) const {
-    CuC *d_tmp, *d_Mv0;
-    CUDA_CHECK(cudaMallocAsync(&d_tmp, N*CD, stream));
-    CUDA_CHECK(cudaMallocAsync(&d_Mv0, N*CD, stream));
+    CuC *d_tmp = d_MemorySets[istream].d_tmp;
+    CuC *d_Mv0 = d_MemorySets[istream].d_Mv0;
+
     CUDA_CHECK(cudaMemsetAsync(d_v, 0, N*CD, stream));
-    CUDA_CHECK( cudaStreamSynchronize(stream) );
 
     for(int i=0; i<vec_mats.size(); i++){
       CUDA_CHECK(cudaMemcpyAsync(d_tmp, d_v0, N*CD, D2D, stream));
       CUDA_CHECK(cudaMemcpyAsync(d_Mv0, d_v0, N*CD, D2D, stream));
-      CUDA_CHECK( cudaStreamSynchronize(stream) );
 
       for(int j=0; j<vec_mats[i].size(); j++){
         vec_mats[i][j]->Async(d_Mv0, d_tmp, stream);
-        CUDA_CHECK( cudaStreamSynchronize(stream) );
         CUDA_CHECK(cudaMemcpyAsync(d_tmp, d_Mv0, N*CD, D2D, stream));
-        CUDA_CHECK( cudaStreamSynchronize(stream) );
       }
       Taxpy<CuC, N><<<NBlocks, NThreadsPerBlock, 0, stream>>>(d_v,
                                                               coeffs[i],
                                                               d_Mv0,
                                                               d_v);
-      CUDA_CHECK( cudaStreamSynchronize(stream) );
     }
-
-    CUDA_CHECK(cudaFreeAsync(d_tmp, stream));
-    CUDA_CHECK(cudaFreeAsync(d_Mv0, stream));
     CUDA_CHECK( cudaStreamSynchronize(stream) );
   }
 
@@ -201,7 +230,6 @@ struct MatPoly{
     CuC *d_x, *d_r; // , *d_tmp, *d_tmp2;
     CUDA_CHECK(cudaMalloc(&d_x, N*CD));
     CUDA_CHECK(cudaMalloc(&d_r, N*CD));
-    CUDA_CHECK(cudaDeviceSynchronize());
     CUDA_CHECK(cudaMemcpy(d_r, reinterpret_cast<const CuC*>(b.data()), N*CD, H2D));
 
     solve<N>(d_x, d_r, tol, maxiter);
@@ -216,22 +244,16 @@ struct MatPoly{
   void solveAsync(std::vector<Complex>& x, const std::vector<Complex>& b,
              const double tol=1.0e-13, const int maxiter=1e8) const {
     // CG
-    CuC *d_x, *d_r; // , *d_tmp, *d_tmp2;
-    CUDA_CHECK(cudaMallocAsync(&d_x, N*CD, stream));
-    CUDA_CHECK(cudaMallocAsync(&d_r, N*CD, stream));
-    CUDA_CHECK( cudaStreamSynchronize(stream) );
+    assert(istream>=0);
+    CuC *d_x = d_MemorySets[istream].d_x;
+    CuC *d_r0 = d_MemorySets[istream].d_r0;
 
-    CUDA_CHECK(cudaMemcpyAsync(d_r, reinterpret_cast<const CuC*>(b.data()), N*CD, H2D, stream));
-    CUDA_CHECK( cudaStreamSynchronize(stream) );
+    CUDA_CHECK(cudaMemcpyAsync(d_r0, reinterpret_cast<const CuC*>(b.data()), N*CD, H2D, stream));
 
-    solveAsync<N>(d_x, d_r, tol, maxiter);
-    CUDA_CHECK( cudaStreamSynchronize(stream) );
+    solveAsync<N>(d_x, d_r0, tol, maxiter);
 
     CUDA_CHECK(cudaMemcpyAsync(reinterpret_cast<CuC*>(x.data()), d_x, N*CD, D2H, stream));
-    CUDA_CHECK( cudaStreamSynchronize(stream) );
 
-    CUDA_CHECK(cudaFreeAsync(d_x,stream));
-    CUDA_CHECK(cudaFreeAsync(d_r,stream));
     CUDA_CHECK( cudaStreamSynchronize(stream) );
   }
 
@@ -245,7 +267,6 @@ struct MatPoly{
     CUDA_CHECK(cudaMalloc(&d_p, N*CD));
     CUDA_CHECK(cudaMalloc(&d_q, N*CD));
     CUDA_CHECK(cudaMalloc(&d_r, N*CD));
-    CUDA_CHECK(cudaDeviceSynchronize());
     //
     CUDA_CHECK(cudaMemset(d_x, 0, N*CD));
     CUDA_CHECK(cudaMemset(d_q, 0, N*CD));
@@ -309,19 +330,15 @@ struct MatPoly{
   void solveAsync(CuC* d_x, const CuC* d_b,
                   const double tol=1.0e-13, const int maxiter=1e8) const {
     // CG
-    CuC *d_p, *d_q, *d_r;
-    CUDA_CHECK(cudaMallocAsync(&d_p, N*CD, stream));
-    CUDA_CHECK(cudaMallocAsync(&d_q, N*CD, stream));
-    CUDA_CHECK(cudaMallocAsync(&d_r, N*CD, stream));
-    CUDA_CHECK( cudaStreamSynchronize(stream) );
-    //
+    assert(istream>=0);
+    CuC *d_p = d_MemorySets[istream].d_p;
+    CuC *d_q = d_MemorySets[istream].d_q;
+    CuC *d_r = d_MemorySets[istream].d_r;
+
     CUDA_CHECK(cudaMemsetAsync(d_x, 0, N*CD, stream));
     CUDA_CHECK(cudaMemsetAsync(d_q, 0, N*CD, stream));
     CUDA_CHECK(cudaMemcpyAsync(d_r, d_b, N*CD, D2D, stream));
-    CUDA_CHECK( cudaStreamSynchronize(stream) );
-
     CUDA_CHECK(cudaMemcpyAsync(d_p, d_r, N*CD, D2D, stream));
-    CUDA_CHECK( cudaStreamSynchronize(stream) );
 
     double mu, b_norm_sq;
     this->dot2selfAsync<N>(&mu, d_r);
@@ -342,7 +359,6 @@ struct MatPoly{
       int k=0;
       for(; k<maxiter; ++k){
 	this->on_gpuAsync<N>(d_q, d_p);
-        CUDA_CHECK( cudaStreamSynchronize(stream) );
 
         CuC gam;
         this->dotAsync<N>(&gam, d_p, d_q);
@@ -351,7 +367,6 @@ struct MatPoly{
         const CuC al = mu/gam;
         Taxpy<CuC,N><<<NBlocks, NThreadsPerBlock, 0, stream>>>(d_x, al, d_p, d_x);
         Taxpy<CuC,N><<<NBlocks, NThreadsPerBlock, 0, stream>>>(d_r, -al, d_q, d_r);
-        CUDA_CHECK( cudaStreamSynchronize(stream) ); // @@@
 
 	this->dot2selfAsync<N>(&mu, d_r);
         CUDA_CHECK( cudaStreamSynchronize(stream) );
@@ -375,11 +390,6 @@ struct MatPoly{
       std::clog << "SOLVER:       mu =         " << mu << std::endl;
 #endif
     }
-
-    CUDA_CHECK(cudaFreeAsync(d_r, stream));
-    CUDA_CHECK(cudaFreeAsync(d_p, stream));
-    CUDA_CHECK(cudaFreeAsync(d_q, stream));
-    CUDA_CHECK( cudaStreamSynchronize(stream) );
   }
 
 

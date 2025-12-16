@@ -214,8 +214,8 @@ int main(int argc, char* argv[]){
   // Op.push_back ( cplx(1.0), {&M_Op} );
 
 #ifdef IS_DUAL
-  // const double M5 = -1.5;
   const double M5 = -1.0;
+  // const double M5 = -1.0;
 #else
   const double M5 = -1.0;
 #endif

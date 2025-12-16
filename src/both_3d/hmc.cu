@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <thread>
 #include <chrono>
 
 
@@ -62,7 +63,7 @@ namespace Comp{
 #ifdef IS_OVERLAP
   constexpr int NPARALLEL_DUPDATE=4;
   constexpr int NPARALLEL=4; // 12
-  constexpr int NSTREAMS=1; // 4
+  constexpr int NSTREAMS=4; // 4
 #else
   constexpr int NPARALLEL_DUPDATE=12;
   constexpr int NPARALLEL=1; // 12
@@ -145,13 +146,32 @@ int main(int argc, char* argv[]){
   if(argc>3) nu0 = atof(argv[3]);
   std::cout << "# gsq = " << gsq << " Nf = " << Nf << " nu0 = " << nu0 << std::endl;
 
-  int device;
-  CUDA_CHECK(cudaGetDeviceCount(&device));
-  cudaDeviceProp device_prop[device];
-  cudaGetDeviceProperties(&device_prop[0], 0);
-  std::cout << "# dev = " << device_prop[0].name << std::endl;
+  // int device;
+  // CUDA_CHECK(cudaGetDeviceCount(&device));
+  // cudaDeviceProp device_prop[device];
+  // cudaGetDeviceProperties(&device_prop[0], 0);
+  // std::cout << "# dev = " << device_prop[0].name << std::endl;
   // CUDA_CHECK(cudaSetDevice(0));// "TITAN V"
-  std::cout << "# (GPU device is set.)" << std::endl;
+  // std::cout << "# (GPU device is set.)" << std::endl;
+
+  // cudaMemPool_t mempool;
+  // // cudaDeviceGetDefaultMemPool(&mempool, 0);
+  // cudaMemPoolProps poolProps;
+  // poolProps.maxSize = 1000000;
+  // cudaMemPoolCreate ( &mempool, &poolProps );
+
+  // cudaMemPool_t memPool;
+  // CUDA_CHECK( cudaDeviceGetMemPool(&memPool, 0) );
+  // constexpr size_t minBytesToKeep = 1000;
+  // CUDA_CHECK( cudaMemPoolTrimTo( memPool, minBytesToKeep ) );
+  // size_t setVal = UINT64_MAX;
+  // cudaMemPoolSetAttribute(memPool, cudaMemPoolAttrReleaseThreshold, &setVal);
+
+  // cudaDeviceSetMemPool( 0, mempool );
+  // cudaMemSetMemPool;
+  // std::cout << "# (mempool is set.)" << std::endl;
+
+  for(int i=0; i<Comp::NSTREAMS; i++) d_MemorySets[i].allocate();
 
   // ---------------------------------------
   using BaseLink = std::array<Idx,2>; // <int,int>;
@@ -190,7 +210,6 @@ int main(int argc, char* argv[]){
   // const double T = 24;
   const double at = 0.2; // T/Comp::Nt;
   assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
-  
   WilsonDirac DW(base, 0.0, 1.0, M5, at, nu0);
 
 
@@ -202,6 +221,7 @@ int main(int argc, char* argv[]){
 
   // ---------------------
 
+  // HERE
 #ifdef IS_OVERLAP
   Fermion D(DW, 21);
   std::cout << "# Dov set; M5 = " << M5 << std::endl;
@@ -228,38 +248,96 @@ int main(int argc, char* argv[]){
   std::vector<std::shared_ptr<PseudoFermion<Fermion>>> pfs;
   assert(Nf%2==0);
   for(int f=0; f<Nf/2; f++) pfs.push_back( std::shared_ptr<PseudoFermion<Fermion>>( new PseudoFermion<Fermion>(D) ) );
-  // for(auto pf : pfs) pf->PseudoFermion( D );
-  //if(Comp::Nf>=2){
-
-  // std::vector<PseudoFermion<Fermion>, Nf> pfs(D);
-
-// #ifdef Nf2
-//   PseudoFermion pf1(D);
-//   pfs.push_back(&pf1);
-// #else
-// #ifdef Nf4
-//   PseudoFermion pf1(D);
-//   pfs.push_back(&pf1);
-//   PseudoFermion pf2(D);
-//   pfs.push_back(&pf2);
-// #else
-// #ifdef Nf6
-//   PseudoFermion pf1(D);
-//   pfs.push_back(&pf1);
-//   PseudoFermion pf2(D);
-//   pfs.push_back(&pf2);
-//   PseudoFermion pf3(D);
-//   pfs.push_back(&pf3);
-// #else
-//   static_assert(false, "inappropriate Nf");
-// #endif
-// #endif
-// #endif
-  // }
-  // if(Comp::Nf>=4){
-  // }
 
   Timer timer;
+
+
+
+
+
+  // -----------------// -----------------// -----------------// -----------------// -----------------
+
+  std::string dir3;
+  dir3="Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
+  std::filesystem::create_directory(dir3);
+  const int k_ckpoint=1;
+  const int kmax=3; // @@@@
+  // const int kmax=2;
+
+  int k_tmp=1;
+  {
+    // for(k_tmp=k_ckpoint; k_tmp<=kmax; k_tmp+=k_ckpoint ){
+    //   const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k_tmp);
+    //   const std::string str_rng=dir3+"ckpoint_rng."+std::to_string(k_tmp);
+
+    //   const bool bool_lat = std::filesystem::exists(str_lat);
+    //   const bool bool_rng = std::filesystem::exists(str_rng);
+
+    //   if(!(bool_lat&&bool_rng)) break;
+    // }
+    // k_tmp -= k_ckpoint;
+
+    if(k_tmp>0){ // from existing
+      std::cout << "read from k_tmp = " << k_tmp << std::endl;
+      const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k_tmp);
+      const std::string str_rng=dir3+"ckpoint_rng."+std::to_string(k_tmp);
+      U.read( str_lat );
+      rng.read( str_rng );
+    }
+  }
+  std::cout << "#starting from k_tmp = " << k_tmp << std::endl;
+
+
+  Force pi( base );
+  const double tmax = 1.9; // 0.1
+  int nsteps;
+  if(Nf==2) nsteps = 4;
+  else if(Nf==4) nsteps = 5;
+  else if(Nf==6) nsteps = 5;
+  else nsteps = 10;
+  std::cout << "# tmax = " << tmax << std::endl
+            << "# nsteps = " << nsteps << std::endl;
+
+  MinimumNorm2 integrator( tmax, nsteps, 100 );
+  HMC2 hmc(rng, &SW, &D, U, pi, pfs, &integrator);
+  D.update( U );
+
+  double rate, dH;
+  bool is_accept;
+
+  double r_mean;
+  for(int k=k_tmp+1; k<kmax; k++){
+    Timer timer;
+    hmc.run( rate, dH, is_accept);
+    std::cout << "# dH : " << dH
+              << " is_accept : " << is_accept
+              << " rate : " << rate << std::endl;
+    r_mean += rate;
+    std::cout << "# HMC : " << timer.currentSeconds() << " sec" << std::endl;
+
+    if(k%100==0){
+      std::cout << "# k = " << k << std::endl;
+    }
+
+    if(k%k_ckpoint==0){
+      const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k);
+      const std::string str_rng=dir3+"ckpoint_rng."+std::to_string(k);
+      U.ckpoint( str_lat );
+      rng.ckpoint( str_rng );
+    }
+  }
+  r_mean /= kmax;
+  std::cout << "# r_mean = " << r_mean << std::endl;
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(10000));
+  for(int i=0; i<Comp::NSTREAMS; i++) d_MemorySets[i].deallocate();
+
+  return 0;
+
+}
+
+
+
 
 
   // ------------------
@@ -450,123 +528,3 @@ int main(int argc, char* argv[]){
   //   // U *= -1.0;
   //   // std::cout << "# rev. check = " << (U+U0).norm() << std::endl;
   // }
-
-
-
-
-  // -----------------// -----------------// -----------------// -----------------// -----------------
-
-  std::string dir3;
-// #ifdef Nf2
-  dir3="Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
-// #else
-// #ifdef Nf4
-//   dir3="Nf4_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
-// #endif
-// #ifdef Nf6
-//   dir3="Nf6_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
-// #endif
-// #endif
-  std::filesystem::create_directory(dir3);
-  const int k_ckpoint=10;
-  const int kmax=1e5; // @@@@
-  // const int kmax=2;
-
-  int k_tmp=0;
-  {
-    for(k_tmp=k_ckpoint; k_tmp<=kmax; k_tmp+=k_ckpoint ){
-      const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k_tmp);
-      const std::string str_rng=dir3+"ckpoint_rng."+std::to_string(k_tmp);
-
-      const bool bool_lat = std::filesystem::exists(str_lat);
-      const bool bool_rng = std::filesystem::exists(str_rng);
-
-      if(!(bool_lat&&bool_rng)) break;
-    }
-    k_tmp -= k_ckpoint;
-
-    if(k_tmp>0){ // from existing
-      std::cout << "read from k_tmp = " << k_tmp << std::endl;
-      const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k_tmp);
-      const std::string str_rng=dir3+"ckpoint_rng."+std::to_string(k_tmp);
-      U.read( str_lat );
-      rng.read( str_rng );
-    }
-  }
-  std::cout << "#starting from k_tmp = " << k_tmp << std::endl;
-
-
-  Force pi( base );
-  // pi.gaussian( rng );
-  // Force pi0=pi;
-  // Gauge U0=U;
-  // D.update(U);
-  // for(PseudoFermion<Fermion>* pf : pfs){
-  //   pf->gen( rng );
-  //   D.precalc_grad_deviceAsyncLaunch( U, pf->d_eta );
-  // }
-
-  // const double tmax = 1.0; // 0.1
-  const double tmax = 1.9; // 0.1
-  int nsteps;
-  if(Nf==2) nsteps = 4;
-  else if(Nf==4) nsteps = 5;
-  else if(Nf==6) nsteps = 5;
-  else nsteps = 10;
-  std::cout << "# tmax = " << tmax << std::endl
-            << "# nsteps = " << nsteps << std::endl;
-
-  // ExplicitLeapfrogML integrator( tmax, nsteps, 100 );
-  MinimumNorm2 integrator( tmax, nsteps, 100 );
-  // pi = pi0;
-  // U = U0;
-  HMC2 hmc(rng, &SW, &D, U, pi, pfs, &integrator);
-  D.update( U );
-
-  // for(PseudoFermion<Fermion>* pf : pfs){
-  //   pf->gen( rng );
-  //   D.precalc_grad_deviceAsyncLaunch( U, pf->d_eta );
-  // }
-
-  double rate, dH;
-  bool is_accept;
-  // for(int k=k_tmp; k<10; k++){
-  //   Timer timer;
-  //   hmc.run( rate, dH, is_accept, true);
-  //   std::cout << "# dH : " << dH
-  //             << " is_accept : " << is_accept
-  //             << " rate : " << rate << std::endl;
-  //   std::cout << "# HMC : " << timer.currentSeconds() << " sec" << std::endl;
-  // }
-
-  double r_mean;
-  for(int k=k_tmp+1; k<kmax; k++){
-    Timer timer;
-    hmc.run( rate, dH, is_accept);
-    std::cout << "# dH : " << dH
-              << " is_accept : " << is_accept
-              << " rate : " << rate << std::endl;
-    r_mean += rate;
-    std::cout << "# HMC : " << timer.currentSeconds() << " sec" << std::endl;
-
-    if(k%100==0){
-      std::cout << "# k = " << k << std::endl;
-    }
-
-    if(k%k_ckpoint==0){
-      const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k);
-      const std::string str_rng=dir3+"ckpoint_rng."+std::to_string(k);
-      U.ckpoint( str_lat );
-      rng.ckpoint( str_rng );
-    }
-  }
-  r_mean /= kmax;
-  std::cout << "# r_mean = " << r_mean << std::endl;
-
-
-
-  // CUDA_CHECK(cudaDeviceReset());
-  return 0;
-
-}
-
