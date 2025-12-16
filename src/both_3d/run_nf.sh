@@ -8,11 +8,14 @@
 #$ -M nmatsum@bu.edu
 ##### run time limit. format: hh:mm:ss; default 12 hrs
 #### #$ -l h_rt=96:00:00
-#$ -l h_rt=24:00:00
+#$ -l h_rt=12:00:00
+# # #$ -l h_rt=00:10:00
 #$ -l gpus=1
-#$ -l gpu_type=V100
-# #$ -l gpu_c=70
-#$ -pe omp 4
+# #$ -l gpu_type=V100
+#$ -l gpu_c=70
+#$ -pe omp 6
+#$ -l mem_per_core=8G
+#$ -j y
 
 
 
@@ -32,13 +35,14 @@ echo "=========================================================="
 
 #-------------#
 
-module load gcc/13.2.0
-module load cuda/12.5
+source /projectnb/qfe/nmatsum/qed3/env.sh
+# module load gcc/13.2.0
+# module load cuda/12.5
 
 #------- Program execution -------#
-
 echo "running program"
 pwd
-echo ${app} ${SGE_TASK_ID}
+echo ${app}
 ${app} ${gsq} ${Nf} ${nu0} # ${mult} ${binsize}
+echo "end date : $(date)"
 echo "finished"

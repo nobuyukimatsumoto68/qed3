@@ -60,9 +60,9 @@ namespace Comp{
 
   // d_DW.update() is always done independently
 #ifdef IS_OVERLAP
-  constexpr int NPARALLEL_DUPDATE=1;
+  constexpr int NPARALLEL_DUPDATE=4;
   constexpr int NPARALLEL=4; // 12
-  constexpr int NSTREAMS=4; // 4
+  constexpr int NSTREAMS=1; // 4
 #else
   constexpr int NPARALLEL_DUPDATE=12;
   constexpr int NPARALLEL=1; // 12
