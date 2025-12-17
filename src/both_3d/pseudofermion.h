@@ -40,7 +40,7 @@ struct PseudoFermion {
 
     CuC *d_xi;
     CUDA_CHECK(cudaMalloc(&d_xi, N*CD));
-    CUDA_CHECK(cudaMemcpy(d_xi, reinterpret_cast<const CuC*>(xi), N*CD, H2D));
+    CUDA_CHECK(cudaMemcpy(d_xi, xi, N*CD, H2D));
 
     D.adj_deviceAsyncLaunch( d_phi, d_xi );
     CUDA_CHECK(cudaFree(d_xi));

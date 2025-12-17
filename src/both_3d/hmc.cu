@@ -41,7 +41,7 @@ static constexpr Complex I = Complex(0.0, 1.0);
 
 // #define IsVerbose
 // #define IsVerbose2
-#define InfoForce
+// #define InfoForce
 #define InfoDelta
 
 

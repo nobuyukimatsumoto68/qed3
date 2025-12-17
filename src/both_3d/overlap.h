@@ -210,7 +210,9 @@ struct Overlap : public Zolotarev {
   }
 
   void compute_lambda_max( const double TOL=1.0e-8, const int MAXITER=500 ) {
-    std::vector<Complex> q(N, 0.0);
+    Complex* q;
+    CUDA_CHECK( cudaMallocHost( &q, N*CD ) );
+    memset(q, 0, N*CD);
 
     q[0] = std::sqrt(1.0/2.0);
     q[1] = std::sqrt(1.0/2.0);
@@ -221,7 +223,7 @@ struct Overlap : public Zolotarev {
     CuC *d_x, *d_q;
     CUDA_CHECK(cudaMalloc(&d_x, N*CD));
     CUDA_CHECK(cudaMalloc(&d_q, N*CD));
-    CUDA_CHECK(cudaMemcpy(d_q, reinterpret_cast<const CuC*>(q.data()), N*CD, H2D));
+    CUDA_CHECK(cudaMemcpy(d_q, q, N*CD, H2D));
 
     Complex dot;
     double norm=1.0, mu_0=1.0, mu_m1=1.0, mu_m2=1.0;
@@ -253,7 +255,7 @@ struct Overlap : public Zolotarev {
       }
     }
 
-    CUDA_CHECK(cudaMemcpy(d_q, reinterpret_cast<const CuC*>(q.data()), N*CD, H2D));
+    CUDA_CHECK(cudaMemcpy(d_q, q, N*CD, H2D));
     double lambda2=100.0, lambda2_old=1000.0;
 
     for(int i=0; i<MAXITER; i++){
@@ -286,6 +288,7 @@ struct Overlap : public Zolotarev {
 
     CUDA_CHECK(cudaFree(d_x));
     CUDA_CHECK(cudaFree(d_q));
+    CUDA_CHECK(cudaFreeHost(q));
 
     // lambda_min = std::min( lambda_min, std::sqrt( std::abs((1.0-100*TOL)/lambda2) ));
     // lambda_max = std::max( lambda_max, std::sqrt( std::abs((1.0+100*TOL)*lambda) ));

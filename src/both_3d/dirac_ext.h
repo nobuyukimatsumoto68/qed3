@@ -121,7 +121,7 @@ public:
 
 
   template<typename Gauge>
-  void coo_format( std::vector<Complex>& v,
+  void coo_format( Complex* v,
 		   const Gauge& u ) const {
     const Idx Nx = Comp::Nx;
     const int Nt = Comp::Nt;
@@ -129,7 +129,9 @@ public:
 // #ifdef _OPENMP
 // #pragma omp parallel for num_threads(Comp::NPARALLEL_DUPDATE)
 // #endif
-    for(Idx i=0; i<v.size(); i++) v[i] = 0.0;
+    const Idx len = 4*lattice.counter_accum.back()*Nt + 8*lattice.n_sites*Nt + 4*lattice.n_sites*Nt;
+    // for(Idx i=0; i<v.size(); i++) v[i] = 0.0;
+    memset(v, 0, len*CD); // @@@!!!!!!
 
 
 #ifdef _OPENMP
@@ -213,6 +215,101 @@ public:
       }
     }
   }
+
+
+//     template<typename Gauge>
+//   void coo_format( std::vector<Complex>& v,
+// 		   const Gauge& u ) const {
+//     const Idx Nx = Comp::Nx;
+//     const int Nt = Comp::Nt;
+
+// // #ifdef _OPENMP
+// // #pragma omp parallel for num_threads(Comp::NPARALLEL_DUPDATE)
+// // #endif
+//     for(Idx i=0; i<v.size(); i++) v[i] = 0.0;
+
+
+// #ifdef _OPENMP
+// #pragma omp parallel for num_threads(Comp::NPARALLEL_DUPDATE)  schedule(static)
+// #endif
+//     for(int s=0; s<Nt; s++){
+//       for(Idx ix=0; ix<lattice.n_sites; ix++){
+//         Idx counter = 4*lattice.counter_accum.back()*s + 4*lattice.counter_accum[ix];
+//         for(const Idx iy : lattice.nns[ix]){
+//           const Idx il = lattice.map2il.at(BaseLink{ix,iy});
+
+//           const MS tmp = 0.5 * bd.kappa[il] * ( -r * sigma[0] + bd.gamma(ix, iy) ) * std::exp( I*u.sp(s,BaseLink{ix,iy})) * bd.Omega(ix, iy);
+//           // const MS tmp2 = 0.5 * bd.kappa[il] * ( -r * sigma[0] + bd.gamma(iy, ix) ) * std::exp( I*u.sp(s,BaseLink{iy,ix})) * bd.Omega(iy, ix);
+//           // const MS tmp = 0.5*(tmp1 + tmp2.adjoint());
+
+//           // res[NS*ix] += -tmp(0,0)*v[NS*iy] - tmp(0,1)*v[NS*iy+1];
+//           v[counter] = tmp(0,0); counter++;
+//           v[counter] = tmp(0,1); counter++;
+
+//           // res[NS*ix+1] += -tmp(1,0)*v[NS*iy] - tmp(1,1)*v[NS*iy+1];
+//           v[counter] = tmp(1,0); counter++;
+//           v[counter] = tmp(1,1); counter++;
+//         }
+//       }
+//     }
+
+
+// #ifdef _OPENMP
+// #pragma omp parallel for num_threads(Comp::NPARALLEL_DUPDATE) schedule(static)
+// #endif
+//     for(int s=0; s<Nt; s++){
+//       int signP = 1;
+//       int signM = 1;
+//       if(s==Nt-1) signP = -1;
+//       if(s==0) signM = -1;
+
+//       for(Idx ix=0; ix<lattice.n_sites; ix++){
+//         Idx counter = 4*lattice.counter_accum.back()*Nt + 8*(lattice.n_sites*s + ix);
+
+//         // const MS tmpP = 0.5 * signP * kappa_t[ix] * ( -r*sigma[0] + sigma[3] ) * std::exp( I*u.tp(s,ix) );
+//         // const MS tmpM = 0.5 * signM * kappa_t[ix] * ( -r*sigma[0] - sigma[3] ) * std::exp( -I*u.tp(s-1,ix) );
+
+//         const MS tmpP = 0.5 * signP * kappa_t[ix] * ( -r*sigma[0] - sigma[3] ) * std::exp( -I*u.tp(s,ix) );
+//         const MS tmpM = 0.5 * signM * kappa_t[ix] * ( -r*sigma[0] + sigma[3] ) * std::exp( I*u.tp(s-1,ix) );
+
+
+//         v[counter] = tmpP(0,0); counter++;
+//         v[counter] = tmpP(0,1); counter++;
+//         v[counter] = tmpM(0,0); counter++;
+//         v[counter] = tmpM(0,1); counter++;
+
+//         v[counter] = tmpP(1,0); counter++;
+//         v[counter] = tmpP(1,1); counter++;
+//         v[counter] = tmpM(1,0); counter++;
+//         v[counter] = tmpM(1,1); counter++;
+//       }
+//     }
+
+
+// #ifdef _OPENMP
+// #pragma omp parallel for num_threads(Comp::NPARALLEL_DUPDATE) schedule(static)
+// #endif
+//     for(int s=0; s<Nt; s++){
+//       for(Idx ix=0; ix<lattice.n_sites; ix++){
+//         double coeff = 0.0;
+//         for(const Idx iy : lattice.nns[ix]){
+//           const Idx il = lattice.map2il.at(BaseLink{ix,iy});
+//           coeff += 0.5 * r*bd.kappa[il];
+//         }
+//         coeff += r*kappa_t[ix];
+//         coeff += M5;
+
+//         Idx counter = 4*lattice.counter_accum.back()*Nt + 8*lattice.n_sites*Nt + 4*(lattice.n_sites*s + ix);
+//         const MS tmp2 = coeff * sigma[0];
+
+//         v[counter] = tmp2(0,0); counter++;
+//         v[counter] = tmp2(0,1); counter++;
+
+//         v[counter] = tmp2(1,0); counter++;
+//         v[counter] = tmp2(1,1); counter++;
+//       }
+//     }
+//   }
 
 
   void volume_matrix( std::vector<COOEntry>& elem, const double pow ) const {

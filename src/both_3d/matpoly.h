@@ -86,19 +86,19 @@ struct MatPoly{
   }
 
 
-  template<Idx N>
-  void from_cpu( std::vector<Complex>& v, const std::vector<Complex>& v0 ) const {
-    CuC *d_v, *d_v0;
-    CUDA_CHECK(cudaMalloc(&d_v, N*CD));
-    CUDA_CHECK(cudaMalloc(&d_v0, N*CD));
-    CUDA_CHECK(cudaMemcpy(d_v0, reinterpret_cast<const CuC*>(v0.data()), N*CD, H2D));
+  // template<Idx N>
+  // void from_cpu( std::vector<Complex>& v, const std::vector<Complex>& v0 ) const {
+  //   CuC *d_v, *d_v0;
+  //   CUDA_CHECK(cudaMalloc(&d_v, N*CD));
+  //   CUDA_CHECK(cudaMalloc(&d_v0, N*CD));
+  //   CUDA_CHECK(cudaMemcpy(d_v0, reinterpret_cast<const CuC*>(v0.data()), N*CD, H2D));
 
-    on_gpu<N>( d_v, d_v0 );
+  //   on_gpu<N>( d_v, d_v0 );
 
-    CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(v.data()), d_v, N*CD, D2H));
-    CUDA_CHECK(cudaFree(d_v));
-    CUDA_CHECK(cudaFree(d_v0));
-  }
+  //   CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(v.data()), d_v, N*CD, D2H));
+  //   CUDA_CHECK(cudaFree(d_v));
+  //   CUDA_CHECK(cudaFree(d_v0));
+  // }
 
 
 
@@ -223,39 +223,39 @@ struct MatPoly{
   }
 
 
-  template<Idx N> __host__
-  void solve(std::vector<Complex>& x, const std::vector<Complex>& b,
-             const double tol=1.0e-13, const int maxiter=1e8) const {
-    // CG
-    CuC *d_x, *d_r; // , *d_tmp, *d_tmp2;
-    CUDA_CHECK(cudaMalloc(&d_x, N*CD));
-    CUDA_CHECK(cudaMalloc(&d_r, N*CD));
-    CUDA_CHECK(cudaMemcpy(d_r, reinterpret_cast<const CuC*>(b.data()), N*CD, H2D));
+  // template<Idx N> __host__
+  // void solve(std::vector<Complex>& x, const std::vector<Complex>& b,
+  //            const double tol=1.0e-13, const int maxiter=1e8) const {
+  //   // CG
+  //   CuC *d_x, *d_r; // , *d_tmp, *d_tmp2;
+  //   CUDA_CHECK(cudaMalloc(&d_x, N*CD));
+  //   CUDA_CHECK(cudaMalloc(&d_r, N*CD));
+  //   CUDA_CHECK(cudaMemcpy(d_r, reinterpret_cast<const CuC*>(b.data()), N*CD, H2D));
 
-    solve<N>(d_x, d_r, tol, maxiter);
+  //   solve<N>(d_x, d_r, tol, maxiter);
 
-    CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(x.data()), d_x, N*CD, D2H));
-    CUDA_CHECK(cudaFree(d_x));
-    CUDA_CHECK(cudaFree(d_r));
-  }
+  //   CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(x.data()), d_x, N*CD, D2H));
+  //   CUDA_CHECK(cudaFree(d_x));
+  //   CUDA_CHECK(cudaFree(d_r));
+  // }
 
 
-  template<Idx N> __host__
-  void solveAsync(std::vector<Complex>& x, const std::vector<Complex>& b,
-             const double tol=1.0e-13, const int maxiter=1e8) const {
-    // CG
-    assert(istream>=0);
-    CuC *d_x = d_MemorySets[istream].d_x;
-    CuC *d_r0 = d_MemorySets[istream].d_r0;
+  // template<Idx N> __host__
+  // void solveAsync(std::vector<Complex>& x, const std::vector<Complex>& b,
+  //            const double tol=1.0e-13, const int maxiter=1e8) const {
+  //   // CG
+  //   assert(istream>=0);
+  //   CuC *d_x = d_MemorySets[istream].d_x;
+  //   CuC *d_r0 = d_MemorySets[istream].d_r0;
 
-    CUDA_CHECK(cudaMemcpyAsync(d_r0, reinterpret_cast<const CuC*>(b.data()), N*CD, H2D, stream));
+  //   CUDA_CHECK(cudaMemcpyAsync(d_r0, reinterpret_cast<const CuC*>(b.data()), N*CD, H2D, stream));
 
-    solveAsync<N>(d_x, d_r0, tol, maxiter);
+  //   solveAsync<N>(d_x, d_r0, tol, maxiter);
 
-    CUDA_CHECK(cudaMemcpyAsync(reinterpret_cast<CuC*>(x.data()), d_x, N*CD, D2H, stream));
+  //   CUDA_CHECK(cudaMemcpyAsync(reinterpret_cast<CuC*>(x.data()), d_x, N*CD, D2H, stream));
 
-    CUDA_CHECK( cudaStreamSynchronize(stream) );
-  }
+  //   CUDA_CHECK( cudaStreamSynchronize(stream) );
+  // }
 
 
   // necessary for outer loop
