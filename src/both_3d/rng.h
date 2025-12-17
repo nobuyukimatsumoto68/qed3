@@ -111,6 +111,7 @@ struct ParallelRngExt {
   double uniform(){ return master.uniform(); }
 
   double z2_site( const int s, const Idx ix ){ return sites[s][ix].z2(); }
+  Complex CZ2_site( const int s, const Idx ix ){ return 1.0/std::sqrt(2.0) * ( sites[s][ix].z2() + I*sites[s][ix].z2() ); }
 
   void reseed(const int seed) {
     master.reseed(seed);
