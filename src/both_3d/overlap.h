@@ -203,7 +203,7 @@ struct Overlap : public Zolotarev {
     d_DW.update( U );
     compute_lambda_max();
     Zolotarev::update(lambda_min/lambda_max);
-#ifdef InfoDelta
+    #ifdef InfoDelta
     std::clog << "# Delta : " << Delta() << std::endl;
 #endif
     is_precalc = false;
@@ -278,6 +278,7 @@ struct Overlap : public Zolotarev {
       if(std::abs(lambda2_old-lambda2)/std::abs(lambda2)<TOL) {
 #ifdef IsVerbose
 	std::clog << "# lambda_min estimate escaped in i = " << i << std::endl;
+        std::clog << lambda << " " << lambda2 << std::endl;
 #endif
 	break;
       }
@@ -286,8 +287,10 @@ struct Overlap : public Zolotarev {
     CUDA_CHECK(cudaFree(d_x));
     CUDA_CHECK(cudaFree(d_q));
 
-    lambda_min = std::sqrt( (1.0-100*TOL)/lambda2 );
-    lambda_max = std::sqrt( (1.0+100*TOL)*lambda );
+    // lambda_min = std::min( lambda_min, std::sqrt( std::abs((1.0-100*TOL)/lambda2) ));
+    // lambda_max = std::max( lambda_max, std::sqrt( std::abs((1.0+100*TOL)*lambda) ));
+    lambda_min = std::sqrt( std::abs((1.0-100*TOL)/lambda2) );
+    lambda_max = std::sqrt( std::abs((1.0+100*TOL)*lambda) );
   }
 
 

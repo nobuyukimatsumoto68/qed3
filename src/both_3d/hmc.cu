@@ -35,24 +35,13 @@ static constexpr int NS = 2;
 static constexpr int DIM = 2;
 static constexpr Complex I = Complex(0.0, 1.0);
 
-// #define Nf2
-// const int nsteps=4; // changed from 20 nov 20
-// #define Nf4
-// const int nsteps=6; // changed from 20 nov 20
-// #define Nf6
-// const int nsteps=8; // changed from 20 nov 20
-
-// const double gsq = 0.1;
-// const double gsq = 0.5;
-// const double gsq = 1.0;
-// const double gsq = 2.0;
-
 
 // #define IS_DUAL
 #define IS_OVERLAP
 
 // #define IsVerbose
-// #define InfoForce
+// #define IsVerbose2
+#define InfoForce
 #define InfoDelta
 
 
@@ -100,7 +89,7 @@ const std::string dir = "../../dats/";
 #include "timer.h"
 
 #include "s2n_simp.h"
-#include "s2n_dual.h"
+// #include "s2n_dual.h"
 #include "rng.h"
 #include "valence.h"
 #include "gauge_ext.h"
@@ -119,12 +108,12 @@ using CuC = cuDoubleComplex;
 #include "sparse_matrix.h"
 
 #include "dirac_simp.h"
-#include "dirac_dual.h"
+// #include "dirac_dual.h"
 #include "dirac_ext.h"
 
 #include "sparse_dirac.h"
 #include "matpoly.h"
-#include "dirac_pf.h"
+// #include "dirac_pf.h"
 #include "overlap.h"
 #include "pseudofermion.h"
 
@@ -146,30 +135,6 @@ int main(int argc, char* argv[]){
   if(argc>3) nu0 = atof(argv[3]);
   std::cout << "# gsq = " << gsq << " Nf = " << Nf << " nu0 = " << nu0 << std::endl;
 
-  // int device;
-  // CUDA_CHECK(cudaGetDeviceCount(&device));
-  // cudaDeviceProp device_prop[device];
-  // cudaGetDeviceProperties(&device_prop[0], 0);
-  // std::cout << "# dev = " << device_prop[0].name << std::endl;
-  // CUDA_CHECK(cudaSetDevice(0));// "TITAN V"
-  // std::cout << "# (GPU device is set.)" << std::endl;
-
-  // cudaMemPool_t mempool;
-  // // cudaDeviceGetDefaultMemPool(&mempool, 0);
-  // cudaMemPoolProps poolProps;
-  // poolProps.maxSize = 1000000;
-  // cudaMemPoolCreate ( &mempool, &poolProps );
-
-  // cudaMemPool_t memPool;
-  // CUDA_CHECK( cudaDeviceGetMemPool(&memPool, 0) );
-  // constexpr size_t minBytesToKeep = 1000;
-  // CUDA_CHECK( cudaMemPoolTrimTo( memPool, minBytesToKeep ) );
-  // size_t setVal = UINT64_MAX;
-  // cudaMemPoolSetAttribute(memPool, cudaMemPoolAttrReleaseThreshold, &setVal);
-
-  // cudaDeviceSetMemPool( 0, mempool );
-  // cudaMemSetMemPool;
-  // std::cout << "# (mempool is set.)" << std::endl;
 
   for(int i=0; i<Comp::NSTREAMS; i++) d_MemorySets[i].allocate();
 
@@ -260,22 +225,23 @@ int main(int argc, char* argv[]){
   std::string dir3;
   dir3="Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
   std::filesystem::create_directory(dir3);
-  const int k_ckpoint=1;
-  const int kmax=3; // @@@@
+  // const int k_ckpoint=1;
+  const int k_ckpoint=10;
+  const int kmax=1e4; // @@@@
   // const int kmax=2;
 
-  int k_tmp=1;
+  int k_tmp=0;
   {
-    // for(k_tmp=k_ckpoint; k_tmp<=kmax; k_tmp+=k_ckpoint ){
-    //   const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k_tmp);
-    //   const std::string str_rng=dir3+"ckpoint_rng."+std::to_string(k_tmp);
+    for(k_tmp=k_ckpoint; k_tmp<=kmax; k_tmp+=k_ckpoint ){
+      const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k_tmp);
+      const std::string str_rng=dir3+"ckpoint_rng."+std::to_string(k_tmp);
 
-    //   const bool bool_lat = std::filesystem::exists(str_lat);
-    //   const bool bool_rng = std::filesystem::exists(str_rng);
+      const bool bool_lat = std::filesystem::exists(str_lat);
+      const bool bool_rng = std::filesystem::exists(str_rng);
 
-    //   if(!(bool_lat&&bool_rng)) break;
-    // }
-    // k_tmp -= k_ckpoint;
+      if(!(bool_lat&&bool_rng)) break;
+    }
+    k_tmp -= k_ckpoint;
 
     if(k_tmp>0){ // from existing
       std::cout << "read from k_tmp = " << k_tmp << std::endl;
