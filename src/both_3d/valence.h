@@ -59,19 +59,19 @@ struct FermionVector {
 
   // GaugeForce & operator=(const GaugeForce&) = delete;
 
-  Complex operator()(const Idx ix, const int i) const { return field[NS*ix+i]; }
-  Complex& operator()(const Idx ix, const int i) { return field[NS*ix+i]; }
+  // Complex operator()(const Idx ix, const int i) const { return field[NS*ix+i]; }
+  // Complex& operator()(const Idx ix, const int i) { return field[NS*ix+i]; }
 
   Complex operator()(const int s, const Idx ix, const int i) const { return field[Comp::Nx*s+NS*ix+i]; }
   Complex& operator()(const int s, const Idx ix, const int i) { return field[Comp::Nx*s+NS*ix+i]; }
 
-  void set_pt_source(const Idx ix, const int i) {
-    // for(auto& elem : field) elem = 0.0;
-    memset(field, 0, Comp::N*CD);
-    // field(ix, i) = rng.z2_site( ix ) + I*rng.z2_site( ix );
-    // field(ix, i) /= std::sqrt(2.0);
-    (*this)(ix, i) = 1.0;
-  }
+  // void set_pt_source(const Idx ix, const int i) {
+  //   // for(auto& elem : field) elem = 0.0;
+  //   memset(field, 0, Comp::N*CD);
+  //   // field(ix, i) = rng.z2_site( ix ) + I*rng.z2_site( ix );
+  //   // field(ix, i) /= std::sqrt(2.0);
+  //   (*this)(0, ix, i) = 1.0;
+  // }
 
   void set_pt_source(const int s, const Idx ix, const int i) {
     // for(auto& elem : field) elem = 0.0;
@@ -101,9 +101,26 @@ struct FermionVector {
         }}}
   }
 
+  template <typename Rng>
+  void fill_z2_wall_source(Rng& rng, const int s) {
+    memset(field, 0, Comp::N*CD);
+    for(Idx ix=0; ix<rng.lattice.n_sites; ix++){
+      for(int i=0; i<2; i++){
+        (*this)(s, ix, i) = rng.CZ2_site( s, ix );
+      }}
+  }
 
   void gauge_trsf(const FermionVector& gauge, const double sign=1.0) {
     for(Idx i=0; i<Comp::N; i++) field[i] *= std::exp( sign*I*gauge.field[i] );
+  }
+
+  VC slice( const int s ) const {
+    VC res = VC::Zero( Comp::Nx );
+    for(Idx ix=0; ix<Comp::N_SITES; ix++){
+      for(int i=0; i<2; i++){
+        res[NS*ix+i] = (*this)(s, ix, i);
+      }}
+    return res;
   }
 
 
