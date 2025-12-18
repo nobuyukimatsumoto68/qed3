@@ -47,15 +47,15 @@ namespace Comp{
   constexpr int NPARALLEL_DUPDATE=1;
   // constexpr int NPARALLEL=12; // 12
   // constexpr int NSTREAMS=4; // 4
-  constexpr int NPARALLEL=4; // 12
-  constexpr int NSTREAMS=4; // 4
+  constexpr int NPARALLEL=1; // 12
+  constexpr int NSTREAMS=1; // 4
 #else
   constexpr int NPARALLEL_DUPDATE=12;
   constexpr int NPARALLEL=1; // 12
   constexpr int NSTREAMS=12; // for grad loop
 #endif
-  constexpr int NPARALLEL_GAUGE=4; // 12
-  constexpr int NPARALLEL_SORT=4; // 12
+  constexpr int NPARALLEL_GAUGE=1; // 12
+  constexpr int NPARALLEL_SORT=1; // 12
 
   constexpr int N_REFINE=1;
   constexpr int NS=2;
@@ -101,9 +101,7 @@ const std::string dir = "../../dats/";
 #include "s2n_simp.h"
 #include "s2n_dual.h"
 #include "rng.h"
-#include "valence.h"
-#include "gauge_ext.h"
-#include "action_ext.h"
+
 
 #include <cuComplex.h>
 #include <cuda_runtime.h>
@@ -112,6 +110,12 @@ const std::string dir = "../../dats/";
 #include <cusolverDn.h>
 using CuC = cuDoubleComplex;
 #include "gpu_header.h"
+
+
+
+#include "valence.h"
+#include "gauge_ext.h"
+#include "action_ext.h"
 
 // ======================================
 
@@ -126,7 +130,7 @@ using CuC = cuDoubleComplex;
 #include "sparse_dirac.h"
 #include "matpoly.h"
 
-#include "dirac_pf.h"
+// #include "dirac_pf.h"
 #include "overlap.h"
 
 
@@ -150,6 +154,8 @@ int main(int argc, char* argv[]){
   double nu0 = 1.0;
   if(argc>3) nu0 = atof(argv[3]);
   std::cout << "# gsq = " << gsq << " Nf = " << Nf << " nu0 = " << nu0 << std::endl;
+
+  for(int i=0; i<Comp::NSTREAMS; i++) d_MemorySets[i].allocate();
 
 
   // int igam=0;
@@ -259,7 +265,7 @@ int main(int argc, char* argv[]){
   std::cout << "# D set. " << std::endl;
 #else
   const double M5 = 0.0;
-  WilsonDirac DW(base, 0.0, 1.0, M5, at);
+  WilsonDirac DW(base, 0.0, 1.0, M5, at, nu0);
   std::cout << "# DW set. " << std::endl;
 
   using Fermion=DiracPf<WilsonDirac>;
@@ -585,6 +591,8 @@ int main(int argc, char* argv[]){
 
 
   // ------------------
+
+  for(int i=0; i<Comp::NSTREAMS; i++) d_MemorySets[i].deallocate();
 
 
   return 0;

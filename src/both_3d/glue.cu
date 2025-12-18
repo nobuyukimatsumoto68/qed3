@@ -49,15 +49,15 @@ namespace Comp{
   constexpr int NPARALLEL_DUPDATE=1;
   // constexpr int NPARALLEL=12; // 12
   // constexpr int NSTREAMS=4; // 4
-  constexpr int NPARALLEL=4; // 12
-  constexpr int NSTREAMS=4; // 4
+  constexpr int NPARALLEL=1; // 12
+  constexpr int NSTREAMS=1; // 4
 #else
   constexpr int NPARALLEL_DUPDATE=12;
   constexpr int NPARALLEL=1; // 12
   constexpr int NSTREAMS=12; // for grad loop
 #endif
-  constexpr int NPARALLEL_GAUGE=4; // 12
-  constexpr int NPARALLEL_SORT=4; // 12
+  constexpr int NPARALLEL_GAUGE=1; // 12
+  constexpr int NPARALLEL_SORT=1; // 12
 
   constexpr int N_REFINE=1;
   constexpr int NS=2;
@@ -103,9 +103,6 @@ const std::string dir = "../../dats/";
 #include "s2n_simp.h"
 #include "s2n_dual.h"
 #include "rng.h"
-#include "valence.h"
-#include "gauge_ext.h"
-#include "action_ext.h"
 
 #include <cuComplex.h>
 #include <cuda_runtime.h>
@@ -114,6 +111,12 @@ const std::string dir = "../../dats/";
 #include <cusolverDn.h>
 using CuC = cuDoubleComplex;
 #include "gpu_header.h"
+
+
+
+#include "valence.h"
+#include "gauge_ext.h"
+#include "action_ext.h"
 
 // ======================================
 
@@ -176,10 +179,10 @@ int main(int argc, char* argv[]){
 
 #ifdef IS_DUAL
   using Base=S2Trivalent;
-  using WilsonDirac=DiracExt<Base, DiracS2Dual>;
+  // using WilsonDirac=DiracExt<Base, DiracS2Dual>;
 #else
   using Base=S2Simp;
-  using WilsonDirac=DiracExt<Base, DiracS2Simp>;
+  // using WilsonDirac=DiracExt<Base, DiracS2Simp>;
 #endif
 
   using Force=GaugeExt<Base,Nt,Comp::is_compact>;
