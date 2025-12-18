@@ -1,0 +1,3 @@
+rsync -avzuh --progress nmatsum@scc1.bu.edu:/projectnb/qfe/nmatsum/qed3/src/both_3d/Nf6_gsq4.000000at0.200000nu01.200000nt96L1 ./
+# rsync -avzuh --progress nmatsum@scc1.bu.edu:/projectnb/qfe/nmatsum/qed3/src/both_3d/Nf6_gsq4.000000at0.200000nu01.000000nt96L1 ./
+# rsync -avzuh --progress nmatsum@scc1.bu.edu:/projectnb/qfe/nmatsum/qed3/src/both_3d/Nf6_gsq4.000000at0.200000nu01.000000nt96L1 ./

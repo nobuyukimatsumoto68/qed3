@@ -156,8 +156,10 @@ int main(int argc, char* argv[]){
   double nu1 = 1.0;
   if(argc>4) nu1 = atof(argv[4]);
   int nhits = 1;
-  if(argc>5) nu1 = atoi(argv[5]);
-  std::cout << "# gsq = " << gsq << " Nf = " << Nf << " nu0 = " << nu0 << " nu1 = " << nu1 << std::endl;
+  if(argc>5) nhits = atoi(argv[5]);
+  int dt = 24;
+  if(argc>6) dt = atoi(argv[6]);
+  std::cout << "# gsq = " << gsq << " Nf = " << Nf << " nu0 = " << nu0 << " nu1 = " << nu1 << " nhits = " << nhits << " dt = " << dt << std::endl;
 
   for(int i=0; i<Comp::NSTREAMS; i++) d_MemorySets[i].allocate();
 
@@ -341,32 +343,32 @@ int main(int argc, char* argv[]){
     U.read( str_lat );
     D.update( U );
 
-    const int t0=0;
-    // for(int t0=0; t0<Comp::Nt; t0++){
-    for(int h=0; h<nhits; h++){
-      src.fill_z2_wall_source( rng, t0 );
+    // const int t0=0;
+    for(int t0=0; t0<Comp::Nt; t0+=dt){
+      for(int h=0; h<nhits; h++){
+        src.fill_z2_wall_source( rng, t0 );
 
-      op_DH.from_cpu<N>( DHsrc.field, src.field );
-      op_DHD.solve<N>( Dinv.field, DHsrc.field );
+        op_DH.from_cpu<N>( DHsrc.field, src.field );
+        op_DHD.solve<N>( Dinv.field, DHsrc.field );
 
-      int igam=0;
-      const std::string path=dir4+"meson_"+std::to_string(igam)+"_h"+std::to_string(h)+"_corr."+std::to_string(k);
-      std::ofstream ofs(path);
-      ofs << std::scientific << std::setprecision(15);
+        int igam=0;
+        const std::string path=dir4+"meson_"+std::to_string(igam)+"_h"+std::to_string(h)+"_t0"+std::to_string(t0)+"_corr."+std::to_string(k);
+        std::ofstream ofs(path);
+        ofs << std::scientific << std::setprecision(15);
 
-      for(Idx s=0; s<Comp::Nt; s++) {
-        // const auto Dinv_s0 = Dinv((t0+s)%Comp::Nt,iy,0);
-        // const auto Dinv_s1 = Dinv((t0+s)%Comp::Nt,iy,1);
-        VC Dinv_sO = Dinv.slice((t0+s)%Comp::Nt);
-        VC DinvH_sO = Dinv_sO.adjoint(); // << inits in row major way
-        // Complex tr = (DinvH_sO * DW.sigma[igam] * Dinv_sO * DW.sigma[igam] ).trace();
-        Complex tr = DinvH_sO.dot(Dinv_sO);
+        for(Idx s=0; s<Comp::Nt; s++) {
+          // const auto Dinv_s0 = Dinv((t0+s)%Comp::Nt,iy,0);
+          // const auto Dinv_s1 = Dinv((t0+s)%Comp::Nt,iy,1);
+          VC Dinv_sO = Dinv.slice((t0+s)%Comp::Nt);
+          // VC DinvH_sO = Dinv_sO.conjugate(); // << inits in row major way
+          // Complex tr = (DinvH_sO * DW.sigma[igam] * Dinv_sO * DW.sigma[igam] ).trace();
+          Complex tr = Dinv_sO.dot(Dinv_sO);
 
-        // std::cout << s << " " <<  tr.real() << " " << tr.imag() << std::endl;
-        ofs << s << " " <<  tr.real() << " " << tr.imag() << std::endl;
-      }
-    } // end for h
-    // } // end for t0
+          // std::cout << s << " " <<  tr.real() << " " << tr.imag() << std::endl;
+          ofs << s << " " <<  tr.real() << " " << tr.imag() << std::endl;
+        }
+      } // end for h
+    } // end for t0
   } // end for k
 
 
