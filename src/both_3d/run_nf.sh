@@ -1,4 +1,4 @@
-#!/bin/bash -l
+#!/bin/ibash -l
 
 # https://www.bu.edu/tech/support/research/system-usage/running-jobs/submitting-jobs/
 # to submit: qsub script.sh
@@ -11,10 +11,9 @@
 #$ -l h_rt=12:00:00
 # # #$ -l h_rt=00:10:00
 #$ -l gpus=1
-# #$ -l gpu_type=V100
-#$ -l gpu_c=70
-#$ -pe omp 6
-#$ -l mem_per_core=8G
+#$ -l gpu_type=V100
+# #$ -l gpu_c=70
+#$ -pe omp 4
 #$ -j y
 
 

@@ -13,7 +13,7 @@ echo $app
 #     echo $1 $2
 
 
-for gsq in 2.0
+for gsq in 4.0
 do
     for Nf in 2 4 6
     do

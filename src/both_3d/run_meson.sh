@@ -12,7 +12,8 @@
 #$ -l gpus=1
 #$ -l gpu_type=V100
 # #$ -l gpu_c=70
-#$ -pe omp 4
+#$ -pe omp 1
+#$ -j y
 
 
 
@@ -40,5 +41,5 @@ module load cuda/12.5
 echo "running program"
 pwd
 echo ${app} ${SGE_TASK_ID}
-${app} ${gsq} ${Nf} ${igam} # ${mult} ${binsize}
+${app} ${gsq} ${Nf} ${nu0} # ${mult} ${binsize}
 echo "finished"

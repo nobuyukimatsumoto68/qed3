@@ -13,11 +13,12 @@ echo $app
 #     echo $1 $2
 
 
-for gsq in 2.0
+for gsq in 4.0
 do
     for Nf in 2 4 6
     do
-        for nu0 in 0.8 1.0 1.2
+        # for nu0 in 0.8 1.0 1.2
+        for nu0 in 0.8 1.2
         do
             echo $Nf $gsq $nu0
             qsub -N "mesonNf${Nf}gsq${gsq}${nu0}" -v app=${app} -v gsq=${gsq} -v Nf=${Nf} -v nu0=${nu0} run_meson.sh

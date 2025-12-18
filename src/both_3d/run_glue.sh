@@ -9,7 +9,8 @@
 ##### run time limit. format: hh:mm:ss; default 12 hrs
 #### #$ -l h_rt=96:00:00
 #$ -l h_rt=1:00:00
-#$ -pe omp 4
+#$ -pe omp 1
+#$ -j y
 
 
 
