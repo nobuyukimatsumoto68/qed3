@@ -83,7 +83,8 @@ namespace Comp{
   const double TOL_OUTER=1.0e-8;
 
   const int kmax=1e5;
-  constexpr int nsteps=4;
+  // constexpr int nsteps=4;
+  constexpr int nsteps=32;
 
 
 //   // d_DW.update() is always done independently

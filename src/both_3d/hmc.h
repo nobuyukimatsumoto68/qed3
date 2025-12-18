@@ -241,42 +241,42 @@ struct HMCPureGauge {
     Force dSg(U.lattice);
     const double lambda = 0.1931833275037836;
 
+    Sg->get_force( dSg, U );
+#ifdef InfoForce
+    dSg.print2log_norm( "# Sg : " );
+#endif
+    pi += -0.5*tau * ( dSg );
+
+    U += tau * pi;
+
+    Sg->get_force( dSg, U );
+#ifdef InfoForce
+    dSg.print2log_norm( "# Sg : " );
+#endif
+    pi += -0.5*tau * ( dSg );
+
+
 //     Sg->get_force( dSg, U );
 // #ifdef InfoForce
 //     dSg.print2log_norm( "# Sg : " );
 // #endif
-//     pi += -0.5*tau * ( dSg );
+//     pi += -lambda*tau * dSg;
 
-//     U += tau * pi;
+//     U += 0.5 * tau * pi;
 
 //     Sg->get_force( dSg, U );
 // #ifdef InfoForce
 //     dSg.print2log_norm( "# Sg : " );
 // #endif
-//     pi += -0.5*tau * ( dSg );
+//     pi += - (1.0 - 2.0*lambda)*tau * dSg;
 
+//     U += 0.5 * tau * pi;
 
-    Sg->get_force( dSg, U );
-#ifdef InfoForce
-    dSg.print2log_norm( "# Sg : " );
-#endif
-    pi += -lambda*tau * dSg;
-
-    U += 0.5 * tau * pi;
-
-    Sg->get_force( dSg, U );
-#ifdef InfoForce
-    dSg.print2log_norm( "# Sg : " );
-#endif
-    pi += - (1.0 - 2.0*lambda)*tau * dSg;
-
-    U += 0.5 * tau * pi;
-
-    Sg->get_force( dSg, U );
-#ifdef InfoForce
-    dSg.print2log_norm( "# Sg : " );
-#endif
-    pi += -lambda*tau * dSg;
+//     Sg->get_force( dSg, U );
+// #ifdef InfoForce
+//     dSg.print2log_norm( "# Sg : " );
+// #endif
+//     pi += -lambda*tau * dSg;
   }
 
   void integrate() const {

@@ -29,7 +29,7 @@ static constexpr int DIM = 2;
 static constexpr Complex I = Complex(0.0, 1.0);
 
 
-#define IS_DUAL
+// #define IS_DUAL
 #define IS_OVERLAP
 // #define IS_DAGGER
 // #undef _OPENMP
@@ -61,9 +61,9 @@ namespace Comp{
   // constexpr int Nt=24;
   // constexpr int Nt=48; // add 2
   // constexpr int Nt=64;
-  // constexpr int Nt=96; // add 4
+  constexpr int Nt=96; // add 4
   // constexpr int Nt=120;
-  constexpr int Nt=144; // add 8
+  // constexpr int Nt=144; // add 8
   // constexpr int Nt=168;
 
   // constexpr int Nt=24;
@@ -99,9 +99,6 @@ const std::string dir = "../../dats/";
 #include "s2n_simp.h"
 #include "s2n_dual.h"
 #include "rng.h"
-#include "valence.h"
-#include "gauge_ext.h"
-#include "action_ext.h"
 
 #include <cuComplex.h>
 #include <cuda_runtime.h>
@@ -110,6 +107,11 @@ const std::string dir = "../../dats/";
 #include <cusolverDn.h>
 using CuC = cuDoubleComplex;
 #include "gpu_header.h"
+
+#include "valence.h"
+#include "gauge_ext.h"
+#include "action_ext.h"
+
 
 // ======================================
 
@@ -175,9 +177,16 @@ int main(int argc, char* argv[]){
   // ----------------------
   // const double at = 0.5;
   // const double T = 0.2;
-  const double T = 16;
-  const double at = T/Comp::Nt;
+  // const double T = 16;
+  // const double at = T/Comp::Nt;
+  const double at = 0.2;
   if(Nt!=1) assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
+
+  double nu0 = 1.0;
+  if(argc>1) nu0 = atof(argv[1]);
+  std::cout << "# debug. nu0 = " << nu0 << std::endl;
+
+  for(int i=0; i<Comp::NSTREAMS; i++) d_MemorySets[i].allocate();
 
 
   const double gsq = 0.05;
@@ -220,7 +229,7 @@ int main(int argc, char* argv[]){
   const double M5 = -1.0;
 #endif
 
-  WilsonDirac DW(base, 0.0, 1.0, M5, at);
+  WilsonDirac DW(base, 0.0, 1.0, M5, at, nu0);
   std::cout << "# DW set. " << std::endl;
 
   using Fermion=Overlap<WilsonDirac>;
@@ -228,7 +237,7 @@ int main(int argc, char* argv[]){
   std::cout << "# D set. " << std::endl;
 #else
   const double M5 = 0.0;
-  WilsonDirac DW(base, 0.0, 1.0, M5, at);
+  WilsonDirac DW(base, 0.0, 1.0, M5, at, nu0);
   std::cout << "# DW set. " << std::endl;
 
   using Fermion=DiracPf<WilsonDirac>;
@@ -351,7 +360,7 @@ int main(int argc, char* argv[]){
   //#endif
 
   {
-    std::string path = "prop_spacial_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_T"+std::to_string(T)+".dat";
+    std::string path = "prop_spacial_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_at"+std::to_string(at)+"_nu0"+std::to_string(nu0)+".dat";
 #ifdef IS_DUAL
     path = "dual_"+path;
 #endif
@@ -395,7 +404,7 @@ int main(int argc, char* argv[]){
     }
   }
   if(Nt!=1){
-    std::string path = "prop_temporal_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_T"+std::to_string(T)+".dat";
+    std::string path = "prop_temporal_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_at"+std::to_string(at)+"_nu0"+std::to_string(nu0)+".dat";
 #ifdef IS_DUAL
     path = "dual_"+path;
 #endif
@@ -443,6 +452,7 @@ int main(int argc, char* argv[]){
 
   // ------------------
 
+  for(int i=0; i<Comp::NSTREAMS; i++) d_MemorySets[i].deallocate();
 
   return 0;
 

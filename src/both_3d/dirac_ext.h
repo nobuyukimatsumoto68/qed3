@@ -25,11 +25,11 @@ public:
   const double nu0;
 
   DiracExt(Base& lattice_,
-           const double m_=0.0,
-           const double r_=1.0,
-           const double M5_=0.0,
-           const double at_=1.0,
-           const double nu0_=1.0
+           const double m_,
+           const double r_,
+           const double M5_,
+           const double at_,
+           const double nu0_
            )
     : lattice(lattice_)
     , bd(lattice_,m_,r_,M5_)
