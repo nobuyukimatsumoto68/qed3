@@ -48,120 +48,32 @@ static constexpr Complex I = Complex(0.0, 1.0);
 namespace Comp{
   constexpr bool is_compact=false;
 
-  // d_DW.update() is always done independently
+    // d_DW.update() is always done independently
 #ifdef IS_OVERLAP
-  constexpr int NPARALLEL_DUPDATE=1;
-  constexpr int NPARALLEL=12; // 12
+  constexpr int NPARALLEL_DUPDATE=4;
+  constexpr int NPARALLEL=4; // 12
   constexpr int NSTREAMS=4; // 4
 #else
   constexpr int NPARALLEL_DUPDATE=12;
   constexpr int NPARALLEL=1; // 12
   constexpr int NSTREAMS=12; // for grad loop
 #endif
-  // const int kmax=1e2;
+  constexpr int NPARALLEL_GAUGE=4; // 12
+  constexpr int NPARALLEL_SORT=4; // 12
 
-  // gsq = 0.05
-  // constexpr int N_REFINE=1;
-  // const int kmax=2e8;
-  // constexpr int Nt=24; // 10
-  // constexpr int nsteps=12;
-  // constexpr int Nt=32; // 10
-  // constexpr int nsteps=14;
-  // // constexpr int Nt=36; // 10
-  // // constexpr int nsteps=16;
-  // constexpr int Nt=48; // 10
-  // constexpr int nsteps=20;
-
-
-  // constexpr int N_REFINE=2;
-  // const int kmax=1e8;
-  // constexpr int Nt=24; // 10
-  // constexpr int nsteps=22;
-  // constexpr int Nt=32; // 10
-  // constexpr int nsteps=24;
-  // constexpr int Nt=48; // 10
-  // constexpr int nsteps=30;
-
-
-
-  constexpr int N_REFINE=4;
-  const int kmax=1e8;
-  // constexpr int Nt=24; // 10
-  // constexpr int nsteps=52;
-  // constexpr int Nt=32; // 10
-  // constexpr int nsteps=58;
-  // constexpr int Nt=48; // 10
-  // constexpr int nsteps=52;
-  constexpr int Nt=64; // 10
-  constexpr int nsteps=62;
-  // constexpr int Nt=96; // 10
-  // constexpr int nsteps=64;
-  // constexpr int Nt=64; // 10
-  // constexpr int nsteps=62;
-  // constexpr int Nt=96; // 10
-  // constexpr int nsteps=64;
-
-
-
-
-
-  // ----------------
-  // const int kmax=1e2;
-
-  // constexpr int N_REFINE=1;
-  // const int kmax=2e8;
-  // // constexpr int Nt=24; // 10
-  // // constexpr int nsteps=7;
-  // constexpr int Nt=32; // 10
-  // constexpr int nsteps=8;
-
-
-  // constexpr int N_REFINE=2;
-  // const int kmax=1e8;
-  // constexpr int Nt=24; // 10
-  // constexpr int nsteps=10;
-  // constexpr int Nt=32; // 10
-  // constexpr int nsteps=11;
-  // constexpr int Nt=48; // 10
-  // constexpr int nsteps=30;
-
-
-
-  // constexpr int N_REFINE=4;
-  // const int kmax=1e8;
-  // constexpr int Nt=24; // 10
-  // constexpr int nsteps=60;
-  // constexpr int Nt=32; // 10
-  // constexpr int nsteps=52;
-  // constexpr int Nt=48; // 10
-  // constexpr int nsteps=52;
-
-
-
-
-
-  // constexpr int Nt=96; // 10
-  // constexpr int nsteps=300;
-  // constexpr int Nt=64; // 10
-  // constexpr int nsteps=275;
-  // constexpr int Nt=48; // 10
-  // constexpr int nsteps=250;
-
-  constexpr int NPARALLEL_GAUGE=12; // 12
-  // constexpr int NPARALLEL_GAUGE=1; // 12
-  constexpr int NPARALLEL_SORT=NPARALLEL_GAUGE; // 12
-
-  // constexpr int Nt=192; // 10
-
-  // constexpr int Nt=96; // 10
-  // constexpr int Nt=64; // 10
-
+  constexpr int N_REFINE=1;
   constexpr int NS=2;
+
+  constexpr int Nt=96; // @@@
+  // constexpr int Nt=16;
+
+  // constexpr int Nf=4; // even
 
 #ifdef IS_DUAL
   constexpr Idx N_SITES=20*N_REFINE*N_REFINE;
 #else
   constexpr Idx N_SITES=10*N_REFINE*N_REFINE+2;
+  constexpr int N_LINKS=30*N_REFINE*N_REFINE; // 30, 120, 480
 #endif
 
   constexpr Idx Nx=NS*N_SITES; // matrix size of DW
@@ -169,6 +81,132 @@ namespace Comp{
 
   const double TOL_INNER=1.0e-9;
   const double TOL_OUTER=1.0e-8;
+
+  const int kmax=1e5;
+  constexpr int nsteps=4;
+
+
+//   // d_DW.update() is always done independently
+// #ifdef IS_OVERLAP
+//   constexpr int NPARALLEL_DUPDATE=1;
+//   constexpr int NPARALLEL=12; // 12
+//   constexpr int NSTREAMS=4; // 4
+// #else
+//   constexpr int NPARALLEL_DUPDATE=12;
+//   constexpr int NPARALLEL=1; // 12
+//   constexpr int NSTREAMS=12; // for grad loop
+// #endif
+
+
+//   // gsq = 0.05
+//   // constexpr int N_REFINE=1;
+//   // const int kmax=2e8;
+//   // constexpr int Nt=24; // 10
+//   // constexpr int nsteps=12;
+//   // constexpr int Nt=32; // 10
+//   // constexpr int nsteps=14;
+//   // // constexpr int Nt=36; // 10
+//   // // constexpr int nsteps=16;
+//   // constexpr int Nt=48; // 10
+//   // constexpr int nsteps=20;
+
+
+//   // constexpr int N_REFINE=2;
+//   // const int kmax=1e8;
+//   // constexpr int Nt=24; // 10
+//   // constexpr int nsteps=22;
+//   // constexpr int Nt=32; // 10
+//   // constexpr int nsteps=24;
+//   // constexpr int Nt=48; // 10
+//   // constexpr int nsteps=30;
+
+
+
+//   constexpr int N_REFINE=4;
+//   const int kmax=1e8;
+//   // constexpr int Nt=24; // 10
+//   // constexpr int nsteps=52;
+//   // constexpr int Nt=32; // 10
+//   // constexpr int nsteps=58;
+//   // constexpr int Nt=48; // 10
+//   // constexpr int nsteps=52;
+//   constexpr int Nt=64; // 10
+//   constexpr int nsteps=62;
+//   // constexpr int Nt=96; // 10
+//   // constexpr int nsteps=64;
+//   // constexpr int Nt=64; // 10
+//   // constexpr int nsteps=62;
+//   // constexpr int Nt=96; // 10
+//   // constexpr int nsteps=64;
+
+
+
+
+
+//   // ----------------
+//   // const int kmax=1e2;
+
+//   // constexpr int N_REFINE=1;
+//   // const int kmax=2e8;
+//   // // constexpr int Nt=24; // 10
+//   // // constexpr int nsteps=7;
+//   // constexpr int Nt=32; // 10
+//   // constexpr int nsteps=8;
+
+
+//   // constexpr int N_REFINE=2;
+//   // const int kmax=1e8;
+//   // constexpr int Nt=24; // 10
+//   // constexpr int nsteps=10;
+//   // constexpr int Nt=32; // 10
+//   // constexpr int nsteps=11;
+//   // constexpr int Nt=48; // 10
+//   // constexpr int nsteps=30;
+
+
+
+//   // constexpr int N_REFINE=4;
+//   // const int kmax=1e8;
+//   // constexpr int Nt=24; // 10
+//   // constexpr int nsteps=60;
+//   // constexpr int Nt=32; // 10
+//   // constexpr int nsteps=52;
+//   // constexpr int Nt=48; // 10
+//   // constexpr int nsteps=52;
+
+
+
+
+
+//   // constexpr int Nt=96; // 10
+//   // constexpr int nsteps=300;
+//   // constexpr int Nt=64; // 10
+//   // constexpr int nsteps=275;
+//   // constexpr int Nt=48; // 10
+//   // constexpr int nsteps=250;
+
+//   constexpr int NPARALLEL_GAUGE=12; // 12
+//   // constexpr int NPARALLEL_GAUGE=1; // 12
+//   constexpr int NPARALLEL_SORT=NPARALLEL_GAUGE; // 12
+
+//   // constexpr int Nt=192; // 10
+
+//   // constexpr int Nt=96; // 10
+//   // constexpr int Nt=64; // 10
+
+//   constexpr int NS=2;
+
+// #ifdef IS_DUAL
+//   constexpr Idx N_SITES=20*N_REFINE*N_REFINE;
+// #else
+//   constexpr Idx N_SITES=10*N_REFINE*N_REFINE+2;
+// #endif
+
+//   constexpr Idx Nx=NS*N_SITES; // matrix size of DW
+//   constexpr Idx N=Nx*Nt; // matrix size of DW
+
+//   const double TOL_INNER=1.0e-9;
+//   const double TOL_OUTER=1.0e-8;
 }
 
 const std::string dir = "../../dats/";
@@ -178,9 +216,6 @@ const std::string dir = "../../dats/";
 #include "s2n_simp.h"
 #include "s2n_dual.h"
 #include "rng.h"
-#include "valence.h"
-#include "gauge_ext.h"
-#include "action_ext.h"
 
 #include <cuComplex.h>
 #include <cuda_runtime.h>
@@ -192,10 +227,15 @@ using CuC = cuDoubleComplex;
 
 // ======================================
 
-// # include "integrator.h"
+#include "valence.h"
+#include "gauge_ext.h"
+#include "action_ext.h"
+
+
+# include "integrator.h"
 #include "hmc.h"
 
-#include "obs.h"
+// #include "obs.h"
 
 
 // #include "../../integrator/geodesic.h"
@@ -279,7 +319,7 @@ int main(int argc, char* argv[]){
   // ----------------------
 
   // const double gsq = 0.05;
-  const double gsq = 0.5;
+  const double gsq = 4.0;
   // const double gsq = 2.0;
   // const double gsq = 0.1;
   // const double gsqR = 0.2;
@@ -290,8 +330,8 @@ int main(int argc, char* argv[]){
   // double at = 0.05; // base.mean_ell * 0.125 * ratio;
   // double beta_t = beta_s; // 1.0/(gR*gR);
   // const double T = 4.8;
-  const double T = 12.0;
-  double at = T/Comp::Nt;
+  // const double T = 12.0;
+  double at = 0.2;
   // double at = 0.05;
   if(Comp::Nt==1) at=0.;
   else{
@@ -305,12 +345,11 @@ int main(int argc, char* argv[]){
   uint64_t ms=0;
   {
     // using namespace std::chrono_literals;
-
-    using namespace std::chrono;
-    std::this_thread::sleep_for( milliseconds(std::atoi(prefix.c_str())) );
-    std::this_thread::sleep_for( milliseconds(Comp::Nt) );
-    std::this_thread::sleep_for( milliseconds(Comp::N_REFINE) );
-    ms = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+    // using namespace std::chrono;
+    // std::this_thread::sleep_for( milliseconds(std::atoi(prefix.c_str())) );
+    // std::this_thread::sleep_for( milliseconds(Comp::Nt) );
+    // std::this_thread::sleep_for( milliseconds(Comp::N_REFINE) );
+    // ms = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
   }
   // srand( ms );
   Rng rng(base, ms );
@@ -319,14 +358,13 @@ int main(int argc, char* argv[]){
   U.gaussian( rng, 0.2 );
 
   // std::string dir2="beta"+std::to_string(beta)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"ratio"+std::to_string(ratio)+"/";
-  std::string dir2="gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"_"+prefix+"/";
+  std::string dir2="gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
   std::filesystem::create_directory(dir2);
-
 
   // //--------------------------------
 
 
-  const double tmax = 1.0; // 0.1
+  const double tmax = 1.9; // 0.1
   // const int nsteps=250;
 
 
@@ -334,9 +372,9 @@ int main(int argc, char* argv[]){
   bool is_accept;
 
 
-  const int interval=50;
-  const int k_ckpoint=1e5;
-  const int k_therm=1e3;
+  // const int interval=50;
+  const int k_ckpoint=10;
+  // const int k_therm=1e3;
 
 
   Force pi(base);
@@ -372,31 +410,31 @@ int main(int argc, char* argv[]){
   HMCPureGauge hmc(rng, &SW, U, pi, tmax, Comp::nsteps);
 
 
-  if(k_tmp<=0){ // thermalize
-    std::cout << "thermalize" << std::endl;
+  // if(k_tmp<=0){ // thermalize
+  //   std::cout << "thermalize" << std::endl;
 
-    for(int k=0; k<10; k++){
-      Timer timer;
-      hmc.run( rate, dH, is_accept, true );
-      // if constexpr(Comp::is_compact) U.project();
-      std::cout << "# dH : " << dH
-                << " is_accept : " << is_accept << std::endl;
-      // std::cout << "# HMC : " << timer.currentSeconds() << " sec" << std::endl;
-    }
+  //   for(int k=0; k<10; k++){
+  //     Timer timer;
+  //     hmc.run( rate, dH, is_accept, true );
+  //     // if constexpr(Comp::is_compact) U.project();
+  //     std::cout << "# dH : " << dH
+  //               << " is_accept : " << is_accept << std::endl;
+  //     // std::cout << "# HMC : " << timer.currentSeconds() << " sec" << std::endl;
+  //   }
 
-    for(int k=0; k<k_therm; k++){
-      Timer timer;
-      hmc.run( rate, dH, is_accept );
-      std::cout << "# dH : " << dH
-                << " is_accept : " << is_accept << std::endl;
-    }
-    k_tmp = 0;
+  //   for(int k=0; k<k_therm; k++){
+  //     Timer timer;
+  //     hmc.run( rate, dH, is_accept );
+  //     std::cout << "# dH : " << dH
+  //               << " is_accept : " << is_accept << std::endl;
+  //   }
+  //   k_tmp = 0;
 
-    const std::string str_lat=dir2+"ckpoint_lat."+std::to_string(k_tmp);
-    const std::string str_rng=dir2+"ckpoint_rng."+std::to_string(k_tmp);
-    U.ckpoint( str_lat );
-    rng.ckpoint( str_rng );
-  }
+  //   const std::string str_lat=dir2+"ckpoint_lat."+std::to_string(k_tmp);
+  //   const std::string str_rng=dir2+"ckpoint_rng."+std::to_string(k_tmp);
+  //   U.ckpoint( str_lat );
+  //   rng.ckpoint( str_rng );
+  // }
 
 
   std::vector<double> plaq_s0(Comp::Nt);
@@ -411,37 +449,37 @@ int main(int argc, char* argv[]){
     r_mean += rate;
     // std::cout << "# HMC : " << timer.currentSeconds() << " sec" << std::endl;
 
-    if(k%interval==0){
+//     if(k%interval==0){
 
-      std::string path = "plaq_ss_t_"+std::to_string(k)+".dat";
-      std::ofstream ofs(dir2+path);
-      // ofs << "# kmax = " << kmax << std::endl;
+//       // std::string path = "plaq_ss_t_"+std::to_string(k)+".dat";
+//       // std::ofstream ofs(dir2+path);
+//       // ofs << "# kmax = " << kmax << std::endl;
 
-      // -----------------------------------------------------------------
+//       // -----------------------------------------------------------------
 
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE)
-#endif
-      for(int t=0; t<Comp::Nt; t++){
-        int counter = 0;
-        double tmp1 = 0.0;
-        for(int s=0; s<Comp::Nt; s++){
-          for(int i_face=0; i_face<base.n_faces; i_face++){
-            tmp1 += U.plaquette_angle(s, U.lattice.faces[i_face]) * U.plaquette_angle(s+t, U.lattice.faces[i_face]) / std::pow(base.vols[i_face],2);
-            counter++;
-            tmp1 += U.plaquette_angle(s, U.lattice.faces[i_face]) * U.plaquette_angle(s-t, U.lattice.faces[i_face]) / std::pow(base.vols[i_face],2);
-            counter++;
-          }
-        }
-        tmp1 /= counter;
-        plaq_s0[t] = tmp1;
-      }
+// #ifdef _OPENMP
+// #pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE)
+// #endif
+//       for(int t=0; t<Comp::Nt; t++){
+//         int counter = 0;
+//         double tmp1 = 0.0;
+//         for(int s=0; s<Comp::Nt; s++){
+//           for(int i_face=0; i_face<base.n_faces; i_face++){
+//             tmp1 += U.plaquette_angle(s, U.lattice.faces[i_face]) * U.plaquette_angle(s+t, U.lattice.faces[i_face]) / std::pow(base.vols[i_face],2);
+//             counter++;
+//             tmp1 += U.plaquette_angle(s, U.lattice.faces[i_face]) * U.plaquette_angle(s-t, U.lattice.faces[i_face]) / std::pow(base.vols[i_face],2);
+//             counter++;
+//           }
+//         }
+//         tmp1 /= counter;
+//         plaq_s0[t] = tmp1;
+//       }
 
-      for(int t=0; t<Comp::Nt; t++){
-        ofs << plaq_s0[t] << std::endl;
-      }
+//       for(int t=0; t<Comp::Nt; t++){
+//         ofs << plaq_s0[t] << std::endl;
+//       }
 
-    }
+//     } // interval
     if(k%100==0){
       std::cout << "# k = " << k << std::endl;
     }

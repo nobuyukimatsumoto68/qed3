@@ -197,48 +197,49 @@ struct HMC2 {
 // };
 
 
-// template <typename Rng, typename Action,
-//           typename Gauge, typename Force>
-// struct HMCPureGauge {
-//   Rng& rng;
-//   Action* Sg;
+template <typename Rng, typename Action,
+          typename Gauge, typename Force>
+struct HMCPureGauge {
+  Rng& rng;
+  Action* Sg;
 
-//   Gauge& U;
-//   Force& pi;
+  Gauge& U;
+  Force& pi;
 
-//   double tmax;
-//   int nsteps;
-//   double tau;
+  double tmax;
+  int nsteps;
+  double tau;
 
-//   HMCPureGauge()=delete;
+  HMCPureGauge()=delete;
 
-//   explicit HMCPureGauge(Rng& rng_,
-//                         Action* Sg_,
-//                         Gauge& U_,
-//                         Force& pi_,
-//                         const double tmax_=1.0,
-//                         const int nsteps_=10)
-//     : rng(rng_)
-//     , Sg(Sg_)
-//     , U(U_)
-//     , pi(pi_)
-//     , tmax(tmax_)
-//     , nsteps(nsteps_)
-//     , tau(tmax/nsteps)
-//   {
-//   }
+  explicit HMCPureGauge(Rng& rng_,
+                        Action* Sg_,
+                        Gauge& U_,
+                        Force& pi_,
+                        const double tmax_=1.0,
+                        const int nsteps_=10)
+    : rng(rng_)
+    , Sg(Sg_)
+    , U(U_)
+    , pi(pi_)
+    , tmax(tmax_)
+    , nsteps(nsteps_)
+    , tau(tmax/nsteps)
+  {
+  }
 
-//   ~HMCPureGauge(){
-//   }
+  ~HMCPureGauge(){
+  }
 
-//   double H() {
-//     double res = 0.5*pi.squared_norm();
-//     res += Sg->operator()(U);
-//     return res;
-//   }
+  double H() {
+    double res = 0.5*pi.squared_norm();
+    res += Sg->operator()(U);
+    return res;
+  }
 
-//   void onestep( Gauge& U, Force& pi, Action* Sg ) const {
-//     Force dSg(U.lattice);
+  void onestep( Gauge& U, Force& pi, Action* Sg ) const {
+    Force dSg(U.lattice);
+    const double lambda = 0.1931833275037836;
 
 //     Sg->get_force( dSg, U );
 // #ifdef InfoForce
@@ -253,32 +254,56 @@ struct HMC2 {
 //     dSg.print2log_norm( "# Sg : " );
 // #endif
 //     pi += -0.5*tau * ( dSg );
-//   }
 
-//   void integrate() const {
-//     for(int n=0; n<nsteps; n++) onestep( U, pi, Sg );
-//   }
 
-//   void run( double& r,
-//             double& dH,
-//             bool& is_accept,
-//             const bool no_reject = false ) {
-//     pi.gaussian( rng );
+    Sg->get_force( dSg, U );
+#ifdef InfoForce
+    dSg.print2log_norm( "# Sg : " );
+#endif
+    pi += -lambda*tau * dSg;
 
-//     Gauge U0( U );
+    U += 0.5 * tau * pi;
 
-//     const double h0 = H();
-//     integrate();
-//     const double h1 = H();
+    Sg->get_force( dSg, U );
+#ifdef InfoForce
+    dSg.print2log_norm( "# Sg : " );
+#endif
+    pi += - (1.0 - 2.0*lambda)*tau * dSg;
 
-//     dH = h1-h0;
-//     r = std::min( 1.0, std::exp(-dH) );
-//     const double a = rng.uniform();
-//     if( a < r || no_reject ){
-//       is_accept=true;
-//     }
-//     else {
-//       is_accept=false;
-//       U = U0;
-//     }
-//   }
+    U += 0.5 * tau * pi;
+
+    Sg->get_force( dSg, U );
+#ifdef InfoForce
+    dSg.print2log_norm( "# Sg : " );
+#endif
+    pi += -lambda*tau * dSg;
+  }
+
+  void integrate() const {
+    for(int n=0; n<nsteps; n++) onestep( U, pi, Sg );
+  }
+
+  void run( double& r,
+            double& dH,
+            bool& is_accept,
+            const bool no_reject = false ) {
+    pi.gaussian( rng );
+
+    Gauge U0( U );
+
+    const double h0 = H();
+    integrate();
+    const double h1 = H();
+
+    dH = h1-h0;
+    r = std::min( 1.0, std::exp(-dH) );
+    const double a = rng.uniform();
+    if( a < r || no_reject ){
+      is_accept=true;
+    }
+    else {
+      is_accept=false;
+      U = U0;
+    }
+  }
+};
