@@ -64,7 +64,8 @@ namespace Comp{
   constexpr int N_REFINE=1;
   constexpr int NS=2;
 
-  constexpr int Nt=96; // @@@
+  // constexpr int Nt=96; // @@@
+  constexpr int Nt=128; // @@@
   // constexpr int Nt=16;
 
   // constexpr int Nf=4; // even
@@ -91,9 +92,6 @@ const std::string dir = "../../dats/";
 #include "s2n_simp.h"
 // #include "s2n_dual.h"
 #include "rng.h"
-#include "valence.h"
-#include "gauge_ext.h"
-#include "action_ext.h"
 
 #include <cuComplex.h>
 #include <cuda_runtime.h>
@@ -102,6 +100,12 @@ const std::string dir = "../../dats/";
 #include <cusolverDn.h>
 using CuC = cuDoubleComplex;
 #include "gpu_header.h"
+
+
+#include "valence.h"
+#include "gauge_ext.h"
+#include "action_ext.h"
+
 
 // ======================================
 
@@ -255,7 +259,7 @@ int main(int argc, char* argv[]){
 
 
   Force pi( base );
-  const double tmax = 1.9; // 0.1
+  const double tmax = 1.6; // 0.1
   int nsteps;
   if(Nf==2) nsteps = 4;
   else if(Nf==4) nsteps = 5;

@@ -18,7 +18,7 @@ do
     for Nf in 2 4 6
     # for Nf in 4
     do
-        for nu0 in 0.8 1.0 1.2
+        for nu0 in 1.5 2.0 4.0
         # for nu0 in 1.0 1.2
         # for nu0 in 1.0
         do
