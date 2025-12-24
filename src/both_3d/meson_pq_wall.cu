@@ -1,4 +1,5 @@
 #include <typeinfo>
+#include <cmath>
 #include <iostream>
 #include <iomanip>
 #include <fstream>
@@ -42,42 +43,17 @@ static constexpr Complex I = Complex(0.0, 1.0);
 namespace Comp{
   constexpr bool is_compact=false;
 
-  // d_DW.update() is always done independently
-#ifdef IS_OVERLAP
-  constexpr int NPARALLEL_DUPDATE=4;
-  constexpr int NPARALLEL=4; // 12
-  constexpr int NSTREAMS=4; // 4
-  // constexpr int NPARALLEL=4; // 12
-  // constexpr int NSTREAMS=4; // 4
-#else
-  constexpr int NPARALLEL_DUPDATE=12;
+  constexpr int NPARALLEL_DUPDATE=1;
   constexpr int NPARALLEL=1; // 12
-  constexpr int NSTREAMS=12; // for grad loop
-#endif
-  constexpr int NPARALLEL_GAUGE=4; // 12
-  constexpr int NPARALLEL_SORT=4; // 12
+  constexpr int NSTREAMS=1; // 4
+  constexpr int NPARALLEL_GAUGE=1; // 12
+  constexpr int NPARALLEL_SORT=1; // 12
 
   constexpr int N_REFINE=1;
   constexpr int NS=2;
-
-  // constexpr int Nt=24;
-  // constexpr int Nt=48; // add 2
-  // constexpr int Nt=64;
-  // constexpr int Nt=96; // add 4
-  // constexpr int Nt=120;
-  // constexpr int Nt=144; // add 8
-  // constexpr int Nt=168;
-
-  // constexpr int Nt=24;
-  // constexpr int Nt=192;
   constexpr int Nt=96;
-  // constexpr int Nt=16;
 
-#ifdef IS_DUAL
-  constexpr Idx N_SITES=20*N_REFINE*N_REFINE;
-#else
   constexpr Idx N_SITES=10*N_REFINE*N_REFINE+2;
-#endif
   constexpr int N_LINKS=30*N_REFINE*N_REFINE; // 30, 120, 480
 
   constexpr Idx Nx=NS*N_SITES; // matrix size of DW
@@ -134,6 +110,13 @@ using CuC = cuDoubleComplex;
 #include "overlap.h"
 
 
+
+
+
+
+
+
+
 // TODO: Cusparse for SparseMatrix::act_gpu, probably defining handle in matpoly.h
 // make 2 streams in V Vdag in square in Overlap
 // all the operation on GPU in Overlap::operator()
@@ -159,14 +142,13 @@ int main(int argc, char* argv[]){
   if(argc>5) nhits = atoi(argv[5]);
   int dt = 24;
   if(argc>6) dt = atoi(argv[6]);
-  std::cout << "# gsq = " << gsq << " Nf = " << Nf << " nu0 = " << nu0 << " nu1 = " << nu1 << " nhits = " << nhits << " dt = " << dt << std::endl;
+  int ell = 0;
+  if(argc>7) ell = atoi(argv[7]);
+  int em = 0;
+  if(argc>8) em = atoi(argv[8]);
+  std::cout << "# gsq = " << gsq << " Nf = " << Nf << " nu0 = " << nu0 << " nu1 = " << nu1 << " nhits = " << nhits << " dt = " << dt << " ell = " << ell << " em = " << em << std::endl;
 
   for(int i=0; i<Comp::NSTREAMS; i++) d_MemorySets[i].allocate();
-
-
-  // int igam=0;
-  // if(argc>3) igam = atoi(argv[3]);
-  // std::cout << "# igam = " << igam << " where 0=id., i=sigma_3" << std::endl;
 
 
 
@@ -183,13 +165,8 @@ int main(int argc, char* argv[]){
   constexpr Idx N = Comp::N;
   constexpr int Nt = Comp::Nt;
 
-#ifdef IS_DUAL
-  using Base=S2Trivalent;
-  using WilsonDirac=DiracExt<Base, DiracS2Dual>;
-#else
   using Base=S2Simp;
   using WilsonDirac=DiracExt<Base, DiracS2Simp>;
-#endif
 
   using Force=GaugeExt<Base,Nt,Comp::is_compact>;
   using Gauge=GaugeExt<Base,Nt,Comp::is_compact>;
@@ -203,95 +180,34 @@ int main(int argc, char* argv[]){
   std::cout << "# lattice set. " << std::endl;
 
   // ----------------------
-  // const double at = 0.5;
-  // const double T = 0.2;
-  // const double T = 24;
   const double at = 0.2; // T/Comp::Nt;
   if(Nt!=1) assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
 
 
-  // const double gsq = 0.05;
-  // double at = 0.05; // base.mean_ell * 0.125 * ratio;
-  // if(Comp::Nt==1) at=0.;
-  Action SW( gsq, at, base );
-  std::cout << "# alat = " << base.mean_ell << std::endl;
-
-  // std::string dir3, dir4;
-  // // #ifdef Nf2
-  // dir3="Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
-  // dir4="data_Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
   std::string dir3, dir4;
-  // #ifdef Nf2
   dir3="Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
-  // dir3="Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
   dir4="data_Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nu1"+std::to_string(nu1)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
-  // dir4="data_Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
-
 
   std::filesystem::create_directory(dir4);
-
 
   Gauge U(base);
   srand( time(NULL) );
   Rng rng(base, rand());
 
-#ifdef GAUGE_TRSF
-  // std::cout << "SW = " << SW(U) << std::endl;
-  // U.random_gauge_trsf(rng);
-  // std::cout << "ch.= " << SW(U) << std::endl;
-#endif
 
-
-
-#ifdef IS_OVERLAP
-  // Overlap Dov(DW, 31);
-  // Dov.update(U);
-  // std::cout << "# Dov set; M5 = " << M5 << std::endl;
-  // std::cout << "# min max ratio: "
-  //           << Dov.lambda_min << " "
-  //           << Dov.lambda_max << " "
-  //           << Dov.lambda_min/Dov.lambda_max << std::endl;
-  // std::cout << "# delta = " << Dov.Delta() << std::endl;
-
-  // auto f_Op = std::bind(&Overlap::mult_deviceAsyncLaunch, &Dov, std::placeholders::_1, std::placeholders::_2);
-  // LinOpWrapper M_Op( f_Op );
-  // Op.push_back ( cplx(1.0), {&M_Op} );
-
-#ifdef IS_DUAL
-  const double M5 = -1.5;
-#else
   const double M5 = -1.0;
-#endif
-
   WilsonDirac DW(base, 0.0, 1.0, M5, at, nu1);
   std::cout << "# DW set. " << std::endl;
-
   using Fermion=Overlap<WilsonDirac>;
   Fermion D(DW, 21);
   std::cout << "# D set. " << std::endl;
-#else
-  const double M5 = 0.0;
-  WilsonDirac DW(base, 0.0, 1.0, M5, at, nu1);
-  std::cout << "# DW set. " << std::endl;
-
-  using Fermion=DiracPf<WilsonDirac>;
-  Fermion D(DW);
-  std::cout << "# D set. " << std::endl;
-#endif
 
   D.update( U );
   std::cout << "# D updated. " << std::endl;
 
-  auto f_D = std::bind(&Fermion::mult_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
-  auto f_DDH = std::bind(&Fermion::DDH_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
 
   auto f_DH = std::bind(&Fermion::adj_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
   auto f_DHD = std::bind(&Fermion::DHD_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
-
-  LinOpWrapper M_D( f_D );
-  MatPoly op_D; op_D.push_back ( cplx(1.0), {&M_D} );
-  LinOpWrapper M_DDH( f_DDH );
-  MatPoly op_DDH; op_DDH.push_back ( cplx(1.0), {&M_DDH} );
 
   LinOpWrapper M_DH( f_DH );
   MatPoly op_DH; op_DH.push_back ( cplx(1.0), {&M_DH} );
@@ -307,20 +223,15 @@ int main(int argc, char* argv[]){
   gauge.set_random_gauge(rng);
 #endif
 
-  FermionVector src; // (base, Nt, rng);
-  FermionVector DHsrc; // (base, Nt, rng);
-  // FermionVector Dsrc0; // (base, Nt, rng);
-
-  // FermionVector src1; // (base, Nt, rng);
-  // FermionVector DHsrc1; // (base, Nt, rng);
-  // FermionVector Dsrc1; // (base, Nt, rng);
-
+  FermionVector src1; // (base, Nt, rng);
+  FermionVector DH_src1; // (base, Nt, rng);
+  FermionVector Dinv_src1; // (base, Nt, rng);
+  FermionVector src2; // (base, Nt, rng);
+  FermionVector DH_src2; // (base, Nt, rng);
+  FermionVector Dinv_src2; // (base, Nt, rng);
 
 
-  FermionVector Dinv; // (base, Nt, rng);
   std::cout << "# calculating sink" << std::endl;
-
-
 
 
   const int k_ckpoint=10;
@@ -346,25 +257,27 @@ int main(int argc, char* argv[]){
     // const int t0=0;
     for(int t0=0; t0<Comp::Nt; t0+=dt){
       for(int h=0; h<nhits; h++){
-        src.fill_z2_wall_source( rng, t0 );
+        src1.fill_z2_wall_source( rng, t0 );
+        src1.mult_Y(ell, em, base);
+        src1.mult_sigma3();
+        op_DH.from_cpu<N>( DH_src1.field, src1.field );
+        op_DHD.solve<N>( Dinv_src1.field, DH_src1.field );
 
-        op_DH.from_cpu<N>( DHsrc.field, src.field );
-        op_DHD.solve<N>( Dinv.field, DHsrc.field );
+        src2.fill_z2_wall_source( rng, t0 );
+        op_DH.from_cpu<N>( DH_src2.field, src2.field );
+        op_DHD.solve<N>( Dinv_src2.field, DH_src2.field );
+        Dinv_src2.mult_Y(ell, em, base);
+        Dinv_src2.mult_sigma3();
 
-        int igam=0;
-        const std::string path=dir4+"meson_"+std::to_string(igam)+"_h"+std::to_string(h)+"_t0"+std::to_string(t0)+"_corr."+std::to_string(k);
+        const std::string path=dir4+"meson_"+std::to_string(ell)+"_"+std::to_string(em)+"_h"+std::to_string(h)+"_t0"+std::to_string(t0)+"_corr."+std::to_string(k);
         std::ofstream ofs(path);
         ofs << std::scientific << std::setprecision(15);
 
         for(Idx s=0; s<Comp::Nt; s++) {
-          // const auto Dinv_s0 = Dinv((t0+s)%Comp::Nt,iy,0);
-          // const auto Dinv_s1 = Dinv((t0+s)%Comp::Nt,iy,1);
-          VC Dinv_sO = Dinv.slice((t0+s)%Comp::Nt);
-          // VC DinvH_sO = Dinv_sO.conjugate(); // << inits in row major way
-          // Complex tr = (DinvH_sO * DW.sigma[igam] * Dinv_sO * DW.sigma[igam] ).trace();
-          Complex tr = Dinv_sO.dot(Dinv_sO);
+          const VC psi1 = Dinv_src1.slice((t0+s)%Comp::Nt);
+          const VC psi2 = Dinv_src2.slice((t0+s)%Comp::Nt);
+          const Complex tr = psi1.dot(psi2);
 
-          // std::cout << s << " " <<  tr.real() << " " << tr.imag() << std::endl;
           ofs << s << " " <<  tr.real() << " " << tr.imag() << std::endl;
         }
       } // end for h

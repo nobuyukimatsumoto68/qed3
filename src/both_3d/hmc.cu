@@ -50,22 +50,22 @@ namespace Comp{
 
   // d_DW.update() is always done independently
 #ifdef IS_OVERLAP
-  constexpr int NPARALLEL_DUPDATE=4;
-  constexpr int NPARALLEL=4; // 12
-  constexpr int NSTREAMS=4; // 4
+  constexpr int NPARALLEL_DUPDATE=1;
+  constexpr int NPARALLEL=1; // 12
+  constexpr int NSTREAMS=1; // 4
 #else
   constexpr int NPARALLEL_DUPDATE=12;
   constexpr int NPARALLEL=1; // 12
   constexpr int NSTREAMS=12; // for grad loop
 #endif
-  constexpr int NPARALLEL_GAUGE=4; // 12
-  constexpr int NPARALLEL_SORT=4; // 12
+  constexpr int NPARALLEL_GAUGE=1; // 12
+  constexpr int NPARALLEL_SORT=1; // 12
 
   constexpr int N_REFINE=1;
   constexpr int NS=2;
 
-  // constexpr int Nt=96; // @@@
-  constexpr int Nt=128; // @@@
+  constexpr int Nt=96; // @@@
+  // constexpr int Nt=128; // @@@
   // constexpr int Nt=16;
 
   // constexpr int Nf=4; // even
@@ -131,11 +131,11 @@ int main(int argc, char* argv[]){
   std::cout << std::scientific << std::setprecision(15);
   std::clog << std::scientific << std::setprecision(15);
 
-  double gsq = 2.0;
+  double gsq = 6.0;
   if(argc>1) gsq = atof(argv[1]);
-  int Nf = 2;
+  int Nf = 6;
   if(argc>2) Nf = atoi(argv[2]);
-  double nu0=1.0;
+  double nu0=2.0;
   if(argc>3) nu0 = atof(argv[3]);
   std::cout << "# gsq = " << gsq << " Nf = " << Nf << " nu0 = " << nu0 << std::endl;
 
@@ -259,7 +259,7 @@ int main(int argc, char* argv[]){
 
 
   Force pi( base );
-  const double tmax = 1.6; // 0.1
+  const double tmax = 1.9; // 0.1
   int nsteps;
   if(Nf==2) nsteps = 4;
   else if(Nf==4) nsteps = 5;

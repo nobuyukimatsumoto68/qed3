@@ -1,5 +1,23 @@
 #pragma once
 
+double Ylm_real( const int ell, const int em, const double theta, const double phi ){
+  const double Pell = std::assoc_legendre( ell, em, std::cos(theta) );
+
+  double trig;
+  if( em>0 ) trig = std::cos(std::abs(em)*phi);
+  else if( em<0 ) trig = std::sin(std::abs(em)*phi);
+  else trig = 1.0/std::sqrt(2.0);
+
+  double factor = (2.0*ell+1)/(4.0*M_PI);
+  factor *= std::tgamma( ell-std::abs(em)+1 );
+  factor /= std::tgamma( ell+std::abs(em)+1 );
+  factor = std::pow(-1.0,em) * std::sqrt(2.0) * std::sqrt(factor);
+
+  return factor * Pell * trig;
+}
+
+
+
 // template<typename Lattice>
 struct FermionVector {
   // const Lattice& lattice;
@@ -123,6 +141,27 @@ struct FermionVector {
     return res;
   }
 
+
+  void mult_sigma3() {
+    for(int s=0; s<Nt; s++){
+      for(Idx ix=0; ix<Comp::N_SITES; ix++){
+        (*this)(s, ix, 1) *= -1.0;
+      }}
+  }
+
+  template<typename Lattice>
+  void mult_Y(const int ell, const int em, const Lattice& lattice ) {
+    for(Idx ix=0; ix<Comp::N_SITES; ix++){
+      const VE r = lattice.sites[ix];
+      const double theta = std::acos(r[2]);
+      const double phi = std::atan2(r[1], r[0]);
+      const double ylm = Ylm_real(ell, em, theta, phi);
+      for(int s=0; s<Nt; s++){
+        (*this)(s, ix, 0) *= ylm;
+        (*this)(s, ix, 1) *= ylm;
+      }
+    }
+  }
 
   // void set_random() {
   //   for(Idx ix=0; ix<lattice.n_sites; ix++){

@@ -1,4 +1,4 @@
-#!/bin/ibash -l
+#!/bin/bash -l
 
 # https://www.bu.edu/tech/support/research/system-usage/running-jobs/submitting-jobs/
 # to submit: qsub script.sh
@@ -8,11 +8,10 @@
 #$ -M nmatsum@bu.edu
 ##### run time limit. format: hh:mm:ss; default 12 hrs
 #### #$ -l h_rt=96:00:00
-#$ -l h_rt=12:00:00
-# # #$ -l h_rt=00:10:00
+#$ -l h_rt=1:00:00
 #$ -l gpus=1
-# #$ -l gpu_type=V100
-#$ -l gpu_c=70
+#$ -l gpu_type=V100
+# #$ -l gpu_c=70
 #$ -pe omp 1
 #$ -j y
 
@@ -34,14 +33,15 @@ echo "=========================================================="
 
 #-------------#
 
-source /projectnb/qfe/nmatsum/qed3/env.sh
-# module load gcc/13.2.0
-# module load cuda/12.5
+module load gcc/13.2.0
+module load cuda/12.5
 
 #------- Program execution -------#
+
+nhits=1
+dt=32
 echo "running program"
 pwd
-echo ${app}
-${app} ${gsq} ${Nf} ${nu0} # ${mult} ${binsize}
-echo "end date : $(date)"
+echo ${app} ${SGE_TASK_ID}
+${app} ${gsq} ${Nf} ${nu0} ${nu1} ${nhits} ${dt} ${ell} ${em} # ${mult} ${binsize}
 echo "finished"
