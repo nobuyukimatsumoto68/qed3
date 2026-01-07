@@ -46,20 +46,21 @@ static constexpr Complex I = Complex(0.0, 1.0);
 
 
 namespace Comp{
-  constexpr bool is_compact=false;
+  // constexpr bool is_compact=false;
+  constexpr bool is_compact=true;
 
   // d_DW.update() is always done independently
 #ifdef IS_OVERLAP
-  constexpr int NPARALLEL_DUPDATE=1;
-  constexpr int NPARALLEL=1; // 12
-  constexpr int NSTREAMS=1; // 4
+  constexpr int NPARALLEL_DUPDATE=4;
+  constexpr int NPARALLEL=4; // 12
+  constexpr int NSTREAMS=4; // 4
 #else
   constexpr int NPARALLEL_DUPDATE=12;
   constexpr int NPARALLEL=1; // 12
   constexpr int NSTREAMS=12; // for grad loop
 #endif
-  constexpr int NPARALLEL_GAUGE=1; // 12
-  constexpr int NPARALLEL_SORT=1; // 12
+  constexpr int NPARALLEL_GAUGE=4; // 12
+  constexpr int NPARALLEL_SORT=4; // 12
 
   constexpr int N_REFINE=1;
   constexpr int NS=2;
@@ -131,11 +132,13 @@ int main(int argc, char* argv[]){
   std::cout << std::scientific << std::setprecision(15);
   std::clog << std::scientific << std::setprecision(15);
 
-  double gsq = 6.0;
+  // double gsq = 8.0;
+  double gsq = 4.0;
   if(argc>1) gsq = atof(argv[1]);
-  int Nf = 6;
+  int Nf = 2;
   if(argc>2) Nf = atoi(argv[2]);
-  double nu0=2.0;
+  // double nu0=2.0;
+  double nu0=1.5;
   if(argc>3) nu0 = atof(argv[3]);
   std::cout << "# gsq = " << gsq << " Nf = " << Nf << " nu0 = " << nu0 << std::endl;
 
@@ -192,7 +195,7 @@ int main(int argc, char* argv[]){
 
   // HERE
 #ifdef IS_OVERLAP
-  Fermion D(DW, 21);
+  Fermion D(DW, 31);
   std::cout << "# Dov set; M5 = " << M5 << std::endl;
   D.update(U);
   std::cout << "# min max ratio: "
@@ -228,10 +231,11 @@ int main(int argc, char* argv[]){
 
   std::string dir3;
   dir3="Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
+  dir3="Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"C"+"/";
   std::filesystem::create_directory(dir3);
   // const int k_ckpoint=1;
   const int k_ckpoint=10;
-  const int kmax=1e4; // @@@@
+  const int kmax=1e3; // @@@@
   // const int kmax=2;
 
   int k_tmp=0;
@@ -285,6 +289,7 @@ int main(int argc, char* argv[]){
     r_mean += rate;
     std::cout << "# HMC : " << timer.currentSeconds() << " sec" << std::endl;
 
+    if(k%20==0) D.is_update = false;
     if(k%100==0){
       std::cout << "# k = " << k << std::endl;
     }

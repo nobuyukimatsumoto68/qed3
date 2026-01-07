@@ -43,11 +43,11 @@ static constexpr Complex I = Complex(0.0, 1.0);
 namespace Comp{
   constexpr bool is_compact=false;
 
-  constexpr int NPARALLEL_DUPDATE=1;
-  constexpr int NPARALLEL=1; // 12
-  constexpr int NSTREAMS=1; // 4
-  constexpr int NPARALLEL_GAUGE=1; // 12
-  constexpr int NPARALLEL_SORT=1; // 12
+  constexpr int NPARALLEL_DUPDATE=4;
+  constexpr int NPARALLEL=NPARALLEL_DUPDATE; // 12
+  constexpr int NSTREAMS=NPARALLEL_DUPDATE; // 4
+  constexpr int NPARALLEL_GAUGE=NPARALLEL_DUPDATE; // 12
+  constexpr int NPARALLEL_SORT=NPARALLEL_DUPDATE; // 12
 
   constexpr int N_REFINE=1;
   constexpr int NS=2;
@@ -199,7 +199,7 @@ int main(int argc, char* argv[]){
   WilsonDirac DW(base, 0.0, 1.0, M5, at, nu1);
   std::cout << "# DW set. " << std::endl;
   using Fermion=Overlap<WilsonDirac>;
-  Fermion D(DW, 21);
+  Fermion D(DW, 31);
   std::cout << "# D set. " << std::endl;
 
   D.update( U );
@@ -257,6 +257,7 @@ int main(int argc, char* argv[]){
     // const int t0=0;
     for(int t0=0; t0<Comp::Nt; t0+=dt){
       for(int h=0; h<nhits; h++){
+        std::cout << "# t0 = " << t0 << "h = " << h << std::endl;
         src1.fill_z2_wall_source( rng, t0 );
         src1.mult_Y(ell, em, base);
         src1.mult_sigma3();

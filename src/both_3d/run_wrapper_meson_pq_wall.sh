@@ -6,32 +6,45 @@ source /projectnb/qfe/nmatsum/qed3/env.sh
 # Nf=$2
 # igam=$3
 
-app='meson.o'
+app='meson_pq_wall.o'
 
 echo $app
 # if [ "$#" -eq 2 ]; then
 #     echo $1 $2
 
+make ${app}
 
-for gsq in 4.0
-do
-    for Nf in 2 4 6
-    do
-        # for nu0 in 0.8 1.0 1.2
-        for nu0 in 0.8 1.2
-        do
-            nu1=${nu0}
-            for ell in 0 1
-            do
-                for (( em=-ell; em<=ell; em++ ))
-                do
-                    echo $Nf $gsq $nu0 ${nu1} ${ell} ${em}
-                    qsub -N "mesonNf${Nf}${nu0}${ell}${em}" -v app=${app} -v gsq=${gsq} -v Nf=${Nf} -v nu0=${nu0} -v nu1=${nu1} -v ell=${ell} -v em=${em} run_meson.sh
-                done
-            done
-        done
-    done
-done
+gsq=8.0
+Nf=2
+nu0=2.0
+nu1=2.0
+nhits=1
+dt=24
+ell=0
+em=0
+
+./${app} ${gsq} ${Nf} ${nu0} ${nu1} ${nhits} ${dt}
+
+
+# for gsq in 4.0
+# do
+#     for Nf in 2 4 6
+#     do
+#         # for nu0 in 0.8 1.0 1.2
+#         for nu0 in 0.8 1.2
+#         do
+#             nu1=${nu0}
+#             for ell in 0 1
+#             do
+#                 for (( em=-ell; em<=ell; em++ ))
+#                 do
+#                     echo $Nf $gsq $nu0 ${nu1} ${ell} ${em}
+#                     qsub -N "mesonNf${Nf}${nu0}${ell}${em}" -v app=${app} -v gsq=${gsq} -v Nf=${Nf} -v nu0=${nu0} -v nu1=${nu1} -v ell=${ell} -v em=${em} run_meson.sh
+#                 done
+#             done
+#         done
+#     done
+# done
 
 
 # for gsq in 0.1 0.5 1.0 2.0
