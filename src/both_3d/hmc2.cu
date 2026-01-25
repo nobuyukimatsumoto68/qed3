@@ -129,6 +129,15 @@ using CuC = cuDoubleComplex;
 
 
 int main(int argc, char* argv[]){
+  // int device;
+  // CUDA_CHECK(cudaGetDeviceCount(&device));
+  // std::cout << "device = " << device << std::endl;
+  // cudaDeviceProp device_prop[device];
+  // cudaGetDeviceProperties(&device_prop[1], 1);
+  // std::cout << "# dev = " << device_prop[1].name << std::endl;
+  CUDA_CHECK(cudaSetDevice(0));// "TITAN V"
+  std::cout << "# (GPU device is set.)" << std::endl;
+
   std::cout << std::scientific << std::setprecision(15);
   std::clog << std::scientific << std::setprecision(15);
 

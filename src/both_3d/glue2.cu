@@ -240,7 +240,7 @@ int main(int argc, char* argv[]){
   }
 
   // #ifdef IS_FLOW
-  Flow flow(&SW, 2.0, 200);
+  Flow flow(&SW, 1.0, 100);
   // #endif
 
 #ifdef _OPENMP
@@ -256,19 +256,58 @@ int main(int argc, char* argv[]){
     flow(Uflow);
 // #endif
 
-    std::vector<double> plaq_avg(Comp::Nt);
-    for(int t=0; t<Comp::Nt; t++) plaq_avg[t] = U.plaquette_angle_avg(t);
+    // std::vector<double> plaq_avg(Comp::Nt);
+    // for(int t=0; t<Comp::Nt; t++) plaq_avg[t] = U.plaquette_angle_avg(t);
 
-    std::vector<double> flow_plaq_avg(Comp::Nt);
-    for(int t=0; t<Comp::Nt; t++) flow_plaq_avg[t] = Uflow.plaquette_angle_avg(t);
+    // for(int t=0; t<Comp::Nt; t++) flow_plaq_avg[t] = Uflow.plaquette_angle_avg(t);
+    std::vector<double> flow_plaq_avg_00(Comp::Nt);
+    std::vector<double> flow_plaq_avg_1m1(Comp::Nt);
+    std::vector<double> flow_plaq_avg_10(Comp::Nt);
+    std::vector<double> flow_plaq_avg_11(Comp::Nt);
+    std::vector<double> flow_plaq_avg_2m2(Comp::Nt);
+    std::vector<double> flow_plaq_avg_2m1(Comp::Nt);
+    std::vector<double> flow_plaq_avg_20(Comp::Nt);
+    std::vector<double> flow_plaq_avg_21(Comp::Nt);
+    std::vector<double> flow_plaq_avg_22(Comp::Nt);
+    std::vector<double> flow_plaq_avg_3m3(Comp::Nt);
+    std::vector<double> flow_plaq_avg_3m2(Comp::Nt);
+    std::vector<double> flow_plaq_avg_3m1(Comp::Nt);
+    std::vector<double> flow_plaq_avg_30(Comp::Nt);
+    std::vector<double> flow_plaq_avg_31(Comp::Nt);
+    std::vector<double> flow_plaq_avg_32(Comp::Nt);
+    std::vector<double> flow_plaq_avg_33(Comp::Nt);
+    for(int t=0; t<Comp::Nt; t++) {
+      flow_plaq_avg_00[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 0, 0);
+      flow_plaq_avg_1m1[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 1, -1);
+      flow_plaq_avg_10[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 1, 0);
+      flow_plaq_avg_11[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 1, 1);
+      flow_plaq_avg_2m2[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 2, -2);
+      flow_plaq_avg_2m1[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 2, -1);
+      flow_plaq_avg_20[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 2, 0);
+      flow_plaq_avg_21[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 2, 1);
+      flow_plaq_avg_22[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 2, 2);
+      flow_plaq_avg_3m3[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 3, -3);
+      flow_plaq_avg_3m2[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 3, -2);
+      flow_plaq_avg_3m1[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 3, -1);
+      flow_plaq_avg_30[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 3, 0);
+      flow_plaq_avg_31[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 3, 1);
+      flow_plaq_avg_32[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 3, 2);
+      flow_plaq_avg_33[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 3, 3);
+    }
 
-    std::vector<double> chair_avg(Comp::Nt);
-    for(int t=0; t<Comp::Nt; t++) chair_avg[t] = U.chair_angle_avg(t);
+    // std::vector<double> chair_avg(Comp::Nt);
+    // for(int t=0; t<Comp::Nt; t++) chair_avg[t] = U.chair_angle_avg(t);
 
     std::vector<std::vector<double>*> obs_ptrs;
-    // obs_ptrs.push_back( &plaq_avg );
-    obs_ptrs.push_back( &flow_plaq_avg );
-    // obs_ptrs.push_back( &chair_avg );
+    obs_ptrs.push_back( &flow_plaq_avg_00 );
+    obs_ptrs.push_back( &flow_plaq_avg_1m1 );
+    obs_ptrs.push_back( &flow_plaq_avg_10 );
+    obs_ptrs.push_back( &flow_plaq_avg_11 );
+    obs_ptrs.push_back( &flow_plaq_avg_2m2 );
+    obs_ptrs.push_back( &flow_plaq_avg_2m1 );
+    obs_ptrs.push_back( &flow_plaq_avg_20 );
+    obs_ptrs.push_back( &flow_plaq_avg_21 );
+    obs_ptrs.push_back( &flow_plaq_avg_22 );
     const int nops = obs_ptrs.size();
 
     {
@@ -277,10 +316,6 @@ int main(int argc, char* argv[]){
       ofs << std::scientific << std::setprecision(15);
 
       for(int dt=0; dt<Comp::Nt; dt++){
-        // double cdt_avg1 = 0.0;
-        // double cdt_avg2 = 0.0;
-        // double cdt_avg3 = 0.0;
-        // double cdt_avg4 = 0.0;
         Eigen::MatrixXd cdt_avg = Eigen::MatrixXd::Zero( nops, nops );
 
         for(int t=0; t<Comp::Nt; t++) {
@@ -289,20 +324,12 @@ int main(int argc, char* argv[]){
               cdt_avg(i,j) += (*obs_ptrs[i])[t] * (*obs_ptrs[j])[(t+dt)%Comp::Nt];
             }
           }
-          // cdt_avg1 += plaq_avg[t]*plaq_avg[(t+dt)%Comp::Nt];
-          // cdt_avg2 += plaq_avg[t]*flow_plaq_avg[(t+dt)%Comp::Nt];
-          // cdt_avg3 += flow_plaq_avg[t]*plaq_avg[(t+dt)%Comp::Nt];
-          // cdt_avg4 += flow_plaq_avg[t]*flow_plaq_avg[(t+dt)%Comp::Nt];
         }
         for(int i=0; i<nops; i++){
           for(int j=0; j<nops; j++){
             cdt_avg(i,j) / Comp::Nt;
           }}
-        // cdt_avg1 /= Comp::Nt;
-        // cdt_avg2 /= Comp::Nt;
-        // cdt_avg3 /= Comp::Nt;
-        // cdt_avg4 /= Comp::Nt;
-        ofs << dt << " ";
+        // ofs << dt << " ";
         for(int i=0; i<nops; i++){
           for(int j=0; j<nops; j++){
             ofs << cdt_avg(i,j) << " ";

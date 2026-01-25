@@ -1,7 +1,7 @@
 #pragma once
 
 double Ylm_real( const int ell, const int em, const double theta, const double phi ){
-  const double Pell = std::assoc_legendre( ell, em, std::cos(theta) );
+  const double Pell = std::assoc_legendre( ell, std::abs(em), std::cos(theta) );
 
   double trig;
   if( em>0 ) trig = std::cos(std::abs(em)*phi);
@@ -11,9 +11,37 @@ double Ylm_real( const int ell, const int em, const double theta, const double p
   double factor = (2.0*ell+1)/(4.0*M_PI);
   factor *= std::tgamma( ell-std::abs(em)+1 );
   factor /= std::tgamma( ell+std::abs(em)+1 );
-  factor = std::pow(-1.0,em) * std::sqrt(2.0) * std::sqrt(factor);
+  factor = std::pow(-1.0,std::abs(em)) * std::sqrt(2.0) * std::sqrt(factor);
 
   return factor * Pell * trig;
+}
+
+double Ylm_real( const int ell, const int em, const VE r ){
+  assert( std::abs( r.norm()-1.0 )<1.0e-14 );
+  const double theta = std::acos(r[2]);
+  const double phi = std::atan2(r[1], r[0]);
+  return Ylm_real( ell, em, theta, phi );
+}
+
+
+Complex Ylm( const int ell, const int em, const double theta, const double phi ){
+  const double Pell = std::assoc_legendre( ell, std::abs(em), std::cos(theta) );
+
+  Complex trig = std::exp( I*(em*phi) );
+
+  double factor = (2.0*ell+1)/(4.0*M_PI);
+  factor *= std::tgamma( ell-std::abs(em)+1 );
+  factor /= std::tgamma( ell+std::abs(em)+1 );
+  factor = std::pow(-1.0,std::abs(em)) * std::sqrt(factor);
+
+  return factor * Pell * trig;
+}
+
+Complex Ylm( const int ell, const int em, const VE r ){
+  assert( std::abs( r.norm()-1.0 )<1.0e-14 );
+  const double theta = std::acos(r[2]);
+  const double phi = std::atan2(r[1], r[0]);
+  return Ylm( ell, em, theta, phi );
 }
 
 

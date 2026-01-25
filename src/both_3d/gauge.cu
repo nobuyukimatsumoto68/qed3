@@ -320,7 +320,7 @@ int main(int argc, char* argv[]){
   // ----------------------
 
   // const double gsq = 0.05;
-  const double gsq = 4.0;
+  const double gsq = 2.0;
   // const double gsq = 2.0;
   // const double gsq = 0.1;
   // const double gsqR = 0.2;

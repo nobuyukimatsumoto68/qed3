@@ -259,7 +259,12 @@ int main(int argc, char* argv[]){
       for(int h=0; h<nhits; h++){
         std::cout << "# t0 = " << t0 << "h = " << h << std::endl;
         src1.fill_z2_wall_source( rng, t0 );
+        // std::cout << "# debug. src1 = " << std::endl;
+        // for(Idx i=0; i<Comp::N; i++) std::cout << src1.field[i] << " ";
         src1.mult_Y(ell, em, base);
+        // std::cout << "# debug. src1 = " << std::endl;
+        // for(Idx i=0; i<Comp::N; i++) std::cout << src1.field[i] << " ";
+        // std::cout << std::endl;
         src1.mult_sigma3();
         op_DH.from_cpu<N>( DH_src1.field, src1.field );
         op_DHD.solve<N>( Dinv_src1.field, DH_src1.field );

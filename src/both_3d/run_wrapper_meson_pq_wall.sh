@@ -1,6 +1,6 @@
 #!/bin/bash
 
-source /projectnb/qfe/nmatsum/qed3/env.sh
+# source /projectnb/qfe/nmatsum/qed3/env.sh
 
 # gsq=$1
 # Nf=$2
@@ -14,16 +14,33 @@ echo $app
 
 make ${app}
 
-gsq=8.0
+# gsq=4.0
+# Nf=2
+# nu0=1.5
+# nu1=${nu0}
+# nhits=1
+# dt=24
+# ell=0
+# em=0
+
+gsq=2.0
 Nf=2
-nu0=2.0
-nu1=2.0
+nu0=3.0
+nu1=3.0 # ${nu0}
 nhits=1
 dt=24
 ell=0
 em=0
 
-./${app} ${gsq} ${Nf} ${nu0} ${nu1} ${nhits} ${dt}
+
+for ell in 0 1 2
+do
+    for (( em=-ell; em<=ell; em++ ))
+    do
+        CUDA_VISIBLE_DEVICES=02 ./${app} ${gsq} ${Nf} ${nu0} ${nu1} ${nhits} ${dt} ${ell} ${em}
+    done
+done
+
 
 
 # for gsq in 4.0

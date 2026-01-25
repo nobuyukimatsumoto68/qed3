@@ -170,6 +170,30 @@ struct GaugeExt {
     return avg;
   }
 
+  double plaquette_angle_avg_Ylm_real(const int s, const int ell, const int em) const {
+    double avg = 0.0;
+    int counter=0;
+    for(const Face& face : lattice.faces ){
+      const VE r = lattice.dual_sites[counter];
+      counter++;
+      avg += plaquette_angle( s, face ) * Ylm_real( ell, em, r );
+    }
+    avg /= lattice.faces.size();
+    return avg;
+  }
+
+  Complex plaquette_angle_avg_Ylm(const int s, const int ell, const int em) const {
+    Complex avg = 0.0;
+    int counter=0;
+    for(const Face& face : lattice.faces ){
+      const VE r = lattice.dual_sites[counter];
+      counter++;
+      avg += plaquette_angle( s, face ) * Ylm( ell, em, r );
+    }
+    avg /= lattice.faces.size();
+    return avg;
+  }
+
 
   double plaquette_angle(const int s, const BaseLink& link) const {
     double sum = 0.0;
