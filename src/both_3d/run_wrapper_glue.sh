@@ -13,11 +13,11 @@ echo $app
 #     echo $1 $2
 
 
-for gsq in 2.0
+for gsq in 2.8
 do
-    for Nf in 0 # 4 6
+    for Nf in 2 4 6 # 4 6
     do
-        for nu0 in 2.0
+        for nu0 in 1.0
         do
             echo $Nf $gsq $nu0
             ./${app} ${gsq} ${Nf} ${nu0}

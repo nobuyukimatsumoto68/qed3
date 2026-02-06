@@ -1,7 +1,7 @@
 #pragma once
 
 double Ylm_real( const int ell, const int em, const double theta, const double phi ){
-  const double Pell = std::assoc_legendre( ell, std::abs(em), std::cos(theta) );
+  const double Pell = std::assoc_legendre( ell, std::abs(em), std::cos(theta) ); // no Condon-Shortley phase
 
   double trig;
   if( em>0 ) trig = std::cos(std::abs(em)*phi);

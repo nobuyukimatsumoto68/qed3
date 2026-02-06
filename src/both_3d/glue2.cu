@@ -226,7 +226,7 @@ int main(int argc, char* argv[]){
 
   Gauge U(base);
 
-  const int k_ckpoint=10;
+  const int k_ckpoint=1;
   const int kmax=1e5;
 
   int k_tmp=0;
@@ -240,7 +240,7 @@ int main(int argc, char* argv[]){
   }
 
   // #ifdef IS_FLOW
-  Flow flow(&SW, 1.0, 100);
+  Flow flow(&SW, 1.5, 100);
   // #endif
 
 #ifdef _OPENMP
@@ -260,6 +260,40 @@ int main(int argc, char* argv[]){
     // for(int t=0; t<Comp::Nt; t++) plaq_avg[t] = U.plaquette_angle_avg(t);
 
     // for(int t=0; t<Comp::Nt; t++) flow_plaq_avg[t] = Uflow.plaquette_angle_avg(t);
+    // std::vector<double> plaq_avg_00(Comp::Nt);
+    // std::vector<double> plaq_avg_1m1(Comp::Nt);
+    // std::vector<double> plaq_avg_10(Comp::Nt);
+    // std::vector<double> plaq_avg_11(Comp::Nt);
+    // std::vector<double> plaq_avg_2m2(Comp::Nt);
+    // std::vector<double> plaq_avg_2m1(Comp::Nt);
+    // std::vector<double> plaq_avg_20(Comp::Nt);
+    // std::vector<double> plaq_avg_21(Comp::Nt);
+    // std::vector<double> plaq_avg_22(Comp::Nt);
+    // std::vector<double> plaq_avg_3m3(Comp::Nt);
+    // std::vector<double> plaq_avg_3m2(Comp::Nt);
+    // std::vector<double> plaq_avg_3m1(Comp::Nt);
+    // std::vector<double> plaq_avg_30(Comp::Nt);
+    // std::vector<double> plaq_avg_31(Comp::Nt);
+    // std::vector<double> plaq_avg_32(Comp::Nt);
+    // std::vector<double> plaq_avg_33(Comp::Nt);
+    //
+    // std::vector<double> plaq_avg_temporal_00(Comp::Nt);
+    // std::vector<double> plaq_avg_temporal_1m1(Comp::Nt);
+    // std::vector<double> plaq_avg_temporal_10(Comp::Nt);
+    // std::vector<double> plaq_avg_temporal_11(Comp::Nt);
+    // std::vector<double> plaq_avg_temporal_2m2(Comp::Nt);
+    // std::vector<double> plaq_avg_temporal_2m1(Comp::Nt);
+    // std::vector<double> plaq_avg_temporal_20(Comp::Nt);
+    // std::vector<double> plaq_avg_temporal_21(Comp::Nt);
+    // std::vector<double> plaq_avg_temporal_22(Comp::Nt);
+    // std::vector<double> plaq_avg_temporal_3m3(Comp::Nt);
+    // std::vector<double> plaq_avg_temporal_3m2(Comp::Nt);
+    // std::vector<double> plaq_avg_temporal_3m1(Comp::Nt);
+    // std::vector<double> plaq_avg_temporal_30(Comp::Nt);
+    // std::vector<double> plaq_avg_temporal_31(Comp::Nt);
+    // std::vector<double> plaq_avg_temporal_32(Comp::Nt);
+    // std::vector<double> plaq_avg_temporal_33(Comp::Nt);
+    //
     std::vector<double> flow_plaq_avg_00(Comp::Nt);
     std::vector<double> flow_plaq_avg_1m1(Comp::Nt);
     std::vector<double> flow_plaq_avg_10(Comp::Nt);
@@ -269,30 +303,79 @@ int main(int argc, char* argv[]){
     std::vector<double> flow_plaq_avg_20(Comp::Nt);
     std::vector<double> flow_plaq_avg_21(Comp::Nt);
     std::vector<double> flow_plaq_avg_22(Comp::Nt);
-    std::vector<double> flow_plaq_avg_3m3(Comp::Nt);
-    std::vector<double> flow_plaq_avg_3m2(Comp::Nt);
-    std::vector<double> flow_plaq_avg_3m1(Comp::Nt);
-    std::vector<double> flow_plaq_avg_30(Comp::Nt);
-    std::vector<double> flow_plaq_avg_31(Comp::Nt);
-    std::vector<double> flow_plaq_avg_32(Comp::Nt);
-    std::vector<double> flow_plaq_avg_33(Comp::Nt);
+    // std::vector<double> flow_plaq_avg_2summed(Comp::Nt);
+    // std::vector<double> flow_plaq_avg_3summed(Comp::Nt);
+    // std::vector<double> flow_plaq_avg_3m2(Comp::Nt);
+    // std::vector<double> flow_plaq_avg_3m1(Comp::Nt);
+    // std::vector<double> flow_plaq_avg_30(Comp::Nt);
+    // std::vector<double> flow_plaq_avg_31(Comp::Nt);
+    // std::vector<double> flow_plaq_avg_32(Comp::Nt);
+    // std::vector<double> flow_plaq_avg_33(Comp::Nt);
     for(int t=0; t<Comp::Nt; t++) {
       flow_plaq_avg_00[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 0, 0);
       flow_plaq_avg_1m1[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 1, -1);
       flow_plaq_avg_10[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 1, 0);
       flow_plaq_avg_11[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 1, 1);
+      // flow_plaq_avg_2summed[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 2, -2)
+      //   + Uflow.plaquette_angle_avg_Ylm_real(t, 2, -1)
+      //   + Uflow.plaquette_angle_avg_Ylm_real(t, 2, 0)
+      //   + Uflow.plaquette_angle_avg_Ylm_real(t, 2, 1)
+      //   + Uflow.plaquette_angle_avg_Ylm_real(t, 2, 2);
       flow_plaq_avg_2m2[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 2, -2);
       flow_plaq_avg_2m1[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 2, -1);
       flow_plaq_avg_20[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 2, 0);
       flow_plaq_avg_21[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 2, 1);
       flow_plaq_avg_22[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 2, 2);
-      flow_plaq_avg_3m3[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 3, -3);
-      flow_plaq_avg_3m2[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 3, -2);
-      flow_plaq_avg_3m1[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 3, -1);
-      flow_plaq_avg_30[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 3, 0);
-      flow_plaq_avg_31[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 3, 1);
-      flow_plaq_avg_32[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 3, 2);
-      flow_plaq_avg_33[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 3, 3);
+      // flow_plaq_avg_3summed[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 3, -3)
+      //   + Uflow.plaquette_angle_avg_Ylm_real(t, 3, -2)
+      //   + Uflow.plaquette_angle_avg_Ylm_real(t, 3, -1)
+      //   + Uflow.plaquette_angle_avg_Ylm_real(t, 3, -0)
+      //   + Uflow.plaquette_angle_avg_Ylm_real(t, 3, 1)
+      //   + Uflow.plaquette_angle_avg_Ylm_real(t, 3, 2)
+      //   + Uflow.plaquette_angle_avg_Ylm_real(t, 3, 3);
+      // flow_plaq_avg_3m3[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 3, -3);
+      // flow_plaq_avg_3m2[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 3, -2);
+      // flow_plaq_avg_3m1[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 3, -1);
+      // flow_plaq_avg_30[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 3, 0);
+      // flow_plaq_avg_31[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 3, 1);
+      // flow_plaq_avg_32[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 3, 2);
+      // flow_plaq_avg_33[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 3, 3);
+      //
+      // plaq_avg_temporal_00[t] = U.plaquette_angle_avg_temporal_Ylm_real(t, 0, 0);
+      // plaq_avg_temporal_1m1[t] = U.plaquette_angle_avg_temporal_Ylm_real(t, 1, -1);
+      // plaq_avg_temporal_10[t] = U.plaquette_angle_avg_temporal_Ylm_real(t, 1, 0);
+      // plaq_avg_temporal_11[t] = U.plaquette_angle_avg_temporal_Ylm_real(t, 1, 1);
+      // plaq_avg_temporal_2m2[t] = U.plaquette_angle_avg_temporal_Ylm_real(t, 2, -2);
+      // plaq_avg_temporal_2m1[t] = U.plaquette_angle_avg_temporal_Ylm_real(t, 2, -1);
+      // plaq_avg_temporal_20[t] = U.plaquette_angle_avg_temporal_Ylm_real(t, 2, 0);
+      // plaq_avg_temporal_21[t] = U.plaquette_angle_avg_temporal_Ylm_real(t, 2, 1);
+      // plaq_avg_temporal_22[t] = U.plaquette_angle_avg_temporal_Ylm_real(t, 2, 2);
+      // plaq_avg_temporal_3m3[t] = U.plaquette_angle_avg_temporal_Ylm_real(t, 3, -3);
+      // plaq_avg_temporal_3m2[t] = U.plaquette_angle_avg_temporal_Ylm_real(t, 3, -2);
+      // plaq_avg_temporal_3m1[t] = U.plaquette_angle_avg_temporal_Ylm_real(t, 3, -1);
+      // plaq_avg_temporal_30[t] = U.plaquette_angle_avg_temporal_Ylm_real(t, 3, 0);
+      // plaq_avg_temporal_31[t] = U.plaquette_angle_avg_temporal_Ylm_real(t, 3, 1);
+      // plaq_avg_temporal_32[t] = U.plaquette_angle_avg_temporal_Ylm_real(t, 3, 2);
+      // plaq_avg_temporal_33[t] = U.plaquette_angle_avg_temporal_Ylm_real(t, 3, 3);
+      //
+      // plaq_avg_00[t] = U.plaquette_angle_avg_Ylm_real(t, 0, 0);
+      // plaq_avg_1m1[t] = U.plaquette_angle_avg_Ylm_real(t, 1, -1);
+      // plaq_avg_10[t] = U.plaquette_angle_avg_Ylm_real(t, 1, 0);
+      // plaq_avg_11[t] = U.plaquette_angle_avg_Ylm_real(t, 1, 1);
+      // plaq_avg_2m2[t] = U.plaquette_angle_avg_Ylm_real(t, 2, -2);
+      // plaq_avg_2m1[t] = U.plaquette_angle_avg_Ylm_real(t, 2, -1);
+      // plaq_avg_20[t] = U.plaquette_angle_avg_Ylm_real(t, 2, 0);
+      // plaq_avg_21[t] = U.plaquette_angle_avg_Ylm_real(t, 2, 1);
+      // plaq_avg_22[t] = U.plaquette_angle_avg_Ylm_real(t, 2, 2);
+      // plaq_avg_3m3[t] = U.plaquette_angle_avg_Ylm_real(t, 3, -3);
+      // plaq_avg_3m2[t] = U.plaquette_angle_avg_Ylm_real(t, 3, -2);
+      // plaq_avg_3m1[t] = U.plaquette_angle_avg_Ylm_real(t, 3, -1);
+      // plaq_avg_30[t] = U.plaquette_angle_avg_Ylm_real(t, 3, 0);
+      // plaq_avg_31[t] = U.plaquette_angle_avg_Ylm_real(t, 3, 1);
+      // plaq_avg_32[t] = U.plaquette_angle_avg_Ylm_real(t, 3, 2);
+      // plaq_avg_33[t] = U.plaquette_angle_avg_Ylm_real(t, 3, 3);
+      //
+
     }
 
     // std::vector<double> chair_avg(Comp::Nt);
@@ -308,6 +391,50 @@ int main(int argc, char* argv[]){
     obs_ptrs.push_back( &flow_plaq_avg_20 );
     obs_ptrs.push_back( &flow_plaq_avg_21 );
     obs_ptrs.push_back( &flow_plaq_avg_22 );
+    // obs_ptrs.push_back( &flow_plaq_avg_2summed );
+    // obs_ptrs.push_back( &flow_plaq_avg_3summed );
+    // obs_ptrs.push_back( &flow_plaq_avg_3m3 );
+    // obs_ptrs.push_back( &flow_plaq_avg_3m2 );
+    // obs_ptrs.push_back( &flow_plaq_avg_3m1 );
+    // obs_ptrs.push_back( &flow_plaq_avg_30 );
+    // obs_ptrs.push_back( &flow_plaq_avg_31 );
+    // obs_ptrs.push_back( &flow_plaq_avg_32 );
+    // obs_ptrs.push_back( &flow_plaq_avg_33 );
+    //
+    // obs_ptrs.push_back( &plaq_avg_temporal_00 );
+    // obs_ptrs.push_back( &plaq_avg_temporal_1m1 );
+    // obs_ptrs.push_back( &plaq_avg_temporal_10 );
+    // obs_ptrs.push_back( &plaq_avg_temporal_11 );
+    // obs_ptrs.push_back( &plaq_avg_temporal_2m2 );
+    // obs_ptrs.push_back( &plaq_avg_temporal_2m1 );
+    // obs_ptrs.push_back( &plaq_avg_temporal_20 );
+    // obs_ptrs.push_back( &plaq_avg_temporal_21 );
+    // obs_ptrs.push_back( &plaq_avg_temporal_22 );
+    // obs_ptrs.push_back( &plaq_avg_temporal_3m3 );
+    // obs_ptrs.push_back( &plaq_avg_temporal_3m2 );
+    // obs_ptrs.push_back( &plaq_avg_temporal_3m1 );
+    // obs_ptrs.push_back( &plaq_avg_temporal_30 );
+    // obs_ptrs.push_back( &plaq_avg_temporal_31 );
+    // obs_ptrs.push_back( &plaq_avg_temporal_32 );
+    // obs_ptrs.push_back( &plaq_avg_temporal_33 );
+    // //
+    // obs_ptrs.push_back( &plaq_avg_00 );
+    // obs_ptrs.push_back( &plaq_avg_1m1 );
+    // obs_ptrs.push_back( &plaq_avg_10 );
+    // obs_ptrs.push_back( &plaq_avg_11 );
+    // obs_ptrs.push_back( &plaq_avg_2m2 );
+    // obs_ptrs.push_back( &plaq_avg_2m1 );
+    // obs_ptrs.push_back( &plaq_avg_20 );
+    // obs_ptrs.push_back( &plaq_avg_21 );
+    // obs_ptrs.push_back( &plaq_avg_22 );
+    // obs_ptrs.push_back( &plaq_avg_3m3 );
+    // obs_ptrs.push_back( &plaq_avg_3m2 );
+    // obs_ptrs.push_back( &plaq_avg_3m1 );
+    // obs_ptrs.push_back( &plaq_avg_30 );
+    // obs_ptrs.push_back( &plaq_avg_31 );
+    // obs_ptrs.push_back( &plaq_avg_32 );
+    // obs_ptrs.push_back( &plaq_avg_33 );
+    //
     const int nops = obs_ptrs.size();
 
     {

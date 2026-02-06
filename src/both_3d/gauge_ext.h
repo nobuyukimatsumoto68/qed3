@@ -206,6 +206,27 @@ struct GaugeExt {
     return sum;
   }
 
+
+  double plaquette_angle_avg_temporal_Ylm_real(const int s, const int ell, const int em) const {
+    double avg = 0.0;
+    int counter=0;
+    for(const Face& face : lattice.faces ){
+      double sum = 0.0;
+      for(Idx i=0; i<face.size(); i++) {
+        const Idx ix = face[i];
+        const Idx iy = face[(i+1)%face.size()];
+        sum += plaquette_angle( s, BaseLink{ix,iy} );
+      }
+      const VE r = lattice.dual_sites[counter];
+      counter++;
+      avg += sum * Ylm_real( ell, em, r );
+    }
+    avg /= lattice.faces.size();
+    return avg;
+  }
+
+
+
   double chair_angle_localavg(const int s, const BaseFace& face) const {
     double sum = plaquette_angle(s, face);
     for(Idx i=0; i<face.size(); i++) {

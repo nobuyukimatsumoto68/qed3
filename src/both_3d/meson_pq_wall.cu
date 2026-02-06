@@ -199,7 +199,8 @@ int main(int argc, char* argv[]){
   WilsonDirac DW(base, 0.0, 1.0, M5, at, nu1);
   std::cout << "# DW set. " << std::endl;
   using Fermion=Overlap<WilsonDirac>;
-  Fermion D(DW, 31);
+  //Fermion D(DW, 31);
+    Fermion D(DW, 21);
   std::cout << "# D set. " << std::endl;
 
   D.update( U );
@@ -247,8 +248,22 @@ int main(int argc, char* argv[]){
     k_tmp -= k_ckpoint;
   }
 
+  int k_init=0;
+  {
+    int h=0;
+    int t0=0;
+    for(k_init=k_ckpoint; k_init<=kmax; k_init+=k_ckpoint ){
+      const std::string path=dir4+"meson_"+std::to_string(ell)+"_"+std::to_string(em)+"_h"+std::to_string(h)+"_t0"+std::to_string(t0)+"_corr."+std::to_string(k_init);
+      // std::ofstream ofs(path);
+      // const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k_init);
+      const bool bool_lat = std::filesystem::exists(path);
+      if(!bool_lat) break;
+    }
+    // k_init -= k_ckpoint;
+  }
 
-  for(int k=k_ckpoint; k<=k_tmp; k+=k_ckpoint ){
+
+  for(int k=k_init; k<=k_tmp; k+=k_ckpoint ){
     std::cout << "# read from k = " << k << std::endl;
     const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k);
     U.read( str_lat );
