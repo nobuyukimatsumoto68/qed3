@@ -11,7 +11,8 @@ double Ylm_real( const int ell, const int em, const double theta, const double p
   double factor = (2.0*ell+1)/(4.0*M_PI);
   factor *= std::tgamma( ell-std::abs(em)+1 );
   factor /= std::tgamma( ell+std::abs(em)+1 );
-  factor = std::pow(-1.0,std::abs(em)) * std::sqrt(2.0) * std::sqrt(factor);
+  // factor = std::pow(-1.0,std::abs(em)) * std::sqrt(2.0) * std::sqrt(factor);
+  factor = std::sqrt(2.0) * std::sqrt(factor);
 
   return factor * Pell * trig;
 }
@@ -79,6 +80,8 @@ struct FermionVector {
     CUDA_CHECK(cudaFreeHost(field));
   }
 
+  Idx size() const { return Comp::N; }
+  Complex* data() { return field; }
 
   // explicit FermionVector(const Lattice& lattice_,
   //                        const int Nt_,
@@ -169,6 +172,21 @@ struct FermionVector {
     return res;
   }
 
+  void mult_sigma1() {
+    for(int s=0; s<Nt; s++){
+      for(Idx ix=0; ix<Comp::N_SITES; ix++){
+        std::swap( (*this)(s, ix, 0), (*this)(s, ix, 1) );
+      }}
+  }
+
+  void mult_sigma2() {
+    for(int s=0; s<Nt; s++){
+      for(Idx ix=0; ix<Comp::N_SITES; ix++){
+        std::swap( (*this)(s, ix, 0), (*this)(s, ix, 1) );
+        (*this)(s, ix, 0) *= -I;
+        (*this)(s, ix, 1) *= I;
+      }}
+  }
 
   void mult_sigma3() {
     for(int s=0; s<Nt; s++){
@@ -177,13 +195,21 @@ struct FermionVector {
       }}
   }
 
+  void mult_sigma( const int a) {
+    if(a==1) mult_sigma1();
+    else if(a==2) mult_sigma2();
+    else if(a==3) mult_sigma3();
+    else assert(false);
+  }
+
+
   template<typename Lattice>
-  void mult_Y(const int ell, const int em, const Lattice& lattice ) {
+  void mult_Ylm(const int ell, const int em, const Lattice& lattice ) {
     for(Idx ix=0; ix<Comp::N_SITES; ix++){
       const VE r = lattice.sites[ix];
-      const double theta = std::acos(r[2]);
-      const double phi = std::atan2(r[1], r[0]);
-      const double ylm = Ylm_real(ell, em, theta, phi);
+      // const double theta = std::acos(r[2]);
+      // const double phi = std::atan2(r[1], r[0]);
+      const double ylm = Ylm_real(ell, em, r);
       for(int s=0; s<Nt; s++){
         (*this)(s, ix, 0) *= ylm;
         (*this)(s, ix, 1) *= ylm;
@@ -205,6 +231,48 @@ struct FermionVector {
 
 
 
+
+
+struct FermionMatrix {
+  std::vector<FermionVector> eta;
+
+  FermionMatrix() // Rng& rng_)
+    : eta(Comp::NS)
+  {}
+
+  // copy constructor
+  FermionMatrix( const FermionMatrix& other )
+    : eta(Comp::NS)
+  {
+    for(int spin=0; spin<2; spin++){
+      memcpy( eta[spin].data(), other.eta[spin].data(), eta[spin].size() );
+    }
+  }
+
+
+  ~FermionMatrix(){}
+
+  FermionVector operator[](const int j) const { return eta[j]; }
+  FermionVector& operator[](const int j) { return eta[j]; }
+
+  inline Complex operator()(const int s, const Idx ix,
+                            const int i, const int j
+                            ) const { return eta[j](s, ix, i); }
+  inline Complex& operator()(const int s, const Idx ix,
+                             const int i, const int j) { return eta[j](s, ix, i); }
+
+  void mult_sigma( const int a) {
+    for(int spin=0; spin<2; spin++) eta[spin].mult_sigma(a);
+  }
+
+  template<typename Lattice>
+  void mult_Ylm(const int ell, const int em, const Lattice& lattice ) {
+    for(int spin=0; spin<2; spin++) eta[spin].mult_Ylm(ell, em, lattice);
+  }
+
+
+
+};
 
 
 
