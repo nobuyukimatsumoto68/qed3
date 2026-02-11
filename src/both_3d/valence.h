@@ -82,6 +82,7 @@ struct FermionVector {
 
   Idx size() const { return Comp::N; }
   Complex* data() { return field; }
+  Complex* data() const { return field; }
 
   // explicit FermionVector(const Lattice& lattice_,
   //                        const int Nt_,
@@ -202,7 +203,6 @@ struct FermionVector {
     else assert(false);
   }
 
-
   template<typename Lattice>
   void mult_Ylm(const int ell, const int em, const Lattice& lattice ) {
     for(Idx ix=0; ix<Comp::N_SITES; ix++){
@@ -216,6 +216,7 @@ struct FermionVector {
       }
     }
   }
+
 
   // void set_random() {
   //   for(Idx ix=0; ix<lattice.n_sites; ix++){
@@ -270,6 +271,14 @@ struct FermionMatrix {
     for(int spin=0; spin<2; spin++) eta[spin].mult_Ylm(ell, em, lattice);
   }
 
+  MS get_spinmatrix( const int s, const Idx ix ) const {
+    MS res = MS::Zero();
+    for(int i=0; i<Comp::NS; i++){
+      for(int j=0; j<Comp::NS; j++){
+        res(i, j) = (*this)(s, ix, i, j);
+      }}
+    return res;
+  }
 
 
 };
