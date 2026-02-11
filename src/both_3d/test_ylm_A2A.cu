@@ -159,16 +159,24 @@ int main(int argc, char* argv[]){
   for(Idx x2=0; x2<base.n_sites; x2++){
     FermionMatrix eta;
     const auto r2 = base.sites[x2];
+    // std::cout << "debug. Ylm2 = " << Ylm_real( ell2, em2, r2 ) << std::endl;
+
     for(int spin=0; spin<2; spin++){
       std::vector<Complex> vector = f.getDataSet("ix"+std::to_string(x2)+"/s"+std::to_string(spin)).read<std::vector<Complex>>();
-      memcpy( eta[spin].data(), vector.data(), vector.size() );
+
+      // for(auto elem : vector){
+      //   std::cout << "# debug. " << std::abs(elem) << std::endl;
+      // }
+      // std::cout << "debug. size = " << vector.size() << std::endl;
+      memcpy( eta[spin].data(), vector.data(), vector.size()*CD );
     }
 
-    for(int s=0; s<Nt; s++){
-      for(Idx x1=0; x1<Comp::N_SITES; x1++){
-        const auto r1 = base.sites[x1];
+    for(Idx x1=0; x1<Comp::N_SITES; x1++){
+      const auto r1 = base.sites[x1];
+      for(int s=0; s<Nt; s++){
         const MS Delta = eta.get_spinmatrix(s, x1);
         const Complex Csp = ( sigma[a] * Delta * sigma[b] * Delta.adjoint() ).trace();
+        // std::cout << "# debug. " << s << " " << std::abs(Csp) << std::endl;
         Cab[s] += Ylm_real( ell1, em1, r1 )*Ylm_real( ell2, em2, r2 ) * Csp;
       }
     }
@@ -177,7 +185,7 @@ int main(int argc, char* argv[]){
   for(int s=0; s<Nt; s++){
     std::cout << std::setw(5) << s << " "
               << std::setw(15) << Cab[s].real() << " "
-              << std::setw(15) << Cab[s].real() << " "
+              << std::setw(15) << Cab[s].imag() << " "
               << std::endl;
   }
 

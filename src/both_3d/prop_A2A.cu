@@ -201,35 +201,14 @@ int main(int argc, char* argv[]){
   for(int i=0; i<Comp::NSTREAMS; i++) d_MemorySets[i].allocate();
 
 
-  const double gsq = 0.05;
-  // double at = 0.05; // base.mean_ell * 0.125 * ratio;
-  // if(Comp::Nt==1) at=0.;
-  Action SW( gsq, at, base );
-  std::cout << "# alat = " << base.mean_ell << std::endl;
-
-
   Gauge U(base);
-  srand( time(NULL) );
-  Rng rng(base, rand());
+  // srand( time(NULL) );
+  // Rng rng(base, rand());
 
 
 
 #ifdef IS_OVERLAP
-  // Overlap Dov(DW, 31);
-  // Dov.update(U);
-  // std::cout << "# Dov set; M5 = " << M5 << std::endl;
-  // std::cout << "# min max ratio: "
-  //           << Dov.lambda_min << " "
-  //           << Dov.lambda_max << " "
-  //           << Dov.lambda_min/Dov.lambda_max << std::endl;
-  // std::cout << "# delta = " << Dov.Delta() << std::endl;
-
-  // auto f_Op = std::bind(&Overlap::mult_deviceAsyncLaunch, &Dov, std::placeholders::_1, std::placeholders::_2);
-  // LinOpWrapper M_Op( f_Op );
-  // Op.push_back ( cplx(1.0), {&M_Op} );
-
   const double M5 = -1.0;
-
   WilsonDirac DW(base, 0.0, 1.0, M5, at, nu0);
   std::cout << "# DW set. " << std::endl;
 
@@ -249,13 +228,8 @@ int main(int argc, char* argv[]){
   D.update( U );
   std::cout << "# D updated. " << std::endl;
 
-#ifdef IS_DAGGER
-  auto f_pre = std::bind(&Fermion::mult_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
-  auto f_sq = std::bind(&Fermion::DDH_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
-#else
   auto f_pre = std::bind(&Fermion::adj_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
   auto f_sq = std::bind(&Fermion::DHD_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
-#endif
   LinOpWrapper M_pre( f_pre );
   MatPoly pre; pre.push_back ( cplx(1.0), {&M_pre} );
   LinOpWrapper M_sq( f_sq );
@@ -265,47 +239,12 @@ int main(int argc, char* argv[]){
 
   std::cout << "# calculating src " << std::endl;
 
-#ifdef GAUGE_TRSF
-  FermionVector gauge; // (base, Nt, rng);
-  gauge.set_random_gauge(rng);
-#endif
-
-
-
-  std::vector<double> thetas;
-  std::vector<double> phis;
-  std::vector<double> lengths;
-  const auto x0 = base.sites[0];
-  for(int ix=0; ix<base.n_sites; ix++){
-    const auto x1 = base.sites[ix];
-    double len = Geodesic::geodesicLength(Geodesic::Pt(x0), Geodesic::Pt(x1));
-    // std::cout << "len = " << len << std::endl;
-    lengths.push_back(len);
-    thetas.push_back( Geodesic::projectionS2(x1)[0] );
-    phis.push_back( Geodesic::projectionS2(x1)[1] );
-  }
-
-
   std::string path = "A2A_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_at"+std::to_string(at)+"_nu0"+std::to_string(nu0)+".dat";
-#ifdef IS_DUAL
-  path = "dual_"+path;
-#endif
 #ifdef IS_OVERLAP
   path = "ov_"+path;
 #endif
-#ifdef IS_DAGGER
-  path = "dagger_"+path;
-#endif
-#ifdef IS_FLAT
-  path = "flat_"+path;
-#endif
 
-  // std::ofstream ofs(path);
-  // const std::string filename3 = dir + "/S3_"+std::to_string(ibeta0)+".h5";
   HighFive::File f1(path.c_str(), HighFive::File::Overwrite );
-  // ofs << std::scientific << std::setprecision(15);
-  // ofs << std::scientific << std::setprecision(15);
-  // h5
 
   for(Idx ix=0; ix<base.n_sites; ix++){
     for(int spin=0; spin<2; spin++){
@@ -322,26 +261,7 @@ int main(int argc, char* argv[]){
 
       std::vector<Complex> vector( sink.field, sink.field+sink.size() );
       f1.createDataSet<std::vector<Complex>>("ix"+std::to_string(ix)+"/s"+std::to_string(spin), vector);
-      // break;
     }
-    // break;
-    // h5write;
-
-    // {
-    // for(Idx s=0; s<Comp::Nt; s++) {
-    //   for(Idx ix=0; ix<base.n_sites; ix++) {
-    //     auto elem = sink(s,ix,0);
-    //     ofs << std::setw(25) << at*s << " "
-    //         << std::setw(25) << thetas[ix] << " "
-    //         << std::setw(25) << phis[ix] << " "
-    //         << std::setw(25) << 1.0 * elem.real() / factor << " "
-    //         << std::setw(25) << 1.0 * elem.imag() / factor << " "; // << std::endl;
-    //     elem = sink(s,ix,1);
-    //     ofs << std::setw(25) << 1.0 * elem.real() / factor << " "
-    //         << std::setw(25) << 1.0 * elem.imag() / factor << std::endl;
-    //   }
-    // }
-    // }
   }
 
   // ------------------

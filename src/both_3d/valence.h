@@ -84,50 +84,14 @@ struct FermionVector {
   Complex* data() { return field; }
   Complex* data() const { return field; }
 
-  // explicit FermionVector(const Lattice& lattice_,
-  //                        const int Nt_,
-  //                        Rng& rng_)
-  //   : lattice(lattice_)
-  //   , Nt(Nt_)
-  //     // , Op(Op_)
-  //   , rng(rng_)
-  //   , field(Comp::Nx*Nt, 0.0)
-  // {}
-
-  // GaugeForce& operator=(const GaugeForce& other){
-  //   if (this == &other) return *this;
-
-  //   assert(&lattice==&other.lattice);
-  //   field = other.field;
-  //   return *this;
-  // }
-
-  // auto begin(){ return field.begin(); }
-  // auto end(){ return field.end(); }
-  // auto begin() const { return field.begin(); }
-  // auto end() const { return field.end(); }
-
-  // GaugeForce & operator=(const GaugeForce&) = delete;
-
-  // Complex operator()(const Idx ix, const int i) const { return field[NS*ix+i]; }
-  // Complex& operator()(const Idx ix, const int i) { return field[NS*ix+i]; }
 
   Complex operator()(const int s, const Idx ix, const int i) const { return field[Comp::Nx*s+NS*ix+i]; }
   Complex& operator()(const int s, const Idx ix, const int i) { return field[Comp::Nx*s+NS*ix+i]; }
 
-  // void set_pt_source(const Idx ix, const int i) {
-  //   // for(auto& elem : field) elem = 0.0;
-  //   memset(field, 0, Comp::N*CD);
-  //   // field(ix, i) = rng.z2_site( ix ) + I*rng.z2_site( ix );
-  //   // field(ix, i) /= std::sqrt(2.0);
-  //   (*this)(0, ix, i) = 1.0;
   // }
 
   void set_pt_source(const int s, const Idx ix, const int i) {
-    // for(auto& elem : field) elem = 0.0;
     memset(field, 0, Comp::N*CD);
-    // field(ix, i) = rng.z2_site( ix ) + I*rng.z2_site( ix );
-    // field(ix, i) /= std::sqrt(2.0);
     (*this)(s, ix, i) = 1.0;
   }
 
@@ -246,7 +210,7 @@ struct FermionMatrix {
     : eta(Comp::NS)
   {
     for(int spin=0; spin<2; spin++){
-      memcpy( eta[spin].data(), other.eta[spin].data(), eta[spin].size() );
+      memcpy( eta[spin].data(), other.eta[spin].data(), eta[spin].size()*CD );
     }
   }
 
