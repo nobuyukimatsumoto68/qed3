@@ -129,6 +129,86 @@ using CuC = cuDoubleComplex;
 #include "dirac_pf.h"
 #include "overlap.h"
 
+//------------------------------------------
+// https://gist.github.com/ashwin/d88184923c7161d368a9
+#include <getopt.h>
+
+void PrintHelp()
+{
+  std::cout <<
+    "--ell1 <ell1>"
+    "--em1 <em1>"
+    "--ell2 <ell2>"
+    "--em2 <em2>"
+    "--a1 <a>"
+    "--a2 <b>";
+  exit(1);
+}
+
+void parse_args(int argc, char** argv,
+                int& ell1,
+                int& em1,
+                int& ell2,
+                int& em2,
+                int& a,
+                int& b
+                ){
+  const char* const short_opts = "lmpqabh";
+  const option long_opts[] = {
+    {"ell1", required_argument, nullptr, 'l'},
+    {"em1", required_argument, nullptr, 'm'},
+    {"ell2", required_argument, nullptr, 'p'},
+    {"em2", required_argument, nullptr, 'q'},
+    {"a1", required_argument, nullptr, 'a'},
+    {"a2", required_argument, nullptr, 'b'},
+    {"help", no_argument, nullptr, 'h'},
+    {nullptr, no_argument, nullptr, 0}
+  };
+
+  while (true){
+    const auto opt = getopt_long(argc, argv, short_opts, long_opts, nullptr);
+
+    if (-1 == opt) break;
+
+    switch (opt) {
+    case 'l':
+      ell1 = std::stoi(optarg);
+      // std::cout << "Num set to: " << num << std::endl;
+      break;
+
+    case 'm':
+      em1 = std::stoi(optarg);
+      // std::cout << "Beep is set to true\n";
+      break;
+
+    case 'p':
+      ell2 = std::stoi(optarg);
+      // std::cout << "Num set to: " << num << std::endl;
+      break;
+
+    case 'q':
+      em2 = std::stoi(optarg);
+      // std::cout << "Beep is set to true\n";
+      break;
+
+    case 'a':
+      a = std::stoi(optarg);
+      // std::cout << "Num set to: " << num << std::endl;
+      break;
+
+    case 'b':
+      b = std::stoi(optarg);
+      // std::cout << "Beep is set to true\n";
+      break;
+
+    case 'h': // -h or --help
+    case '?': // Unrecognized option
+    default: PrintHelp();
+      break;
+    }
+  }
+}
+//------------------------------------------
 
 
 int main(int argc, char* argv[]){
@@ -142,7 +222,24 @@ int main(int argc, char* argv[]){
   const double at = 0.2;
   if(Nt!=1) assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
   double nu0 = 1.0;
+
   // if(argc>1) nu0 = atof(argv[1]);
+
+  // ----------------------
+
+  int ell1=0, em1=0, a=3;
+  int ell2=0, em2=0, b=3;
+  parse_args(argc, argv,
+             ell1, em1,
+             ell2, em2,
+             a, b );
+  std::cout << "# ell1: " << ell1 << std::endl
+            << "# em1: " << em1 << std::endl
+            << "# ell2: " << ell2 << std::endl
+            << "# em2: " << em1 << std::endl
+            << "# a: " << a << std::endl
+            << "# b: " << b << std::endl;
+
 
   // ----------------------
 
@@ -152,8 +249,6 @@ int main(int argc, char* argv[]){
 
   DiracBase sigma;
 
-  const int ell1=0, em1=0, a=1;
-  const int ell2=0, em2=0, b=1;
   std::vector<Complex> Cab(Comp::Nt, 0.0);
 
   for(Idx x2=0; x2<base.n_sites; x2++){
