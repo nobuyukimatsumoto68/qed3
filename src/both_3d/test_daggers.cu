@@ -145,7 +145,7 @@ void PrintHelp()
   exit(1);
 }
 
-void ParseArgs(int argc, char** argv,
+void parse_args(int argc, char** argv,
                 int& ell1,
                 int& em1,
                 int& ell2,
@@ -165,11 +165,10 @@ void ParseArgs(int argc, char** argv,
     {nullptr, no_argument, nullptr, 0}
   };
 
-  int option_index;
-  int opt;
-  while ((opt = getopt_long(argc, argv, short_opts, long_opts, &option_index)) != -1){
-    // const auto opt = getopt_long(argc, argv, short_opts, long_opts, &option_index);
-    // if (-1 == opt) break;
+  while (true){
+    const auto opt = getopt_long(argc, argv, short_opts, long_opts, nullptr);
+
+    if (-1 == opt) break;
 
     switch (opt) {
     case 'l':
@@ -215,84 +214,151 @@ void ParseArgs(int argc, char** argv,
 int main(int argc, char* argv[]){
   std::cout << std::scientific << std::setprecision(15);
   std::clog << std::scientific << std::setprecision(15);
+
+  int device;
+  CUDA_CHECK(cudaGetDeviceCount(&device));
+  cudaDeviceProp device_prop[device];
+  cudaGetDeviceProperties(&device_prop[0], 0);
+  std::cout << "# dev = " << device_prop[0].name << std::endl;
+  CUDA_CHECK(cudaSetDevice(0));// "TITAN V"
+  std::cout << "# (GPU device is set.)" << std::endl;
+
+
+
+
   constexpr Idx N = Comp::N;
   constexpr int Nt = Comp::Nt;
+
   using Base=S2Simp;
+  using WilsonDirac=DiracExt<Base, DiracS2Simp>;
+
+  using Force=GaugeExt<Base,Nt,Comp::is_compact>;
+  using Gauge=GaugeExt<Base,Nt,Comp::is_compact>;
+  using Action=U1WilsonExt<Base>;
+
+  using Rng=ParallelRngExt<Base,Nt>;
+  // using FermionVector = FermionVector<Base>;
+
   Base base(Comp::N_REFINE);
   std::cout << "# lattice set. " << std::endl;
+
+  // ----------------------
+  // const double at = 0.5;
+  // const double T = 0.2;
+  // const double T = 16;
+  // const double at = T/Comp::Nt;
   const double at = 0.2;
   if(Nt!=1) assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
+
   double nu0 = 1.0;
+  if(argc>1) nu0 = atof(argv[1]);
+  std::cout << "# debug. nu0 = " << nu0 << std::endl;
+
+  for(int i=0; i<Comp::NSTREAMS; i++) d_MemorySets[i].allocate();
+
+  Gauge U(base);
+  Rng rng(base, rand());
+  U.gaussian( rng, 0.1 );
+
+  const double M5 = -1.0;
+  WilsonDirac DW(base, 0.0, 1.0, M5, at, nu0);
+  std::cout << "# DW set. " << std::endl;
+
+  using Fermion=Overlap<WilsonDirac>;
+  Fermion D(DW, 31);
+  std::cout << "# D set. " << std::endl;
+
+  D.update( U );
+  std::cout << "# D updated. " << std::endl;
+
+
+  auto f_pre = std::bind(&Fermion::adj_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
+  auto f_sq = std::bind(&Fermion::DHD_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
+  //
+  auto f_pre_adj = std::bind(&Fermion::mult_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
+  auto f_sq_adj = std::bind(&Fermion::DDH_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
+
+  LinOpWrapper M_pre( f_pre );
+  MatPoly pre; pre.push_back ( cplx(1.0), {&M_pre} );
+  LinOpWrapper M_sq( f_sq );
+  MatPoly sq; sq.push_back ( cplx(1.0), {&M_sq} );
+
+  LinOpWrapper M_pre_adj( f_pre_adj );
+  MatPoly pre_adj; pre_adj.push_back ( cplx(1.0), {&M_pre_adj} );
+  LinOpWrapper M_sq_adj( f_sq_adj );
+  MatPoly sq_adj; sq_adj.push_back ( cplx(1.0), {&M_sq_adj} );
 
 
   // ----------------------
 
-  int ell1=0, em1=0, a1=3;
-  int ell2=0, em2=0, a2=3;
-  ParseArgs(argc, argv,
-             ell1, em1,
-             ell2, em2,
-             a1, a2 );
-  // if(argc>1) a1 = atoi(argv[1]);
-  // if(argc>2) a2 = atoi(argv[2]);
+  std::cout << "# calculating src " << std::endl;
 
-  std::cout << "# ell1: " << ell1 << std::endl
-            << "# em1: " << em1 << std::endl
-            << "# ell2: " << ell2 << std::endl
-            << "# em2: " << em1 << std::endl
-            << "# a: " << a1 << std::endl
-            << "# b: " << a2 << std::endl;
+  FermionMatrix eta;
+  FermionMatrix eta_rev;
+  FermionMatrix eta_adj;
 
-  // ----------------------
+  const int s1 = 0;
+  const int s2 = 10;
 
-  std::string path = "A2A_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_at"+std::to_string(at)+"_nu0"+std::to_string(nu0)+".dat";
-  path = "ov_"+path;
-  const HighFive::File f(path.c_str(), HighFive::File::ReadOnly);
+  const int ix1 = 4;
+  const int ix2 = 31;
 
-  DiracBase sigma;
+  std::cout << "# ix1 = " << ix1 << std::endl;
+  std::cout << "# ix2 = " << ix2 << std::endl;
 
-  std::vector<Complex> Cab(Comp::Nt, 0.0);
+  for(int spin=0; spin<2; spin++){
+    {
+      FermionVector src1; // (base, Nt, rng);
+      FermionVector src; // (base, Nt, rng);
+      src1.set_pt_source(s2, ix2, spin);
 
-  for(Idx x2=0; x2<base.n_sites; x2++){
-    // Idx x2 = 10;{
-    FermionMatrix eta;
-    // const auto r2 = base.sites[x2];
-    // std::cout << "debug. Ylm2 = " << Ylm_real( ell2, em2, r2 ) << std::endl;
-
-    for(int spin=0; spin<2; spin++){
-      std::vector<Complex> vector = f.getDataSet("ix"+std::to_string(x2)+"/s"+std::to_string(spin)).read<std::vector<Complex>>();
-
-      // for(auto elem : vector){
-      //   std::cout << "# debug. " << std::abs(elem) << std::endl;
-      // }
-      // std::cout << "debug. size = " << vector.size() << std::endl;
-      memcpy( eta[spin].data(), vector.data(), vector.size()*CD );
+      pre.from_cpu<N>( src.field, src1.field );
+      FermionVector& sink = eta[spin]; // (base, Nt, rng);
+      std::cout << "# calculating sink" << std::endl;
+      sq.solve<N>( sink.field, src.field );
+      std::cout << "# done" << std::endl;
     }
+    {
+      FermionVector src1; // (base, Nt, rng);
+      FermionVector src; // (base, Nt, rng);
+      src1.set_pt_source(s2, ix2, spin);
 
-    for(Idx x1=0; x1<base.n_sites; x1++){
-    // Idx x1 = 0;{
-      // const auto r1 = base.sites[x1];
-      for(int s=1; s<Nt/2; s++){
-        const MS Delta = eta.get_spinmatrix(s, x1);
-        // const MS DeltaT = eta.get_spinmatrix(Nt-s, x1);
-        // std::cout << Delta-DeltaT << std::endl;
-        // const Complex Csp = ( sigma[a] * Delta * sigma[b] * Delta.adjoint() ).trace();
-        const Complex Csp = ( sigma[a1] * Delta.adjoint() * sigma[a2] * Delta ).trace();
-        // const Complex Csp = ( sigma[a1] * Delta * sigma[a2] * Delta.adjoint() ).trace();
-        // std::cout << "# debug. " << s << " " << std::abs(Csp) << std::endl;
-        // Cab[s] += Ylm_real( ell1, em1, r1 )*Ylm_real( ell2, em2, r2 ) * Csp;
-        Cab[s] += Csp;
-      }
+      pre_adj.from_cpu<N>( src.field, src1.field );
+      FermionVector& sink = eta_adj[spin]; // (base, Nt, rng);
+      std::cout << "# calculating sink" << std::endl;
+      sq_adj.solve<N>( sink.field, src.field );
+      std::cout << "# done" << std::endl;
+    }
+    {
+      FermionVector src1; // (base, Nt, rng);
+      FermionVector src; // (base, Nt, rng);
+      src1.set_pt_source(s1, ix1, spin);
+
+      pre.from_cpu<N>( src.field, src1.field );
+      FermionVector& sink = eta_rev[spin]; // (base, Nt, rng);
+      std::cout << "# calculating sink" << std::endl;
+      sq.solve<N>( sink.field, src.field );
+      std::cout << "# done" << std::endl;
     }
   }
-  std::cout << "# debug. sigma[a] = " << sigma[a1] << std::endl;
 
-  for(int s=1; s<Nt/2; s++){
-    std::cout << std::setw(5) << s << " "
-              << std::setw(15) << Cab[s].real() << " "
-              << std::setw(15) << Cab[s].imag() << " "
-              << std::endl;
-  }
+
+  const MS orig = eta.get_spinmatrix(s1, ix1);
+  const MS madj = -eta_adj.get_spinmatrix(s1, ix1);
+  const MS mrevadj = -(eta_rev.get_spinmatrix(s2, ix2)).adjoint();
+  std::cout << "orig = " << std::endl
+            << orig << std::endl;
+  std::cout << "madj = " << std::endl
+            << madj << std::endl;
+  std::cout << "mrevadj = " << std::endl
+            << mrevadj << std::endl;
+  // std::cout << "diff = " << std::endl
+  //           << ( eta.get_spinmatrix(s2, ix2)+(eta_adj.get_spinmatrix(s1, ix1)).adjoint() ).norm() << std::endl;
+
+
+  // ------------------
+  for(int i=0; i<Comp::NSTREAMS; i++) d_MemorySets[i].deallocate();
+
 
 
   return 0;
