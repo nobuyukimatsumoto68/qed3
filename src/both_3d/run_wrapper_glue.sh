@@ -6,14 +6,16 @@ source /projectnb/qfe/nmatsum/qed3/env.sh
 # Nf=$2
 # igam=$3
 
-app='glue2.o'
+app='glue.o'
+
+make $app
 
 echo $app
 # if [ "$#" -eq 2 ]; then
 #     echo $1 $2
 
 
-for gsq in 2.8
+for gsq in 2.0
 do
     for Nf in 2 4 6 # 4 6
     do

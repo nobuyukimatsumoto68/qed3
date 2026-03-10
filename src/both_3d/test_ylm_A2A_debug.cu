@@ -227,8 +227,8 @@ int main(int argc, char* argv[]){
 
   // ----------------------
 
-  int ell1=0, em1=0, a1=3;
-  int ell2=0, em2=0, a2=3;
+  int ell1=0, em1=0, a1=0;
+  int ell2=0, em2=0, a2=0;
   ParseArgs(argc, argv,
              ell1, em1,
              ell2, em2,
@@ -253,38 +253,40 @@ int main(int argc, char* argv[]){
 
   std::vector<Complex> Cab(Comp::Nt, 0.0);
 
-  // Idx x1 = 0;{
-  for(Idx x1=0; x1<base.n_sites; x1++){
-    const VE r1 = base.sites[x1];
-    const double area1 = base.dual_areas[x1];
 
-    FermionMatrix eta_x1;
+  //Idx x2 = 0;{
+  for(Idx x2=0; x2<base.n_sites; x2++){
+    const VE r2 = base.sites[x2];
+    const double area2 = base.dual_areas[x2];
+
+    FermionMatrix eta_x2;
     for(int spin=0; spin<2; spin++){
-      std::vector<Complex> vector = f.getDataSet("ix"+std::to_string(x1)+"/s"+std::to_string(spin)).read<std::vector<Complex>>();
-      memcpy( eta_x1[spin].data(), vector.data(), vector.size()*CD );
+      // x2 is source loc
+      std::vector<Complex> vector = f.getDataSet("ix"+std::to_string(x2)+"/s"+std::to_string(spin)).read<std::vector<Complex>>();
+      memcpy( eta_x2[spin].data(), vector.data(), vector.size()*CD );
     }
 
-    for(Idx x2=0; x2<base.n_sites; x2++){
-      const VE r2 = base.sites[x2];
-      const double area2 = base.dual_areas[x2];
+    //  Idx x1 = 0;{
+    for(Idx x1=0; x1<base.n_sites; x1++){
+      const VE r1 = base.sites[x1];
+      const double area1 = base.dual_areas[x1];
 
-      // Idx x2 = 6;{
-      FermionMatrix eta_x2;
-      for(int spin=0; spin<2; spin++){
-        std::vector<Complex> vector = f.getDataSet("ix"+std::to_string(x2)+"/s"+std::to_string(spin)).read<std::vector<Complex>>();
-        memcpy( eta_x2[spin].data(), vector.data(), vector.size()*CD );
-      }
+      // FermionMatrix eta_x1;
+      // for(int spin=0; spin<2; spin++){
+      //   std::vector<Complex> vector = f.getDataSet("ix"+std::to_string(x1)+"/s"+std::to_string(spin)).read<std::vector<Complex>>();
+      //   memcpy( eta_x1[spin].data(), vector.data(), vector.size()*CD );
+      // }
 
       for(int s=1; s<Nt/2; s++){
         const MS G_sx1_0x2 = eta_x2.get_spinmatrix(s, x1);
         // const MS G_msx2_0x1 = eta_x1.get_spinmatrix(Comp::Nt-s, x2);
+
         // v1
         const Complex Csp = ( G_sx1_0x2 * sigma[a1] * G_sx1_0x2.adjoint() * sigma[a2] ).trace();
         // v2
         // const Complex Csp = ( G_sx1_0x2 * sigma[a1] * G_msx2_0x1 * sigma[a2] ).trace();
-
-        Cab[s] += area1*Ylm_real( ell1, em1, r1 ) * area2*Ylm_real( ell2, em2, r2 ) * Csp;
-        // Cab[s] += Csp;
+        // Cab[s] += area1*Ylm_real( ell1, em1, r1 ) * area2*Ylm_real( ell2, em2, r2 ) * Csp;
+        Cab[s] += Csp;
       }
     }
   }

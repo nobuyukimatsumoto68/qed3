@@ -50,7 +50,8 @@ struct S2Simp {
     // }
     {
       std::cout << "# reading simplicial points" << std::endl;
-      std::ifstream file(dir+"pts_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      // std::ifstream file(dir+"pts_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      std::ifstream file(dir+"pts_n"+std::to_string(n_refine)+".dat");
 
       std::string str;
       while (std::getline(file, str)){
@@ -66,7 +67,8 @@ struct S2Simp {
 
     {
       std::cout << "# reading dual points" << std::endl;
-      std::ifstream file(dir+"pts_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      // std::ifstream file(dir+"pts_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      std::ifstream file(dir+"pts_dual_n"+std::to_string(n_refine)+".dat");
       if(!file) assert(false);
 
       std::string str;
@@ -83,7 +85,8 @@ struct S2Simp {
 
     {
       std::cout << "# reading nns" << std::endl;
-      std::ifstream file(dir+"nns_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      // std::ifstream file(dir+"nns_dual_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      std::ifstream file(dir+"nns_dual_n"+std::to_string(n_refine)+".dat");
       if(!file) assert(false);
 
       std::string str;
@@ -100,7 +103,8 @@ struct S2Simp {
 
     {
       std::cout << "# reading links" << std::endl;
-      std::ifstream file(dir+"links_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      // std::ifstream file(dir+"links_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      std::ifstream file(dir+"links_n"+std::to_string(n_refine)+".dat");
       if(!file) assert(false);
 
       std::string str;
@@ -117,7 +121,8 @@ struct S2Simp {
 
     {
       std::cout << "# reading dual links" << std::endl;
-      std::ifstream file(dir+"dual_links_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      // std::ifstream file(dir+"dual_links_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      std::ifstream file(dir+"dual_links_n"+std::to_string(n_refine)+".dat");
       if(!file) assert(false);
 
       std::string str;
@@ -131,7 +136,8 @@ struct S2Simp {
     }
 
     {
-      std::ifstream file(dir+"face_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      // std::ifstream file(dir+"face_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      std::ifstream file(dir+"face_n"+std::to_string(n_refine)+".dat");
       if(!file) assert(false);
 
       std::string str;
@@ -149,7 +155,8 @@ struct S2Simp {
 
     {
       std::cout << "# reading nns" << std::endl;
-      std::ifstream file(dir+"nns_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      // std::ifstream file(dir+"nns_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      std::ifstream file(dir+"nns_n"+std::to_string(n_refine)+".dat");
       if(!file) assert(false);
 
       std::string str;

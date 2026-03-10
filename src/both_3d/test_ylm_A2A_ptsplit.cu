@@ -67,7 +67,7 @@ namespace Comp{
   constexpr int NPARALLEL_GAUGE=12; // 12
   constexpr int NPARALLEL_SORT=12; // 12
 
-  constexpr int N_REFINE=1;
+  constexpr int N_REFINE=4;
   constexpr int NS=2;
   constexpr int Nt=96; // add 4
 
@@ -253,38 +253,39 @@ int main(int argc, char* argv[]){
 
   std::vector<Complex> Cab(Comp::Nt, 0.0);
 
-  // Idx x1 = 0;{
-  for(Idx x1=0; x1<base.n_sites; x1++){
-    const VE r1 = base.sites[x1];
-    const double area1 = base.dual_areas[x1];
+  for(Idx x2=0; x2<base.n_sites; x2++){
+    // Idx x2 = 10;{
+    FermionMatrix eta;
+    // const auto r2 = base.sites[x2];
+    // std::cout << "debug. Ylm2 = " << Ylm_real( ell2, em2, r2 ) << std::endl;
 
-    FermionMatrix eta_x1;
     for(int spin=0; spin<2; spin++){
-      std::vector<Complex> vector = f.getDataSet("ix"+std::to_string(x1)+"/s"+std::to_string(spin)).read<std::vector<Complex>>();
-      memcpy( eta_x1[spin].data(), vector.data(), vector.size()*CD );
+      std::vector<Complex> vector = f.getDataSet("ix"+std::to_string(x2)+"/s"+std::to_string(spin)).read<std::vector<Complex>>();
+
+      // for(auto elem : vector){
+      //   std::cout << "# debug. " << std::abs(elem) << std::endl;
+      // }
+      // std::cout << "debug. size = " << vector.size() << std::endl;
+      memcpy( eta[spin].data(), vector.data(), vector.size()*CD );
     }
 
-    for(Idx x2=0; x2<base.n_sites; x2++){
-      const VE r2 = base.sites[x2];
-      const double area2 = base.dual_areas[x2];
-
-      // Idx x2 = 6;{
-      FermionMatrix eta_x2;
-      for(int spin=0; spin<2; spin++){
-        std::vector<Complex> vector = f.getDataSet("ix"+std::to_string(x2)+"/s"+std::to_string(spin)).read<std::vector<Complex>>();
-        memcpy( eta_x2[spin].data(), vector.data(), vector.size()*CD );
-      }
-
+    for(Idx x1=0; x1<base.n_sites; x1++){
+    // Idx x1 = 0;{
+      // const auto r1 = base.sites[x1];
       for(int s=1; s<Nt/2; s++){
-        const MS G_sx1_0x2 = eta_x2.get_spinmatrix(s, x1);
-        // const MS G_msx2_0x1 = eta_x1.get_spinmatrix(Comp::Nt-s, x2);
-        // v1
-        const Complex Csp = ( G_sx1_0x2 * sigma[a1] * G_sx1_0x2.adjoint() * sigma[a2] ).trace();
-        // v2
-        // const Complex Csp = ( G_sx1_0x2 * sigma[a1] * G_msx2_0x1 * sigma[a2] ).trace();
-
-        Cab[s] += area1*Ylm_real( ell1, em1, r1 ) * area2*Ylm_real( ell2, em2, r2 ) * Csp;
-        // Cab[s] += Csp;
+        const MS G_s = eta.get_spinmatrix(s, x1);
+        const MS G_sm1 = eta.get_spinmatrix( (s-1)%Nt, x1);
+        const MS G_sp1 = eta.get_spinmatrix( (s+1)%Nt, x1);
+        // const MS DeltaT = eta.get_spinmatrix(Nt-s, x1);
+        // std::cout << Delta-DeltaT << std::endl;
+        Complex Csp = 0.0;
+        Csp += ( G_sm1 * sigma[a1] * G_sp1.adjoint() * sigma[a2] ).trace();
+        Csp += ( G_sm1 * sigma[a1] * G_sm1.adjoint() * sigma[a2] ).trace();
+        Csp += ( G_sp1 * sigma[a1] * G_sp1.adjoint() * sigma[a2] ).trace();
+        Csp += ( G_sp1 * sigma[a1] * G_sm1.adjoint() * sigma[a2] ).trace();
+        // std::cout << "# debug. " << s << " " << std::abs(Csp) << std::endl;
+        // Cab[s] += Ylm_real( ell1, em1, r1 )*Ylm_real( ell2, em2, r2 ) * Csp;
+        Cab[s] += Csp;
       }
     }
   }

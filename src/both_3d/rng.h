@@ -11,7 +11,7 @@ struct SingleRng {
   std::uniform_int_distribution<int> dist_z2;
 
   SingleRng()
-    : dist_z2(1,2)
+    : dist_z2(0,1)
   {}
 
   double gaussian(){ return dist_gaussian(mt); }
@@ -110,8 +110,9 @@ struct ParallelRngExt {
   double uniform_site( const int s, const int ix ){ return sites[s][ix].uniform(); }
   double uniform(){ return master.uniform(); }
 
-  double z2_site( const int s, const Idx ix ){ return sites[s][ix].z2(); }
-  Complex CZ2_site( const int s, const Idx ix ){ return 1.0/std::sqrt(2.0) * ( sites[s][ix].z2() + I*sites[s][ix].z2() ); }
+  double z2_site( const int s, const Idx ix ){ return 2.0*(sites[s][ix].z2() - 0.5); }
+  // Complex CZ2_site( const int s, const Idx ix ){ return 1.0/std::sqrt(2.0) * ( sites[s][ix].z2() + I*sites[s][ix].z2() ); }
+  Complex CZ2_site( const int s, const Idx ix ){ return 1.0/std::sqrt(2.0) * ( z2_site(s,ix) + I*z2_site(s,ix) ); }
 
   void reseed(const int seed) {
     master.reseed(seed);

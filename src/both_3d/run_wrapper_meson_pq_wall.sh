@@ -23,12 +23,12 @@ make ${app}
 # ell=0
 # em=0
 
-gsq=2.8
-Nf=4
+gsq=2.
+Nf=6
 nu0=1.0
 nu1=${nu0}
 nhits=1
-dt=24
+dt=32
 ell=0
 em=0
 

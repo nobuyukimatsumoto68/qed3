@@ -12,18 +12,6 @@
 #include <map>
 #include <Eigen/Dense>
 
-
-
-#include <highfive/H5File.hpp>
-#include <highfive/H5DataSet.hpp>
-#include <highfive/H5DataSpace.hpp>
-#include <highfive/H5Easy.hpp>
-
-#include <Eigen/Dense>
-
-
-
-
 using Double = double;
 using Idx = std::int32_t;
 using Complex = std::complex<double>;
@@ -67,7 +55,7 @@ namespace Comp{
   constexpr int NPARALLEL_GAUGE=12; // 12
   constexpr int NPARALLEL_SORT=12; // 12
 
-  constexpr int N_REFINE=1;
+  constexpr int N_REFINE=4;
   constexpr int NS=2;
 
   // constexpr int Nt=24;
@@ -75,6 +63,7 @@ namespace Comp{
   // constexpr int Nt=64;
   constexpr int Nt=96; // add 4
   // constexpr int Nt=120;
+  // constexpr int Nt=128; // @@@
   // constexpr int Nt=144; // add 8
   // constexpr int Nt=168;
 
@@ -191,7 +180,7 @@ int main(int argc, char* argv[]){
   // const double T = 0.2;
   // const double T = 16;
   // const double at = T/Comp::Nt;
-  const double at = 0.2;
+  const double at = M_PI/20; // 0.1;
   if(Nt!=1) assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
 
   double nu0 = 1.0;
@@ -200,29 +189,27 @@ int main(int argc, char* argv[]){
 
   for(int i=0; i<Comp::NSTREAMS; i++) d_MemorySets[i].allocate();
 
+
+  const double gsq = 0.05;
+  // double at = 0.05; // base.mean_ell * 0.125 * ratio;
+  // if(Comp::Nt==1) at=0.;
+  Action SW( gsq, at, base );
+  std::cout << "# alat = " << base.mean_ell << std::endl;
+
+
   Gauge U(base);
-  // srand( time(NULL) );
-  // Rng rng(base, rand());
+  srand( time(NULL) );
+  Rng rng(base, rand());
 
 
-
-#ifdef IS_OVERLAP
   const double M5 = -1.0;
+
   WilsonDirac DW(base, 0.0, 1.0, M5, at, nu0);
   std::cout << "# DW set. " << std::endl;
 
   using Fermion=Overlap<WilsonDirac>;
-  Fermion D(DW, 51);
+  Fermion D(DW, 31);
   std::cout << "# D set. " << std::endl;
-#else
-  const double M5 = 0.0;
-  WilsonDirac DW(base, 0.0, 1.0, M5, at, nu0);
-  std::cout << "# DW set. " << std::endl;
-
-  using Fermion=DiracPf<WilsonDirac>;
-  Fermion D(DW);
-  std::cout << "# D set. " << std::endl;
-#endif
 
   D.update( U );
   std::cout << "# D updated. " << std::endl;
@@ -238,33 +225,81 @@ int main(int argc, char* argv[]){
 
   std::cout << "# calculating src " << std::endl;
 
-  std::string path = "A2A_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_at"+std::to_string(at)+"_nu0"+std::to_string(nu0)+".dat";
-#ifdef IS_OVERLAP
+
+  FermionVector src1; // (base, Nt, rng);
+  FermionVector src; // (base, Nt, rng);
+  const Idx ix0=15;
+  src1.set_pt_source(0, ix0, 0);
+  // src1.set_pt_source(Comp::Nt/4, 0, 1);
+
+
+  pre.from_cpu<N>( src.field, src1.field );
+  FermionVector sink; // (base, Nt, rng);
+
+  std::cout << "# calculating sink" << std::endl;
+  sq.solve<N>( sink.field, src.field );
+  std::cout << "# done" << std::endl;
+
+
+  std::vector<double> thetas;
+  std::vector<double> phis;
+  // std::vector<double> lengths;
+  {
+    // const auto x0 = base.sites[0];
+    for(int ix=0; ix<base.n_sites; ix++){
+      const auto x1 = base.sites[ix];
+      // double len = Geodesic::geodesicLength(Geodesic::Pt(x0), Geodesic::Pt(x1));
+      // std::cout << "len = " << len << std::endl;
+      // lengths.push_back(len);
+      thetas.push_back( Geodesic::projectionS2(x1)[0] );
+      phis.push_back( Geodesic::projectionS2(x1)[1] );
+    }
+  }
+  std::cout << "theta0 = " << thetas[ix0] << std::endl;
+  std::cout << "phi0 = " << phis[ix0] << std::endl;
+
+  const double width = 0.05;
+  double factor = at*base.mean_ell;
+  // if(Comp::Nt==1) factor = base.mean_ell;
+  std::string path = "prop_phi_L"+std::to_string(Comp::N_REFINE)+"_Nt"+std::to_string(Nt)+"_at"+std::to_string(at)+"_nu0"+std::to_string(nu0)+"_ix0"+std::to_string(ix0)+".dat";
   path = "ov_"+path;
-#endif
+  std::ofstream ofs(path);
+  ofs << std::scientific << std::setprecision(15);
+  ofs << std::scientific << std::setprecision(15);
 
-  HighFive::File f1(path.c_str(), HighFive::File::Overwrite );
+  // Idx counter=0;
+  const Idx s=4;
+  // for(Idx s=0; s<Comp::Nt; s++) {
+  for(int ix=0; ix<base.n_sites; ix++){
+    if(std::abs(thetas[ix]-thetas[ix0]-0.5*M_PI)<width){
+      auto elem = sink(s,ix,0);
+      //ofs << std::setw(25) << Geodesic::Mod(phis[ix]-phis[ix0]) << " "
+      ofs << std::setw(25) << Geodesic::Mod(phis[ix]) << " "
+        // ofs << std::setw(25) << s << " "
+        // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
+        // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
+          << std::setw(25) << 1.0 * elem.real() / factor << " "
+          << std::setw(25) << 1.0 * elem.imag() / factor << std::endl;
 
-  for(Idx ix=0; ix<base.n_sites; ix++){
-    for(int spin=0; spin<2; spin++){
-      std::cout << "# ix = " << ix << std::endl;
-      FermionVector src1; // (base, Nt, rng);
-      FermionVector src; // (base, Nt, rng);
-      src1.set_pt_source(0, ix, spin);
-
-      pre.from_cpu<N>( src.field, src1.field );
-      FermionVector sink; // (base, Nt, rng);
-      std::cout << "# calculating sink" << std::endl;
-      sq.solve<N>( sink.field, src.field );
-      std::cout << "# done" << std::endl;
-
-      std::vector<Complex> vector( sink.field, sink.field+sink.size() );
-      f1.createDataSet<std::vector<Complex>>("ix"+std::to_string(ix)+"/s"+std::to_string(spin), vector);
+      elem = sink(s,ix,1);
+      ofs << std::setw(25) << Geodesic::Mod(phis[ix]) << " "
+        // ofs << std::setw(25) << s << " "
+        // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.real() << " "
+        // << std::setw(25) << 1.0/std::pow(base.mean_ell,2) * elem.imag() << std::endl;
+          << std::setw(25) << 1.0 * elem.real() / factor << " "
+          << std::setw(25) << 1.0 * elem.imag() / factor << std::endl;
     }
   }
 
+
+
+
+
   // ------------------
+
   for(int i=0; i<Comp::NSTREAMS; i++) d_MemorySets[i].deallocate();
 
   return 0;
+
 }
+

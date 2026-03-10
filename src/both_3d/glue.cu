@@ -72,7 +72,7 @@ namespace Comp{
 
   // constexpr int Nt=24;
   // constexpr int Nt=192;
-  constexpr int Nt=96;
+  constexpr int Nt=128;
   // constexpr int Nt=16;
 
 #ifdef IS_DUAL
@@ -222,6 +222,9 @@ int main(int argc, char* argv[]){
     dir4="data_Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
   }
   std::filesystem::create_directory(dir4);
+
+  std::cout << "# debug. dir3 = " << dir3 << std::endl;
+  std::cout << "# debug. dir4 = " << dir4 << std::endl;
 
 
   Gauge U(base);
