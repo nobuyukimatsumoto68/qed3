@@ -6,7 +6,7 @@ source /projectnb/qfe/nmatsum/qed3/env.sh
 # Nf=$2
 # igam=$3
 
-app='glue.o'
+app='glue2.o'
 
 make $app
 

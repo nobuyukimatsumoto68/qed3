@@ -72,7 +72,7 @@ namespace Comp{
 
   // constexpr int Nt=24;
   // constexpr int Nt=192;
-  constexpr int Nt=96;
+  constexpr int Nt=128;
   // constexpr int Nt=16;
 
 #ifdef IS_DUAL
@@ -89,7 +89,9 @@ namespace Comp{
   const double TOL_OUTER=1.0e-14;
 }
 
-const std::string dir = "../../dats/";
+// const std::string dir = "../../dats/";
+const std::string dir = "../../geometry/data/";
+
 
 // // #define IsVerbose
 // #define IsVerbose2
@@ -98,7 +100,7 @@ const std::string dir = "../../dats/";
 
 #include "timer.h"
 
-#include "../../integrator/geodesic.h"
+// #include "../../integrator/geodesic.h"
 
 #include "s2n_simp.h"
 #include "s2n_dual.h"
@@ -240,7 +242,8 @@ int main(int argc, char* argv[]){
   }
 
   // #ifdef IS_FLOW
-  Flow flow(&SW, 1.5, 100);
+  // Flow flow(&SW, 1.5, 100);
+  Flow flow(&SW, 1.0, 100);
   // #endif
 
 #ifdef _OPENMP
@@ -305,12 +308,13 @@ int main(int argc, char* argv[]){
     std::vector<double> flow_plaq_avg_22(Comp::Nt);
     // std::vector<double> flow_plaq_avg_2summed(Comp::Nt);
     // std::vector<double> flow_plaq_avg_3summed(Comp::Nt);
-    // std::vector<double> flow_plaq_avg_3m2(Comp::Nt);
-    // std::vector<double> flow_plaq_avg_3m1(Comp::Nt);
-    // std::vector<double> flow_plaq_avg_30(Comp::Nt);
-    // std::vector<double> flow_plaq_avg_31(Comp::Nt);
-    // std::vector<double> flow_plaq_avg_32(Comp::Nt);
-    // std::vector<double> flow_plaq_avg_33(Comp::Nt);
+    std::vector<double> flow_plaq_avg_3m3(Comp::Nt);
+    std::vector<double> flow_plaq_avg_3m2(Comp::Nt);
+    std::vector<double> flow_plaq_avg_3m1(Comp::Nt);
+    std::vector<double> flow_plaq_avg_30(Comp::Nt);
+    std::vector<double> flow_plaq_avg_31(Comp::Nt);
+    std::vector<double> flow_plaq_avg_32(Comp::Nt);
+    std::vector<double> flow_plaq_avg_33(Comp::Nt);
     for(int t=0; t<Comp::Nt; t++) {
       flow_plaq_avg_00[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 0, 0);
       flow_plaq_avg_1m1[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 1, -1);
@@ -333,13 +337,13 @@ int main(int argc, char* argv[]){
       //   + Uflow.plaquette_angle_avg_Ylm_real(t, 3, 1)
       //   + Uflow.plaquette_angle_avg_Ylm_real(t, 3, 2)
       //   + Uflow.plaquette_angle_avg_Ylm_real(t, 3, 3);
-      // flow_plaq_avg_3m3[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 3, -3);
-      // flow_plaq_avg_3m2[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 3, -2);
-      // flow_plaq_avg_3m1[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 3, -1);
-      // flow_plaq_avg_30[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 3, 0);
-      // flow_plaq_avg_31[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 3, 1);
-      // flow_plaq_avg_32[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 3, 2);
-      // flow_plaq_avg_33[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 3, 3);
+      flow_plaq_avg_3m3[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 3, -3);
+      flow_plaq_avg_3m2[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 3, -2);
+      flow_plaq_avg_3m1[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 3, -1);
+      flow_plaq_avg_30[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 3, 0);
+      flow_plaq_avg_31[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 3, 1);
+      flow_plaq_avg_32[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 3, 2);
+      flow_plaq_avg_33[t] = Uflow.plaquette_angle_avg_Ylm_real(t, 3, 3);
       //
       // plaq_avg_temporal_00[t] = U.plaquette_angle_avg_temporal_Ylm_real(t, 0, 0);
       // plaq_avg_temporal_1m1[t] = U.plaquette_angle_avg_temporal_Ylm_real(t, 1, -1);
@@ -393,13 +397,13 @@ int main(int argc, char* argv[]){
     obs_ptrs.push_back( &flow_plaq_avg_22 );
     // obs_ptrs.push_back( &flow_plaq_avg_2summed );
     // obs_ptrs.push_back( &flow_plaq_avg_3summed );
-    // obs_ptrs.push_back( &flow_plaq_avg_3m3 );
-    // obs_ptrs.push_back( &flow_plaq_avg_3m2 );
-    // obs_ptrs.push_back( &flow_plaq_avg_3m1 );
-    // obs_ptrs.push_back( &flow_plaq_avg_30 );
-    // obs_ptrs.push_back( &flow_plaq_avg_31 );
-    // obs_ptrs.push_back( &flow_plaq_avg_32 );
-    // obs_ptrs.push_back( &flow_plaq_avg_33 );
+    obs_ptrs.push_back( &flow_plaq_avg_3m3 );
+    obs_ptrs.push_back( &flow_plaq_avg_3m2 );
+    obs_ptrs.push_back( &flow_plaq_avg_3m1 );
+    obs_ptrs.push_back( &flow_plaq_avg_30 );
+    obs_ptrs.push_back( &flow_plaq_avg_31 );
+    obs_ptrs.push_back( &flow_plaq_avg_32 );
+    obs_ptrs.push_back( &flow_plaq_avg_33 );
     //
     // obs_ptrs.push_back( &plaq_avg_temporal_00 );
     // obs_ptrs.push_back( &plaq_avg_temporal_1m1 );
