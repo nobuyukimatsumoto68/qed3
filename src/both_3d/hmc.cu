@@ -86,7 +86,8 @@ namespace Comp{
 }
 
 const std::string dir = "../../dats/";
-#include "../../integrator/geodesic.h"
+// #include "../../integrator/geodesic.h"
+#include "../../geometry/geodesic.h"
 
 #include "timer.h"
 

@@ -15,6 +15,15 @@
 #include <map>
 #include <Eigen/Dense>
 
+
+// #include <stdfloat>
+// #include <boost/multiprecision/float128.hpp>
+
+// #if __STDCPP_FLOAT64_T__ != 1
+//     #error "64-bit float type required"
+// #endif
+
+
 using Double = double;
 using Idx = std::int32_t;
 using Complex = std::complex<double>;
@@ -43,15 +52,15 @@ static constexpr Complex I = Complex(0.0, 1.0);
 namespace Comp{
   constexpr bool is_compact=false;
 
-  constexpr int NPARALLEL_DUPDATE=4;
+  constexpr int NPARALLEL_DUPDATE=1;
   constexpr int NPARALLEL=NPARALLEL_DUPDATE; // 12
   constexpr int NSTREAMS=NPARALLEL_DUPDATE; // 4
   constexpr int NPARALLEL_GAUGE=NPARALLEL_DUPDATE; // 12
   constexpr int NPARALLEL_SORT=NPARALLEL_DUPDATE; // 12
 
-  constexpr int N_REFINE=8;
+  constexpr int N_REFINE=1;
   constexpr int NS=2;
-  constexpr int Nt=96;
+  constexpr int Nt=128;
 
   constexpr Idx N_SITES=10*N_REFINE*N_REFINE+2;
   constexpr int N_LINKS=30*N_REFINE*N_REFINE; // 30, 120, 480
@@ -63,7 +72,8 @@ namespace Comp{
   const double TOL_OUTER=1.0e-14;
 }
 
-const std::string dir = "../../dats/";
+// const std::string dir = "../../dats/";
+const std::string dir = "../../geometry/data/";
 
 // // #define IsVerbose
 // #define IsVerbose2
@@ -73,7 +83,6 @@ const std::string dir = "../../dats/";
 #include "timer.h"
 
 // #include "../../integrator/geodesic.h"
-#include "../../geometry/geodesic.h"
 
 #include "s2n_simp.h"
 #include "s2n_dual.h"
@@ -224,6 +233,26 @@ void ParseArgs(int argc, char** argv,
 
 
 
+// template<class Base>
+// double Dot( const VC& psi1, const VC& psi2, const Base& base ){
+//   // for(Idx ix=0; ix<Comp::N_SITES; ix++){
+//   //   const VE r = lattice.sites[ix];
+//   //   const double area = lattice.dual_areas[ix];
+//   //   const double ylm = Ylm_real(ell, em, r);
+//   //   for(int s=0; s<Nt; s++){
+//   //     (*this)(s, ix, 0) *= area * ylm;
+//   //     (*this)(s, ix, 1) *= area * ylm;
+//   //   }
+//   // }
+//   boost::multiprecision::float128 sum = 0.0;
+//   for(Idx i=0; i<psi1.size(); i++){
+//     // std::cout << std::setw(15) << i << " " << std::setw(20) << (std::conj(psi1[i])*psi2[i]).real() << std::endl;
+//     sum += (std::conj(psi1[i])*psi2[i]).real();
+//   }
+//   return (double)sum;
+// }
+
+
 
 
 
@@ -241,20 +270,20 @@ int main(int argc, char* argv[]){
   std::cout << std::scientific << std::setprecision(15);
   std::clog << std::scientific << std::setprecision(15);
 
-  double gsq = 4.0;
+  double gsq = 2.0;
   // if(argc>1) gsq = atof(argv[1]);
-  int Nf = 6;
+  int Nf = 2;
   // if(argc>2) Nf = atoi(argv[2]);
   // std::cout << "# gsq = " << gsq << " Nf = " << Nf << std::endl;
   double nu0 = 1.0;
   // if(argc>3) nu0 = atof(argv[3]);
   double nu1 = 1.0;
   // if(argc>4) nu1 = atof(argv[4]);
-  int nhits = 64;
+  int nhits = 1;
   // if(argc>5) nhits = atoi(argv[5]);
-  int dt = 24;
+  int dt = Comp::Nt/2;
   // if(argc>6) dt = atoi(argv[6]);
-  int ellmax = 3;
+  int ellmax = 2;
   // if(argc>7) ell = atoi(argv[7]);
   // int em = 0;
   // if(argc>8) em = atoi(argv[8]);
@@ -268,65 +297,99 @@ int main(int argc, char* argv[]){
 
   std::cout << "# gsq = " << gsq << " Nf = " << Nf << " nu0 = " << nu0 << " nu1 = " << nu1 << " nhits = " << nhits << " dt = " << dt << " ellmax = " << ellmax << std::endl;
 
+  for(int i=0; i<Comp::NSTREAMS; i++) d_MemorySets[i].allocate();
+
+
+  int device;
+  CUDA_CHECK(cudaGetDeviceCount(&device));
+  cudaDeviceProp device_prop[device];
+  cudaGetDeviceProperties(&device_prop[0], 0);
+  std::cout << "# dev = " << device_prop[0].name << std::endl;
+  CUDA_CHECK(cudaSetDevice(0));// "TITAN V"
+  std::cout << "# (GPU device is set.)" << std::endl;
+
   // ---------------------------------------
 
   constexpr Idx N = Comp::N;
   constexpr int Nt = Comp::Nt;
 
   using Base=S2Simp;
+  using WilsonDirac=DiracExt<Base, DiracS2Simp>;
 
-  std::cout << "Ylm(0, 0, 0.5, 0.5) = " << Ylm_real(0, 0, 0.5, 0.5) << std::endl;
-  std::cout << "Ylm(1, 1, 0.2, 0.4) = " << Ylm_real(1, 1, 0.2, 0.4) << std::endl;
-  std::cout << "Ylm(2, -1, 0.5, 1.2) = " << Ylm_real(2, -1, 0.5, 1.2) << std::endl;
-  std::cout << "Ylm(3, -2, 2.4, 4.4) = " << Ylm_real(3, -2, 2.4, 4.4) << std::endl;
-  std::cout << "Ylm(4, -3, 1.1, 0.4) = " << Ylm_real(4, -3, 1.1, 0.4) << std::endl;
-  std::cout << "Ylm(5, -5, 0.1, 2.9) = " << Ylm_real(5, -5, 0.1, 2.9) << std::endl;
-  std::cout << "Ylm(6, 5, 0.8, 0.1) = " << Ylm_real(6, 5, 0.8, 0.1) << std::endl;
-  std::cout << "Ylm(7, 7, 1.5, 5.9) = " << Ylm_real(7, 7, 1.5, 5.9) << std::endl;
+  using Force=GaugeExt<Base,Nt,Comp::is_compact>;
+  using Gauge=GaugeExt<Base,Nt,Comp::is_compact>;
+  using Action=U1WilsonExt<Base>;
+
+  using Rng=ParallelRngExt<Base,Nt>;
+  // using FermionVector = FermionVector<Base>;
+
 
   Base base(Comp::N_REFINE);
   std::cout << "# lattice set. " << std::endl;
 
-// #ifdef GAUGE_TRSF
-//   FermionVector gauge; // (base, Nt, rng);
-//   gauge.set_random_gauge(rng);
-// #endif
+  // ----------------------
+  const double at = 0.2; // T/Comp::Nt;
+  if(Nt!=1) assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
 
-  FermionVector src1; // (base, Nt, rng);
-  FermionVector DH_src1; // (base, Nt, rng);
-  FermionVector Dinv_src1; // (base, Nt, rng);
-  FermionVector src2; // (base, Nt, rng);
-  FermionVector DH_src2; // (base, Nt, rng);
-  FermionVector Dinv_src2; // (base, Nt, rng);
+  std::string dir3, dir4;
+  dir3="Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
+  dir4="data_Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
+  // dir4="data_at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nu1"+std::to_string(nu1)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
+
+  std::filesystem::create_directory(dir4);
+
+  Gauge U(base);
+  srand( time(NULL) );
+  Rng rng(base, rand());
 
 
-  std::cout << "# calculating sink" << std::endl;
+  const double M5 = -1.0;
+  WilsonDirac DW(base, 0.0, 1.0, M5, at, nu1);
+  std::cout << "# DW set. " << std::endl;
+  using Fermion=Overlap<WilsonDirac>;
+  // Fermion D(DW, 31);
+  Fermion D(DW, 21);
+  std::cout << "# D set. " << std::endl;
+
+  D.update( U );
+  std::cout << "# D updated. " << std::endl;
+
+
+  auto f_DH = std::bind(&Fermion::adj_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
+  auto f_DHD = std::bind(&Fermion::DHD_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
+
+  LinOpWrapper M_DH( f_DH );
+  MatPoly op_DH; op_DH.push_back ( cplx(1.0), {&M_DH} );
+  LinOpWrapper M_DHD( f_DHD );
+  MatPoly op_DHD; op_DHD.push_back ( cplx(1.0), {&M_DHD} );
+
+  // ---------------------
 
 
 
-  for(int ell1=0; ell1<=ellmax; ell1++){
-    for(int em1=-ell1; em1<=ell1; em1++){
-      for(int ell2=0; ell2<=ellmax; ell2++){
-        for(int em2=-ell2; em2<=ell2; em2++){
-          src1.fill_one();
-          src1.mult_Ylm_real(ell1, em1, base);
 
-          src2.fill_one();
-          src2.mult_Ylm_real_nomeasure(ell2, em2, base);
 
-          // for(Idx s=0; s<Comp::Nt; s++) {
-          Idx s=0; {
-            const VC psi1 = src1.slice((s)%Comp::Nt);
-            const VC psi2 = src2.slice((s)%Comp::Nt);
-            const Complex tr = psi1.dot(psi2);
-            std::cout << ell1 << " " << em1 << " "
-                      << ell2 << " " << em2 << " "
-                      << tr.real() << std::endl;
-          }
-        }}
-    }} // for ell, em, ab
 
-  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  // ------------------
+
+  for(int i=0; i<Comp::NSTREAMS; i++) d_MemorySets[i].deallocate();
+
 
   return 0;
 
