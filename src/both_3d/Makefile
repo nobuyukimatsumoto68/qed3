@@ -7,7 +7,7 @@ CXX=g++
 # NVCCFLAGS=-arch=sm_70 -pg -O3 -std=c++20 -lcublas -lcusolver -lcusparse -lgomp -Xcompiler -fopenmp,-march=native # -diag-suppress<1650-D>
 # =======
 # INCLUDES=-I"/projectnb/qfe/nmatsum/qed3/opt/eigen" -I"/opt/eigen-3.4.0/"
-INCLUDES=-I"/projectnb/qfe/nmatsum/qed3/opt/eigen" -I"/opt/eigen-3.4.0/" -I"/mnt/hdd_barracuda/opt/highfive/include/" -I"/mnt/hdd_barracuda/opt/myhdfstuff/hdf5-2.1.0/include/"
+INCLUDES=-I"/projectnb/qfe/nmatsum/qed3/opt/eigen" -I"/opt/eigen-3.4.0/" -I"/mnt/hdd_barracuda/opt/highfive/include/" -I"/mnt/hdd_barracuda/opt/myhdfstuff/hdf5-2.1.0/include/" # -I"../../qfe_mod/include/"
 # GRP_DIR="/mnt/hdd_barracuda/qed3/newQFE/grp/"
 # INCLUDES+=-DGRP_DIR="\"$(GRP_DIR)\""
 
