@@ -1,7 +1,8 @@
 #!/bin/bash
 set -e
 
-dir_qfe=$(pwd)/../qfe_mod
+# dir_qfe=$(pwd)/../qfe_mod
+dir_qfe=$(pwd)/qfe_mod
 
 #########################
 
