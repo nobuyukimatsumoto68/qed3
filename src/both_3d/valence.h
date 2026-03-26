@@ -1,7 +1,7 @@
 #pragma once
 
 double Ylm_real( const int ell, const int em, const double theta, const double phi ){
-  const double Pell = std::assoc_legendre( ell, em, std::cos(theta) );
+  const double Pell = std::assoc_legendre( ell, std::abs(em), std::cos(theta) ); // no Condon-Shortley phase
 
   double trig;
   if( em>0 ) trig = std::cos(std::abs(em)*phi);
@@ -11,10 +11,39 @@ double Ylm_real( const int ell, const int em, const double theta, const double p
   double factor = (2.0*ell+1)/(4.0*M_PI);
   factor *= std::tgamma( ell-std::abs(em)+1 );
   factor /= std::tgamma( ell+std::abs(em)+1 );
-  factor = std::pow(-1.0,em) * std::sqrt(2.0) * std::sqrt(factor);
+  // factor = std::pow(-1.0,std::abs(em)) * std::sqrt(2.0) * std::sqrt(factor);
+  factor = std::sqrt(2.0) * std::sqrt(factor);
 
   return factor * Pell * trig;
 }
+
+double Ylm_real( const int ell, const int em, const VE r ){
+  assert( std::abs( r.norm()-1.0 )<1.0e-14 );
+  const double theta = std::acos(r[2]);
+  const double phi = std::atan2(r[1], r[0]);
+  return Ylm_real( ell, em, theta, phi );
+}
+
+
+// Complex Ylm( const int ell, const int em, const double theta, const double phi ){
+//   const double Pell = std::assoc_legendre( ell, std::abs(em), std::cos(theta) );
+
+//   Complex trig = std::exp( I*(em*phi) );
+
+//   double factor = (2.0*ell+1)/(4.0*M_PI);
+//   factor *= std::tgamma( ell-std::abs(em)+1 );
+//   factor /= std::tgamma( ell+std::abs(em)+1 );
+//   factor = std::pow(-1.0,std::abs(em)) * std::sqrt(factor);
+
+//   return factor * Pell * trig;
+// }
+
+// Complex Ylm( const int ell, const int em, const VE r ){
+//   assert( std::abs( r.norm()-1.0 )<1.0e-14 );
+//   const double theta = std::acos(r[2]);
+//   const double phi = std::atan2(r[1], r[0]);
+//   return Ylm( ell, em, theta, phi );
+// }
 
 
 
@@ -51,51 +80,24 @@ struct FermionVector {
     CUDA_CHECK(cudaFreeHost(field));
   }
 
+  FermionVector& operator=(const FermionVector& other) {
+    if (this == &other) return *this;
+    memcpy( this->data(), other.data(), size()*CD );
+    return *this;
+  }
 
-  // explicit FermionVector(const Lattice& lattice_,
-  //                        const int Nt_,
-  //                        Rng& rng_)
-  //   : lattice(lattice_)
-  //   , Nt(Nt_)
-  //     // , Op(Op_)
-  //   , rng(rng_)
-  //   , field(Comp::Nx*Nt, 0.0)
-  // {}
+  Idx size() const { return Comp::N; }
+  Complex* data() { return field; }
+  Complex* data() const { return field; }
 
-  // GaugeForce& operator=(const GaugeForce& other){
-  //   if (this == &other) return *this;
-
-  //   assert(&lattice==&other.lattice);
-  //   field = other.field;
-  //   return *this;
-  // }
-
-  // auto begin(){ return field.begin(); }
-  // auto end(){ return field.end(); }
-  // auto begin() const { return field.begin(); }
-  // auto end() const { return field.end(); }
-
-  // GaugeForce & operator=(const GaugeForce&) = delete;
-
-  // Complex operator()(const Idx ix, const int i) const { return field[NS*ix+i]; }
-  // Complex& operator()(const Idx ix, const int i) { return field[NS*ix+i]; }
 
   Complex operator()(const int s, const Idx ix, const int i) const { return field[Comp::Nx*s+NS*ix+i]; }
   Complex& operator()(const int s, const Idx ix, const int i) { return field[Comp::Nx*s+NS*ix+i]; }
 
-  // void set_pt_source(const Idx ix, const int i) {
-  //   // for(auto& elem : field) elem = 0.0;
-  //   memset(field, 0, Comp::N*CD);
-  //   // field(ix, i) = rng.z2_site( ix ) + I*rng.z2_site( ix );
-  //   // field(ix, i) /= std::sqrt(2.0);
-  //   (*this)(0, ix, i) = 1.0;
   // }
 
   void set_pt_source(const int s, const Idx ix, const int i) {
-    // for(auto& elem : field) elem = 0.0;
     memset(field, 0, Comp::N*CD);
-    // field(ix, i) = rng.z2_site( ix ) + I*rng.z2_site( ix );
-    // field(ix, i) /= std::sqrt(2.0);
     (*this)(s, ix, i) = 1.0;
   }
 
@@ -109,6 +111,12 @@ struct FermionVector {
     }
   }
 
+
+  void fill_one() {
+    memset(field, 0, Comp::N*CD);
+    for(Idx i=0; i<Comp::N; i++) field[i] = 1;
+  }
+
   template <typename Rng>
   void fill_z2_source(Rng& rng) {
     memset(field, 0, Comp::N*CD);
@@ -118,6 +126,15 @@ struct FermionVector {
           (*this)(s, ix, i) = rng.CZ2_site( s, ix );
         }}}
   }
+
+  template <typename Rng>
+  void fill_z2_pt_source(Rng& rng, const int s, const Idx ix) {
+    memset(field, 0, Comp::N*CD);
+    for(int i=0; i<2; i++){
+      (*this)(s, ix, i) = rng.CZ2_site( s, ix );
+    }
+  }
+
 
   template <typename Rng>
   void fill_z2_wall_source(Rng& rng, const int s) {
@@ -141,6 +158,29 @@ struct FermionVector {
     return res;
   }
 
+  void mult_sigma1() {
+    for(int s=0; s<Nt; s++){
+      for(Idx ix=0; ix<Comp::N_SITES; ix++){
+        auto tmp0 = (*this)(s, ix, 0);
+        auto tmp1 = (*this)(s, ix, 1);
+        (*this)(s, ix, 0) = tmp1;
+        (*this)(s, ix, 1) = tmp0;
+        // std::swap( (*this)(s, ix, 0), (*this)(s, ix, 1) );
+      }}
+  }
+
+  void mult_sigma2() {
+    for(int s=0; s<Nt; s++){
+      for(Idx ix=0; ix<Comp::N_SITES; ix++){
+        // std::swap( (*this)(s, ix, 0), (*this)(s, ix, 1) );
+        // (*this)(s, ix, 0) *= -I;
+        // (*this)(s, ix, 1) *= I;
+        auto tmp0 = (*this)(s, ix, 0);
+        auto tmp1 = (*this)(s, ix, 1);
+        (*this)(s, ix, 0) = -I*tmp1;
+        (*this)(s, ix, 1) = I*tmp0;
+      }}
+  }
 
   void mult_sigma3() {
     for(int s=0; s<Nt; s++){
@@ -149,19 +189,44 @@ struct FermionVector {
       }}
   }
 
+  void mult_sigma( const int a) {
+    if(a==1) mult_sigma1();
+    else if(a==2) mult_sigma2();
+    else if(a==3) mult_sigma3();
+    else if(a==0) ;
+    else assert(false);
+  }
+
   template<typename Lattice>
-  void mult_Y(const int ell, const int em, const Lattice& lattice ) {
+  void mult_Ylm_real(const int ell, const int em, const Lattice& lattice ) {
     for(Idx ix=0; ix<Comp::N_SITES; ix++){
       const VE r = lattice.sites[ix];
-      const double theta = std::acos(r[2]);
-      const double phi = std::atan2(r[1], r[0]);
-      const double ylm = Ylm_real(ell, em, theta, phi);
+      const double area = lattice.dual_areas[ix];
+      // const double theta = std::acos(r[2]);
+      // const double phi = std::atan2(r[1], r[0]);
+      const double ylm = Ylm_real(ell, em, r);
+      for(int s=0; s<Nt; s++){
+        (*this)(s, ix, 0) *= area * ylm;
+        (*this)(s, ix, 1) *= area * ylm;
+      }
+    }
+  }
+
+  template<typename Lattice>
+  void mult_Ylm_real_nomeasure(const int ell, const int em, const Lattice& lattice ) {
+    for(Idx ix=0; ix<Comp::N_SITES; ix++){
+      const VE r = lattice.sites[ix];
+      // const double area = lattice.dual_areas[ix];
+      // const double theta = std::acos(r[2]);
+      // const double phi = std::atan2(r[1], r[0]);
+      const double ylm = Ylm_real(ell, em, r);
       for(int s=0; s<Nt; s++){
         (*this)(s, ix, 0) *= ylm;
         (*this)(s, ix, 1) *= ylm;
       }
     }
   }
+
 
   // void set_random() {
   //   for(Idx ix=0; ix<lattice.n_sites; ix++){
@@ -177,6 +242,56 @@ struct FermionVector {
 
 
 
+
+
+struct FermionMatrix {
+  std::vector<FermionVector> eta;
+
+  FermionMatrix() // Rng& rng_)
+    : eta(Comp::NS)
+  {}
+
+  // copy constructor
+  FermionMatrix( const FermionMatrix& other )
+    : eta(Comp::NS)
+  {
+    for(int spin=0; spin<2; spin++){
+      memcpy( eta[spin].data(), other.eta[spin].data(), eta[spin].size()*CD );
+    }
+  }
+
+
+  ~FermionMatrix(){}
+
+  FermionVector operator[](const int j) const { return eta[j]; }
+  FermionVector& operator[](const int j) { return eta[j]; }
+
+  inline Complex operator()(const int s, const Idx ix,
+                            const int i, const int j
+                            ) const { return eta[j](s, ix, i); }
+  inline Complex& operator()(const int s, const Idx ix,
+                             const int i, const int j) { return eta[j](s, ix, i); }
+
+  void mult_sigma( const int a) {
+    for(int spin=0; spin<2; spin++) eta[spin].mult_sigma(a);
+  }
+
+  template<typename Lattice>
+  void mult_Ylm(const int ell, const int em, const Lattice& lattice ) {
+    for(int spin=0; spin<2; spin++) eta[spin].mult_Ylm_real(ell, em, lattice);
+  }
+
+  MS get_spinmatrix( const int s, const Idx ix ) const {
+    MS res = MS::Zero();
+    for(int i=0; i<Comp::NS; i++){
+      for(int j=0; j<Comp::NS; j++){
+        res(i, j) = (*this)(s, ix, i, j);
+      }}
+    return res;
+  }
+
+
+};
 
 
 

@@ -144,6 +144,8 @@ struct Overlap : public Zolotarev {
   CSR<N> M_DWH;
   double lambda_max, lambda_min;
 
+  bool is_update;
+
   std::vector<cudaStream_t> stream;
   std::vector<cublasHandle_t> handle;
 
@@ -165,6 +167,7 @@ struct Overlap : public Zolotarev {
     , d_XYs(size)
     , d_XZs(size)
     , is_precalc(false)
+    , is_update(true)
   {
     d_DW.associateCSR( M_DW, false );
     d_DW.associateCSR( M_DWH, true );
@@ -202,10 +205,12 @@ struct Overlap : public Zolotarev {
   void update( const Gauge& U ) {
     d_DW.update( U );
     compute_lambda_max();
-    Zolotarev::update(lambda_min/lambda_max);
-    #ifdef InfoDelta
-    std::clog << "# Delta : " << Delta() << std::endl;
+    if( lambda_min/lambda_max < this->k){
+      if(is_update) Zolotarev::update(lambda_min/lambda_max);
+#ifdef InfoDelta
+      std::clog << "# Smaller Delta Detected : " << Delta() << std::endl;
 #endif
+    }
     is_precalc = false;
   }
 

@@ -65,8 +65,8 @@ namespace Comp{
   constexpr int N_REFINE=1;
   constexpr int NS=2;
 
-  // constexpr int Nt=96; // @@@
-  constexpr int Nt=128; // @@@
+  constexpr int Nt=96; // @@@
+  // constexpr int Nt=128; // @@@
   // constexpr int Nt=16;
 
   // constexpr int Nf=4; // even
@@ -129,6 +129,15 @@ using CuC = cuDoubleComplex;
 
 
 int main(int argc, char* argv[]){
+  // int device;
+  // CUDA_CHECK(cudaGetDeviceCount(&device));
+  // std::cout << "device = " << device << std::endl;
+  // cudaDeviceProp device_prop[device];
+  // cudaGetDeviceProperties(&device_prop[1], 1);
+  // std::cout << "# dev = " << device_prop[1].name << std::endl;
+  CUDA_CHECK(cudaSetDevice(0));// "TITAN V"
+  std::cout << "# (GPU device is set.)" << std::endl;
+
   std::cout << std::scientific << std::setprecision(15);
   std::clog << std::scientific << std::setprecision(15);
 
@@ -138,7 +147,7 @@ int main(int argc, char* argv[]){
   int Nf = 2;
   if(argc>2) Nf = atoi(argv[2]);
   // double nu0=2.0;
-  double nu0=1.0;
+  double nu0=1.5;
   if(argc>3) nu0 = atof(argv[3]);
   std::cout << "# gsq = " << gsq << " Nf = " << Nf << " nu0 = " << nu0 << std::endl;
 
@@ -195,7 +204,7 @@ int main(int argc, char* argv[]){
 
   // HERE
 #ifdef IS_OVERLAP
-  Fermion D(DW, 21); // 31
+  Fermion D(DW, 31);
   std::cout << "# Dov set; M5 = " << M5 << std::endl;
   D.update(U);
   std::cout << "# min max ratio: "
@@ -234,8 +243,8 @@ int main(int argc, char* argv[]){
   // dir3="Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"C"+"/";
   std::filesystem::create_directory(dir3);
   // const int k_ckpoint=1;
-  const int k_ckpoint=1;
-  const int kmax=1e4; // @@@@
+  const int k_ckpoint=10;
+  const int kmax=1e3; // @@@@
   // const int kmax=2;
 
   int k_tmp=0;

@@ -13,17 +13,18 @@ my_array=()
 echo $app
 # if [ "$#" -eq 3 ]; then
 #     echo $1 $2 $3
-for gsq in 4.0
+for gsq in 2.4
 do
-    for Nf in 2 4 6
+    for Nf in 6
     # for Nf in 4
     do
-        for nu0 in 1.5 2.0 2.5
+        for nu0 in 1.0
         # for nu0 in 1.0 1.2
         # for nu0 in 1.0
         do
             echo $Nf $gsq $nu0
-            qsub -N "Nf${Nf}gsq${gsq}nu${nu0}" -v app=${app} -v gsq=${gsq} -v Nf=${Nf} -v nu0=${nu0} run_nf.sh
+            CUDA_VISIBLE_DEVICES=0 ./${app} ${gsq} ${Nf} ${nu0}
+            # qsub -N "Nf${Nf}gsq${gsq}nu${nu0}" -v app=${app} -v gsq=${gsq} -v Nf=${Nf} -v nu0=${nu0} run_nf.sh
             # qsub -N "Nf${Nf}gsq${gsq}nu0${nu0}" -V run_nf.sh
             # elif [ "$#" -eq 4 ]; then
             # echo $1 $2 $3 $4

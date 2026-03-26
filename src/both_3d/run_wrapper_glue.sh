@@ -6,21 +6,24 @@ source /projectnb/qfe/nmatsum/qed3/env.sh
 # Nf=$2
 # igam=$3
 
-app='glue.o'
+app='glue2.o'
+
+make $app
 
 echo $app
 # if [ "$#" -eq 2 ]; then
 #     echo $1 $2
 
 
-for gsq in 4.0
+for gsq in 2.0
 do
-    for Nf in 2 4 6
+    for Nf in 2 4 6 # 4 6
     do
-        for nu0 in 0.8 1.0 1.2
+        for nu0 in 1.0
         do
             echo $Nf $gsq $nu0
-            qsub -N "glueNf${Nf}gsq${gsq}${nu0}" -v app=${app} -v gsq=${gsq} -v Nf=${Nf} -v nu0=${nu0} run_glue.sh
+            ./${app} ${gsq} ${Nf} ${nu0}
+            # qsub -N "glueNf${Nf}gsq${gsq}${nu0}" -v app=${app} -v gsq=${gsq} -v Nf=${Nf} -v nu0=${nu0} run_glue.sh
         done
     done
 done

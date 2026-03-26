@@ -46,10 +46,8 @@ struct U1WilsonExt {
         // int i=0;
         // const double factor = base.mean_vol/base.vols[i];
         // const double factor = base.mean_vol/base.vols[i];
-        // if constexpr(U.is_compact) tmp[s] += - beta_s*factor * ( std::cos( U.plaquette_angle(s, face) ) - 1.0);
-
-        // tmp[s] += 0.5*beta*at/base.vols[i]  * std::pow( U.plaquette_angle(s, face), 2 );
-        tmp[s] += 0.5*beta_s[i] * std::pow( U.plaquette_angle(s, face), 2 );
+        if constexpr(U.is_compact) tmp[s] += beta_s[i] * ( 1.0 - std::cos( U.plaquette_angle(s, face) ) );
+        else tmp[s] += 0.5*beta_s[i] * std::pow( U.plaquette_angle(s, face), 2 );
         // i++;
       }
     }
@@ -63,11 +61,11 @@ struct U1WilsonExt {
       for(const Link& link : base.links) {
         const Idx il = base.map2il.at(link);
         // const double factor = std::pow(base.mean_ell/base.ell[il], 2) * base.link_volume[il]/base.mean_link_volume;
-        // if constexpr(U.is_compact) tmp[s] += - beta_t*factor * (std::cos( U.plaquette_angle(s, link) ) - 1.0);
+        if constexpr(U.is_compact) tmp[s] += beta_t[il] * (1.0 - std::cos( U.plaquette_angle(s, link) ) );
+        else tmp[s] += 0.5*beta_t[il] * std::pow( U.plaquette_angle(s, link), 2 );
         // else tmp[s] += 0.5*beta_t* factor *std::pow( U.plaquette_angle(s, link), 2 );
 
         // tmp[s] += 0.5*beta/at * base.link_volume[il]/std::pow(base.ell[il],2) *std::pow( U.plaquette_angle(s, link), 2 );
-        tmp[s] += 0.5*beta_t[il] * std::pow( U.plaquette_angle(s, link), 2 );
       }
     }
     //}
@@ -405,9 +403,9 @@ struct U1WilsonExt {
         const Face& face = base.faces[i_face];
         double grad;
         // const double factor = base.mean_vol/base.vols[i_face];
-        // if constexpr(U.is_compact) grad = beta_s*factor * std::sin( U.plaquette_angle(s, face) );
-        // else grad = beta_s*factor * U.plaquette_angle(s, face);
-        grad = beta_s[i_face] * U.plaquette_angle(s, face);
+
+        if constexpr(U.is_compact) grad = beta_s[i_face] * std::sin( U.plaquette_angle(s, face) );
+        else grad = beta_s[i_face] * U.plaquette_angle(s, face);
 
         for(int i=0; i<face.size(); i++) {
           const Idx ix = face[i];
@@ -428,16 +426,15 @@ struct U1WilsonExt {
         const Idx il = base.map2il.at(link);
         double grad, grad2;
         // const double factor = std::pow(base.mean_ell/base.ell[il], 2) * base.link_volume[il]/base.mean_link_volume;
-        // if constexpr(U.is_compact) {
-        //   grad = beta_t *factor* std::sin( U.plaquette_angle(s, link) );
-        //   grad2 = beta_t *factor* std::sin( U.plaquette_angle(s-1, link) );
-        // }
-        // else {
-        //   grad = beta_t *factor* U.plaquette_angle(s, link);
-        //   grad2 = beta_t *factor* U.plaquette_angle(s-1, link);
-        // }
-        grad  = beta_t[il] * U.plaquette_angle(s, link);
-        grad2 = beta_t[il] * U.plaquette_angle(s-1, link);
+
+        if constexpr(U.is_compact) {
+          grad  = beta_t[il] * std::sin( U.plaquette_angle(s, link) );
+          grad2 = beta_t[il] * std::sin( U.plaquette_angle(s-1, link) );
+        }
+        else {
+          grad  = beta_t[il] * U.plaquette_angle(s, link);
+          grad2 = beta_t[il] * U.plaquette_angle(s-1, link);
+        }
 
         pi.sp( s, base.map2il.at(link) ) += grad;
         pi.tp( s, link[1] ) += grad;
@@ -466,9 +463,8 @@ struct U1WilsonExt {
         const Face& face = base.faces[i_face];
         double grad;
         // const double factor = base.mean_vol/base.vols[i_face];
-        // if constexpr(U.is_compact) grad = beta_s*factor * std::sin( U.plaquette_angle(s, face) );
-        // else grad = beta_s*factor * U.plaquette_angle(s, face);
-        grad = beta_s[i_face] * U.plaquette_angle(s, face);
+        if constexpr(U.is_compact) grad = beta_s[i_face] * std::sin( U.plaquette_angle(s, face) );
+        else grad = beta_s[i_face] * U.plaquette_angle(s, face);
 
         for(int i=0; i<face.size(); i++) {
           const Idx ix = face[i];

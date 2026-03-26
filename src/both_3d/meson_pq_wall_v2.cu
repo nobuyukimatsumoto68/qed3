@@ -15,6 +15,15 @@
 #include <map>
 #include <Eigen/Dense>
 
+
+// #include <stdfloat>
+// #include <boost/multiprecision/float128.hpp>
+
+// #if __STDCPP_FLOAT64_T__ != 1
+//     #error "64-bit float type required"
+// #endif
+
+
 using Double = double;
 using Idx = std::int32_t;
 using Complex = std::complex<double>;
@@ -63,7 +72,8 @@ namespace Comp{
   const double TOL_OUTER=1.0e-14;
 }
 
-const std::string dir = "../../dats/";
+// const std::string dir = "../../dats/";
+const std::string dir = "../../geometry/data/";
 
 // // #define IsVerbose
 // #define IsVerbose2
@@ -72,7 +82,7 @@ const std::string dir = "../../dats/";
 
 #include "timer.h"
 
-#include "../../integrator/geodesic.h"
+// #include "../../integrator/geodesic.h"
 
 #include "s2n_simp.h"
 #include "s2n_dual.h"
@@ -113,6 +123,137 @@ using CuC = cuDoubleComplex;
 
 
 
+//------------------------------------------
+// https://gist.github.com/ashwin/d88184923c7161d368a9
+#include <getopt.h>
+
+void PrintHelp()
+{
+  std::cout <<
+    "--gsq <gsq>"
+    "--Nf <Nf>"
+    "--nu0 <nu0>"
+    "--nu1 <nu1>"
+    "--nhits <nhits>"
+    "--dt <dt>"
+    "--ellmax <ellmax>"
+            << std::endl;
+    // "--em <em>"
+    // "--ab <ab>";
+  exit(1);
+}
+
+void ParseArgs(int argc, char** argv,
+               double& gsq,
+               int& Nf,
+               double& nu0,
+               double& nu1,
+               int& nhits,
+               int& dt,
+               int& ellmax
+               // int& em,
+               // int& ab
+               ){
+  const char* const short_opts = "gnpqsdl";
+  const option long_opts[] = {
+    {"gsq", required_argument, nullptr, 'g'},
+    {"Nf", required_argument, nullptr, 'n'},
+    {"nu0", required_argument, nullptr, 'p'},
+    {"nu1", required_argument, nullptr, 'q'},
+    {"nhits", required_argument, nullptr, 's'},
+    {"dt", required_argument, nullptr, 'd'},
+    {"ellmax", required_argument, nullptr, 'l'},
+    //  {"em", required_argument, nullptr, 'm'},
+    // {"ab", required_argument, nullptr, 'a'},
+    // {"help", no_argument, nullptr, 'h'},
+    {nullptr, no_argument, nullptr, 0}
+  };
+
+  int option_index;
+  int opt;
+  while ((opt = getopt_long(argc, argv, short_opts, long_opts, &option_index)) != -1){
+    // const auto opt = getopt_long(argc, argv, short_opts, long_opts, &option_index);
+    // if (-1 == opt) break;
+
+    switch (opt) {
+    case 'g':
+      gsq = std::stof(optarg);
+      // std::cout << "Num set to: " << num << std::endl;
+      break;
+
+    case 'n':
+      Nf = std::stoi(optarg);
+      // std::cout << "Beep is set to true\n";
+      break;
+
+    case 'p':
+      nu0 = std::stof(optarg);
+      // std::cout << "Num set to: " << num << std::endl;
+      break;
+
+    case 'q':
+      nu1 = std::stof(optarg);
+      // std::cout << "Beep is set to true\n";
+      break;
+
+    case 's':
+      nhits = std::stoi(optarg);
+      // std::cout << "Num set to: " << num << std::endl;
+      break;
+
+    case 'd':
+      dt = std::stoi(optarg);
+      // std::cout << "Beep is set to true\n";
+      break;
+
+    case 'l':
+      ellmax = std::stoi(optarg);
+      // std::cout << "Beep is set to true\n";
+      break;
+
+    // case 'm':
+    //   em = std::stoi(optarg);
+    //   // std::cout << "Beep is set to true\n";
+    //   break;
+
+    // case 'a':
+    //   ab = std::stoi(optarg);
+    //   // std::cout << "Beep is set to true\n";
+    //   break;
+
+    case 'h': // -h or --help
+    case '?': // Unrecognized option
+    default: PrintHelp();
+      break;
+    }
+  }
+}
+//------------------------------------------
+
+
+
+
+// template<class Base>
+// double Dot( const VC& psi1, const VC& psi2, const Base& base ){
+//   // for(Idx ix=0; ix<Comp::N_SITES; ix++){
+//   //   const VE r = lattice.sites[ix];
+//   //   const double area = lattice.dual_areas[ix];
+//   //   const double ylm = Ylm_real(ell, em, r);
+//   //   for(int s=0; s<Nt; s++){
+//   //     (*this)(s, ix, 0) *= area * ylm;
+//   //     (*this)(s, ix, 1) *= area * ylm;
+//   //   }
+//   // }
+//   boost::multiprecision::float128 sum = 0.0;
+//   for(Idx i=0; i<psi1.size(); i++){
+//     // std::cout << std::setw(15) << i << " " << std::setw(20) << (std::conj(psi1[i])*psi2[i]).real() << std::endl;
+//     sum += (std::conj(psi1[i])*psi2[i]).real();
+//   }
+//   return (double)sum;
+// }
+
+
+
 
 
 
@@ -129,27 +270,34 @@ int main(int argc, char* argv[]){
   std::cout << std::scientific << std::setprecision(15);
   std::clog << std::scientific << std::setprecision(15);
 
-  double gsq = 4.0;
-  if(argc>1) gsq = atof(argv[1]);
-  int Nf = 6;
-  if(argc>2) Nf = atoi(argv[2]);
+  double gsq = 2.0;
+  // if(argc>1) gsq = atof(argv[1]);
+  int Nf = 2;
+  // if(argc>2) Nf = atoi(argv[2]);
   // std::cout << "# gsq = " << gsq << " Nf = " << Nf << std::endl;
   double nu0 = 1.0;
-  if(argc>3) nu0 = atof(argv[3]);
+  // if(argc>3) nu0 = atof(argv[3]);
   double nu1 = 1.0;
-  if(argc>4) nu1 = atof(argv[4]);
+  // if(argc>4) nu1 = atof(argv[4]);
   int nhits = 1;
-  if(argc>5) nhits = atoi(argv[5]);
-  int dt = 24;
-  if(argc>6) dt = atoi(argv[6]);
-  int ell = 0;
-  if(argc>7) ell = atoi(argv[7]);
-  int em = 0;
-  if(argc>8) em = atoi(argv[8]);
-  std::cout << "# gsq = " << gsq << " Nf = " << Nf << " nu0 = " << nu0 << " nu1 = " << nu1 << " nhits = " << nhits << " dt = " << dt << " ell = " << ell << " em = " << em << std::endl;
+  // if(argc>5) nhits = atoi(argv[5]);
+  int dt = Comp::Nt/2;
+  // if(argc>6) dt = atoi(argv[6]);
+  int ellmax = 2;
+  // if(argc>7) ell = atoi(argv[7]);
+  // int em = 0;
+  // if(argc>8) em = atoi(argv[8]);
+  // int ab = 3;
+
+  ParseArgs(argc, argv,
+            gsq, Nf,
+            nu0, nu1,
+            nhits, dt,
+            ellmax);
+
+  std::cout << "# gsq = " << gsq << " Nf = " << Nf << " nu0 = " << nu0 << " nu1 = " << nu1 << " nhits = " << nhits << " dt = " << dt << " ellmax = " << ellmax << std::endl;
 
   for(int i=0; i<Comp::NSTREAMS; i++) d_MemorySets[i].allocate();
-
 
 
   int device;
@@ -183,10 +331,10 @@ int main(int argc, char* argv[]){
   const double at = 0.2; // T/Comp::Nt;
   if(Nt!=1) assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
 
-
   std::string dir3, dir4;
   dir3="Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
-  dir4="data_Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nu1"+std::to_string(nu1)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
+  dir4="data_Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
+  // dir4="data_at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nu1"+std::to_string(nu1)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
 
   std::filesystem::create_directory(dir4);
 
@@ -199,8 +347,8 @@ int main(int argc, char* argv[]){
   WilsonDirac DW(base, 0.0, 1.0, M5, at, nu1);
   std::cout << "# DW set. " << std::endl;
   using Fermion=Overlap<WilsonDirac>;
-  //Fermion D(DW, 31);
-    Fermion D(DW, 21);
+  // Fermion D(DW, 31);
+  Fermion D(DW, 21);
   std::cout << "# D set. " << std::endl;
 
   D.update( U );
@@ -219,10 +367,10 @@ int main(int argc, char* argv[]){
 
   std::cout << "# calculating src " << std::endl;
 
-#ifdef GAUGE_TRSF
-  FermionVector gauge; // (base, Nt, rng);
-  gauge.set_random_gauge(rng);
-#endif
+// #ifdef GAUGE_TRSF
+//   FermionVector gauge; // (base, Nt, rng);
+//   gauge.set_random_gauge(rng);
+// #endif
 
   FermionVector src1; // (base, Nt, rng);
   FermionVector DH_src1; // (base, Nt, rng);
@@ -231,6 +379,8 @@ int main(int argc, char* argv[]){
   FermionVector DH_src2; // (base, Nt, rng);
   FermionVector Dinv_src2; // (base, Nt, rng);
 
+  FermionVector eta; // (base, Nt, rng);
+  FermionVector Dinv_src2_saved;
 
   std::cout << "# calculating sink" << std::endl;
 
@@ -250,10 +400,12 @@ int main(int argc, char* argv[]){
 
   int k_init=0;
   {
-    int h=0;
-    int t0=0;
+    int h=nhits-1;
+    int t0=Comp::Nt-dt-1;
+    int ell=ellmax;
+    int em=ellmax;
     for(k_init=k_ckpoint; k_init<=kmax; k_init+=k_ckpoint ){
-      const std::string path=dir4+"meson_"+std::to_string(ell)+"_"+std::to_string(em)+"_h"+std::to_string(h)+"_t0"+std::to_string(t0)+"_corr."+std::to_string(k_init);
+      const std::string path=dir4+"meson_"+std::to_string(ell)+"_"+std::to_string(em)+"_h"+std::to_string(h)+"_t0"+std::to_string(t0)+"_corr_v2."+std::to_string(k_init);
       // std::ofstream ofs(path);
       // const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k_init);
       const bool bool_lat = std::filesystem::exists(path);
@@ -269,38 +421,46 @@ int main(int argc, char* argv[]){
     U.read( str_lat );
     D.update( U );
 
-    // const int t0=0;
+    // const int a=3;
+
+    // const int t0=0;{
     for(int t0=0; t0<Comp::Nt; t0+=dt){
       for(int h=0; h<nhits; h++){
         std::cout << "# t0 = " << t0 << "h = " << h << std::endl;
-        src1.fill_z2_wall_source( rng, t0 );
-        // std::cout << "# debug. src1 = " << std::endl;
-        // for(Idx i=0; i<Comp::N; i++) std::cout << src1.field[i] << " ";
-        src1.mult_Ylm(ell, em, base);
-        // std::cout << "# debug. src1 = " << std::endl;
-        // for(Idx i=0; i<Comp::N; i++) std::cout << src1.field[i] << " ";
-        // std::cout << std::endl;
-        src1.mult_sigma3();
-        op_DH.from_cpu<N>( DH_src1.field, src1.field );
-        op_DHD.solve<N>( Dinv_src1.field, DH_src1.field );
+        eta.fill_z2_wall_source( rng, t0 );
 
-        src2.fill_z2_wall_source( rng, t0 );
+        src2 = eta;
         op_DH.from_cpu<N>( DH_src2.field, src2.field );
         op_DHD.solve<N>( Dinv_src2.field, DH_src2.field );
-        Dinv_src2.mult_Ylm(ell, em, base);
-        Dinv_src2.mult_sigma3();
+        Dinv_src2_saved = Dinv_src2;
 
-        const std::string path=dir4+"meson_"+std::to_string(ell)+"_"+std::to_string(em)+"_h"+std::to_string(h)+"_t0"+std::to_string(t0)+"_corr."+std::to_string(k);
-        std::ofstream ofs(path);
-        ofs << std::scientific << std::setprecision(15);
+        for(int ell=0; ell<=ellmax; ell++){
+          for(int em=-ell; em<=ell; em++){
+            for(int ab=0; ab<=3; ab++){
+              src1 = eta; // .fill_z2_wall_source( rng, t0 );
+              src1.mult_Ylm_real(ell, em, base);
+              src1.mult_sigma(ab);
+              op_DH.from_cpu<N>( DH_src1.field, src1.field );
+              op_DHD.solve<N>( Dinv_src1.field, DH_src1.field );
 
-        for(Idx s=0; s<Comp::Nt; s++) {
-          const VC psi1 = Dinv_src1.slice((t0+s)%Comp::Nt);
-          const VC psi2 = Dinv_src2.slice((t0+s)%Comp::Nt);
-          const Complex tr = psi1.dot(psi2);
+              Dinv_src2 = Dinv_src2_saved;
+              Dinv_src2.mult_Ylm_real(ell, em, base);
+              Dinv_src2.mult_sigma(ab);
 
-          ofs << s << " " <<  tr.real() << " " << tr.imag() << std::endl;
-        }
+              const std::string path=dir4+"meson_"+std::to_string(ell)+"_"+std::to_string(em)+"_a"+std::to_string(ab)+"_h"+std::to_string(h)+"_corr_v2."+std::to_string(k);
+              std::ofstream ofs(path);
+              ofs << std::scientific << std::setprecision(15);
+
+              for(Idx s=0; s<Comp::Nt; s++) {
+                const VC psi1 = Dinv_src1.slice((t0+s)%Comp::Nt);
+                const VC psi2 = Dinv_src2.slice((t0+s)%Comp::Nt);
+                // const double tr = Dot(psi1, psi2, base);
+                const Complex tr = psi1.dot(psi2);
+
+                ofs << s << " " <<  tr.real() << " " << tr.imag() << std::endl;
+                // ofs << s << " " <<  tr << std::endl;
+              }
+            }}} // for ell, em, ab
       } // end for h
     } // end for t0
   } // end for k

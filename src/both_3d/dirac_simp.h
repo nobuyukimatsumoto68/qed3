@@ -21,7 +21,8 @@ struct SpinStructureSimp{
   {
     // if(n_refine==0) return;
     {
-      std::ifstream file(dir+"/omega_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      // std::ifstream file(dir+"/omega_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      std::ifstream file(dir+"/omega_n"+std::to_string(n_refine)+".dat");
 
       std::string str;
       std::string file_contents;
@@ -38,7 +39,8 @@ struct SpinStructureSimp{
     }
 
     {
-      std::ifstream file(dir+"/alpha_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      // std::ifstream file(dir+"/alpha_n"+std::to_string(n_refine)+"_singlepatch.dat");
+      std::ifstream file(dir+"/alpha_n"+std::to_string(n_refine)+".dat");
 
       std::string str;
       std::string file_contents;
@@ -68,7 +70,14 @@ struct SpinStructureSimp{
 
           Double diff = (alpha2 + M_PI + omega12) - alpha1;
           std::cout << "diff = " << diff << std::endl;
-          assert( Geodesic::isModdable(diff, 1.0e-14) );
+          // assert( Geodesic::isModdable(diff, 1.0e-14) );
+          if(diff>M_PI) diff -= 2.0*M_PI;
+          else if(diff<=-M_PI) diff += 2.0*M_PI;
+          if(std::abs(diff)>1.0e-14){
+            std::cout << "debug. diff = " << std::abs(diff) << std::endl;
+            assert( std::abs(diff)<1.0e-14 );
+          }
+
 
           // Double om = alpha1 - (alpha2 + M_PI);
           // const int br = Geodesic::decide_branch( om-omega12 );
@@ -98,11 +107,13 @@ struct SpinStructureSimp{
         }
         sum *= sign;
         // std::cout << "sum = " << sum << std::endl;
-        Double mod = Geodesic::Mod(sum, 4.0*M_PI);
+        // Double mod = Geodesic::Mod(sum, 4.0*M_PI);
         // std::cout << "sum (mod4pi) = " << mod << std::endl;
-        if(mod>2.0*M_PI) mod -= 4.0*M_PI;
-        std::clog << "# sum (mod4pi, repr) = " << mod << std::endl;
-        assert( (-1.5 * 4.0*M_PI/base.n_faces < mod && mod < 0.0) );
+        if(sum>2*M_PI) sum -= 4.0*M_PI;
+        else if(sum<=-2*M_PI) sum += 4.0*M_PI;
+        // if(sum>2.0*M_PI) sum -= 4.0*M_PI;
+        // std::clog << "# sum (mod4pi, repr) = " << mod << std::endl;
+        assert( (-1.5 * 4.0*M_PI/base.n_faces < sum && sum < 0.0) );
         counter++;
       }
     }

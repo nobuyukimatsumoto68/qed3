@@ -72,7 +72,7 @@ namespace Comp{
 
   // constexpr int Nt=24;
   // constexpr int Nt=192;
-  constexpr int Nt=96;
+  constexpr int Nt=128;
   // constexpr int Nt=16;
 
 #ifdef IS_DUAL
@@ -212,12 +212,19 @@ int main(int argc, char* argv[]){
 
   std::string dir3, dir4;
   // #ifdef Nf2
-  dir3="Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
-  // dir3="Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
-  dir4="data_Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
-  // dir4="data_Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
-
+  if(Nf==0){
+    dir3="gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
+    dir4="data_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
+    std::cout << "dir3 = " << dir3 << std::endl;
+  }
+  else{
+    dir3="Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
+    dir4="data_Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
+  }
   std::filesystem::create_directory(dir4);
+
+  std::cout << "# debug. dir3 = " << dir3 << std::endl;
+  std::cout << "# debug. dir4 = " << dir4 << std::endl;
 
 
   Gauge U(base);
@@ -236,7 +243,7 @@ int main(int argc, char* argv[]){
   }
 
   // #ifdef IS_FLOW
-  Flow flow(&SW);
+  Flow flow(&SW, 2.0, 200);
   // #endif
 
 #ifdef _OPENMP
@@ -262,9 +269,9 @@ int main(int argc, char* argv[]){
     for(int t=0; t<Comp::Nt; t++) chair_avg[t] = U.chair_angle_avg(t);
 
     std::vector<std::vector<double>*> obs_ptrs;
-    obs_ptrs.push_back( &plaq_avg );
+    // obs_ptrs.push_back( &plaq_avg );
     obs_ptrs.push_back( &flow_plaq_avg );
-    obs_ptrs.push_back( &chair_avg );
+    // obs_ptrs.push_back( &chair_avg );
     const int nops = obs_ptrs.size();
 
     {

@@ -37,6 +37,8 @@ public:
     sigma[2] << 0,-I,I,0;
     sigma[3] << 1,0,0,-1;
   }
+
+  MS operator[](const int a) const { return sigma[a]; }
   // virtual void set_kappa() = 0;
 
 };
