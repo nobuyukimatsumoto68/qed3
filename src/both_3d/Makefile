@@ -11,7 +11,7 @@ INCLUDES=-I"/projectnb/qfe/nmatsum/qed3/opt/eigen" # -I"/mnt/hdd_barracuda/qed3/
 # INCLUDES+=-DGRP_DIR="\"$(GRP_DIR)\""
 
 NVCC=nvcc # /usr/local/cuda-12.6/bin/nvcc # nvcc
-NVCCFLAGS=-arch=sm_70 -g -O3 -std=c++20 -lcublas -lcusolver -lcusparse -lgomp -Xcompiler -fopenmp,-march=native # -diag-suppress<1650-D>
+NVCCFLAGS=-arch=sm_70 -O3 -std=c++20 -lcublas -lcusolver -lcusparse -lgomp -Xcompiler -fopenmp # -diag-suppress<1650-D>
 # CXXFLAGS=-O3 -std=c++20 omp -Xcompiler -fopenmp,-march=native # -diag-suppress<1650-D>
 # >>>>>>> d7b97ca92d97e875a0371c9b0a724cd0e6e17e9d
 
