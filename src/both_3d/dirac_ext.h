@@ -217,6 +217,41 @@ public:
   }
 
 
+
+
+
+
+
+
+
+
+// #ifdef _OPENMP
+// #pragma omp parallel for num_threads(Comp::NPARALLEL_DUPDATE) schedule(static)
+// #endif
+//     for(int s=0; s<Nt; s++){
+//       for(Idx ix=0; ix<lattice.n_sites; ix++){
+//         double coeff = 0.0;
+//         for(const Idx iy : lattice.nns[ix]){
+//           const Idx il = lattice.map2il.at(BaseLink{ix,iy});
+//           coeff += 0.5 * r*bd.kappa[il];
+//         }
+//         coeff += r*kappa_t[ix];
+//         coeff += M5;
+
+//         Idx counter = 4*lattice.counter_accum.back()*Nt + 8*lattice.n_sites*Nt + 4*(lattice.n_sites*s + ix);
+//         const MS tmp2 = coeff * sigma[0];
+
+//         v[counter] = tmp2(0,0); counter++;
+//         v[counter] = tmp2(0,1); counter++;
+
+//         v[counter] = tmp2(1,0); counter++;
+//         v[counter] = tmp2(1,1); counter++;
+//       }
+//     }
+// }
+
+
+
 //     template<typename Gauge>
 //   void coo_format( std::vector<Complex>& v,
 // 		   const Gauge& u ) const {
@@ -403,7 +438,11 @@ public:
 
 
 
-  void set_kappa_t() {
+
+
+
+
+void set_kappa_t() {
 #ifdef _OPENMP
 #pragma omp parallel for num_threads(Comp::NPARALLEL)
 #endif
