@@ -112,7 +112,7 @@ using CuC = cuDoubleComplex;
 
 #include "valence.h"
 
-#include "../../integrator/geodesic.h"
+#include "../../geometry/geodesic.h"
 
 
 // TODO: Cusparse for SparseMatrix::act_gpu, probably defining handle in matpoly.h

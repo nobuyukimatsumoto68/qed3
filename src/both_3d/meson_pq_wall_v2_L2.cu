@@ -1,4 +1,5 @@
 #include <typeinfo>
+#include <cmath>
 #include <iostream>
 #include <iomanip>
 #include <fstream>
@@ -13,6 +14,15 @@
 #include <vector>
 #include <map>
 #include <Eigen/Dense>
+
+
+// #include <stdfloat>
+// #include <boost/multiprecision/float128.hpp>
+
+// #if __STDCPP_FLOAT64_T__ != 1
+//     #error "64-bit float type required"
+// #endif
+
 
 using Double = double;
 using Idx = std::int32_t;
@@ -42,42 +52,17 @@ static constexpr Complex I = Complex(0.0, 1.0);
 namespace Comp{
   constexpr bool is_compact=false;
 
-  // d_DW.update() is always done independently
-#ifdef IS_OVERLAP
   constexpr int NPARALLEL_DUPDATE=4;
-  constexpr int NPARALLEL=4; // 12
-  constexpr int NSTREAMS=4; // 4
-  // constexpr int NPARALLEL=4; // 12
-  // constexpr int NSTREAMS=4; // 4
-#else
-  constexpr int NPARALLEL_DUPDATE=12;
-  constexpr int NPARALLEL=1; // 12
-  constexpr int NSTREAMS=12; // for grad loop
-#endif
-  constexpr int NPARALLEL_GAUGE=4; // 12
-  constexpr int NPARALLEL_SORT=4; // 12
+  constexpr int NPARALLEL=NPARALLEL_DUPDATE; // 12
+  constexpr int NSTREAMS=NPARALLEL_DUPDATE; // 4
+  constexpr int NPARALLEL_GAUGE=NPARALLEL_DUPDATE; // 12
+  constexpr int NPARALLEL_SORT=NPARALLEL_DUPDATE; // 12
 
-  constexpr int N_REFINE=1;
+  constexpr int N_REFINE=2;
   constexpr int NS=2;
+  constexpr int Nt=128;
 
-  // constexpr int Nt=24;
-  // constexpr int Nt=48; // add 2
-  // constexpr int Nt=64;
-  // constexpr int Nt=96; // add 4
-  // constexpr int Nt=120;
-  // constexpr int Nt=144; // add 8
-  // constexpr int Nt=168;
-
-  // constexpr int Nt=24;
-  // constexpr int Nt=192;
-  constexpr int Nt=96;
-  // constexpr int Nt=16;
-
-#ifdef IS_DUAL
-  constexpr Idx N_SITES=20*N_REFINE*N_REFINE;
-#else
   constexpr Idx N_SITES=10*N_REFINE*N_REFINE+2;
-#endif
   constexpr int N_LINKS=30*N_REFINE*N_REFINE; // 30, 120, 480
 
   constexpr Idx Nx=NS*N_SITES; // matrix size of DW
@@ -87,7 +72,8 @@ namespace Comp{
   const double TOL_OUTER=1.0e-14;
 }
 
-const std::string dir = "../../dats/";
+// const std::string dir = "../../dats/";
+const std::string dir = "../../geometry/data/";
 
 // // #define IsVerbose
 // #define IsVerbose2
@@ -96,7 +82,7 @@ const std::string dir = "../../dats/";
 
 #include "timer.h"
 
-#include "../../geometry/geodesic.h"
+// #include "../../integrator/geodesic.h"
 
 #include "s2n_simp.h"
 #include "s2n_dual.h"
@@ -134,6 +120,144 @@ using CuC = cuDoubleComplex;
 #include "overlap.h"
 
 
+
+
+
+//------------------------------------------
+// https://gist.github.com/ashwin/d88184923c7161d368a9
+#include <getopt.h>
+
+void PrintHelp()
+{
+  std::cout <<
+    "--gsq <gsq>"
+    "--Nf <Nf>"
+    "--nu0 <nu0>"
+    "--nu1 <nu1>"
+    "--nhits <nhits>"
+    "--dt <dt>"
+    "--ellmax <ellmax>"
+            << std::endl;
+    // "--em <em>"
+    // "--ab <ab>";
+  exit(1);
+}
+
+void ParseArgs(int argc, char** argv,
+               double& gsq,
+               int& Nf,
+               double& nu0,
+               double& nu1,
+               int& nhits,
+               int& dt,
+               int& ellmax
+               // int& em,
+               // int& ab
+               ){
+  const char* const short_opts = "gnpqsdl";
+  const option long_opts[] = {
+    {"gsq", required_argument, nullptr, 'g'},
+    {"Nf", required_argument, nullptr, 'n'},
+    {"nu0", required_argument, nullptr, 'p'},
+    {"nu1", required_argument, nullptr, 'q'},
+    {"nhits", required_argument, nullptr, 's'},
+    {"dt", required_argument, nullptr, 'd'},
+    {"ellmax", required_argument, nullptr, 'l'},
+    //  {"em", required_argument, nullptr, 'm'},
+    // {"ab", required_argument, nullptr, 'a'},
+    // {"help", no_argument, nullptr, 'h'},
+    {nullptr, no_argument, nullptr, 0}
+  };
+
+  int option_index;
+  int opt;
+  while ((opt = getopt_long(argc, argv, short_opts, long_opts, &option_index)) != -1){
+    // const auto opt = getopt_long(argc, argv, short_opts, long_opts, &option_index);
+    // if (-1 == opt) break;
+
+    switch (opt) {
+    case 'g':
+      gsq = std::stof(optarg);
+      // std::cout << "Num set to: " << num << std::endl;
+      break;
+
+    case 'n':
+      Nf = std::stoi(optarg);
+      // std::cout << "Beep is set to true\n";
+      break;
+
+    case 'p':
+      nu0 = std::stof(optarg);
+      // std::cout << "Num set to: " << num << std::endl;
+      break;
+
+    case 'q':
+      nu1 = std::stof(optarg);
+      // std::cout << "Beep is set to true\n";
+      break;
+
+    case 's':
+      nhits = std::stoi(optarg);
+      // std::cout << "Num set to: " << num << std::endl;
+      break;
+
+    case 'd':
+      dt = std::stoi(optarg);
+      // std::cout << "Beep is set to true\n";
+      break;
+
+    case 'l':
+      ellmax = std::stoi(optarg);
+      // std::cout << "Beep is set to true\n";
+      break;
+
+    // case 'm':
+    //   em = std::stoi(optarg);
+    //   // std::cout << "Beep is set to true\n";
+    //   break;
+
+    // case 'a':
+    //   ab = std::stoi(optarg);
+    //   // std::cout << "Beep is set to true\n";
+    //   break;
+
+    case 'h': // -h or --help
+    case '?': // Unrecognized option
+    default: PrintHelp();
+      break;
+    }
+  }
+}
+//------------------------------------------
+
+
+
+
+// template<class Base>
+// double Dot( const VC& psi1, const VC& psi2, const Base& base ){
+//   // for(Idx ix=0; ix<Comp::N_SITES; ix++){
+//   //   const VE r = lattice.sites[ix];
+//   //   const double area = lattice.dual_areas[ix];
+//   //   const double ylm = Ylm_real(ell, em, r);
+//   //   for(int s=0; s<Nt; s++){
+//   //     (*this)(s, ix, 0) *= area * ylm;
+//   //     (*this)(s, ix, 1) *= area * ylm;
+//   //   }
+//   // }
+//   boost::multiprecision::float128 sum = 0.0;
+//   for(Idx i=0; i<psi1.size(); i++){
+//     // std::cout << std::setw(15) << i << " " << std::setw(20) << (std::conj(psi1[i])*psi2[i]).real() << std::endl;
+//     sum += (std::conj(psi1[i])*psi2[i]).real();
+//   }
+//   return (double)sum;
+// }
+
+
+
+
+
+
+
 // TODO: Cusparse for SparseMatrix::act_gpu, probably defining handle in matpoly.h
 // make 2 streams in V Vdag in square in Overlap
 // all the operation on GPU in Overlap::operator()
@@ -146,24 +270,34 @@ int main(int argc, char* argv[]){
   std::cout << std::scientific << std::setprecision(15);
   std::clog << std::scientific << std::setprecision(15);
 
-  double gsq = 4.0;
-  if(argc>1) gsq = atof(argv[1]);
+  double gsq = 2.0;
+  // if(argc>1) gsq = atof(argv[1]);
   int Nf = 2;
-  if(argc>2) Nf = atoi(argv[2]);
+  // if(argc>2) Nf = atoi(argv[2]);
   // std::cout << "# gsq = " << gsq << " Nf = " << Nf << std::endl;
   double nu0 = 1.0;
-  if(argc>3) nu0 = atof(argv[3]);
+  // if(argc>3) nu0 = atof(argv[3]);
   double nu1 = 1.0;
-  if(argc>4) nu1 = atof(argv[4]);
-  std::cout << "# gsq = " << gsq << " Nf = " << Nf << " nu0 = " << nu0 << " nu1 = " << nu1 << std::endl;
+  // if(argc>4) nu1 = atof(argv[4]);
+  int nhits = 1;
+  // if(argc>5) nhits = atoi(argv[5]);
+  int dt = Comp::Nt;
+  // if(argc>6) dt = atoi(argv[6]);
+  int ellmax = 2;
+  // if(argc>7) ell = atoi(argv[7]);
+  // int em = 0;
+  // if(argc>8) em = atoi(argv[8]);
+  // int ab = 3;
+
+  ParseArgs(argc, argv,
+            gsq, Nf,
+            nu0, nu1,
+            nhits, dt,
+            ellmax);
+
+  std::cout << "# gsq = " << gsq << " Nf = " << Nf << " nu0 = " << nu0 << " nu1 = " << nu1 << " nhits = " << nhits << " dt = " << dt << " ellmax = " << ellmax << std::endl;
 
   for(int i=0; i<Comp::NSTREAMS; i++) d_MemorySets[i].allocate();
-
-
-  // int igam=0;
-  // if(argc>3) igam = atoi(argv[3]);
-  // std::cout << "# igam = " << igam << " where 0=id., i=sigma_3" << std::endl;
-
 
 
   int device;
@@ -179,13 +313,8 @@ int main(int argc, char* argv[]){
   constexpr Idx N = Comp::N;
   constexpr int Nt = Comp::Nt;
 
-#ifdef IS_DUAL
-  using Base=S2Trivalent;
-  using WilsonDirac=DiracExt<Base, DiracS2Dual>;
-#else
   using Base=S2Simp;
   using WilsonDirac=DiracExt<Base, DiracS2Simp>;
-#endif
 
   using Force=GaugeExt<Base,Nt,Comp::is_compact>;
   using Gauge=GaugeExt<Base,Nt,Comp::is_compact>;
@@ -199,95 +328,35 @@ int main(int argc, char* argv[]){
   std::cout << "# lattice set. " << std::endl;
 
   // ----------------------
-  // const double at = 0.5;
-  // const double T = 0.2;
-  // const double T = 24;
   const double at = 0.2; // T/Comp::Nt;
   if(Nt!=1) assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
 
-
-  // const double gsq = 0.05;
-  // double at = 0.05; // base.mean_ell * 0.125 * ratio;
-  // if(Comp::Nt==1) at=0.;
-  Action SW( gsq, at, base );
-  std::cout << "# alat = " << base.mean_ell << std::endl;
-
-  // std::string dir3, dir4;
-  // // #ifdef Nf2
-  // dir3="Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
-  // dir4="data_Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
   std::string dir3, dir4;
-  // #ifdef Nf2
   dir3="Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
-  // dir3="Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
-  dir4="data_Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nu1"+std::to_string(nu1)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
-  // dir4="data_Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
-
+  dir4="data_Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
+  // dir4="data_at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nu1"+std::to_string(nu1)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
 
   std::filesystem::create_directory(dir4);
-
 
   Gauge U(base);
   srand( time(NULL) );
   Rng rng(base, rand());
 
-#ifdef GAUGE_TRSF
-  // std::cout << "SW = " << SW(U) << std::endl;
-  // U.random_gauge_trsf(rng);
-  // std::cout << "ch.= " << SW(U) << std::endl;
-#endif
 
-
-
-#ifdef IS_OVERLAP
-  // Overlap Dov(DW, 31);
-  // Dov.update(U);
-  // std::cout << "# Dov set; M5 = " << M5 << std::endl;
-  // std::cout << "# min max ratio: "
-  //           << Dov.lambda_min << " "
-  //           << Dov.lambda_max << " "
-  //           << Dov.lambda_min/Dov.lambda_max << std::endl;
-  // std::cout << "# delta = " << Dov.Delta() << std::endl;
-
-  // auto f_Op = std::bind(&Overlap::mult_deviceAsyncLaunch, &Dov, std::placeholders::_1, std::placeholders::_2);
-  // LinOpWrapper M_Op( f_Op );
-  // Op.push_back ( cplx(1.0), {&M_Op} );
-
-#ifdef IS_DUAL
-  const double M5 = -1.5;
-#else
   const double M5 = -1.0;
-#endif
-
   WilsonDirac DW(base, 0.0, 1.0, M5, at, nu1);
   std::cout << "# DW set. " << std::endl;
-
   using Fermion=Overlap<WilsonDirac>;
+  // Fermion D(DW, 31);
   Fermion D(DW, 21);
   std::cout << "# D set. " << std::endl;
-#else
-  const double M5 = 0.0;
-  WilsonDirac DW(base, 0.0, 1.0, M5, at, nu1);
-  std::cout << "# DW set. " << std::endl;
-
-  using Fermion=DiracPf<WilsonDirac>;
-  Fermion D(DW);
-  std::cout << "# D set. " << std::endl;
-#endif
 
   D.update( U );
   std::cout << "# D updated. " << std::endl;
 
-  auto f_D = std::bind(&Fermion::mult_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
-  auto f_DDH = std::bind(&Fermion::DDH_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
 
   auto f_DH = std::bind(&Fermion::adj_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
   auto f_DHD = std::bind(&Fermion::DHD_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
-
-  LinOpWrapper M_D( f_D );
-  MatPoly op_D; op_D.push_back ( cplx(1.0), {&M_D} );
-  LinOpWrapper M_DDH( f_DDH );
-  MatPoly op_DDH; op_DDH.push_back ( cplx(1.0), {&M_DDH} );
 
   LinOpWrapper M_DH( f_DH );
   MatPoly op_DH; op_DH.push_back ( cplx(1.0), {&M_DH} );
@@ -298,84 +367,26 @@ int main(int argc, char* argv[]){
 
   std::cout << "# calculating src " << std::endl;
 
-#ifdef GAUGE_TRSF
-  FermionVector gauge; // (base, Nt, rng);
-  gauge.set_random_gauge(rng);
-#endif
-
-  FermionVector src0; // (base, Nt, rng);
-  FermionVector DHsrc0; // (base, Nt, rng);
-  // FermionVector Dsrc0; // (base, Nt, rng);
+// #ifdef GAUGE_TRSF
+//   FermionVector gauge; // (base, Nt, rng);
+//   gauge.set_random_gauge(rng);
+// #endif
 
   FermionVector src1; // (base, Nt, rng);
-  FermionVector DHsrc1; // (base, Nt, rng);
-  // FermionVector Dsrc1; // (base, Nt, rng);
+  FermionVector DH_src1; // (base, Nt, rng);
+  FermionVector Dinv_src1; // (base, Nt, rng);
+  FermionVector src2; // (base, Nt, rng);
+  FermionVector DH_src2; // (base, Nt, rng);
+  FermionVector Dinv_src2; // (base, Nt, rng);
 
-  // pt source
-  const Idx iy = 0;
-  src0.set_pt_source(0, iy, 0);
-  src1.set_pt_source(0, iy, 1);
-
-#ifdef GAUGE_TRSF
-  DW.bd.random_gauge_trsf(base,rng);
-
-  src1.gauge_trsf( gauge );
-  U.gauge_trsf( gauge );
-  D.update( U );
-#endif
-
-
-  // op_D.from_cpu<N>( Dsrc0.field, src0.field );
-  // op_D.from_cpu<N>( Dsrc1.field, src1.field );
-
-  FermionVector Dinv0; // (base, Nt, rng);
-  FermionVector Dinv1; // (base, Nt, rng);
-  // FermionVector DHinv0; // (base, Nt, rng);
-  // FermionVector DHinv1; // (base, Nt, rng);
-
-  // FermionVector DHDinv0; // (base, Nt, rng);
-  // FermionVector DHDinv1; // (base, Nt, rng);
+  FermionVector eta; // (base, Nt, rng);
+  FermionVector Dinv_src2_saved;
 
   std::cout << "# calculating sink" << std::endl;
 
 
-  // free
-  op_DH.from_cpu<N>( DHsrc0.field, src0.field );
-  op_DH.from_cpu<N>( DHsrc1.field, src1.field );
-  op_DHD.solve<N>( Dinv0.field, DHsrc0.field );
-  op_DHD.solve<N>( Dinv1.field, DHsrc1.field );
-
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(Comp::NPARALLEL_SORT) schedule(static)
-#endif
-  for(int igam=0; igam<=3; igam++){
-    const std::string path=dir4+"meson_"+std::to_string(igam)+"_corr.free";
-    // const std::string path=dir4+"meson_free_corr."+std::to_string(k);
-    std::ofstream ofs(path);
-    ofs << std::scientific << std::setprecision(15);
-
-    for(Idx s=0; s<Comp::Nt; s++) {
-      const auto Dinv_s0_O0 = Dinv0(s,iy,0);
-      const auto Dinv_s1_O0 = Dinv0(s,iy,1);
-
-      const auto Dinv_s0_O1 = Dinv1(s,iy,0);
-      const auto Dinv_s1_O1 = Dinv1(s,iy,1);
-
-      MS Dinv_sO; // << inits in row major way
-      Dinv_sO << Dinv_s0_O0, Dinv_s0_O1, Dinv_s1_O0, Dinv_s1_O1;
-
-      MS DinvH_sO = Dinv_sO.adjoint(); // << inits in row major way
-      Complex tr = (DinvH_sO * DW.sigma[igam] * Dinv_sO * DW.sigma[igam] ).trace();
-
-      // std::cout << s << " " <<  tr.real() << " " << tr.imag() << std::endl;
-      ofs << s << " " <<  tr.real() << " " << tr.imag() << std::endl;
-    }
-  }
-
-
-
-
-  const int k_ckpoint=10;
+  // const int k_ckpoint=10;
+  const int k_ckpoint=1;
   const int kmax=1e5;
 
   int k_tmp=0;
@@ -383,58 +394,78 @@ int main(int argc, char* argv[]){
     for(k_tmp=k_ckpoint; k_tmp<=kmax; k_tmp+=k_ckpoint ){
       const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k_tmp);
       const bool bool_lat = std::filesystem::exists(str_lat);
+      std::cout << "# str_lat = " << str_lat << std::endl;
       if(!bool_lat) break;
     }
     k_tmp -= k_ckpoint;
   }
 
+  int k_init=0;
+  {
+    int h=nhits-1;
+    int t0=Comp::Nt-dt-1;
+    int ell=ellmax;
+    int em=ellmax;
+    for(k_init=k_ckpoint; k_init<=kmax; k_init+=k_ckpoint ){
+      const std::string path=dir4+"meson_"+std::to_string(ell)+"_"+std::to_string(em)+"_h"+std::to_string(h)+"_t0"+std::to_string(t0)+"_corr_v2."+std::to_string(k_init);
+      std::cout << "# path = " << path << std::endl;
+      // std::ofstream ofs(path);
+      // const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k_init);
+      const bool bool_lat = std::filesystem::exists(path);
+      if(!bool_lat) break;
+    }
+    // k_init -= k_ckpoint;
+  }
 
-  for(int k=k_ckpoint; k<=k_tmp; k+=k_ckpoint ){
+
+  for(int k=k_init; k<=k_tmp; k+=k_ckpoint ){
     std::cout << "# read from k = " << k << std::endl;
     const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k);
     U.read( str_lat );
-
     D.update( U );
 
-    op_DH.from_cpu<N>( DHsrc0.field, src0.field );
-    op_DH.from_cpu<N>( DHsrc1.field, src1.field );
-    op_DHD.solve<N>( Dinv0.field, DHsrc0.field );
-    op_DHD.solve<N>( Dinv1.field, DHsrc1.field );
+    // const int a=3;
 
-    std::cout << "# done" << std::endl;
+    // const int t0=0;{
+    for(int t0=0; t0<Comp::Nt; t0+=dt){
+      for(int h=0; h<nhits; h++){
+        std::cout << "# t0 = " << t0 << "h = " << h << std::endl;
+        eta.fill_z2_wall_source( rng, t0 );
 
-#ifdef GAUGE_TRSF
-    sink.gauge_trsf( gauge, -1 );
-#endif
+        src2 = eta;
+        op_DH.from_cpu<N>( DH_src2.field, src2.field );
+        op_DHD.solve<N>( Dinv_src2.field, DH_src2.field );
+        Dinv_src2_saved = Dinv_src2;
 
+        for(int ell=0; ell<=ellmax; ell++){
+          for(int em=-ell; em<=ell; em++){
+            for(int ab=0; ab<=3; ab++){
+              src1 = eta; // .fill_z2_wall_source( rng, t0 );
+              src1.mult_Ylm_real(ell, em, base);
+              src1.mult_sigma(ab);
+              op_DH.from_cpu<N>( DH_src1.field, src1.field );
+              op_DHD.solve<N>( Dinv_src1.field, DH_src1.field );
 
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(Comp::NPARALLEL_SORT) schedule(static)
-#endif
-    for(int igam=0; igam<=3; igam++){
+              Dinv_src2 = Dinv_src2_saved;
+              Dinv_src2.mult_Ylm_real(ell, em, base);
+              Dinv_src2.mult_sigma(ab);
 
-      const std::string path=dir4+"meson_"+std::to_string(igam)+"_corr."+std::to_string(k);
-      std::ofstream ofs(path);
-      ofs << std::scientific << std::setprecision(15);
+              const std::string path=dir4+"meson_"+std::to_string(ell)+"_"+std::to_string(em)+"_a"+std::to_string(ab)+"_h"+std::to_string(h)+"_corr_v2."+std::to_string(k);
+              std::ofstream ofs(path);
+              ofs << std::scientific << std::setprecision(15);
 
-      for(Idx s=0; s<Comp::Nt; s++) {
-        const auto Dinv_s0_O0 = Dinv0(s,iy,0);
-        const auto Dinv_s1_O0 = Dinv0(s,iy,1);
+              for(Idx s=0; s<Comp::Nt; s++) {
+                const VC psi1 = Dinv_src1.slice((t0+s)%Comp::Nt);
+                const VC psi2 = Dinv_src2.slice((t0+s)%Comp::Nt);
+                // const double tr = Dot(psi1, psi2, base);
+                const Complex tr = psi1.dot(psi2);
 
-        const auto Dinv_s0_O1 = Dinv1(s,iy,0);
-        const auto Dinv_s1_O1 = Dinv1(s,iy,1);
-
-        MS Dinv_sO; // << inits in row major way
-        Dinv_sO << Dinv_s0_O0, Dinv_s0_O1, Dinv_s1_O0, Dinv_s1_O1;
-
-        MS DinvH_sO = Dinv_sO.adjoint(); // << inits in row major way
-        Complex tr = (DinvH_sO * DW.sigma[igam] * Dinv_sO * DW.sigma[igam] ).trace();
-
-        // std::cout << s << " " <<  tr.real() << " " << tr.imag() << std::endl;
-        ofs << s << " " <<  tr.real() << " " << tr.imag() << std::endl;
-      }
-    }
-
+                ofs << s << " " <<  tr.real() << " " << tr.imag() << std::endl;
+                // ofs << s << " " <<  tr << std::endl;
+              }
+            }}} // for ell, em, ab
+      } // end for h
+    } // end for t0
   } // end for k
 
 

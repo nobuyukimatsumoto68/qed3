@@ -281,7 +281,7 @@ int main(int argc, char* argv[]){
   // if(argc>4) nu1 = atof(argv[4]);
   int nhits = 1;
   // if(argc>5) nhits = atoi(argv[5]);
-  int dt = Comp::Nt/2;
+  int dt = Comp::Nt;
   // if(argc>6) dt = atoi(argv[6]);
   int ellmax = 2;
   // if(argc>7) ell = atoi(argv[7]);
@@ -385,7 +385,7 @@ int main(int argc, char* argv[]){
   std::cout << "# calculating sink" << std::endl;
 
 
-  const int k_ckpoint=10;
+  const int k_ckpoint=1;
   const int kmax=1e5;
 
   int k_tmp=0;

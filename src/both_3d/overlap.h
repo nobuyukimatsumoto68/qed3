@@ -205,8 +205,9 @@ struct Overlap : public Zolotarev {
   void update( const Gauge& U ) {
     d_DW.update( U );
     compute_lambda_max();
-    if( lambda_min/lambda_max < this->k){
-      if(is_update) Zolotarev::update(lambda_min/lambda_max);
+    double safe = 0.1;
+    if( lambda_min/lambda_max < 0.1*this->k){
+      if(is_update) Zolotarev::update(0.1*lambda_min/lambda_max);
 #ifdef InfoDelta
       std::clog << "# Smaller Delta Detected : " << Delta() << std::endl;
 #endif

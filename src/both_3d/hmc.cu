@@ -295,12 +295,12 @@ int main(int argc, char* argv[]){
       std::cout << "# k = " << k << std::endl;
     }
 
-    if(k%k_ckpoint==0){
-      const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k);
-      const std::string str_rng=dir3+"ckpoint_rng."+std::to_string(k);
-      U.ckpoint( str_lat );
-      rng.ckpoint( str_rng );
-    }
+    // if(k%k_ckpoint==0){
+    //   const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k);
+    //   const std::string str_rng=dir3+"ckpoint_rng."+std::to_string(k);
+    //   U.ckpoint( str_lat );
+    //   rng.ckpoint( str_rng );
+    // }
   }
   r_mean /= kmax;
   std::cout << "# r_mean = " << r_mean << std::endl;

@@ -100,7 +100,7 @@ using CuC = cuDoubleComplex;
 
 // ======================================
 
-#include "../../integrator/geodesic.h"
+#include "../../geometry/geodesic.h"
 
 #include "sparse_matrix.h"
 #include "dirac_base.h"

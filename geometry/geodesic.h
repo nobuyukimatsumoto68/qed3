@@ -5,10 +5,10 @@
 #include <Eigen/Dense>
 
 namespace Geodesic{
-  // constexpr Double TOLMOD=1.0e-5;
-  // constexpr Double TOL3 = 1.0e-6;
+  constexpr Double TOLMOD=1.0e-5;
+  constexpr Double TOL3 = 1.0e-6;
 
-  // constexpr Double EPSNUMDER=1.0e-6;
+  constexpr Double EPSNUMDER=1.0e-6;
 
   constexpr int BRMAX = 8;
 
@@ -267,24 +267,24 @@ struct Sol{
 
 
 
-// void getSign(I2& sign1, I2& sign2,
-//              const Pt& x1, const Pt& x2, const Double eps=EPSNUMDER){
-//   const V3 p = x1.x;
-//   const V3 q = x2.x;
+void getSign(I2& sign1, I2& sign2,
+             const Pt& x1, const Pt& x2, const Double eps=EPSNUMDER){
+  const V3 p = x1.x;
+  const V3 q = x2.x;
 
-//   V2 deriv1, deriv2;
-//   const V3 p2 = embedding3D(projectionS2(p + eps*(q-p)/(q-p).norm()));
-//   const V3 diff1 = p2-p;
-//   deriv1 << diff1.dot( x1.Delta0() ), diff1.dot( x1.Delta1() );
-//   const V3 q2 = embedding3D(projectionS2(q - eps*(q-p)));
-//   const V3 diff2 = q-q2;
-//   deriv2 << diff2.dot( x2.Delta0() ), diff2.dot( x2.Delta1() );
-//   // std::cout << deriv1 << std::endl;
-//   // std::cout << deriv2 << std::endl;
+  V2 deriv1, deriv2;
+  const V3 p2 = embedding3D(projectionS2(p + eps*(q-p)/(q-p).norm()));
+  const V3 diff1 = p2-p;
+  deriv1 << diff1.dot( x1.Delta0() ), diff1.dot( x1.Delta1() );
+  const V3 q2 = embedding3D(projectionS2(q - eps*(q-p)));
+  const V3 diff2 = q-q2;
+  deriv2 << diff2.dot( x2.Delta0() ), diff2.dot( x2.Delta1() );
+  // std::cout << deriv1 << std::endl;
+  // std::cout << deriv2 << std::endl;
 
-//   sign1 = deriv1.array().sign().matrix().cast<int>();
-//   sign2 = deriv2.array().sign().matrix().cast<int>();
-// }
+  sign1 = deriv1.array().sign().matrix().cast<int>();
+  sign2 = deriv2.array().sign().matrix().cast<int>();
+}
 
 
 Double getCosPhi0(const Pt& x1, const Pt& x2, const int sign1, const int sign2){

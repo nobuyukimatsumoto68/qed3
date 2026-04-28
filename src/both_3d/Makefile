@@ -1,25 +1,13 @@
-CXX=g++
-# INCLUDES=-I"/mnt/hdd_barracuda/qfe_mod//include"
-# GRP_DIR="/mnt/hdd_barracuda/qfe_mod/grp/"
-# INCLUDES+=-DGRP_DIR="\"$(GRP_DIR)\""
-
-# NVCC=/usr/local/cuda-12.6/bin/nvcc # nvcc
-# NVCCFLAGS=-arch=sm_70 -pg -O3 -std=c++20 -lcublas -lcusolver -lcusparse -lgomp -Xcompiler -fopenmp,-march=native # -diag-suppress<1650-D>
-# =======
-# INCLUDES=-I"/projectnb/qfe/nmatsum/qed3/opt/eigen" -I"/opt/eigen-3.4.0/"
-INCLUDES=-I"/projectnb/qfe/nmatsum/qed3/opt/eigen" -I"/opt/eigen-3.4.0/" -I"/mnt/hdd_barracuda/opt/highfive/include/" -I"/mnt/hdd_barracuda/opt/myhdfstuff/hdf5-2.1.0/include/" # -I"../../qfe_mod/include/"
-# GRP_DIR="/mnt/hdd_barracuda/qed3/newQFE/grp/"
-# INCLUDES+=-DGRP_DIR="\"$(GRP_DIR)\""
-
+INCLUDES=-I"/project/affine/nmatsum/qed3/qfe_mod/include/" -I"/project/affine/nmatsum/highfive/include/" -I"/srv/software/el8/x86_64/eb/HDF5/1.14.2-GCC-12.3.0-serial/include/" -I"/project/affine/nmatsum/gsl/include/" # -I"../../qfe_mod/i
 NVCC=nvcc # /usr/local/cuda-12.6/bin/nvcc # nvcc
 # NVCCFLAGS=-arch=sm_70 -O3 -std=c++20 -lcublas -lcusolver -lcusparse -lgomp -Xcompiler -fopenmp # -diag-suppress<1650-D>
-NVCCFLAGS=-arch=sm_70 -g -O3 -std=c++20 -lcublas -lcusolver -lcusparse -lgomp -Xcompiler -fopenmp # ,-march=native # -diag-suppress<1650-D>
+NVCCFLAGS=-arch=sm_70 -g -O3 -std=c++20 -L${CUDA_HOME}/lib64 -L${CUDA_MATH}/lib64 -L${CUDA_COMP}/lib -L${CUDA_HOME}/lib64/stubs -lcudart -lcuda -lnvidia-ml -lcublas -lcufft -ldl -lgomp -Xcompiler -fopenmp # -lcublas -lcusolver -lcusparse -lgomp -Xcompiler -fopenmp # ,-march=native # -diag-suppress<1650-D>
 # CXXFLAGS=-O3 -std=c++20 omp -Xcompiler -fopenmp,-march=native # -diag-suppress<1650-D>
 # >>>>>>> d7b97ca92d97e875a0371c9b0a724cd0e6e17e9d
 
 INCLUDES_CUDA= #-I/usr/local/cuda-12.6/include/
 # LDFLAGS_CUDA= # -L/usr/local/cuda-12.6/lib64/
-LDFLAGS_CUDA= -L"/mnt/hdd_barracuda/opt/myhdfstuff/hdf5-2.1.0/lib/" -L"/usr/lib/" -L"/usr/local/lib/" -lhdf5 -lgsl -lgslcblas -lm # -L/usr/local/cuda-12.6/lib64/
+LDFLAGS_CUDA= -L"/srv/software/el8/x86_64/eb/HDF5/1.14.2-GCC-12.3.0-serial/lib/" -L"/project/affine/nmatsum/gsl/lib/" -lhdf5 -lgsl -lgslcblas -lm # -L/usr/local/cuda-12.6/lib64/
 INCLUDES_CUDA += $(INCLUDES)
 
 NVCCFLAGS+= # -DGRP_DIR="\"$(GRP_DIR)\""

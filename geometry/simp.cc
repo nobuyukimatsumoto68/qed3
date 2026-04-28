@@ -5,13 +5,14 @@
 #include <cmath>
 #include <map>
 #include <limits>
-#include <stdfloat>
+// #include <stdfloat>
 
 #include <Eigen/Dense>
 
 #include <gsl/gsl_integration.h>
 
-using Double = std::float64_t;
+// using Double = std::float64_t;
+using Double = double;
 //#include "geodesic.h"
 // #include "integral.h"
 

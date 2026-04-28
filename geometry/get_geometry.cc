@@ -7,8 +7,9 @@
 #include <algorithm>
 #include <filesystem>
 
-#include <stdfloat>
-using Double = std::float64_t;
+// #include <stdfloat>
+// using Double = std::float64_t;
+using Double = double;
 // # include "geodesic.h"
 
 Double Mod(Double a, Double b=2.0*M_PI){

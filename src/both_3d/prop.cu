@@ -94,7 +94,7 @@ const std::string dir = "../../dats/";
 
 #include "timer.h"
 
-#include "../../integrator/geodesic.h"
+#include "../../geometry/geodesic.h"
 
 #include "s2n_simp.h"
 #include "s2n_dual.h"
