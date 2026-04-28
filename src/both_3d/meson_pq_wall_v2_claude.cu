@@ -3,6 +3,7 @@
 #include <iostream>
 #include <iomanip>
 #include <fstream>
+#include <highfive/H5File.hpp>
 #include <cstdlib>
 #include <cassert>
 #include <algorithm>
@@ -281,7 +282,7 @@ int main(int argc, char* argv[]){
   // if(argc>4) nu1 = atof(argv[4]);
   int nhits = 1;
   // if(argc>5) nhits = atoi(argv[5]);
-  int dt = Comp::Nt;
+  int dt = Comp::Nt/2;
   // if(argc>6) dt = atoi(argv[6]);
   int ellmax = 2;
   // if(argc>7) ell = atoi(argv[7]);
@@ -385,7 +386,7 @@ int main(int argc, char* argv[]){
   std::cout << "# calculating sink" << std::endl;
 
 
-  const int k_ckpoint=1;
+  const int k_ckpoint=10;
   const int kmax=1e5;
 
   int k_tmp=0;
@@ -406,10 +407,7 @@ int main(int argc, char* argv[]){
     int em=ellmax;
     int ab=3;
     for(k_init=k_ckpoint; k_init<=kmax; k_init+=k_ckpoint ){
-      // const std::string path=dir4+"meson_"+std::to_string(ell)+"_"+std::to_string(em)+"_h"+std::to_string(h)+"_t0"+std::to_string(t0)+"_corr_v2."+std::to_string(k_init);
-      const std::string path=dir4+"meson_"+std::to_string(ell)+"_"+std::to_string(em)+"_a"+std::to_string(ab)+"_h"+std::to_string(h)+"_t0"+std::to_string(t0)+"_corr_v2."+std::to_string(k_init);
-      // std::ofstream ofs(path);
-      // const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k_init);
+      const std::string path=dir4+"meson_corr_v2."+std::to_string(k_init)+".h5";
       const bool bool_lat = std::filesystem::exists(path);
       if(!bool_lat) break;
     }
@@ -423,9 +421,9 @@ int main(int argc, char* argv[]){
     U.read( str_lat );
     D.update( U );
 
-    // const int a=3;
+    const std::string h5path = dir4+"meson_corr_v2."+std::to_string(k)+".h5";
+    HighFive::File h5file(h5path, HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Truncate);
 
-    // const int t0=0;{
     for(int t0=0; t0<Comp::Nt; t0+=dt){
       for(int h=0; h<nhits; h++){
         std::cout << "# t0 = " << t0 << "h = " << h << std::endl;
@@ -449,20 +447,19 @@ int main(int argc, char* argv[]){
               Dinv_src2.mult_Ylm_real(ell, em, base);
               Dinv_src2.mult_sigma(ab);
 
-              // const std::string path=dir4+"meson_"+std::to_string(ell)+"_"+std::to_string(em)+"_a"+std::to_string(ab)+"_h"+std::to_string(h)+"_corr_v2."+std::to_string(k);
-              const std::string path=dir4+"meson_"+std::to_string(ell)+"_"+std::to_string(em)+"_a"+std::to_string(ab)+"_h"+std::to_string(h)+"_t0"+std::to_string(t0)+"_corr_v2."+std::to_string(k);
-              std::ofstream ofs(path);
-              ofs << std::scientific << std::setprecision(15);
-
+              std::vector<double> real_vec(Comp::Nt), imag_vec(Comp::Nt);
               for(Idx s=0; s<Comp::Nt; s++) {
                 const VC psi1 = Dinv_src1.slice((t0+s)%Comp::Nt);
                 const VC psi2 = Dinv_src2.slice((t0+s)%Comp::Nt);
                 // const double tr = Dot(psi1, psi2, base);
                 const Complex tr = psi1.dot(psi2);
-
-                ofs << s << " " <<  tr.real() << " " << tr.imag() << std::endl;
-                // ofs << s << " " <<  tr << std::endl;
+                real_vec[s] = tr.real();
+                imag_vec[s] = tr.imag();
               }
+
+              const std::string ds_prefix = std::to_string(ell)+"/"+std::to_string(em)+"/"+std::to_string(ab)+"/"+std::to_string(h)+"/"+std::to_string(t0)+"/";
+              h5file.createDataSet(ds_prefix+"real", real_vec);
+              h5file.createDataSet(ds_prefix+"imag", imag_vec);
             }}} // for ell, em, ab
       } // end for h
     } // end for t0

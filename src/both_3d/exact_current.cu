@@ -354,19 +354,37 @@ int main(int argc, char* argv[]){
   D.update( U );
   std::cout << "# D updated. " << std::endl;
 
+  // auto f_DH = std::bind(&Fermion::adj_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
+  // auto f_DHD = std::bind(&Fermion::DHD_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
 
-  auto f_DH = std::bind(&Fermion::adj_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
-  auto f_DHD = std::bind(&Fermion::DHD_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
-
-  LinOpWrapper M_DH( f_DH );
-  MatPoly op_DH; op_DH.push_back ( cplx(1.0), {&M_DH} );
-  LinOpWrapper M_DHD( f_DHD );
-  MatPoly op_DHD; op_DHD.push_back ( cplx(1.0), {&M_DHD} );
+  // LinOpWrapper M_DH( f_DH );
+  // MatPoly op_DH; op_DH.push_back ( cplx(1.0), {&M_DH} );
+  // LinOpWrapper M_DHD( f_DHD );
+  // MatPoly op_DHD; op_DHD.push_back ( cplx(1.0), {&M_DHD} );
 
   // ---------------------
 
+  
 
 
+  std::pair<int, Idx> link(0,0);
+  // const CuC* d_eta;
+
+  COO<N> coo;
+  DW.d_coo_format(coo.en, U, link);
+  coo.do_it();
+
+  FermionVector eta; // (base, Nt, rng);
+  FermionVector Keta; // (base, Nt, rng);
+
+  Complex coeff=I;
+  MatPoly op_DH; op_DH.push_back ( cplx(I), {&coo} );
+  op_DH.from_cpu<N>( Keta.data(), eta.data() );
+  // coo.Async( d_dDeta[m], d_eta, stream[m] );
+
+  // COO<N> coo;
+  // DW.d_coo_format(coo.en, U, link);
+  // coo.do_it();
 
 
 
