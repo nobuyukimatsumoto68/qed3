@@ -24,3 +24,10 @@ beta*
 *.o*
 *.e*
 gsq0*
+
+*.h5
+*.hdf5
+
+ckpoint_rng.*
+ckpoint_lat.*
+data*

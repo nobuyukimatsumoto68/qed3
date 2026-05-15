@@ -1,0 +1,1 @@
+CUDA_VISIBLE_DEVICES=1 ./hmc2.o 4.0 2 1.5

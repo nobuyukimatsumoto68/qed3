@@ -134,7 +134,7 @@ int main(int argc, char* argv[]){
   std::clog << std::scientific << std::setprecision(15);
 
   // double gsq = 8.0;
-  double gsq = 12.0;
+  double gsq = 8.0;
   if(argc>1) gsq = atof(argv[1]);
   int Nf = 2;
   if(argc>2) Nf = atoi(argv[2]);

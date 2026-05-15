@@ -134,6 +134,16 @@ int main(int argc, char* argv[]){
   std::cout << std::scientific << std::setprecision(15);
   std::clog << std::scientific << std::setprecision(15);
 
+  for (int i = 1; i < argc; i++) {
+    if (std::string(argv[i]) == "-h") {
+      printf("Usage: ./a.out [gsq] [Nf] [nu0]\n");
+      printf("  gsq  Wilson coupling squared (default: 8.0)\n");
+      printf("  Nf   number of fermion flavors (default: 2)\n");
+      printf("  nu0  mass parameter (default: 1.0)\n");
+      return 0;
+    }
+  }
+
   // double gsq = 8.0;
   double gsq = 8.0;
   if(argc>1) gsq = atof(argv[1]);
