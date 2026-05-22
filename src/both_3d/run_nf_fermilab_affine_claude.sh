@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --account=qed3.lq2_gpu
+#SBATCH --account=affine.lq2_gpu
 #SBATCH --qos=normal
 #SBATCH --partition=lq2_gpu
 #SBATCH --gpus=a100:1
