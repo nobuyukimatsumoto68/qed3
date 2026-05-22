@@ -118,8 +118,11 @@ int main(int argc, char* argv[]){
   if(argc>2) Nf = atoi(argv[2]);
   double nu0 = 1.0;
   if(argc>3) nu0 = atof(argv[3]);
-  double mass = 0.0;
-  if(argc>4) mass = atof(argv[4]);
+  double mass_re = 0.0;
+  if(argc>4) mass_re = atof(argv[4]);
+  double mass_im = 0.0;
+  if(argc>5) mass_im = atof(argv[5]);
+  Complex mass = Complex(mass_re, mass_im);
   std::cout << "# gsq = " << gsq << " Nf = " << Nf << " nu0 = " << nu0 << " mass = " << mass << std::endl;
 
 
@@ -136,7 +139,7 @@ int main(int argc, char* argv[]){
   using Gauge=GaugeExt<Base,Nt,Comp::is_compact>;
   using Action=U1WilsonExt<Base>;
   using Rng=ParallelRngExt<Base,Nt>;
-  using Fermion=OverlapWPMass<WilsonDirac>;
+  using Fermion=OverlapWMass<WilsonDirac>;
 
   Base base(Comp::N_REFINE);
   std::cout << "# lattice set. " << std::endl;
@@ -179,7 +182,7 @@ int main(int argc, char* argv[]){
   // -----------------
 
   std::string dir3;
-  dir3="Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"mP"+std::to_string(mass)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
+  dir3="Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"mRe"+std::to_string(mass.real())+"mIm"+std::to_string(mass.imag())+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
   std::filesystem::create_directory(dir3);
   const int k_ckpoint=1;
   const int kmax=1e3;

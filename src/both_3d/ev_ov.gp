@@ -21,3 +21,8 @@ set title 'D_{lat} spectrum, T=4, L=4, L_t=24'
 plot "data/eig_ov_L4_Nt24.dat" u 2:3 ti "orig" lw 2
 replot "data/eig_ov_L4_Nt24_m0.0.dat" u 2:3 ti "m=0.0" ls 8 lw 2
 replot "data/eig_ov_L4_Nt24_m1.0.dat" u 2:3 ti "m=1.0" ls 8 lw 2
+
+plot "data/eig_ov_L4_Nt24.dat" u 2:3 ti "orig" lw 2
+replot "data/eig_ov_L4_Nt24_m0.0R_0.0I.dat" u 2:3 ti "m=0.0" ls 8 lw 2
+replot "data/eig_ov_L4_Nt24_m1.0R_0.0I.dat" u 2:3 ti "m=1.0" ls 8 lw 2
+replot "data/eig_ov_L4_Nt24_m0.0R_1.0I.dat" u 2:3 ti "m=1.0I" ls 8 lw 2

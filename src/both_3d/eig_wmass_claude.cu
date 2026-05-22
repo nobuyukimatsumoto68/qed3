@@ -128,8 +128,11 @@ int main(int argc, char* argv[]){
   constexpr Idx N = Comp::N;
   constexpr int Nt = Comp::Nt;
 
-  double mass = 0.0;
-  if(argc>1) mass = atof(argv[1]);
+  double mass_re = 0.0;
+  if(argc>1) mass_re = atof(argv[1]);
+  double mass_im = 0.0;
+  if(argc>2) mass_im = atof(argv[2]);
+  Complex mass = Complex(mass_re, mass_im);
   std::cout << "# mass = " << mass << std::endl;
 
   // always S2Simp (non-dual)
@@ -144,7 +147,7 @@ int main(int argc, char* argv[]){
 #ifdef NO_MASS
   using Fermion=Overlap<WilsonDirac>;
 #else
-  using Fermion=OverlapWPMass<WilsonDirac>;
+  using Fermion=OverlapWMass<WilsonDirac>;
 #endif
 
   Base base(Comp::N_REFINE);

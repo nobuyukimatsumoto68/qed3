@@ -134,7 +134,7 @@ struct Zolotarev{
 
 
 template<typename WilsonDirac>
-struct OverlapWPMass : public Zolotarev {
+struct OverlapWMass : public Zolotarev {
   static constexpr Idx N = Comp::N;
   static constexpr int nstreams = Comp::NSTREAMS;
 
@@ -145,7 +145,7 @@ struct OverlapWPMass : public Zolotarev {
   double lambda_max, lambda_min;
 
   bool is_update;
-  double mass;
+  Complex mass;
 
   std::vector<cudaStream_t> stream;
   std::vector<cublasHandle_t> handle;
@@ -154,8 +154,8 @@ struct OverlapWPMass : public Zolotarev {
 
   bool is_precalc;
 
-  explicit OverlapWPMass( const WilsonDirac& DW_,
-                          const double mass_,
+  explicit OverlapWMass( const WilsonDirac& DW_,
+                          const Complex mass_,
                           const int n_=21,
                           const double k_=0.01,
                           const bool locate_on_gpu=true)
@@ -189,7 +189,7 @@ struct OverlapWPMass : public Zolotarev {
     }
   }
 
-  ~OverlapWPMass()
+  ~OverlapWMass()
   {
     for(int m=0; m<size; m++) {
       CUDA_CHECK(cudaFree(d_Zs[m]));
@@ -331,7 +331,7 @@ struct OverlapWPMass : public Zolotarev {
     Op.on_gpu<N>( d_res, d_Zs[0] );
     Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, C, d_res, d_xi); // D_ov
     CUDA_CHECK(cudaDeviceSynchronize());
-    Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, mass, d_xi, d_res); // +m v
+    Taxpy_gen<CuC,CuC,N><<<NBlocks, NThreadsPerBlock>>>(d_res, cplx(mass), d_xi, d_res); // +m v
     CUDA_CHECK(cudaDeviceSynchronize());
   }
 
@@ -363,47 +363,29 @@ struct OverlapWPMass : public Zolotarev {
     for(int m=1; m<size; m++) Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, A[m], d_Ys[m], d_res);
     Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, C, d_res, d_xi); // D^dag_ov
     CUDA_CHECK(cudaDeviceSynchronize());
-    Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, mass, d_xi, d_res); // +m v
+    Taxpy_gen<CuC,CuC,N><<<NBlocks, NThreadsPerBlock>>>(d_res, cplx(std::conj(mass)), d_xi, d_res); // +m^* v
     CUDA_CHECK(cudaDeviceSynchronize());
   }
 
 
   void DHD_deviceAsyncLaunch( CuC* d_res, const CuC* d_xi ) const {
-    CuC *d_tmp1, *d_tmp2;
-    CUDA_CHECK(cudaMalloc(&d_tmp1, N*CD));
-    CUDA_CHECK(cudaMalloc(&d_tmp2, N*CD));
-
-    this->mult_deviceAsyncLaunch(d_tmp1, d_xi);   // (D+m) v
-    this->adj_deviceAsyncLaunch(d_tmp2, d_xi);    // (D^dag+m) v
-
-    CUDA_CHECK(cudaMemcpy(d_res, d_tmp1, N*CD, D2D));
-    Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, 1.0, d_tmp2, d_res);     // (D+m)v + (D^dag+m)v
+    CuC *d_tmp;
+    CUDA_CHECK(cudaMalloc(&d_tmp, N*CD));
+    this->mult_deviceAsyncLaunch(d_tmp, d_xi);  // d_tmp = (D+m) v
     CUDA_CHECK(cudaDeviceSynchronize());
-    Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, mass, d_res, d_res);     // (1+m)[(D+m)+(D^dag+m)] v
+    this->adj_deviceAsyncLaunch(d_res, d_tmp);  // d_res = (D+m)^\dagger (D+m) v
     CUDA_CHECK(cudaDeviceSynchronize());
-    Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, mass*mass, d_xi, d_res); // + m^2 v
-    CUDA_CHECK(cudaDeviceSynchronize());
-    CUDA_CHECK(cudaFree(d_tmp1));
-    CUDA_CHECK(cudaFree(d_tmp2));
+    CUDA_CHECK(cudaFree(d_tmp));
   }
 
   void DDH_deviceAsyncLaunch( CuC* d_res, const CuC* d_xi ) const {
-    CuC *d_tmp1, *d_tmp2;
-    CUDA_CHECK(cudaMalloc(&d_tmp1, N*CD));
-    CUDA_CHECK(cudaMalloc(&d_tmp2, N*CD));
-
-    this->adj_deviceAsyncLaunch(d_tmp2, d_xi);    // (D^dag+m) v
-    this->mult_deviceAsyncLaunch(d_tmp1, d_xi);   // (D+m) v
-
-    CUDA_CHECK(cudaMemcpy(d_res, d_tmp1, N*CD, D2D));
-    Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, 1.0, d_tmp2, d_res);     // (D+m)v + (D^dag+m)v
+    CuC *d_tmp;
+    CUDA_CHECK(cudaMalloc(&d_tmp, N*CD));
+    this->adj_deviceAsyncLaunch(d_tmp, d_xi);    // d_tmp = (D+m)^\dagger v
     CUDA_CHECK(cudaDeviceSynchronize());
-    Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, mass, d_res, d_res);     // (1+m)[(D+m)+(D^dag+m)] v
+    this->mult_deviceAsyncLaunch(d_res, d_tmp);  // d_res = (D+m) (D+m)^\dagger v
     CUDA_CHECK(cudaDeviceSynchronize());
-    Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, mass*mass, d_xi, d_res); // + m^2 v
-    CUDA_CHECK(cudaDeviceSynchronize());
-    CUDA_CHECK(cudaFree(d_tmp1));
-    CUDA_CHECK(cudaFree(d_tmp2));
+    CUDA_CHECK(cudaFree(d_tmp));
   }
 
 
