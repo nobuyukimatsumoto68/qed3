@@ -10,7 +10,6 @@
 #include <thread>
 #include <chrono>
 
-
 #include <cstdint>
 #include <complex>
 
@@ -25,7 +24,6 @@ using Complex = std::complex<double>;
 
 using Face = std::vector<Idx>;
 
-
 using MS=Eigen::Matrix2cd;
 using VD=Eigen::Vector2d;
 using VE=Eigen::Vector3d;
@@ -34,7 +32,6 @@ using VC=Eigen::VectorXcd;
 static constexpr int NS = 2;
 static constexpr int DIM = 2;
 static constexpr Complex I = Complex(0.0, 1.0);
-
 
 // #define IsVerbose
 // #define IsVerbose2
@@ -45,20 +42,18 @@ static constexpr Complex I = Complex(0.0, 1.0);
 namespace Comp{
   constexpr bool is_compact=false;
 
-  // IS_OVERLAP always active; no IS_DUAL
   constexpr int NPARALLEL_DUPDATE=1;
-  constexpr int NPARALLEL=NPARALLEL_DUPDATE;
-  constexpr int NSTREAMS=NPARALLEL_DUPDATE;
+  constexpr int NPARALLEL=4;
+  constexpr int NSTREAMS=4;
 
-  constexpr int NPARALLEL_GAUGE=1;
-  constexpr int NPARALLEL_SORT=1;
+  constexpr int NPARALLEL_GAUGE=4;
+  constexpr int NPARALLEL_SORT=4;
 
   constexpr int N_REFINE=1;
   constexpr int NS=2;
 
-  constexpr int Nt=128;
+  constexpr int Nt=16;
 
-  // non-dual (S2Simp) site count
   constexpr Idx N_SITES=10*N_REFINE*N_REFINE+2;
   constexpr int N_LINKS=30*N_REFINE*N_REFINE;
 
@@ -75,7 +70,6 @@ const std::string dir = "../../geometry/data/";
 #include "timer.h"
 
 #include "s2n_simp.h"
-// #include "s2n_dual.h"
 #include "rng.h"
 
 #include <cuComplex.h>
@@ -104,9 +98,6 @@ using CuC = cuDoubleComplex;
 #include "includes/overlap_wmass_claude.h"
 #include "pseudofermion.h"
 
-#include "integrator.h"
-#include "hmc.h"
-
 
 int main(int argc, char* argv[]){
   std::cout << std::scientific << std::setprecision(15);
@@ -122,9 +113,8 @@ int main(int argc, char* argv[]){
   if(argc>4) mass_re = atof(argv[4]);
   double mass_im = 0.0;
   if(argc>5) mass_im = atof(argv[5]);
-  Complex mass = Complex(mass_re, mass_im);
+  const Complex mass = Complex(mass_re, mass_im);
   std::cout << "# gsq = " << gsq << " Nf = " << Nf << " nu0 = " << nu0 << " mass = " << mass << std::endl;
-
 
   for(int i=0; i<Comp::NSTREAMS; i++) d_MemorySets[i].allocate();
 
@@ -142,11 +132,10 @@ int main(int argc, char* argv[]){
   using Fermion=OverlapWMass<WilsonDirac>;
 
   Base base(Comp::N_REFINE);
-  std::cout << "# lattice set. " << std::endl;
+  std::cout << "# lattice set." << std::endl;
 
   // ----------------------
 
-  const double r = 1.0;
   const double M5 = -1.0;
   const double at = 0.2;
   assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
@@ -170,92 +159,94 @@ int main(int argc, char* argv[]){
 
   // -----------------------------------------------------------
 
-  Action SW( gsq, at, base );
+  Action SW(gsq, at, base);
   std::cout << "# alat = " << base.mean_ell << std::endl;
 
-  std::vector<std::shared_ptr<PseudoFermion<Fermion>>> pfs;
-  assert(Nf%2==0);
-  for(int f=0; f<Nf/2; f++) pfs.push_back( std::shared_ptr<PseudoFermion<Fermion>>( new PseudoFermion<Fermion>(D) ) );
+  PseudoFermion<Fermion> pf(D);
 
   Timer timer;
 
-  // -----------------
-
-  std::string dir3;
-  dir3="Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"mRe"+std::to_string(mass.real())+"mIm"+std::to_string(mass.imag())+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
-  std::filesystem::create_directory(dir3);
-  const int k_ckpoint=1;
-  const int kmax=1e3;
-
-  int k_tmp=0;
+  // --- spatial link force check: grad.sp vs finite difference of S_PF ---
   {
-    for(k_tmp=k_ckpoint; k_tmp<=kmax; k_tmp+=k_ckpoint ){
-      const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k_tmp);
-      const std::string str_rng=dir3+"ckpoint_rng."+std::to_string(k_tmp);
+    int s = Nt-1;
+    Idx il = 4;
+    BaseLink ell = base.links[il];
+    std::cout << "debug. ell = " << ell[0] << " " << ell[1] << std::endl;
 
-      const bool bool_lat = std::filesystem::exists(str_lat);
-      const bool bool_rng = std::filesystem::exists(str_rng);
+    const double eps = 1.0e-5;
+    Gauge UP(U);
+    UP.sp(s,il) += eps;
+    Gauge UM(U);
+    UM.sp(s,il) -= eps;
 
-      if(!(bool_lat&&bool_rng)) break;
-    }
-    k_tmp -= k_ckpoint;
+    std::cout << " --- Dov.update : " << timer.currentSeconds() << std::endl;
+    D.update(U);
+    std::cout << " --- pf.gen : " << timer.currentSeconds() << std::endl;
+    pf.gen(rng);
 
-    if(k_tmp>0){
-      std::cout << "read from k_tmp = " << k_tmp << std::endl;
-      const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k_tmp);
-      const std::string str_rng=dir3+"ckpoint_rng."+std::to_string(k_tmp);
-      U.read( str_lat );
-      rng.read( str_rng );
-    }
+    std::cout << " --- grad constructor : " << timer.currentSeconds() << std::endl;
+    Force grad(base);
+
+    std::cout << " --- pre calc : " << timer.currentSeconds() << std::endl;
+    D.precalc_grad_deviceAsyncLaunch(U, pf.d_eta);
+    std::cout << " --- get force : " << timer.currentSeconds() << std::endl;
+    pf.get_force(grad, U);
+    std::cout << " --- fin : " << timer.currentSeconds() << std::endl;
+
+    std::cout << "grad = " << grad.sp(s,il) << std::endl;
+
+    D.update(UP);
+    pf.update_eta();
+    double sfp = pf.S();
+
+    D.update(UM);
+    pf.update_eta();
+    double sfm = pf.S();
+
+    double chck = (sfp-sfm)/(2.0*eps);
+    std::cout << "check = " << chck << std::endl;
   }
-  std::cout << "#starting from k_tmp = " << k_tmp << std::endl;
 
+  // --- temporal link force check: grad.tp vs finite difference of S_PF ---
+  {
+    int s = Nt-1;
+    Idx ix = 4;
 
-  Force pi( base );
-  const double tmax = 1.9;
-  int nsteps;
-  if(Nf==2) nsteps = 4;
-  else if(Nf==4) nsteps = 5;
-  else if(Nf==6) nsteps = 5;
-  else nsteps = 10;
-  if( mass.imag()>0.00001 ) nsteps *= 2.0;
-  std::cout << "# tmax = " << tmax << std::endl
-            << "# nsteps = " << nsteps << std::endl;
+    const double eps = 1.0e-5;
+    Gauge UP(U);
+    UP.tp(s,ix) += eps;
+    Gauge UM(U);
+    UM.tp(s,ix) -= eps;
 
-  MinimumNorm2 integrator( tmax, nsteps, 100 );
-  HMC2 hmc(rng, &SW, &D, U, pi, pfs, &integrator);
-  D.update( U );
+    std::cout << " --- Dov.update : " << timer.currentSeconds() << std::endl;
+    D.update(U);
+    std::cout << " --- pf.gen : " << timer.currentSeconds() << std::endl;
+    pf.gen(rng);
 
-  double rate, dH;
-  bool is_accept;
+    std::cout << " --- grad constructor : " << timer.currentSeconds() << std::endl;
+    Force grad(base);
 
-  double r_mean;
-  for(int k=k_tmp+1; k<kmax; k++){
-    Timer timer;
-    hmc.run( rate, dH, is_accept);
-    std::cout << "# dH : " << dH
-              << " is_accept : " << is_accept
-              << " rate : " << rate << std::endl;
-    r_mean += rate;
-    std::cout << "# HMC : " << timer.currentSeconds() << " sec" << std::endl;
+    std::cout << " --- pre calc : " << timer.currentSeconds() << std::endl;
+    D.precalc_grad_deviceAsyncLaunch(U, pf.d_eta);
+    std::cout << " --- get force : " << timer.currentSeconds() << std::endl;
+    pf.get_force(grad, U);
+    std::cout << " --- fin : " << timer.currentSeconds() << std::endl;
 
-    if(k%20==0) D.is_update = false;
-    if(k%100==0){
-      std::cout << "# k = " << k << std::endl;
-    }
+    std::cout << "grad = " << grad.tp(s,ix) << std::endl;
 
-    if(k%k_ckpoint==0){
-      const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k);
-      const std::string str_rng=dir3+"ckpoint_rng."+std::to_string(k);
-      U.ckpoint( str_lat );
-      rng.ckpoint( str_rng );
-    }
+    D.update(UP);
+    pf.update_eta();
+    double sfp = pf.S();
+
+    D.update(UM);
+    pf.update_eta();
+    double sfm = pf.S();
+
+    double chck = (sfp-sfm)/(2.0*eps);
+    std::cout << "check = " << chck << std::endl;
   }
-  r_mean /= kmax;
-  std::cout << "# r_mean = " << r_mean << std::endl;
 
   for(int i=0; i<Comp::NSTREAMS; i++) d_MemorySets[i].deallocate();
 
   return 0;
-
 }

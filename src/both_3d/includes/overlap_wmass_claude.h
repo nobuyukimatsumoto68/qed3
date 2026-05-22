@@ -369,23 +369,28 @@ struct OverlapWMass : public Zolotarev {
 
 
   void DHD_deviceAsyncLaunch( CuC* d_res, const CuC* d_xi ) const {
-    CuC *d_tmp;
-    CUDA_CHECK(cudaMalloc(&d_tmp, N*CD));
-    this->mult_deviceAsyncLaunch(d_tmp, d_xi);  // d_tmp = (D+m) v
+    // (D+m)^\dagger(D+m) v = (1+m^*)(D+m)v + (1+m)(D+m)^\dagger v - (2 Re(m)+|m|^2) v
+    CuC *d_mp, *d_mm;
+    CUDA_CHECK(cudaMalloc(&d_mp, N*CD));
+    CUDA_CHECK(cudaMalloc(&d_mm, N*CD));
+    this->mult_deviceAsyncLaunch(d_mp, d_xi);   // d_mp = (D+m) v
     CUDA_CHECK(cudaDeviceSynchronize());
-    this->adj_deviceAsyncLaunch(d_res, d_tmp);  // d_res = (D+m)^\dagger (D+m) v
+    this->adj_deviceAsyncLaunch(d_mm, d_xi);    // d_mm = (D+m)^\dagger v
     CUDA_CHECK(cudaDeviceSynchronize());
-    CUDA_CHECK(cudaFree(d_tmp));
+    CUDA_CHECK(cudaMemcpy(d_res, d_mp, N*CD, D2D));
+    Taxpy_gen<CuC,CuC,N><<<NBlocks,NThreadsPerBlock>>>(d_res, cplx(std::conj(mass)), d_mp, d_res);
+    CUDA_CHECK(cudaDeviceSynchronize());
+    Taxpy_gen<CuC,CuC,N><<<NBlocks,NThreadsPerBlock>>>(d_res, cplx(Complex(1.0)+mass), d_mm, d_res);
+    CUDA_CHECK(cudaDeviceSynchronize());
+    const double scalar = 2.0*mass.real() + std::norm(mass);
+    Taxpy_gen<CuC,double,N><<<NBlocks,NThreadsPerBlock>>>(d_res, -scalar, d_xi, d_res);
+    CUDA_CHECK(cudaDeviceSynchronize());
+    CUDA_CHECK(cudaFree(d_mp));
+    CUDA_CHECK(cudaFree(d_mm));
   }
 
   void DDH_deviceAsyncLaunch( CuC* d_res, const CuC* d_xi ) const {
-    CuC *d_tmp;
-    CUDA_CHECK(cudaMalloc(&d_tmp, N*CD));
-    this->adj_deviceAsyncLaunch(d_tmp, d_xi);    // d_tmp = (D+m)^\dagger v
-    CUDA_CHECK(cudaDeviceSynchronize());
-    this->mult_deviceAsyncLaunch(d_res, d_tmp);  // d_res = (D+m) (D+m)^\dagger v
-    CUDA_CHECK(cudaDeviceSynchronize());
-    CUDA_CHECK(cudaFree(d_tmp));
+    this->DHD_deviceAsyncLaunch(d_res, d_xi);  // DDH = DHD for normal D
   }
 
 
@@ -439,14 +444,14 @@ struct OverlapWMass : public Zolotarev {
       CuC inner;
       X.dotAsync<N>( &inner, d_XZs[m], d_XYs[m] );
       CUDA_CHECK(cudaStreamSynchronize(stream[istream]));
-      tmp2reduce[m] -= real(inner);
+      tmp2reduce[m] -= real(cplx(Complex(1.0)+std::conj(mass)) * inner);
 
       X.on_gpuAsync<N>(d_XYs[m], d_Ys[m]);
       coo.Async( d_XZs[m], d_Zs[m], stream[istream] );
 
       X.dotAsync<N>( &inner, d_XYs[m], d_XZs[m] );
       CUDA_CHECK(cudaStreamSynchronize(stream[istream]));
-      tmp2reduce[m] -= real(inner);
+      tmp2reduce[m] -= real(cplx(Complex(1.0)+std::conj(mass)) * inner);
 
       tmp2reduce[m] *= A[m];
       CUDA_CHECK(cudaStreamSynchronize(stream[istream]));
@@ -465,7 +470,7 @@ struct OverlapWMass : public Zolotarev {
       MatPoly XH;
       XH.dot<N>( &inner, d_eta, d_Ys[0] );
     }
-    res += real(inner);
+    res += real(cplx(Complex(1.0)+std::conj(mass)) * inner);
     res *= -2.0*C/lambda_max;
     return res;
   }
