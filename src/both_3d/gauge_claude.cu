@@ -289,6 +289,12 @@ int main(int argc, char* argv[]){
   // CUDA_CHECK(cudaSetDevice(0));// "TITAN V"
   // std::cout << "# (GPU device is set.)" << std::endl;
 
+  if (argc > 1 && std::string(argv[1]) == "-h") {
+    printf("Usage: ./a.out [prefix]\n");
+    printf("  prefix  directory prefix for reading gauge configs (default: \"\")\n");
+    return 0;
+  }
+
   std::string prefix = "";
   if (argc > 1) {
     prefix = argv[1]; // Convert the second argument to a string

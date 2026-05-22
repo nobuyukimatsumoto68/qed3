@@ -1,0 +1,244 @@
+=== GPU0 nu1 = 1.5 ===
+# gsq = 8.000000000000000e+00 Nf = 2 nu0 = 1.500000000000000e+00 nu1 = 1.500000000000000e+00 nhits = 1 dt = 128 ellmax = 1
+# dev = NVIDIA TITAN V
+# (GPU device is set.)
+# reading simplicial points
+# reading dual points
+# reading nns
+# reading links
+# reading dual links
+# reading nns
+# reading faces
+# n_sites = 12
+# ix = 0
+# ix = 0
+# nns[ix] = 3
+# ix = 1
+# ix = 1
+# nns[ix] = 2
+# ix = 2
+# ix = 2
+# nns[ix] = 1
+# ix = 3
+# ix = 3
+# nns[ix] = 0
+# ix = 4
+# ix = 4
+# nns[ix] = 2
+# ix = 5
+# ix = 5
+# nns[ix] = 3
+# ix = 6
+# ix = 6
+# nns[ix] = 2
+# ix = 7
+# ix = 7
+# nns[ix] = 3
+# ix = 8
+# ix = 8
+# nns[ix] = 5
+# ix = 9
+# ix = 9
+# nns[ix] = 8
+# ix = 10
+# ix = 10
+# nns[ix] = 5
+# ix = 11
+# ix = 11
+# nns[ix] = 3
+# lattice set. 
+# DW set. 
+# D set. 
+# D updated. 
+# calculating src 
+# calculating sink
+# read from k = 10
+# t0 = 0h = 0
+# read from k = 20
+# t0 = 0h = 0
+# read from k = 30
+# t0 = 0h = 0
+# read from k = 40
+# t0 = 0h = 0
+# read from k = 50
+# t0 = 0h = 0
+# read from k = 60
+# t0 = 0h = 0
+# read from k = 70
+# t0 = 0h = 0
+# read from k = 80
+# t0 = 0h = 0
+# read from k = 90
+# t0 = 0h = 0
+# read from k = 100
+# t0 = 0h = 0
+# read from k = 110
+# t0 = 0h = 0
+# read from k = 120
+# t0 = 0h = 0
+# read from k = 130
+# t0 = 0h = 0
+# read from k = 140
+# t0 = 0h = 0
+# read from k = 150
+# t0 = 0h = 0
+# read from k = 160
+# t0 = 0h = 0
+# read from k = 170
+# t0 = 0h = 0
+# read from k = 180
+# t0 = 0h = 0
+# read from k = 190
+# t0 = 0h = 0
+# read from k = 200
+# t0 = 0h = 0
+# read from k = 210
+# t0 = 0h = 0
+# read from k = 220
+# t0 = 0h = 0
+# read from k = 230
+# t0 = 0h = 0
+# read from k = 240
+# t0 = 0h = 0
+# read from k = 250
+# t0 = 0h = 0
+# read from k = 260
+# t0 = 0h = 0
+# read from k = 270
+# t0 = 0h = 0
+# read from k = 280
+# t0 = 0h = 0
+# read from k = 290
+# t0 = 0h = 0
+# read from k = 300
+# t0 = 0h = 0
+# read from k = 310
+# t0 = 0h = 0
+# read from k = 320
+# t0 = 0h = 0
+# read from k = 330
+# t0 = 0h = 0
+# read from k = 340
+# t0 = 0h = 0
+# read from k = 350
+# t0 = 0h = 0
+# read from k = 360
+# t0 = 0h = 0
+# read from k = 370
+# t0 = 0h = 0
+# read from k = 380
+# t0 = 0h = 0
+# read from k = 390
+# t0 = 0h = 0
+# read f# read from k = 920
+# t0 =# read f# read from k = 930
+# t0 =# read f# read from k = 940
+# t0 =# read f# read from k = 950
+# t0 =# read f# read from k = 960
+# t0 =# read f# read from k = 970
+# t0 =# read f# read from k = 980
+# t0 =# read f# read from k = 990
+# t0 =# read from k = 480
+# t0 = 0h = 0
+# read from k = 490
+# t0 = 0h = 0
+# read from k = 500
+# t0 = 0h = 0
+# read from k = 510
+# t0 = 0h = 0
+# read from k = 520
+# t0 = 0h = 0
+# read from k = 530
+# t0 = 0h = 0
+# read from k = 540
+# t0 = 0h = 0
+# read from k = 550
+# t0 = 0h = 0
+# read from k = 560
+# t0 = 0h = 0
+# read from k = 570
+# t0 = 0h = 0
+# read from k = 580
+# t0 = 0h = 0
+# read from k = 590
+# t0 = 0h = 0
+# read from k = 600
+# t0 = 0h = 0
+# read from k = 610
+# t0 = 0h = 0
+# read from k = 620
+# t0 = 0h = 0
+# read from k = 630
+# t0 = 0h = 0
+# read from k = 640
+# t0 = 0h = 0
+# read from k = 650
+# t0 = 0h = 0
+# read from k = 660
+# t0 = 0h = 0
+# read from k = 670
+# t0 = 0h = 0
+# read from k = 680
+# t0 = 0h = 0
+# read from k = 690
+# t0 = 0h = 0
+# read from k = 700
+# t0 = 0h = 0
+# read from k = 710
+# t0 = 0h = 0
+# read from k = 720
+# t0 = 0h = 0
+# read from k = 730
+# t0 = 0h = 0
+# read from k = 740
+# t0 = 0h = 0
+# read from k = 750
+# t0 = 0h = 0
+# read from k = 760
+# t0 = 0h = 0
+# read from k = 770
+# t0 = 0h = 0
+# read from k = 780
+# t0 = 0h = 0
+# read from k = 790
+# t0 = 0h = 0
+# read from k = 800
+# t0 = 0h = 0
+# read from k = 810
+# t0 = 0h = 0
+# read from k = 820
+# t0 = 0h = 0
+# read from k = 830
+# t0 = 0h = 0
+# read from k = 840
+# t0 = 0h = 0
+# read from k = 850
+# t0 = 0h = 0
+# read from k = 860
+# t0 = 0h = 0
+# read from k = 870
+# t0 = 0h = 0
+# read from k = 880
+# t0 = 0h = 0
+# read from k = 890
+# t0 = 0h = 0
+# read from k = 900
+# t0 = 0h = 0
+# read from k = 910
+# t0 = 0h = 0
+# read from k = 920
+# t0 = 0h = 0
+# read from k = 930
+# t0 = 0h = 0
+# read from k = 940
+# t0 = 0h = 0
+# read from k = 950
+# t0 = 0h = 0
+# read from k = 960
+# t0 = 0h = 0
+# read from k = 970
+# t0 = 0h = 0
+# read from k = 980
+# t0 = 0h = 0
+# read from k = 990
+# t0 = 0h = 0

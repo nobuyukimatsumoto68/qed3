@@ -51,7 +51,7 @@ namespace Comp{
 
   // d_DW.update() is always done independently
 #ifdef IS_OVERLAP
-  constexpr int NPARALLEL_DUPDATE=4;
+  constexpr int NPARALLEL_DUPDATE=1;
   constexpr int NPARALLEL=NPARALLEL_DUPDATE; // 12
   constexpr int NSTREAMS=NPARALLEL_DUPDATE; // 4
 #else
@@ -59,8 +59,8 @@ namespace Comp{
   constexpr int NPARALLEL=1; // 12
   constexpr int NSTREAMS=12; // for grad loop
 #endif
-  constexpr int NPARALLEL_GAUGE=4; // 12
-  constexpr int NPARALLEL_SORT=4; // 12
+  constexpr int NPARALLEL_GAUGE=1; // 12
+  constexpr int NPARALLEL_SORT=1; // 12
 
   constexpr int N_REFINE=1;
   constexpr int NS=2;
@@ -85,6 +85,7 @@ namespace Comp{
   const double TOL_OUTER=1.0e-8;
 }
 
+// const std::string dir = "../../dats/";
 const std::string dir = "../../geometry/data/";
 // #include "../../integrator/geodesic.h"
 #include "../../geometry/geodesic.h"
@@ -132,6 +133,16 @@ using CuC = cuDoubleComplex;
 int main(int argc, char* argv[]){
   std::cout << std::scientific << std::setprecision(15);
   std::clog << std::scientific << std::setprecision(15);
+
+  for (int i = 1; i < argc; i++) {
+    if (std::string(argv[i]) == "-h") {
+      printf("Usage: ./a.out [gsq] [Nf] [nu0]\n");
+      printf("  gsq  Wilson coupling squared (default: 8.0)\n");
+      printf("  Nf   number of fermion flavors (default: 2)\n");
+      printf("  nu0  mass parameter (default: 1.0)\n");
+      return 0;
+    }
+  }
 
   // double gsq = 8.0;
   double gsq = 8.0;
@@ -196,7 +207,7 @@ int main(int argc, char* argv[]){
 
   // HERE
 #ifdef IS_OVERLAP
-  Fermion D(DW, 21); // 31
+  Fermion D(DW, 11); // 21
   std::cout << "# Dov set; M5 = " << M5 << std::endl;
   D.update(U);
   std::cout << "# min max ratio: "
@@ -236,7 +247,8 @@ int main(int argc, char* argv[]){
   std::filesystem::create_directory(dir3);
   // const int k_ckpoint=1;
   const int k_ckpoint=1;
-  const int kmax=30; // 1e4; // @@@@
+  const int k_ckpoint_rng=1000; // keep checkpoint every this many trajectories
+  const int kmax=1e3; // @@@@
   // const int kmax=2;
 
   int k_tmp=0;
@@ -300,6 +312,15 @@ int main(int argc, char* argv[]){
       const std::string str_rng=dir3+"ckpoint_rng."+std::to_string(k);
       U.ckpoint( str_lat );
       rng.ckpoint( str_rng );
+      int k_prev = k - k_ckpoint;
+      if(k_prev > 0 && k%k_ckpoint_rng != 0){
+        std::error_code ec;
+        std::filesystem::remove(dir3+"ckpoint_rng."+std::to_string(k_prev), ec);
+        if(ec){
+          std::cout << "# error removing ckpoint_rng." << k_prev << ": " << ec.message() << std::endl;
+          assert(false);
+        }
+      }
     }
   }
   r_mean /= kmax;

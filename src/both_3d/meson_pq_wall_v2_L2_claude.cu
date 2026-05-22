@@ -3,7 +3,6 @@
 #include <iostream>
 #include <iomanip>
 #include <fstream>
-#include <highfive/H5File.hpp>
 #include <cstdlib>
 #include <cassert>
 #include <algorithm>
@@ -53,13 +52,13 @@ static constexpr Complex I = Complex(0.0, 1.0);
 namespace Comp{
   constexpr bool is_compact=false;
 
-  constexpr int NPARALLEL_DUPDATE=1;
+  constexpr int NPARALLEL_DUPDATE=4;
   constexpr int NPARALLEL=NPARALLEL_DUPDATE; // 12
   constexpr int NSTREAMS=NPARALLEL_DUPDATE; // 4
   constexpr int NPARALLEL_GAUGE=NPARALLEL_DUPDATE; // 12
   constexpr int NPARALLEL_SORT=NPARALLEL_DUPDATE; // 12
 
-  constexpr int N_REFINE=1;
+  constexpr int N_REFINE=2;
   constexpr int NS=2;
   constexpr int Nt=128;
 
@@ -136,7 +135,7 @@ void PrintHelp()
   printf("  --nu0 <nu0>        valence mass parameter 0 (default: 1.0)\n");
   printf("  --nu1 <nu1>        valence mass parameter 1 (default: 1.0)\n");
   printf("  --nhits <nhits>    number of stochastic hits (default: 1)\n");
-  printf("  --dt <dt>          time slice separation (default: Nt/2)\n");
+  printf("  --dt <dt>          time slice separation (default: Nt) \n");
   printf("  --ellmax <ellmax>  max angular momentum ell (default: 2)\n");
   printf("  -h, --help         show this help\n");
   exit(0);
@@ -280,7 +279,7 @@ int main(int argc, char* argv[]){
   // if(argc>4) nu1 = atof(argv[4]);
   int nhits = 1;
   // if(argc>5) nhits = atoi(argv[5]);
-  int dt = Comp::Nt/2;
+  int dt = Comp::Nt;
   // if(argc>6) dt = atoi(argv[6]);
   int ellmax = 2;
   // if(argc>7) ell = atoi(argv[7]);
@@ -331,19 +330,9 @@ int main(int argc, char* argv[]){
   if(Nt!=1) assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
 
   std::string dir3, dir4;
-  // dir3="Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
-  // dir4="data_Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
+  dir3="Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
+  dir4="data_Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
   // dir4="data_at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nu1"+std::to_string(nu1)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
-  if(Nf==0){
-    dir3="gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
-    dir4="data_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu1"+std::to_string(nu1)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
-    std::cout << "dir3 = " << dir3 << std::endl;
-  }
-  else{
-    dir3="Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
-    dir4="data_Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nu1"+std::to_string(nu1)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
-  }
-
 
   std::filesystem::create_directory(dir4);
 
@@ -394,14 +383,16 @@ int main(int argc, char* argv[]){
   std::cout << "# calculating sink" << std::endl;
 
 
-  const int k_ckpoint=10;
-  const int kmax=1e3;
+  // const int k_ckpoint=10;
+  const int k_ckpoint=1;
+  const int kmax=1e5;
 
   int k_tmp=0;
   {
     for(k_tmp=k_ckpoint; k_tmp<=kmax; k_tmp+=k_ckpoint ){
       const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k_tmp);
       const bool bool_lat = std::filesystem::exists(str_lat);
+      std::cout << "# str_lat = " << str_lat << std::endl;
       if(!bool_lat) break;
     }
     k_tmp -= k_ckpoint;
@@ -413,37 +404,27 @@ int main(int argc, char* argv[]){
     int t0=Comp::Nt-dt-1;
     int ell=ellmax;
     int em=ellmax;
-    int ab=3;
     for(k_init=k_ckpoint; k_init<=kmax; k_init+=k_ckpoint ){
-      const std::string path=dir4+"meson_corr_v2."+std::to_string(k_init)+".h5";
+      const std::string path=dir4+"meson_"+std::to_string(ell)+"_"+std::to_string(em)+"_h"+std::to_string(h)+"_t0"+std::to_string(t0)+"_corr_v2."+std::to_string(k_init);
+      std::cout << "# path = " << path << std::endl;
+      // std::ofstream ofs(path);
+      // const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k_init);
       const bool bool_lat = std::filesystem::exists(path);
       if(!bool_lat) break;
     }
-    if(k_init>k_ckpoint) k_init -= k_ckpoint;
+    // k_init -= k_ckpoint;
   }
 
 
   for(int k=k_init; k<=k_tmp; k+=k_ckpoint ){
-    const std::string h5path = dir4+"meson_corr_v2."+std::to_string(k)+".h5";
-    if(std::filesystem::exists(h5path)){
-      try {
-        HighFive::File h5check(h5path, HighFive::File::ReadOnly);
-        const int last_t0 = ((Comp::Nt-1)/dt)*dt;
-        const std::string last_ds = std::to_string(ellmax)+"/"+std::to_string(ellmax)+"/3/"+std::to_string(nhits-1)+"/"+std::to_string(last_t0)+"/real";
-        if(h5check.exist(last_ds)){
-          std::cout << "# skipping k = " << k << " (hdf5 exists)" << std::endl;
-          continue;
-        }
-      } catch(...) {}
-    }
-
     std::cout << "# read from k = " << k << std::endl;
     const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k);
     U.read( str_lat );
     D.update( U );
 
-    HighFive::File h5file(h5path, HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Truncate);
+    // const int a=3;
 
+    // const int t0=0;{
     for(int t0=0; t0<Comp::Nt; t0+=dt){
       for(int h=0; h<nhits; h++){
         std::cout << "# t0 = " << t0 << "h = " << h << std::endl;
@@ -467,19 +448,19 @@ int main(int argc, char* argv[]){
               Dinv_src2.mult_Ylm_real(ell, em, base);
               Dinv_src2.mult_sigma(ab);
 
-              std::vector<double> real_vec(Comp::Nt), imag_vec(Comp::Nt);
+              const std::string path=dir4+"meson_"+std::to_string(ell)+"_"+std::to_string(em)+"_a"+std::to_string(ab)+"_h"+std::to_string(h)+"_corr_v2."+std::to_string(k);
+              std::ofstream ofs(path);
+              ofs << std::scientific << std::setprecision(15);
+
               for(Idx s=0; s<Comp::Nt; s++) {
                 const VC psi1 = Dinv_src1.slice((t0+s)%Comp::Nt);
                 const VC psi2 = Dinv_src2.slice((t0+s)%Comp::Nt);
                 // const double tr = Dot(psi1, psi2, base);
                 const Complex tr = psi1.dot(psi2);
-                real_vec[s] = tr.real();
-                imag_vec[s] = tr.imag();
-              }
 
-              const std::string ds_prefix = std::to_string(ell)+"/"+std::to_string(em)+"/"+std::to_string(ab)+"/"+std::to_string(h)+"/"+std::to_string(t0)+"/";
-              h5file.createDataSet(ds_prefix+"real", real_vec);
-              h5file.createDataSet(ds_prefix+"imag", imag_vec);
+                ofs << s << " " <<  tr.real() << " " << tr.imag() << std::endl;
+                // ofs << s << " " <<  tr << std::endl;
+              }
             }}} // for ell, em, ab
       } // end for h
     } // end for t0
