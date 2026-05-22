@@ -25,6 +25,8 @@ beta*
 *.e*
 gsq0*
 
+*.log
+
 *.h5
 *.hdf5
 

@@ -238,7 +238,7 @@ int main(int argc, char* argv[]){
 
   Gauge U(base);
 
-  const int k_ckpoint=10;
+  const int k_ckpoint=1;
   // const int kinit=10;
   const int kmax=1e5;
 

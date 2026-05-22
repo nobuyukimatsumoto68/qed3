@@ -1,8 +1,8 @@
 #!/bin/bash
 
 gsq=8.0
-Nf=2
-nu0=1.5
+Nf=4
+nu0=1.0
 nhits=1
 dt=128
 ellmax=1

@@ -6,7 +6,7 @@ gsq=$1
 Nf=$2
 nu0=$3
 
-app='hmc.o'
+app='hmc_claude.o'
 
 my_array=()
 
@@ -15,10 +15,10 @@ echo $app
 #     echo $1 $2 $3
 for gsq in 8.0
 do
-    for Nf in 2
+    for Nf in 6
     # for Nf in 4
     do
-        for nu0 in 1.5
+        for nu0 in 1.0
         # for nu0 in 1.0 1.2
         # for nu0 in 1.0
         do

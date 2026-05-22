@@ -247,6 +247,7 @@ int main(int argc, char* argv[]){
   std::filesystem::create_directory(dir3);
   // const int k_ckpoint=1;
   const int k_ckpoint=1;
+  const int k_ckpoint_rng=1000; // keep checkpoint every this many trajectories
   const int kmax=1e3; // @@@@
   // const int kmax=2;
 
@@ -311,6 +312,15 @@ int main(int argc, char* argv[]){
       const std::string str_rng=dir3+"ckpoint_rng."+std::to_string(k);
       U.ckpoint( str_lat );
       rng.ckpoint( str_rng );
+      int k_prev = k - k_ckpoint;
+      if(k_prev > 0 && k%k_ckpoint_rng != 0){
+        std::error_code ec;
+        std::filesystem::remove(dir3+"ckpoint_rng."+std::to_string(k_prev), ec);
+        if(ec){
+          std::cout << "# error removing ckpoint_rng." << k_prev << ": " << ec.message() << std::endl;
+          assert(false);
+        }
+      }
     }
   }
   r_mean /= kmax;
