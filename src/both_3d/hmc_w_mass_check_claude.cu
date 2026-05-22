@@ -35,7 +35,7 @@ static constexpr Complex I = Complex(0.0, 1.0);
 
 // #define IsVerbose
 // #define IsVerbose2
-// #define InfoForce
+#define InfoForce
 #define InfoDelta
 
 
@@ -148,7 +148,7 @@ int main(int argc, char* argv[]){
 
   // ---------------------
 
-  Fermion D(DW, mass, 21);
+  Fermion D(DW, mass, 41);
   std::cout << "# Dov set; M5 = " << M5 << std::endl;
   D.update(U);
   std::cout << "# min max ratio: "

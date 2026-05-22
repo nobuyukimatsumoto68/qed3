@@ -218,7 +218,7 @@ int main(int argc, char* argv[]){
   else if(Nf==4) nsteps = 5;
   else if(Nf==6) nsteps = 5;
   else nsteps = 10;
-  if( mass.imag()>0.00001 ) nsteps *= 2.0;
+  // if( mass.imag()>0.00001 ) nsteps *= 2.0;
   std::cout << "# tmax = " << tmax << std::endl
             << "# nsteps = " << nsteps << std::endl;
 

@@ -442,7 +442,7 @@ struct OverlapWMass : public Zolotarev {
       coo.Async( d_XYs[m], d_Ys[m], stream[istream] );
 
       CuC inner;
-      X.dotAsync<N>( &inner, d_XZs[m], d_XYs[m] );
+      X.dotAsync<N>( &inner, d_XYs[m], d_XZs[m] );  // need conj(inner1) = Y_m† (∂X†) (X Z_m/lambda_max)
       CUDA_CHECK(cudaStreamSynchronize(stream[istream]));
       tmp2reduce[m] -= real(cplx(Complex(1.0)+std::conj(mass)) * inner);
 
