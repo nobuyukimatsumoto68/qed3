@@ -33,18 +33,18 @@ submit_job() {
     else
         echo "submitting (${account}) ${jobname}"
     fi
-    sbatch --job-name=${jobname} ${dep} --export=Nf=${Nf},mR=${mR},mI=${mI} ${script}
+    # sbatch --job-name=${jobname} ${dep} --export=Nf=${Nf},mR=${mR},mI=${mI} ${script}
 }
 
 for Nf in 2 4 6; do
     for pair in "${affine_pairs[@]}"; do
         mR=$(echo ${pair} | awk '{print $1}')
         mI=$(echo ${pair} | awk '{print $2}')
-        submit_job run_nf_fermilab_affine_claude.sh ${Nf} ${mR} ${mI} affine
+        submit_job run_nf_fermilab.sh ${Nf} ${mR} ${mI} qed3
     done
     for pair in "${qed3_pairs[@]}"; do
         mR=$(echo ${pair} | awk '{print $1}')
         mI=$(echo ${pair} | awk '{print $2}')
-        submit_job run_nf_fermilab.sh ${Nf} ${mR} ${mI} qed3
+        submit_job run_nf_fermilab.sh ${Nf} ${mR} ${mI} affine
     done
 done

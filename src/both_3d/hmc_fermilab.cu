@@ -51,7 +51,7 @@ namespace Comp{
 
   // d_DW.update() is always done independently
 #ifdef IS_OVERLAP
-  constexpr int NPARALLEL_DUPDATE=1;
+  constexpr int NPARALLEL_DUPDATE=4;
   constexpr int NPARALLEL=NPARALLEL_DUPDATE; // 12
   constexpr int NSTREAMS=NPARALLEL_DUPDATE; // 4
 #else
@@ -236,7 +236,7 @@ int main(int argc, char* argv[]){
   std::filesystem::create_directory(dir3);
   // const int k_ckpoint=1;
   const int k_ckpoint=1;
-  const int kmax=20; // 1e4; // @@@@
+  const int kmax=30; // 1e4; // @@@@
   // const int kmax=2;
 
   int k_tmp=0;

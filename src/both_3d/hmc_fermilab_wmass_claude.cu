@@ -46,7 +46,7 @@ namespace Comp{
   constexpr bool is_compact=false;
 
   // overlap only (no IS_DUAL)
-  constexpr int NPARALLEL_DUPDATE=16;
+  constexpr int NPARALLEL_DUPDATE=4;
   constexpr int NPARALLEL=NPARALLEL_DUPDATE;
   constexpr int NSTREAMS=NPARALLEL_DUPDATE;
 
