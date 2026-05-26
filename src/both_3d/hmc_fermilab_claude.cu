@@ -252,16 +252,16 @@ int main(int argc, char* argv[]){
 
   int k_tmp=0;
   {
-    for(k_tmp=k_ckpoint; k_tmp<=kmax; k_tmp+=k_ckpoint ){
-      const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k_tmp);
-      const std::string str_rng=dir3+"ckpoint_rng."+std::to_string(k_tmp);
+    for(int k_scan=k_ckpoint; k_scan<=kmax; k_scan+=k_ckpoint ){
+      const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k_scan);
+      const std::string str_rng=dir3+"ckpoint_rng."+std::to_string(k_scan);
 
       const bool bool_lat = std::filesystem::exists(str_lat);
       const bool bool_rng = std::filesystem::exists(str_rng);
 
-      if(!(bool_lat&&bool_rng)) break;
+      if(!bool_lat) break; // no lat: stop scanning
+      if(bool_lat && bool_rng) k_tmp = k_scan; // both present: candidate
     }
-    k_tmp -= k_ckpoint;
 
     if(k_tmp>0){ // from existing
       std::cout << "read from k_tmp = " << k_tmp << std::endl;
