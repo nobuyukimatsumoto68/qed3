@@ -198,8 +198,8 @@ int main(int argc, char* argv[]){
   dir3="Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"mRe"+std::to_string(mass.real())+"mIm"+std::to_string(mass.imag())+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
   std::filesystem::create_directory(dir3);
   const int k_ckpoint=1;
-  const int k_ckpoint_rng=1000;
-  const int kmax=1000;
+  const int k_ckpoint_rng=10;
+  const int kmax=4000;
 
   int k_tmp=0;
   {

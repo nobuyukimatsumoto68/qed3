@@ -239,8 +239,10 @@ int main(int argc, char* argv[]){
   FermionVector eta;
   FermionVector DH_eta;
   FermionVector phi;
-  std::vector<Complex> summed_trace_per_timeslice(Comp::Nt, Complex(0.0, 0.0));
-  std::vector<double> G_real(Comp::Nt, 0.0), G_imag(Comp::Nt, 0.0);
+  FermionVector Gamma_phi;
+  std::vector<std::vector<Complex>> summed_trace(4, std::vector<Complex>(Comp::Nt, Complex(0.0, 0.0)));
+  std::vector<std::vector<double>> G_real(4, std::vector<double>(Comp::Nt, 0.0));
+  std::vector<std::vector<double>> G_imag(4, std::vector<double>(Comp::Nt, 0.0));
 
   const int k_ckpoint = 10;
   const int kmax      = 1000;
@@ -268,7 +270,7 @@ int main(int argc, char* argv[]){
     if(std::filesystem::exists(h5path)){
       try {
         HighFive::File h5check(h5path, HighFive::File::ReadOnly);
-        const std::string last_ds = std::to_string(nhits-1)+"/real";
+        const std::string last_ds = std::to_string(nhits-1)+"/3/real";
         if(h5check.exist(last_ds)){
           std::cout << "# skipping k = " << k << " (complete)" << std::endl;
           continue;
@@ -284,20 +286,26 @@ int main(int argc, char* argv[]){
         HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Truncate);
 
     for(int h=0; h<nhits; h++){
-      std::fill(summed_trace_per_timeslice.begin(), summed_trace_per_timeslice.end(), Complex(0.0, 0.0));
+      for(int ab=0; ab<4; ab++) std::fill(summed_trace[ab].begin(), summed_trace[ab].end(), Complex(0.0, 0.0));
       const int interval = Comp::Nt / t_block;
       for(int t_s=0; t_s<interval; t_s++){
         for(int spin=0; spin<NS; spin++){
           eta.time_spin_dilution(rng, t_s, t_block, spin);
           op_DH.from_cpu<N>(DH_eta.field, eta.field);
           op_DHD.solve<N>(phi.field, DH_eta.field);
-          eta.accumulate_loop(summed_trace_per_timeslice, phi, t_s, t_block, spin);
+          for(int ab=0; ab<4; ab++){
+            Gamma_phi = phi;
+            Gamma_phi.mult_sigma(ab);
+            eta.accumulate_loop_gamma(summed_trace[ab], Gamma_phi, t_s, t_block, spin);
+          }
         }
       }
-      compute_disc_corr(summed_trace_per_timeslice, G_real, G_imag);
-      const std::string ds_prefix = std::to_string(h) + "/";
-      h5file.createDataSet(ds_prefix + "real", G_real);
-      h5file.createDataSet(ds_prefix + "imag", G_imag);
+      for(int ab=0; ab<4; ab++){
+        compute_disc_corr(summed_trace[ab], G_real[ab], G_imag[ab]);
+        const std::string ds_prefix = std::to_string(h) + "/" + std::to_string(ab) + "/";
+        h5file.createDataSet(ds_prefix + "real", G_real[ab]);
+        h5file.createDataSet(ds_prefix + "imag", G_imag[ab]);
+      }
     }
   } // end for k
 
