@@ -3,5 +3,7 @@
 # Run from anywhere; cd's to the source directory first.
 source /home/nmatsum/env.sh
 
-cd ${SRCDIR}
+# cd ${SRCDIR}
 make -f Makefile.fnal hmc_fermilab_wmass_claude.o
+
+cp hmc_fermilab_wmass_claude.o /project/qed3/hmc_fermilab_wmass_claude.o
