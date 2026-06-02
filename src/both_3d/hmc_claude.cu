@@ -247,7 +247,7 @@ int main(int argc, char* argv[]){
   std::filesystem::create_directory(dir3);
   // const int k_ckpoint=1;
   const int k_ckpoint=1;
-  const int k_ckpoint_rng=100; // keep checkpoint every this many trajectories
+  const int k_ckpoint_rng=10; // keep checkpoint every this many trajectories
   const int kmax=4e3; // @@@@
   // const int kmax=2;
 
@@ -278,9 +278,10 @@ int main(int argc, char* argv[]){
   Force pi( base );
   const double tmax = 1.9; // 0.1
   int nsteps;
-  if(Nf==2) nsteps = 4;
-  else if(Nf==4) nsteps = 5;
-  else if(Nf==6) nsteps = 5;
+  // 2026-06-02 15:03: bumped +3 (Nf=2: 4->7, Nf=4,6: 5->8) to reduce discretization error after Nf=4,6 runs stuck at 100% rejection
+  if(Nf==2) nsteps = 7;
+  else if(Nf==4) nsteps = 8;
+  else if(Nf==6) nsteps = 8;
   else nsteps = 10;
   std::cout << "# tmax = " << tmax << std::endl
             << "# nsteps = " << nsteps << std::endl;

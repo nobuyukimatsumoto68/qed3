@@ -183,6 +183,13 @@ struct FermionVector {
     }
   }
 
+  // dag(b) = (*this)^\dag b = sum_i conj(field[i]) * b.field[i]
+  Complex dag(const FermionVector& b) const {
+    Complex s(0.0, 0.0);
+    for(Idx i = 0; i < size(); i++) s += std::conj(field[i]) * b.field[i];
+    return s;
+  }
+
   void gauge_trsf(const FermionVector& gauge, const double sign=1.0) {
     for(Idx i=0; i<Comp::N; i++) field[i] *= std::exp( sign*I*gauge.field[i] );
   }
