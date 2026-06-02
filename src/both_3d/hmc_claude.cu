@@ -247,7 +247,7 @@ int main(int argc, char* argv[]){
   std::filesystem::create_directory(dir3);
   // const int k_ckpoint=1;
   const int k_ckpoint=1;
-  const int k_ckpoint_rng=100; // keep checkpoint every this many trajectories
+  const int k_ckpoint_rng=10; // keep checkpoint every this many trajectories
   const int kmax=4e3; // @@@@
   // const int kmax=2;
 
