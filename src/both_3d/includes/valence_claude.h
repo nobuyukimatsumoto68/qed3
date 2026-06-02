@@ -170,6 +170,19 @@ struct FermionVector {
     }
   }
 
+  void accumulate_loop_gamma(std::vector<Complex>& L,
+                             const FermionVector& Gamma_phi,
+                             const int t_s, const int t_block, const int spin) const {
+    const int interval = Comp::Nt / t_block;
+    for(int t=t_s; t<Comp::Nt; t+=interval){
+      Complex loop_t(0.0, 0.0);
+      for(Idx ix=0; ix<Comp::N_SITES; ix++){
+        loop_t += std::conj((*this)(t, ix, spin)) * Gamma_phi(t, ix, spin);
+      }
+      L[t] += loop_t / static_cast<double>(Comp::N_SITES);
+    }
+  }
+
   void gauge_trsf(const FermionVector& gauge, const double sign=1.0) {
     for(Idx i=0; i<Comp::N; i++) field[i] *= std::exp( sign*I*gauge.field[i] );
   }

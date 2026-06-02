@@ -198,21 +198,22 @@ int main(int argc, char* argv[]){
   dir3="Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"mRe"+std::to_string(mass.real())+"mIm"+std::to_string(mass.imag())+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
   std::filesystem::create_directory(dir3);
   const int k_ckpoint=1;
+
   const int k_ckpoint_rng=100;
   const int kmax=1000;
 
   int k_tmp=0;
   {
-    for(k_tmp=k_ckpoint; k_tmp<=kmax; k_tmp+=k_ckpoint ){
-      const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k_tmp);
-      const std::string str_rng=dir3+"ckpoint_rng."+std::to_string(k_tmp);
+    for(int k_scan=k_ckpoint; k_scan<=kmax; k_scan+=k_ckpoint ){
+      const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k_scan);
+      const std::string str_rng=dir3+"ckpoint_rng."+std::to_string(k_scan);
 
       const bool bool_lat = std::filesystem::exists(str_lat);
       const bool bool_rng = std::filesystem::exists(str_rng);
 
-      if(!(bool_lat&&bool_rng)) break;
+      if(!bool_lat) break; // no lat: stop scanning
+      if(bool_lat && bool_rng) k_tmp = k_scan; // both present: candidate
     }
-    k_tmp -= k_ckpoint;
 
     if(k_tmp>0){
       std::cout << "read from k_tmp = " << k_tmp << std::endl;
