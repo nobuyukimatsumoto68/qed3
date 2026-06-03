@@ -18,14 +18,14 @@
 # dir="./data_Nf4_gsq2.000000at0.200000nu01.000000nt128L1/"
 
 # Nf4 gsq=8: remove stuck k=1272..1500  (last good: ckpoint_lat.1271 + ckpoint_rng.1269)
-dir="./Nf4_gsq8.000000at0.200000nu01.000000nt128L1/"
+# dir="./Nf4_gsq8.000000at0.200000nu01.000000nt128L1/"
 # Nf6 gsq=8: remove stuck k=1961..2200  (last good: ckpoint_lat.1960 + ckpoint_rng.1959)
-# dir="./Nf6_gsq8.000000at0.200000nu01.000000nt128L1/"
+dir="./Nf6_gsq8.000000at0.200000nu01.000000nt128L1/"
 # dir="./data_Nf6_gsq8.000000at0.200000nu01.000000nt128L1/"
 
 # Nf4: i=1272..1500   Nf6: i=1961..2200
 # for ((i=1272; i<=1500; i++ ))
-for ((i=1961; i<=2200; i++ ))
+for ((i=1950; i<=2200; i++ ))
 do
     rm -v "${dir}ckpoint_lat.${i}"
     rm -v "${dir}ckpoint_rng.${i}"

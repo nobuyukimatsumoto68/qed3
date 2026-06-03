@@ -196,11 +196,7 @@ struct MatPoly{
     if( isnan(crit) || isinf(crit) ){
       crit = abs( imag(dummy) );
     }
-    if( crit >= TOL*std::sqrt(N) || isnan(crit) || isinf(crit)  ) {
-      std::clog << "real = " << real(dummy) << std::endl;
-      std::clog << "imag = " << imag(dummy) << std::endl;
-      std::clog << "CRIT = " << crit << std::endl;
-    }
+    if( crit >= TOL*std::sqrt(N) || isnan(crit) || isinf(crit)  ) std::clog << "CRIT = " << crit << std::endl;
     assert( crit < TOL*std::sqrt(N) );
     *result = real(dummy);
   }
@@ -278,21 +274,20 @@ struct MatPoly{
     CUDA_CHECK(cudaMemcpy(d_r, d_b, N*CD, D2D));
     CUDA_CHECK(cudaMemcpy(d_p, d_r, N*CD, D2D));
 
-    std::cout << "debug. pt1-1" << std::endl;
     double mu;
     dot2self<N>(&mu, d_r);
-    std::cout << "debug. pt1-2" << std::endl;
     assert(mu>=0.0);
     double mu_old = mu;
 
     double b_norm_sq;
     dot2self<N>(&b_norm_sq, d_r);
-    std::cout << "debug. pt1-3" << std::endl;
     assert(b_norm_sq>=0.0);
     double mu_crit = tol*tol*b_norm_sq;
-    std::cout << "debug. pt1-3-2: mu_crit = " << mu_crit << std::endl;
 
-    if(mu<mu_crit) {
+    // zero RHS: exact solution is the memset-zero d_x. The relative test
+    // mu < mu_crit = tol^2*||b||^2 degenerates to 0 < 0 when ||b||=0, so guard
+    // it explicitly to avoid al = mu/gam = 0/0 = NaN in the CG loop.
+    if(abs(b_norm_sq) < 1.0e-14 || mu<mu_crit) {
 #ifdef IsVerbose2
       std::clog << "NO SOLVE" << std::endl;
 #endif
@@ -300,25 +295,18 @@ struct MatPoly{
     else{
       int k=0;
       for(; k<maxiter; ++k){
-        std::cout << "debug. pt1-4" << std::endl;
 	this->on_gpu<N>(d_q, d_p);
 
         CuC gam; dot<N>(&gam, d_p, d_q);
-        std::cout << "debug. pt1-5" << std::endl;
 	const CuC al = mu/gam;
-        std::cout << "debug. pt1-5-2: al= " << real(al) << " " << imag(al) << std::endl;
-        std::cout << "debug. pt1-5-2: gam= " << real(gam) << " " << imag(gam) << std::endl;
-        std::cout << "debug. pt1-5-2: mu= " << mu << std::endl;
         Taxpy<CuC,N><<<NBlocks, NThreadsPerBlock>>>(d_x, al, d_p, d_x);
         Taxpy<CuC,N><<<NBlocks, NThreadsPerBlock>>>(d_r, -al, d_q, d_r);
 
-        std::cout << "debug. pt1-6" << std::endl;
 	dot2self<N>(&mu, d_r);
         assert(mu>=0.0);
 	if(mu<mu_crit || std::isnan(mu)) break;
 	const CuC bet = cplx(mu/mu_old);
 	mu_old = mu;
-        std::cout << "debug. pt1-7" << std::endl;
 
         Taxpy<CuC,N><<<NBlocks, NThreadsPerBlock>>>(d_p, bet, d_p, d_r);
 
@@ -365,7 +353,8 @@ struct MatPoly{
     double mu_old = mu;
     double mu_crit = tol*tol*b_norm_sq;
 
-    if(mu<mu_crit) {
+    // zero RHS guard (see solve()): avoid 0/0 = NaN when ||b|| = 0.
+    if(abs(b_norm_sq) < 1.0e-14 || mu<mu_crit) {
 #ifdef IsVerbose
       std::clog << "NO SOLVE" << std::endl;
 #endif

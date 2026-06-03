@@ -129,7 +129,8 @@ using CuC = cuDoubleComplex;
 // #include "dirac.h"
 
 #include "sparse_dirac.h"
-#include "matpoly.h"
+// #include "matpoly.h"
+#include "matpoly_claude.h"
 
 #include "dirac_pf.h"
 #include "overlap.h"

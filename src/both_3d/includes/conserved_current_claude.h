@@ -144,4 +144,91 @@ struct ConservedCurrent {
     apply_k(d_result, d_xi, U, std::pair<int,BaseLink>{s, lk});
   }
 
+  // apply_k_dag: compute d_result = K(el)^dag d_xi for link element el.
+  // Adjoint of apply_k. With X = D_W/lambda_max, R_m = (X X^dag - k^2/cp[m])^{-1} (Hermitian),
+  // C = D.C, A_m = D.A[m] (real), S = I + sum_m A_m R_m (Hermitian):
+  //   K^dag = C S W^dag - C sum_m A_m R_m (W^dag X - X^dag W) R_m X^dag.
+  // This is a reordering of the apply_k primitives; the W / W^dag COOs and the
+  // R_m / X / X^dag operators are built exactly as in apply_k. The Step-1 seed is
+  // Y_m = R_m X^dag xi (instead of Z_m = R_m xi). d_Zs[1..size-1] hold Y_m;
+  // d_Zs[0] is reused as temporary storage for w0 = W^dag xi.
+  // d_tmp1/2/3 and d_Zs[] are used as scratch; not valid after return.
+  template<typename Gauge, typename LinkEl>
+  void apply_k_dag(CuC* d_result, const CuC* d_xi, const Gauge& U, const LinkEl& el) {
+
+    // --- Step 1: seed Y_m = R_m X^dag xi (link-independent) ---
+    // p = X^dag xi stored in d_tmp1, read-only by the parallel solve loop.
+    { MatPoly XH;
+      XH.push_back(cplx(1.0/D.lambda_max), {&D.M_DWH});
+      XH.on_gpu<N>(d_tmp1, d_xi); }
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(D.nstreams)
+#endif
+    for(int m=1; m<D.size; m++) {
+      const int istream = omp_get_thread_num();
+      MatPoly Op(D.handle[istream], D.stream[istream], istream);
+      Op.push_back(cplx(1.0/(D.lambda_max*D.lambda_max)), {&D.M_DW, &D.M_DWH});
+      Op.push_back(cplx(-D.k*D.k/D.cp[m]), {});
+      Op.solveAsync<N>(d_Zs[m], d_tmp1, Comp::TOL_INNER);
+      CUDA_CHECK(cudaStreamSynchronize(D.stream[istream]));
+    }
+    CUDA_CHECK(cudaDeviceSynchronize());
+
+    // --- Step 2: build forward and adjoint COOs (identical to apply_k) ---
+    COO<N> coo_W, coo_WH;
+    build_W(coo_W, U, el);
+    D.DW.d_coo_format(coo_WH.en, U, el);
+    for(auto& e : coo_WH.en) {
+      const Complex z(cuCreal(e.v), cuCimag(e.v));
+      e.v = cplx(Complex(-z.imag()/D.lambda_max, -z.real()/D.lambda_max));
+      std::swap(e.i, e.j);
+    }
+    coo_WH.do_it();
+
+    // --- Term A^dag: d_result = C S W^dag xi = C (w0 + sum_m A_m R_m w0), w0 = W^dag xi ---
+    coo_WH(d_tmp1, d_xi);
+    CUDA_CHECK(cudaDeviceSynchronize());
+    CUDA_CHECK(cudaMemset(d_result, 0, N*CD));
+    Taxpy_gen<CuC,double,N><<<NBlocks,NThreadsPerBlock>>>(d_result, D.C, d_tmp1, d_result);
+    CUDA_CHECK(cudaMemcpy(d_Zs[0], d_tmp1, N*CD, D2D)); // d_Zs[0] = w0 (stable rhs for solves)
+    CUDA_CHECK(cudaDeviceSynchronize());
+    for(int m=1; m<D.size; m++) {
+      { MatPoly Op;
+        Op.push_back(cplx(1.0/(D.lambda_max*D.lambda_max)), {&D.M_DW, &D.M_DWH});
+        Op.push_back(cplx(-D.k*D.k/D.cp[m]), {});
+        Op.solve<N>(d_tmp2, d_Zs[0], Comp::TOL_INNER); } // tmp2 = R_m w0
+      Taxpy_gen<CuC,double,N><<<NBlocks,NThreadsPerBlock>>>(d_result, D.C*D.A[m], d_tmp2, d_result);
+      CUDA_CHECK(cudaDeviceSynchronize());
+    }
+
+    // --- Term B^dag: d_result -= C sum_m A_m R_m (W^dag X - X^dag W) Y_m ---
+    // Y_m = d_Zs[m] (untouched by Term A^dag). r_m = W^dag X Y_m - X^dag W Y_m.
+    for(int m=1; m<D.size; m++) {
+      { MatPoly X;
+        X.push_back(cplx(1.0/D.lambda_max), {&D.M_DW});
+        X.on_gpu<N>(d_tmp3, d_Zs[m]); }              // tmp3 = X Y_m
+      coo_WH(d_tmp1, d_tmp3);                         // tmp1 = W^dag X Y_m = a
+      CUDA_CHECK(cudaDeviceSynchronize());
+      coo_W(d_tmp2, d_Zs[m]);                         // tmp2 = W Y_m
+      CUDA_CHECK(cudaDeviceSynchronize());
+      { MatPoly XH;
+        XH.push_back(cplx(1.0/D.lambda_max), {&D.M_DWH});
+        XH.on_gpu<N>(d_tmp3, d_tmp2); }              // tmp3 = X^dag W Y_m = b
+      Taxpy_gen<CuC,double,N><<<NBlocks,NThreadsPerBlock>>>(d_tmp1, -1.0, d_tmp3, d_tmp1); // tmp1 = a - b = r_m
+      CUDA_CHECK(cudaDeviceSynchronize());
+      { MatPoly Op;
+        Op.push_back(cplx(1.0/(D.lambda_max*D.lambda_max)), {&D.M_DW, &D.M_DWH});
+        Op.push_back(cplx(-D.k*D.k/D.cp[m]), {});
+        Op.solve<N>(d_tmp2, d_tmp1, Comp::TOL_INNER); } // tmp2 = R_m r_m = s_m
+      Taxpy_gen<CuC,double,N><<<NBlocks,NThreadsPerBlock>>>(d_result, -D.C*D.A[m], d_tmp2, d_result);
+      CUDA_CHECK(cudaDeviceSynchronize());
+    }
+  }
+
+  // apply_k_dag_wz: spatial link wrapper for the adjoint kernel.
+  template<typename Gauge>
+  void apply_k_dag_wz(CuC* d_result, const CuC* d_xi, const Gauge& U, int s, BaseLink lk) {
+    apply_k_dag(d_result, d_xi, U, std::pair<int,BaseLink>{s, lk});
+  }
+
 };

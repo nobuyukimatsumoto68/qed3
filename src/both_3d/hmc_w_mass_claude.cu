@@ -100,7 +100,8 @@ using CuC = cuDoubleComplex;
 #include "dirac_ext.h"
 
 #include "sparse_dirac.h"
-#include "matpoly.h"
+// #include "matpoly.h"
+#include "matpoly_claude.h"
 #include "includes/overlap_wmass_claude.h"
 #include "pseudofermion.h"
 
