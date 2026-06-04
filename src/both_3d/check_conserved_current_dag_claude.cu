@@ -542,6 +542,174 @@ int main(int argc, char* argv[]) {
     CUDA_CHECK(cudaFree(d_kout));
   }
 
+  // ---- D5: stochastic Ward identity for K^dag at w=(s=0,ix=0), free + Gaussian U ----
+  // Adjoint of the forward Ward identity. Daggering sum_z K^{wz} = [D_ov, Theta_w] and using
+  // cyclicity gives, config-by-config (both Re and Im):
+  //   sum_{z~w} tr(K^{wz dag} D_ov^{-dag}) = -tr([D_ov^dag, Theta_w] D_ov^{-dag}) = 0.
+  // Define J_dag^{wz} = -Nf tr(K^{wz dag} D_ov^{-dag}); the divergence sum_z J_dag^{wz} -> 0.
+  // Stochastic: J_dag^{wz} ~ -Nf mean( eta^dag K^{wz dag} psi ), with psi = D^{-dag} eta solved
+  // from the normal equations (D D^dag) psi = D eta.
+  {
+    using Rng5 = ParallelRngExt<Base, Comp::Nt>;
+    Rng5 rng5_gauge(base, 99);
+    const Gauge U_free5 = U;
+    const int Nf5 = Nf;
+    constexpr int s_focus = 0;
+    constexpr int ix_focus = 0;
+
+    auto f_D   = std::bind(&Fermion::mult_deviceAsyncLaunch, &D, std::placeholders::_1, std::placeholders::_2);
+    auto f_DDH = std::bind(&Fermion::DDH_deviceAsyncLaunch,  &D, std::placeholders::_1, std::placeholders::_2);
+    LinOpWrapper M_D(f_D), M_DDH(f_DDH);
+    MatPoly op_D;   op_D.push_back(cplx(1.0), {&M_D});
+    MatPoly op_DDH; op_DDH.push_back(cplx(1.0), {&M_DDH});
+
+    FermionVector eta, D_eta, psi, fv_Kpsi;
+    CuC* d_psi = nullptr;
+    CuC* d_k5  = nullptr;
+    CUDA_CHECK(cudaMalloc(&d_psi, N*CD));
+    CUDA_CHECK(cudaMalloc(&d_k5,  N*CD));
+
+    const std::vector<Idx> nns5(base.nns[ix_focus].begin(), base.nns[ix_focus].end());
+    const int n_sp5 = static_cast<int>(nns5.size());
+
+    // temporal links incident to w: index 0 = fwd (sign +1), 1 = bwd (sign -1)
+    const std::pair<int,Idx> tlinks5[2] = { {s_focus, ix_focus}, {(s_focus-1+Nt)%Nt, ix_focus} };
+    const double tsign5[2] = {1.0, -1.0};
+
+    auto run_ward = [&](const std::string& glabel) {
+      std::cout << "\n# --- D5: Ward identity K^dag (" << glabel << ") at (s=0, ix=0) ---" << std::endl;
+
+      // ---- analytic J_dag via basis-vector loop (small lattice only) ----
+      // J_dag^{wz} = -Nf sum_k (K^{wz dag} psi_k)[k], with psi_k = D^{-dag} e_k.
+      std::vector<Complex> JV_exact(n_sp5, Complex(0.0,0.0));
+      Complex JV_exact_t[2] = {Complex(0.0,0.0), Complex(0.0,0.0)};
+      Complex div_exact = Complex(0.0,0.0);
+      if constexpr (Comp::N_REFINE == 1 && Comp::Nt <= 4) {
+        std::cout << "# --- analytic J_dag via basis-vector loop ---" << std::endl;
+        FermionVector e_i, D_e, psi_e, fv_Ke;
+        for(Idx k = 0; k < N; k++) {
+          e_i.set_pt_source(k / Comp::Nx, (k % Comp::Nx) / NS, k % NS);
+          op_D.from_cpu<N>(D_e.field, e_i.field);                       // D e_k
+          op_DDH.solve<N>(psi_e.field, D_e.field, Comp::TOL_OUTER);     // psi_e = D^{-dag} e_k
+          CUDA_CHECK(cudaMemcpy(d_psi, reinterpret_cast<const CuC*>(psi_e.field), N*CD, H2D));
+          for(int j = 0; j < n_sp5; j++) {
+            kop.apply_k_dag(d_k5, d_psi, U, std::pair<int,BaseLink>{s_focus, BaseLink{ix_focus, nns5[j]}});
+            CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(fv_Ke.field), d_k5, N*CD, D2H));
+            JV_exact[j] += fv_Ke.field[k];
+          }
+          if(Nt > 1) {
+            for(int t = 0; t < 2; t++) {
+              kop.apply_k_dag(d_k5, d_psi, U, tlinks5[t]);
+              CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(fv_Ke.field), d_k5, N*CD, D2H));
+              JV_exact_t[t] += tsign5[t] * fv_Ke.field[k];
+            }
+          }
+          if((k+1) % (N/4) == 0) std::cout << "# basis loop: k=" << (k+1) << "/" << N << std::endl;
+        }
+        for(int j = 0; j < n_sp5; j++) {
+          JV_exact[j] *= -(double)Nf5;
+          div_exact += JV_exact[j];
+          std::cout << "# J_dag exact  nn=" << nns5[j]
+                    << "  re=" << JV_exact[j].real() << "  im=" << JV_exact[j].imag() << std::endl;
+        }
+        if(Nt > 1) {
+          for(int t = 0; t < 2; t++) JV_exact_t[t] *= -(double)Nf5;
+          div_exact += JV_exact_t[0] + JV_exact_t[1];
+          std::cout << "# J_dag exact  tlink_fwd  re=" << JV_exact_t[0].real() << "  im=" << JV_exact_t[0].imag() << std::endl;
+          std::cout << "# J_dag exact  tlink_bwd  re=" << JV_exact_t[1].real() << "  im=" << JV_exact_t[1].imag() << std::endl;
+        }
+        std::cout << "# J_dag exact  SUM  re=" << div_exact.real() << "  im=" << div_exact.imag() << std::endl;
+      }
+
+      // ---- stochastic estimator ----
+      Rng5 rng5_stoch(base, 42);
+      std::vector<Complex> C_acc(n_sp5, Complex(0.0,0.0));
+      std::vector<std::vector<Complex>> C_all(n_sp5);
+      Complex C_t_acc[2] = {Complex(0.0,0.0), Complex(0.0,0.0)};
+      std::vector<Complex> C_t_all[2];
+      Complex div_acc = Complex(0.0,0.0);
+      std::vector<Complex> div_all;
+
+      for(int h = 0; h < nhits; h++) {
+        eta.fill_z2_source(rng5_stoch);
+        op_D.from_cpu<N>(D_eta.field, eta.field);                   // D eta
+        op_DDH.solve<N>(psi.field, D_eta.field, Comp::TOL_OUTER);   // psi = D^{-dag} eta
+        CUDA_CHECK(cudaMemcpy(d_psi, reinterpret_cast<const CuC*>(psi.field), N*CD, H2D));
+
+        Complex div_h(0.0,0.0);
+        for(int j = 0; j < n_sp5; j++) {
+          kop.apply_k_dag(d_k5, d_psi, U, std::pair<int,BaseLink>{s_focus, BaseLink{ix_focus, nns5[j]}});
+          CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(fv_Kpsi.field), d_k5, N*CD, D2H));
+          const Complex c = eta.dag(fv_Kpsi);
+          C_acc[j] += c; C_all[j].push_back(c); div_h += c;
+        }
+        if(Nt > 1) {
+          for(int t = 0; t < 2; t++) {
+            kop.apply_k_dag(d_k5, d_psi, U, tlinks5[t]);
+            CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(fv_Kpsi.field), d_k5, N*CD, D2H));
+            const Complex c = eta.dag(fv_Kpsi);
+            C_t_acc[t] += tsign5[t] * c; C_t_all[t].push_back(tsign5[t] * c); div_h += tsign5[t] * c;
+          }
+        }
+        div_acc += div_h; div_all.push_back(div_h);
+
+        const double norm = 1.0 / (h+1);
+        std::cout << "# hit " << std::setw(4) << (h+1)
+                  << "  div_re=" << -((double)Nf5)*div_acc.real()*norm
+                  << "  div_im=" << -((double)Nf5)*div_acc.imag()*norm << std::endl;
+      }
+
+      auto print_ward = [&](const std::string& label, const std::vector<Complex>& samples, Complex exact) {
+        double mean_im = 0.0, mean_re = 0.0;
+        for(const Complex& x : samples) { mean_im += x.imag(); mean_re += x.real(); }
+        mean_im /= nhits; mean_re /= nhits;
+        const double stoch_re = -((double)Nf5) * mean_re;
+        const double stoch_im = -((double)Nf5) * mean_im;
+        double var_im = 0.0, var_re = 0.0;
+        for(const Complex& x : samples) {
+          var_im += std::pow(x.imag() - mean_im, 2);
+          var_re += std::pow(x.real() - mean_re, 2);
+        }
+        const double n1 = static_cast<double>(nhits - 1) * nhits;
+        const double err_re = ((double)Nf5) * std::sqrt(var_re / n1);
+        const double err_im = ((double)Nf5) * std::sqrt(var_im / n1);
+        std::cout << "#   J_dag  " << label;
+        if constexpr (Comp::N_REFINE == 1 && Comp::Nt <= 4)
+          std::cout << "  Re_analy=" << exact.real();
+        std::cout << "  Re_stoch=" << stoch_re << "  err_Re=" << err_re;
+        if constexpr (Comp::N_REFINE == 1 && Comp::Nt <= 4)
+          std::cout << "  sigma_Re=" << (stoch_re - exact.real()) / err_re;
+        if constexpr (Comp::N_REFINE == 1 && Comp::Nt <= 4)
+          std::cout << "  Im_analy=" << exact.imag();
+        std::cout << "  Im_stoch=" << stoch_im << "  err_Im=" << err_im;
+        if constexpr (Comp::N_REFINE == 1 && Comp::Nt <= 4)
+          std::cout << "  sigma_Im=" << (stoch_im - exact.imag()) / err_im;
+        std::cout << std::endl;
+      };
+
+      std::cout << "# per-link J_dag stoch vs exact (Nhits=" << nhits << ", Nf=" << Nf5 << ", " << glabel << "):" << std::endl;
+      for(int j = 0; j < n_sp5; j++)
+        print_ward("nn=" + std::to_string(nns5[j]), C_all[j], JV_exact[j]);
+      if(Nt > 1) {
+        print_ward("tlink_fwd", C_t_all[0], JV_exact_t[0]);
+        print_ward("tlink_bwd", C_t_all[1], JV_exact_t[1]);
+      }
+      print_ward("SUM", div_all, div_exact);
+    }; // end run_ward
+
+    run_ward("free");
+
+    U.gaussian(rng5_gauge, 2.0);
+    D.update(U);
+    run_ward("gaussian");
+
+    U = U_free5;
+    D.update(U);
+
+    CUDA_CHECK(cudaFree(d_psi));
+    CUDA_CHECK(cudaFree(d_k5));
+  }
+
   // --- cleanup ---
   CUDA_CHECK(cudaFree(d_phi));
   CUDA_CHECK(cudaFree(d_eta));
