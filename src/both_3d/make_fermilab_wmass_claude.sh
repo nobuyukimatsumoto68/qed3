@@ -7,3 +7,4 @@ source /lustre2/qed3/env.sh
 make -f Makefile.fnal hmc_fermilab_wmass_claude.o
 
 cp hmc_fermilab_wmass_claude.o /project/qed3/hmc_fermilab_wmass_claude.o
+cp hmc_fermilab_wmass_claude.o /project/affine/qed3/hmc_fermilab_wmass_claude.o

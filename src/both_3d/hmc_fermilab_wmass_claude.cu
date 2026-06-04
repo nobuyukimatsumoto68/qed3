@@ -202,7 +202,7 @@ int main(int argc, char* argv[]){
   const int k_ckpoint=1;
 
   const int k_ckpoint_rng=100;
-  const int kmax=1000;
+  const int kmax=1200;
 
   int k_tmp=0;
   {
