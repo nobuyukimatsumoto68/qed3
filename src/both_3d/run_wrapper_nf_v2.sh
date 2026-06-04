@@ -23,7 +23,7 @@ do
         # for nu0 in 1.0
         do
             echo $Nf $gsq $nu0
-            CUDA_VISIBLE_DEVICES=1 ./${app} ${gsq} ${Nf} ${nu0} 2>&1 | tee runlog_Nf${Nf}_gsq${gsq}_nu0${nu0}_$(date +%y%m%d%H%M).dat
+            CUDA_VISIBLE_DEVICES=0 ./${app} ${gsq} ${Nf} ${nu0} 2>&1 | tee runlog_Nf${Nf}_gsq${gsq}_nu0${nu0}_$(date +%y%m%d%H%M).dat
             # qsub -N "Nf${Nf}gsq${gsq}nu${nu0}" -v app=${app} -v gsq=${gsq} -v Nf=${Nf} -v nu0=${nu0} run_nf.sh
             # qsub -N "Nf${Nf}gsq${gsq}nu0${nu0}" -V run_nf.sh
             # elif [ "$#" -eq 4 ]; then

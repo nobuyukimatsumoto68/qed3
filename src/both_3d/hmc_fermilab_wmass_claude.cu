@@ -232,9 +232,10 @@ int main(int argc, char* argv[]){
   const double tmax = 1.9;
   int nsteps;
   // 2026-06-02 15:03: bumped +3 (Nf=2: 4->7, Nf=4,6: 5->8) to reduce discretization error after Nf=4,6 runs stuck at 100% rejection
-  if(Nf==2) nsteps = 7;
-  else if(Nf==4) nsteps = 8;
-  else if(Nf==6) nsteps = 8;
+  // 2026-06-04 10:42: bumped again +3 (Nf=2: 7->8, Nf=4,6: 5->10) to reduce discretization error after Nf=4,6 runs stuck at 100% rejection
+  if(Nf==2) nsteps = 8;
+  else if(Nf==4) nsteps = 10;
+  else if(Nf==6) nsteps = 10;
   else nsteps = 10;
   std::cout << "# tmax = " << tmax << std::endl
             << "# nsteps = " << nsteps << std::endl;
