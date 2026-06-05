@@ -123,6 +123,7 @@ void PrintHelp(){
   printf("  --current <c>        vector | axial (default: vector)\n");
   printf("  --ens-dir <path>     sea config directory; OMIT => free field (U=1) check\n");
   printf("  --nhits <n>          stochastic hits (default: 1)\n");
+  printf("  --tmax <T>           t-loop computes |dt| in [0,T] and [Nt-T,Nt-1] only (default: Nt/4)\n");
   printf("  -h, --help           show this help\n");
   exit(0);
 }
@@ -130,7 +131,7 @@ void PrintHelp(){
 void ParseArgs(int argc, char* argv[],
                double& gsq, int& Nf, double& nu0, double& nu1,
                double& mass_re, double& mass_im,
-               std::string& current, std::string& ens_dir, int& nhits){
+               std::string& current, std::string& ens_dir, int& nhits, int& tmax){
   static struct option long_opts[] = {
     {"gsq",     required_argument, nullptr, 'g'},
     {"Nf",      required_argument, nullptr, 'N'},
@@ -141,11 +142,12 @@ void ParseArgs(int argc, char* argv[],
     {"current", required_argument, nullptr, 'c'},
     {"ens-dir", required_argument, nullptr, 'e'},
     {"nhits",   required_argument, nullptr, 'H'},
+    {"tmax",    required_argument, nullptr, 'T'},
     {"help",    no_argument,       nullptr, 'h'},
     {nullptr, 0, nullptr, 0}
   };
   int opt, idx;
-  while((opt = getopt_long(argc, argv, "g:N:n:m:r:i:c:e:H:h", long_opts, &idx)) != -1){
+  while((opt = getopt_long(argc, argv, "g:N:n:m:r:i:c:e:H:T:h", long_opts, &idx)) != -1){
     switch(opt){
     case 'g': gsq     = std::stod(optarg); break;
     case 'N': Nf      = std::stoi(optarg); break;
@@ -156,6 +158,7 @@ void ParseArgs(int argc, char* argv[],
     case 'c': current = optarg; break;
     case 'e': ens_dir = optarg; break;
     case 'H': nhits   = std::stoi(optarg); break;
+    case 'T': tmax    = std::stoi(optarg); break;
     case 'h':
     case '?':
     default:  PrintHelp(); break;
@@ -173,8 +176,9 @@ int main(int argc, char* argv[]){
   std::string current="vector";
   std::string ens_dir="";     // empty => free-field mode
   int nhits=1;
+  int tmax=-1;   // <0 sentinel => default Nt/4 (set after Nt is known)
 
-  ParseArgs(argc, argv, gsq, Nf, nu0, nu1, mass_re, mass_im, current, ens_dir, nhits);
+  ParseArgs(argc, argv, gsq, Nf, nu0, nu1, mass_re, mass_im, current, ens_dir, nhits, tmax);
   if(nu1 < 0.0) nu1 = nu0;    // valence asymmetry defaults to the sea value nu0 (knob retained)
 
   const Complex valence_mass(mass_re, mass_im);
@@ -201,6 +205,11 @@ int main(int argc, char* argv[]){
 
   constexpr Idx N  = Comp::N;
   constexpr int Nt = Comp::Nt;
+
+  // tmax cap: t-loop computes |dt| in [0,tmax] and [Nt-tmax,Nt-1] only (skip the noise middle).
+  if(tmax < 0)     tmax = Nt/4;     // default
+  if(tmax > Nt-1)  tmax = Nt-1;     // clamp
+  std::cout << "# tmax=" << tmax << " (t-loop = [0,"<<tmax<<"] U ["<<(Nt-tmax)<<","<<(Nt-1)<<"])" << std::endl;
 
   using Base=S2Simp;
   using WilsonDirac=DiracExt<Base, DiracS2Simp>;
@@ -270,7 +279,7 @@ int main(int argc, char* argv[]){
   { const auto slash = ens_base.find_last_of('/'); if(slash!=std::string::npos) ens_base = ens_base.substr(slash+1); }
   const std::string esnid = (free_field ? std::string("free") : ens_base)
                           + "_vmRe"+std::to_string(mass_re)+"vmIm"+std::to_string(mass_im);
-  const std::string dir_out = "data_"+esnid+"/sp_"+current+"/";
+  const std::string dir_out = "data_"+esnid+"/sp_"+current+"_tmax"+std::to_string(tmax)+"/";
   std::filesystem::create_directories(dir_out);
   std::cout << "# dir_out = " << dir_out << std::endl;
 
@@ -332,6 +341,7 @@ int main(int argc, char* argv[]){
           op_Dmsq.solve<N>(psi.field, tmp.field, Comp::TOL_OUTER);  // psi := psi_++,a
           // looped kernel (no inversion): phi_++,a(t) = K(lk,t) phi'_++;  Cpp[t] += w_a psi_++,a^dag phi_++,a(t)
           for(int t=0; t<Nt; t++){
+            if(t>tmax && t<Nt-tmax) continue;   // tmax cap: skip the noise middle (both signal ends kept)
             kop.set_spatial(U, t, lk, /*dag=*/false);
             op_K.from_cpu<N>(phit.field, phi.field);                 // phit = K(lk,t) phi'_++
             Cpp[t] += w_sp[il] * psi.dag(phit);
@@ -361,6 +371,7 @@ int main(int argc, char* argv[]){
           op_tilDmsq.solve<N>(psi.field, tmp.field, Comp::TOL_OUTER); // psi := psi_--,a = tilde^{-1} K(lk,0) eta
           // looped kernel (no inversion): phi_--,a(t) = K^dag(lk,t) phi'_--;  Cmm[t] += w_a psi_--,a^dag phi_--,a(t)
           for(int t=0; t<Nt; t++){
+            if(t>tmax && t<Nt-tmax) continue;   // tmax cap: skip the noise middle (both signal ends kept)
             kop.set_spatial(U, t, lk, /*dag=*/true);
             op_K.from_cpu<N>(phit.field, phi.field);                  // phit = K^dag(lk,t) phi'_--
             Cmm[t] += w_sp[il] * psi.dag(phit);
@@ -378,6 +389,7 @@ int main(int argc, char* argv[]){
       h5.createDataSet("Vpp/imag", ppIm);
       h5.createDataSet("Vmm/real", mmRe);   // <J_{V,-} J_{V,-}> connected (same placeholder both cases)
       h5.createDataSet("Vmm/imag", mmIm);
+      h5.createDataSet("tmax", std::vector<int>{tmax});   // computed region = [0,tmax] U [Nt-tmax,Nt-1]
       const double secs = std::chrono::duration<double>(std::chrono::steady_clock::now()-t_hit0).count();
       std::cout << "# wrote "<<h5path<<"  Vpp(dt=0)=("<<ppRe[0]<<","<<ppIm[0]<<")  ["<<secs<<" s]"<<std::endl;
     } // hits

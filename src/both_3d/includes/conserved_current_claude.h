@@ -31,6 +31,7 @@ struct ConservedCurrent : public LinOp {
   CuC* d_tmp1;
   CuC* d_tmp2;
   CuC* d_tmp3;
+  CuC* d_Zblock;              // contiguous N*(size-1) block for solve_multishift (apply_k*_ms)
 
   // ---- LinOp configuration: link element + gauge + dagger flag, set before operator() ----
   enum class Kind { TEMPORAL, SPATIAL };
@@ -47,11 +48,13 @@ struct ConservedCurrent : public LinOp {
     , d_tmp1(nullptr)
     , d_tmp2(nullptr)
     , d_tmp3(nullptr)
+    , d_Zblock(nullptr)
   {
     for(int m=0; m<D.size; m++) CUDA_CHECK(cudaMalloc(&d_Zs[m], N*CD));
     CUDA_CHECK(cudaMalloc(&d_tmp1, N*CD));
     CUDA_CHECK(cudaMalloc(&d_tmp2, N*CD));
     CUDA_CHECK(cudaMalloc(&d_tmp3, N*CD));
+    CUDA_CHECK(cudaMalloc(&d_Zblock, (size_t)N*(D.size-1)*CD));
   }
 
   ~ConservedCurrent() {
@@ -59,6 +62,7 @@ struct ConservedCurrent : public LinOp {
     CUDA_CHECK(cudaFree(d_tmp1));
     CUDA_CHECK(cudaFree(d_tmp2));
     CUDA_CHECK(cudaFree(d_tmp3));
+    CUDA_CHECK(cudaFree(d_Zblock));
   }
 
   // configure the operator as the temporal link K^{t,t+1}(n) [dag=false] or its adjoint [dag=true]
@@ -78,14 +82,20 @@ struct ConservedCurrent : public LinOp {
   // LinOp interface: apply the configured kernel (synchronous; uses the raw-pointer API below).
   void operator()(CuC* d_res, const CuC* d_v) const override {
     assert(cfg_U != nullptr);
+    // C5b: dispatch to the multi-shift kernels (apply_k*_ms); originals kept (called
+    // directly by check_conserved_current*_claude.cu, and reachable for debugging).
     if(cfg_kind == Kind::TEMPORAL) {
       const std::pair<int,Idx> el{cfg_ts, cfg_n};
-      if(cfg_dag) apply_k_dag(d_res, d_v, *cfg_U, el);
-      else        apply_k    (d_res, d_v, *cfg_U, el);
+      // if(cfg_dag) apply_k_dag(d_res, d_v, *cfg_U, el);
+      // else        apply_k    (d_res, d_v, *cfg_U, el);
+      if(cfg_dag) apply_k_dag_ms(d_res, d_v, *cfg_U, el);
+      else        apply_k_ms    (d_res, d_v, *cfg_U, el);
     } else {
       const std::pair<int,BaseLink> el{cfg_ts, cfg_lk};
-      if(cfg_dag) apply_k_dag(d_res, d_v, *cfg_U, el);
-      else        apply_k    (d_res, d_v, *cfg_U, el);
+      // if(cfg_dag) apply_k_dag(d_res, d_v, *cfg_U, el);
+      // else        apply_k    (d_res, d_v, *cfg_U, el);
+      if(cfg_dag) apply_k_dag_ms(d_res, d_v, *cfg_U, el);
+      else        apply_k_ms    (d_res, d_v, *cfg_U, el);
     }
   }
 
@@ -278,6 +288,136 @@ struct ConservedCurrent : public LinOp {
   // apply_k_dag_wz: spatial link wrapper for the adjoint kernel.
   void apply_k_dag_wz(CuC* d_result, const CuC* d_xi, const Gauge& U, int s, BaseLink lk) const {
     apply_k_dag(d_result, d_xi, U, std::pair<int,BaseLink>{s, lk});
+  }
+
+  // ======================================================================
+  // C5: multi-shift variants. Numerically equivalent to apply_k / apply_k_dag,
+  // but each SAME-RHS Zolotarev pole loop (apply_k Step 1; apply_k_dag Step 1 and
+  // Term A^dag) becomes ONE MatPoly::solve_multishift pass over the seed
+  // A = (1/lambda_max^2) D_W^dag D_W with shifts -k^2/cp[m]. The m-DEPENDENT-RHS
+  // loops (apply_k Term B; apply_k_dag Term B^dag) are left as independent solves.
+  // Pole m's solution is column (m-1) of d_Zblock. Validate vs the originals with
+  // test_conserved_multishift_claude.cu before switching the operator() dispatch.
+  // ======================================================================
+  template<typename LinkEl>
+  void apply_k_ms(CuC* d_result, const CuC* d_xi, const Gauge& U, const LinkEl& el) const {
+    // --- Step 1: Z_m = (A + sigma_m)^{-1} xi for all m, ONE multi-shift pass ---
+    MatPoly Aseed;
+    Aseed.push_back(cplx(1.0/(D.lambda_max*D.lambda_max)), {&D.M_DW, &D.M_DWH});
+    std::vector<double> sigma(D.size-1);
+    for(int m=1; m<D.size; m++) sigma[m-1] = -D.k*D.k/D.cp[m];
+    Aseed.solve_multishift<N>(d_Zblock, d_xi, sigma.data(), D.size-1, Comp::TOL_INNER);
+    for(int m=1; m<D.size; m++)                       // copy out so the rest is identical to apply_k
+      CUDA_CHECK(cudaMemcpy(d_Zs[m], d_Zblock + (size_t)(m-1)*N, N*CD, D2D));
+
+    // Z_0 = d_xi + sum_m A[m] Z_m
+    CUDA_CHECK(cudaMemcpy(d_Zs[0], d_xi, N*CD, D2D));
+    for(int m=1; m<D.size; m++)
+      Taxpy_gen<CuC,double,N><<<NBlocks,NThreadsPerBlock>>>(d_Zs[0], D.A[m], d_Zs[m], d_Zs[0]);
+    CUDA_CHECK(cudaDeviceSynchronize());
+
+    // --- Step 2: build forward and adjoint COOs (identical to apply_k) ---
+    COO<N> coo_W, coo_WH;
+    build_W(coo_W, U, el);
+    D.DW.d_coo_format(coo_WH.en, U, el);
+    for(auto& e : coo_WH.en) {
+      const Complex z(cuCreal(e.v), cuCimag(e.v));
+      e.v = cplx(Complex(-z.imag()/D.lambda_max, -z.real()/D.lambda_max));
+      std::swap(e.i, e.j);
+    }
+    coo_WH.do_it();
+
+    // --- Term A: d_result = C * W Z_0 ---
+    coo_W(d_tmp1, d_Zs[0]);
+    CUDA_CHECK(cudaDeviceSynchronize());
+    CUDA_CHECK(cudaMemset(d_result, 0, N*CD));
+    Taxpy_gen<CuC,double,N><<<NBlocks,NThreadsPerBlock>>>(d_result, D.C, d_tmp1, d_result);
+    CUDA_CHECK(cudaDeviceSynchronize());
+
+    // --- Term B: d_result -= C * sum_m A[m] * X R_m u_m  (u_m = X^dag W Z_m - W^dag X Z_m) ---
+    for(int m=1; m<D.size; m++) {
+      coo_W(d_tmp1, d_Zs[m]);
+      CUDA_CHECK(cudaDeviceSynchronize());
+      { MatPoly XH;
+        XH.push_back(cplx(1.0/D.lambda_max), {&D.M_DWH});
+        XH.on_gpu<N>(d_tmp2, d_tmp1); }
+      { MatPoly X;
+        X.push_back(cplx(1.0/D.lambda_max), {&D.M_DW});
+        X.on_gpu<N>(d_tmp3, d_Zs[m]); }
+      coo_WH(d_tmp1, d_tmp3);
+      CUDA_CHECK(cudaDeviceSynchronize());
+      Taxpy_gen<CuC,double,N><<<NBlocks,NThreadsPerBlock>>>(d_tmp2, -1.0, d_tmp1, d_tmp2);
+      CUDA_CHECK(cudaDeviceSynchronize());
+      { MatPoly Op;                                    // m-dependent RHS (u_m): independent solve
+        Op.push_back(cplx(1.0/(D.lambda_max*D.lambda_max)), {&D.M_DW, &D.M_DWH});
+        Op.push_back(cplx(-D.k*D.k/D.cp[m]), {});
+        Op.solve<N>(d_tmp1, d_tmp2, Comp::TOL_INNER); }
+      { MatPoly X;
+        X.push_back(cplx(1.0/D.lambda_max), {&D.M_DW});
+        X.on_gpu<N>(d_tmp3, d_tmp1); }
+      Taxpy_gen<CuC,double,N><<<NBlocks,NThreadsPerBlock>>>(d_result, -D.C*D.A[m], d_tmp3, d_result);
+      CUDA_CHECK(cudaDeviceSynchronize());
+    }
+  }
+
+  template<typename LinkEl>
+  void apply_k_dag_ms(CuC* d_result, const CuC* d_xi, const Gauge& U, const LinkEl& el) const {
+    // --- Step 1: seed Y_m = R_m X^dag xi (multi-shift; RHS = X^dag xi) ---
+    { MatPoly XH;
+      XH.push_back(cplx(1.0/D.lambda_max), {&D.M_DWH});
+      XH.on_gpu<N>(d_tmp1, d_xi); }                    // d_tmp1 = X^dag xi (shared RHS)
+    MatPoly Aseed;
+    Aseed.push_back(cplx(1.0/(D.lambda_max*D.lambda_max)), {&D.M_DW, &D.M_DWH});
+    std::vector<double> sigma(D.size-1);
+    for(int m=1; m<D.size; m++) sigma[m-1] = -D.k*D.k/D.cp[m];
+    Aseed.solve_multishift<N>(d_Zblock, d_tmp1, sigma.data(), D.size-1, Comp::TOL_INNER);
+    for(int m=1; m<D.size; m++)                        // Y_m -> d_Zs[m] (kept for Term B^dag)
+      CUDA_CHECK(cudaMemcpy(d_Zs[m], d_Zblock + (size_t)(m-1)*N, N*CD, D2D));
+
+    // --- Step 2: build forward and adjoint COOs (identical to apply_k_dag) ---
+    COO<N> coo_W, coo_WH;
+    build_W(coo_W, U, el);
+    D.DW.d_coo_format(coo_WH.en, U, el);
+    for(auto& e : coo_WH.en) {
+      const Complex z(cuCreal(e.v), cuCimag(e.v));
+      e.v = cplx(Complex(-z.imag()/D.lambda_max, -z.real()/D.lambda_max));
+      std::swap(e.i, e.j);
+    }
+    coo_WH.do_it();
+
+    // --- Term A^dag: d_result = C (w0 + sum_m A_m R_m w0), w0 = W^dag xi (multi-shift; RHS = w0) ---
+    coo_WH(d_tmp1, d_xi);
+    CUDA_CHECK(cudaDeviceSynchronize());
+    CUDA_CHECK(cudaMemset(d_result, 0, N*CD));
+    Taxpy_gen<CuC,double,N><<<NBlocks,NThreadsPerBlock>>>(d_result, D.C, d_tmp1, d_result);
+    CUDA_CHECK(cudaMemcpy(d_Zs[0], d_tmp1, N*CD, D2D)); // d_Zs[0] = w0 (shared RHS)
+    CUDA_CHECK(cudaDeviceSynchronize());
+    Aseed.solve_multishift<N>(d_Zblock, d_Zs[0], sigma.data(), D.size-1, Comp::TOL_INNER);
+    for(int m=1; m<D.size; m++)
+      Taxpy_gen<CuC,double,N><<<NBlocks,NThreadsPerBlock>>>(d_result, D.C*D.A[m], d_Zblock + (size_t)(m-1)*N, d_result);
+    CUDA_CHECK(cudaDeviceSynchronize());
+
+    // --- Term B^dag: d_result -= C sum_m A_m R_m (W^dag X - X^dag W) Y_m  (m-dependent RHS; NOT multi-shift) ---
+    for(int m=1; m<D.size; m++) {
+      { MatPoly X;
+        X.push_back(cplx(1.0/D.lambda_max), {&D.M_DW});
+        X.on_gpu<N>(d_tmp3, d_Zs[m]); }               // tmp3 = X Y_m
+      coo_WH(d_tmp1, d_tmp3);                          // tmp1 = W^dag X Y_m = a
+      CUDA_CHECK(cudaDeviceSynchronize());
+      coo_W(d_tmp2, d_Zs[m]);                          // tmp2 = W Y_m
+      CUDA_CHECK(cudaDeviceSynchronize());
+      { MatPoly XH;
+        XH.push_back(cplx(1.0/D.lambda_max), {&D.M_DWH});
+        XH.on_gpu<N>(d_tmp3, d_tmp2); }               // tmp3 = X^dag W Y_m = b
+      Taxpy_gen<CuC,double,N><<<NBlocks,NThreadsPerBlock>>>(d_tmp1, -1.0, d_tmp3, d_tmp1); // tmp1 = a - b = r_m
+      CUDA_CHECK(cudaDeviceSynchronize());
+      { MatPoly Op;
+        Op.push_back(cplx(1.0/(D.lambda_max*D.lambda_max)), {&D.M_DW, &D.M_DWH});
+        Op.push_back(cplx(-D.k*D.k/D.cp[m]), {});
+        Op.solve<N>(d_tmp2, d_tmp1, Comp::TOL_INNER); } // tmp2 = R_m r_m = s_m
+      Taxpy_gen<CuC,double,N><<<NBlocks,NThreadsPerBlock>>>(d_result, -D.C*D.A[m], d_tmp2, d_result);
+      CUDA_CHECK(cudaDeviceSynchronize());
+    }
   }
 
 };
