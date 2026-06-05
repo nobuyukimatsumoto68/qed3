@@ -152,6 +152,10 @@ struct OverlapWMass : public Zolotarev {
 
   std::vector<CuC*> d_Ys, d_Zs, d_XYs, d_XZs;
 
+  // contiguous N*(size-1) blocks for the multi-shift inner solve (column-major
+  // [m*N + i], pole index m = 0..size-2). Used by mult/adj_deviceAsyncLaunch_ms.
+  CuC *d_Zblock, *d_Yblock;
+
   bool is_precalc;
 
   explicit OverlapWMass( const WilsonDirac& DW_,
@@ -187,6 +191,8 @@ struct OverlapWMass : public Zolotarev {
       CUDA_CHECK(cudaMalloc(&d_XZs[m], N*CD));
       CUDA_CHECK(cudaMalloc(&d_XYs[m], N*CD));
     }
+    CUDA_CHECK(cudaMalloc(&d_Zblock, (size_t)N*(size-1)*CD));
+    CUDA_CHECK(cudaMalloc(&d_Yblock, (size_t)N*(size-1)*CD));
   }
 
   ~OverlapWMass()
@@ -197,6 +203,8 @@ struct OverlapWMass : public Zolotarev {
       CUDA_CHECK(cudaFree(d_XZs[m]));
       CUDA_CHECK(cudaFree(d_XYs[m]));
     }
+    CUDA_CHECK(cudaFree(d_Zblock));
+    CUDA_CHECK(cudaFree(d_Yblock));
     for(int istream=0; istream<nstreams; istream++) {
       CUDA_CHECK(cudaStreamSynchronize(stream[istream]));
       CUDA_CHECK(cudaStreamDestroy(stream[istream]));
@@ -368,6 +376,57 @@ struct OverlapWMass : public Zolotarev {
   }
 
 
+  // ----- multi-shift variants (C3) ----------------------------------------------
+  // Numerically equivalent to mult_/adj_deviceAsyncLaunch but the per-pole solveAsync
+  // loop is replaced by a single multi-shift CG pass (MatPoly::solve_multishift): the
+  // matrix A = (1/lambda_max^2) D_W^dag D_W and RHS are shared by all poles, the shift
+  // is sigma_m = -k^2/cp[m]. Pole m's solution is column (m-1) of d_Zblock / d_Yblock
+  // and reduces with weight A[m], exactly as in the originals. Validate vs the
+  // originals with test_overlap_multishift_claude.cu before switching call sites.
+  void mult_deviceAsyncLaunch_ms(CuC* d_res, const CuC* d_xi) const {
+    MatPoly Aseed;
+    Aseed.push_back( cplx(1.0/(lambda_max*lambda_max)), {&M_DW, &M_DWH} );
+    std::vector<double> sigma(size-1);
+    for(int m=1; m<size; m++) sigma[m-1] = -k*k/cp[m];
+    Aseed.solve_multishift<N>( d_Zblock, d_xi, sigma.data(), size-1, Comp::TOL_INNER );
+
+    CUDA_CHECK(cudaMemcpy(d_Zs[0], d_xi, N*CD, D2D)); // E(1+Z)
+    for(int m=1; m<size; m++)
+      Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_Zs[0], A[m], d_Zblock + (size_t)(m-1)*N, d_Zs[0]);
+
+    MatPoly Op;
+    Op.push_back( cplx(1.0/(lambda_max)), {&M_DW} );
+    Op.on_gpu<N>( d_res, d_Zs[0] );
+    Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, C, d_res, d_xi); // D_ov
+    CUDA_CHECK(cudaDeviceSynchronize());
+    Taxpy_gen<CuC,CuC,N><<<NBlocks, NThreadsPerBlock>>>(d_res, cplx(mass), d_xi, d_res); // +m v
+    CUDA_CHECK(cudaDeviceSynchronize());
+  }
+
+  void adj_deviceAsyncLaunch_ms(CuC* d_res, const CuC* d_xi) const {
+    CUDA_CHECK(cudaMemcpy(d_Ys[0], d_xi, N*CD, D2D)); // E(1+Y)
+    {
+      MatPoly OpGlob;
+      OpGlob.push_back ( cplx(1.0/(lambda_max)), {&M_DWH} );
+      OpGlob.on_gpu<N>( d_Ys[0], d_xi );
+    }
+    CUDA_CHECK(cudaMemcpy(d_res, d_Ys[0], N*CD, D2D));
+
+    MatPoly Aseed;
+    Aseed.push_back( cplx(1.0/(lambda_max*lambda_max)), {&M_DW, &M_DWH} );
+    std::vector<double> sigma(size-1);
+    for(int m=1; m<size; m++) sigma[m-1] = -k*k/cp[m];
+    Aseed.solve_multishift<N>( d_Yblock, d_Ys[0], sigma.data(), size-1, Comp::TOL_INNER );
+
+    for(int m=1; m<size; m++)
+      Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, A[m], d_Yblock + (size_t)(m-1)*N, d_res);
+    Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, C, d_res, d_xi); // D^dag_ov
+    CUDA_CHECK(cudaDeviceSynchronize());
+    Taxpy_gen<CuC,CuC,N><<<NBlocks, NThreadsPerBlock>>>(d_res, cplx(std::conj(mass)), d_xi, d_res); // +m^* v
+    CUDA_CHECK(cudaDeviceSynchronize());
+  }
+
+
   void DHD_deviceAsyncLaunch( CuC* d_res, const CuC* d_xi ) const {
     // (D+m)^\dagger(D+m) v = (1+m^*)(D+m)v + (1+m)(D+m)^\dagger v - (2 Re(m)+|m|^2) v
     CuC *d_mp, *d_mm;
@@ -391,6 +450,34 @@ struct OverlapWMass : public Zolotarev {
 
   void DDH_deviceAsyncLaunch( CuC* d_res, const CuC* d_xi ) const {
     this->DHD_deviceAsyncLaunch(d_res, d_xi);  // DDH = DHD for normal D
+  }
+
+  // multi-shift variants of DHD/DDH (C3b): identical to the above but route the
+  // (D+m) and (D+m)^dag applies through the multi-shift mult_ms/adj_ms. Used by
+  // op_Dmsq_ms in test_mrhs_claude.cu for the end-to-end A/B; production call
+  // sites switch to these only after sign-off.
+  void DHD_deviceAsyncLaunch_ms( CuC* d_res, const CuC* d_xi ) const {
+    CuC *d_mp, *d_mm;
+    CUDA_CHECK(cudaMalloc(&d_mp, N*CD));
+    CUDA_CHECK(cudaMalloc(&d_mm, N*CD));
+    this->mult_deviceAsyncLaunch_ms(d_mp, d_xi);   // d_mp = (D+m) v
+    CUDA_CHECK(cudaDeviceSynchronize());
+    this->adj_deviceAsyncLaunch_ms(d_mm, d_xi);    // d_mm = (D+m)^\dagger v
+    CUDA_CHECK(cudaDeviceSynchronize());
+    CUDA_CHECK(cudaMemcpy(d_res, d_mp, N*CD, D2D));
+    Taxpy_gen<CuC,CuC,N><<<NBlocks,NThreadsPerBlock>>>(d_res, cplx(std::conj(mass)), d_mp, d_res);
+    CUDA_CHECK(cudaDeviceSynchronize());
+    Taxpy_gen<CuC,CuC,N><<<NBlocks,NThreadsPerBlock>>>(d_res, cplx(Complex(1.0)+mass), d_mm, d_res);
+    CUDA_CHECK(cudaDeviceSynchronize());
+    const double scalar = 2.0*mass.real() + std::norm(mass);
+    Taxpy_gen<CuC,double,N><<<NBlocks,NThreadsPerBlock>>>(d_res, -scalar, d_xi, d_res);
+    CUDA_CHECK(cudaDeviceSynchronize());
+    CUDA_CHECK(cudaFree(d_mp));
+    CUDA_CHECK(cudaFree(d_mm));
+  }
+
+  void DDH_deviceAsyncLaunch_ms( CuC* d_res, const CuC* d_xi ) const {
+    this->DHD_deviceAsyncLaunch_ms(d_res, d_xi);  // DDH = DHD for normal D
   }
 
 

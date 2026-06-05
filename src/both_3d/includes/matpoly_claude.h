@@ -1,5 +1,7 @@
 #pragma once
 
+#include "multishift_kernels_claude.h"   // block kernels for solve_multishift
+
 // device memory set
 struct DeviceMemorySetN{
   // d_x, ...;
@@ -327,6 +329,123 @@ struct MatPoly{
     CUDA_CHECK(cudaFree(d_q));
   }
 
+
+  // ======================================================================
+  // Multi-shift CG (Jegerlehner, hep-lat/9612014). Solves
+  //     (A + sigma_m) X_m = b   for all m = 0..npole-1   in ONE Krylov pass,
+  // where A = this MatPoly (the SEED matrix, built WITHOUT any shift, e.g. the
+  // (1/lambda_max^2) D_W^dag D_W term) and sigma_m > 0 are scalar shifts. The
+  // expensive matvec A p is done ONCE per iteration and shared by every pole;
+  // the per-pole solutions ride cheap scalar recurrences. Seed = smallest shift
+  // (slowest system) => when the seed meets tol all poles have converged.
+  //   d_X   : N*npole COLUMN-MAJOR block [m*N + i] (output; zeroed here).
+  //   d_b   : single RHS (length N), shared by all poles.
+  //   sigma : HOST array of npole shifts.
+  // Host reference (validated, C1): test_multishift_claude.cpp.
+  //
+  // ASYNC NOTE: this path is intentionally fully SYNCHRONOUS on the default
+  // stream. The per-pole coeff host buffers (alm/zeta_new/betm) are overwritten
+  // EVERY iteration, so their H2D copies MUST be synchronous cudaMemcpy -- an
+  // async copy could race the next iteration's overwrite. The blocking
+  // host-pointer dots (dot/dot2self) serialize the kernels on the default
+  // stream. Do NOT convert these to *Async without pinning the coeff buffers
+  // AND adding a per-copy stream sync before the next overwrite.
+  // ======================================================================
+  template<Idx N> __host__
+  void solve_multishift(CuC* d_X, const CuC* d_b,
+                        const double* sigma, const int npole,
+                        const double tol=1.0e-13, const int maxiter=1e8) const {
+    // seed = smallest shift; relative shifts hat_m = sigma_m - sigma_seed >= 0
+    int seed=0; for(int m=1;m<npole;m++) if(sigma[m]<sigma[seed]) seed=m;
+    const double sig0 = sigma[seed];
+    std::vector<double> hat(npole);
+    for(int m=0;m<npole;m++) hat[m] = sigma[m]-sig0;
+
+    // seed work vectors (length N); per-pole directions d_pm (N*npole block);
+    // per-pole coeff arrays d_alm/d_zeta/d_betm (length npole).
+    CuC *d_p0,*d_q,*d_r,*d_pm;
+    CUDA_CHECK(cudaMalloc(&d_p0, N*CD));
+    CUDA_CHECK(cudaMalloc(&d_q,  N*CD));
+    CUDA_CHECK(cudaMalloc(&d_r,  N*CD));
+    CUDA_CHECK(cudaMalloc(&d_pm, (size_t)N*npole*CD));
+    double *d_alm,*d_zeta,*d_betm;
+    CUDA_CHECK(cudaMalloc(&d_alm,  npole*sizeof(double)));
+    CUDA_CHECK(cudaMalloc(&d_zeta, npole*sizeof(double)));
+    CUDA_CHECK(cudaMalloc(&d_betm, npole*sizeof(double)));
+
+    // grid sized for the N*npole block work (NOT the N-sized NBlocks macro)
+    const Idx total = (Idx)N*npole;
+    const int nb_blk = (total + NThreadsPerBlock)/NThreadsPerBlock;
+
+    // init: X=0; r=p0=b; p_m=b for every column
+    CUDA_CHECK(cudaMemset(d_X, 0, (size_t)N*npole*CD));
+    CUDA_CHECK(cudaMemcpy(d_r,  d_b, N*CD, D2D));
+    CUDA_CHECK(cudaMemcpy(d_p0, d_b, N*CD, D2D));
+    for(int m=0;m<npole;m++) CUDA_CHECK(cudaMemcpy(d_pm + (size_t)m*N, d_b, N*CD, D2D));
+
+    double mu; dot2self<N>(&mu, d_r); assert(mu>=0.0);
+    const double b_norm_sq = mu;
+    const double mu_crit = tol*tol*b_norm_sq;
+
+    // host per-pole state: zeta_m^j (zeta), zeta_m^{j-1} (zeta_old); seed al/bet history
+    std::vector<double> zeta(npole,1.0), zeta_old(npole,1.0);
+    std::vector<double> alm(npole), zeta_new(npole), betm(npole);
+    double al_old=1.0, bet_old=0.0;   // al_{-1}=1, bet_{-1}=0
+
+    // zero RHS guard (cf. solve()): X stays 0 when ||b||=0.
+    if(abs(b_norm_sq) < 1.0e-14 || mu<mu_crit){
+#ifdef IsVerbose2
+      std::clog << "NO SOLVE (multishift)" << std::endl;
+#endif
+    }
+    else{
+      int k=0;
+      for(; k<maxiter; ++k){
+        // seed matvec: q = A p0 + sig0 p0   (one matvec shared by all poles)
+        this->on_gpu<N>(d_q, d_p0);
+        Taxpy<CuC,N><<<NBlocks, NThreadsPerBlock>>>(d_q, cplx(sig0), d_p0, d_q);
+        CuC gam; dot<N>(&gam, d_p0, d_q);     // host-pointer dot => blocks (sync point)
+        const double al = mu/real(gam);
+
+        // host zeta recurrence + al_m (uses al and the previous al_old/bet_old)
+        for(int m=0;m<npole;m++){
+          const double denom = al*bet_old*(zeta_old[m]-zeta[m])
+                             + zeta_old[m]*al_old*(1.0 + hat[m]*al);
+          zeta_new[m] = (zeta[m]*zeta_old[m]*al_old)/denom;
+          alm[m]      = al * zeta_new[m]/zeta[m];
+        }
+        CUDA_CHECK(cudaMemcpy(d_alm, alm.data(), npole*sizeof(double), H2D)); // sync (ASYNC NOTE)
+        multishift_x_update<N><<<nb_blk, NThreadsPerBlock>>>(d_X, d_alm, d_pm, npole);
+
+        // seed residual + convergence (seed = slowest pole drives all)
+        Taxpy<CuC,N><<<NBlocks, NThreadsPerBlock>>>(d_r, cplx(-al), d_q, d_r);
+        double mu_new; dot2self<N>(&mu_new, d_r); assert(mu_new>=0.0);
+        if(mu_new<mu_crit || std::isnan(mu_new)) break;   // X_m already updated this iter => final
+        const double bet = mu_new/mu;
+
+        // host bet_m; p_m = zeta_new r + bet_m p_m; seed p0 = r + bet p0
+        for(int m=0;m<npole;m++){ const double ratio=zeta_new[m]/zeta[m]; betm[m]=bet*ratio*ratio; }
+        CUDA_CHECK(cudaMemcpy(d_zeta, zeta_new.data(), npole*sizeof(double), H2D)); // sync
+        CUDA_CHECK(cudaMemcpy(d_betm, betm.data(),     npole*sizeof(double), H2D)); // sync
+        multishift_p_update<N><<<nb_blk, NThreadsPerBlock>>>(d_pm, d_zeta, d_r, d_betm, npole);
+        Taxpy<CuC,N><<<NBlocks, NThreadsPerBlock>>>(d_p0, cplx(bet), d_p0, d_r);
+
+        // roll history
+        zeta_old=zeta; zeta=zeta_new; al_old=al; bet_old=bet; mu=mu_new;
+
+#ifdef IsVerbose2
+        if(k%100==0) std::clog << "MULTISHIFT:   #iter: " << k << ", mu = " << mu << std::endl;
+#endif
+      }
+#ifdef IsVerbose2
+      std::clog << "MULTISHIFT:   #iter (final): " << k << ", mu = " << mu << std::endl;
+#endif
+    }
+
+    CUDA_CHECK(cudaFree(d_p0)); CUDA_CHECK(cudaFree(d_q));
+    CUDA_CHECK(cudaFree(d_r));  CUDA_CHECK(cudaFree(d_pm));
+    CUDA_CHECK(cudaFree(d_alm)); CUDA_CHECK(cudaFree(d_zeta)); CUDA_CHECK(cudaFree(d_betm));
+  }
 
 
   template<Idx N> __host__

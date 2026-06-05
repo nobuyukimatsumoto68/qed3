@@ -211,48 +211,43 @@ int main(int argc, char* argv[]) {
   D.update(U);
   std::cout << "# D updated (free-field)." << std::endl;
 
-  ConservedCurrent<Fermion> kop(D);
+  ConservedCurrent<Fermion,Gauge> kop(D);
   std::cout << "# ConservedCurrent set." << std::endl;
   std::cout << "# lambda_max = " << D.lambda_max << std::endl;
 
+  // K applied through MatPoly::from_cpu (same path as the production measurement); configure
+  // the link via kop.set(U, el, dag) just before each from_cpu.
+  MatPoly op_K; op_K.push_back(cplx(1.0), {&kop});
+
   // --- device vectors ---
-  CuC* d_phi    = nullptr;   // random phi
-  CuC* d_eta    = nullptr;   // random eta
-  CuC* d_Kphi   = nullptr;   // K phi
-  CuC* d_Kdeta  = nullptr;   // K^dag eta
+  CuC* d_phi    = nullptr;   // random phi (also reused as xi in the D3 commutator micro-test)
   CUDA_CHECK(cudaMalloc(&d_phi,   N*CD));
-  CUDA_CHECK(cudaMalloc(&d_eta,   N*CD));
-  CUDA_CHECK(cudaMalloc(&d_Kphi,  N*CD));
-  CUDA_CHECK(cudaMalloc(&d_Kdeta, N*CD));
 
   // --- host vectors ---
   FermionVector h_phi, h_eta, h_Kphi, h_Kdeta;
 
-  // draw random eta, phi; copy to device
+  // draw random eta, phi; copy phi to device for the D3 micro-test
   std::mt19937 rng_host(42);
   fill_random(h_phi.field, N, rng_host);
   fill_random(h_eta.field, N, rng_host);
   CUDA_CHECK(cudaMemcpy(d_phi, reinterpret_cast<const CuC*>(h_phi.field), N*CD, H2D));
-  CUDA_CHECK(cudaMemcpy(d_eta, reinterpret_cast<const CuC*>(h_eta.field), N*CD, H2D));
   std::cout << "# random eta, phi loaded." << std::endl;
 
   // ---- D2: adjoint-consistency  <eta, K phi> = <K^dag eta, phi>  per link ----
-  // For each spatial and temporal link el: compare inner products computed via
-  // apply_k (on phi) and apply_k_dag (on eta). They must agree to solver tolerance.
+  // For each spatial and temporal link el: compare inner products of K phi and K^dag eta,
+  // both applied via op_K.from_cpu (the production path). They must agree to solver tolerance.
   {
     auto run_adjoint_check = [&](const std::string& label) {
       std::cout << "\n# --- D2: adjoint-consistency check (" << label << ") ---" << std::endl;
       double max_err = 0.0; int n = 0;
 
       auto check_link = [&](auto el) {
-        kop.apply_k(d_Kphi, d_phi, U, el);
-        CUDA_CHECK(cudaDeviceSynchronize());
-        CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(h_Kphi.field), d_Kphi, N*CD, D2H));
+        kop.set(U, el, /*dag=*/false);
+        op_K.from_cpu<N>(h_Kphi.field, h_phi.field);    // K phi
         const Complex lhs = h_eta.dag(h_Kphi);          // <eta, K phi>
 
-        kop.apply_k_dag(d_Kdeta, d_eta, U, el);
-        CUDA_CHECK(cudaDeviceSynchronize());
-        CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(h_Kdeta.field), d_Kdeta, N*CD, D2H));
+        kop.set(U, el, /*dag=*/true);
+        op_K.from_cpu<N>(h_Kdeta.field, h_eta.field);   // K^dag eta
         const Complex rhs = h_Kdeta.dag(h_phi);         // <K^dag eta, phi>
 
         const double err = std::abs(lhs - rhs);
@@ -400,11 +395,6 @@ int main(int argc, char* argv[]) {
     RngTrK rng_gauge(base, 99);
     const Gauge U_free = U;
 
-    CuC* d_src  = nullptr;   // basis / noise source
-    CuC* d_kout = nullptr;   // K^dag src
-    CUDA_CHECK(cudaMalloc(&d_src,  N*CD));
-    CUDA_CHECK(cudaMalloc(&d_kout, N*CD));
-
     auto run_trKdag = [&](const std::string& glabel) {
       constexpr int s_focus  = 0;
       constexpr int ix_focus = 0;
@@ -424,12 +414,11 @@ int main(int argc, char* argv[]) {
         FermionVector e_i, fv_Ke;
 
         auto trK_link = [&](auto el) -> Complex {
+          kop.set(U, el, /*dag=*/true);
           Complex trK(0.0, 0.0);
           for(Idx k = 0; k < N; k++) {
             e_i.set_pt_source(k / Comp::Nx, (k % Comp::Nx) / NS, k % NS);
-            CUDA_CHECK(cudaMemcpy(d_src, reinterpret_cast<const CuC*>(e_i.field), N*CD, H2D));
-            kop.apply_k_dag(d_kout, d_src, U, el);
-            CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(fv_Ke.field), d_kout, N*CD, D2H));
+            op_K.from_cpu<N>(fv_Ke.field, e_i.field);   // K^dag e_k
             trK += fv_Ke.field[k];
           }
           return trK;
@@ -468,11 +457,10 @@ int main(int argc, char* argv[]) {
 
         for(int h = 0; h < nhits; h++) {
           eta.fill_z2_source(rng_trk);
-          CUDA_CHECK(cudaMemcpy(d_src, reinterpret_cast<const CuC*>(eta.field), N*CD, H2D));
           for(int j = 0; j < n_spatial; j++) {
             const BaseLink lk_j{ix_focus, nns_list[j]};
-            kop.apply_k_dag(d_kout, d_src, U, std::pair<int,BaseLink>{s_focus, lk_j});
-            CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(fv_Keta.field), d_kout, N*CD, D2H));
+            kop.set(U, std::pair<int,BaseLink>{s_focus, lk_j}, /*dag=*/true);
+            op_K.from_cpu<N>(fv_Keta.field, eta.field);   // K^dag eta
             const Complex c = eta.dag(fv_Keta);
             acc[j] += c;
             all_hits[j].push_back(c);
@@ -483,8 +471,8 @@ int main(int argc, char* argv[]) {
               {(s_focus-1+Nt)%Nt, ix_focus}
             };
             for(int t = 0; t < 2; t++) {
-              kop.apply_k_dag(d_kout, d_src, U, tlinks[t]);
-              CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(fv_Keta.field), d_kout, N*CD, D2H));
+              kop.set(U, tlinks[t], /*dag=*/true);
+              op_K.from_cpu<N>(fv_Keta.field, eta.field);   // K^dag eta
               const Complex c = eta.dag(fv_Keta);
               acc_t[t] += c;
               all_hits_t[t].push_back(c);
@@ -537,9 +525,6 @@ int main(int argc, char* argv[]) {
 
     U = U_free;
     D.update(U);
-
-    CUDA_CHECK(cudaFree(d_src));
-    CUDA_CHECK(cudaFree(d_kout));
   }
 
   // ---- D5: stochastic Ward identity for K^dag at w=(s=0,ix=0), free + Gaussian U ----
@@ -564,10 +549,6 @@ int main(int argc, char* argv[]) {
     MatPoly op_DDH; op_DDH.push_back(cplx(1.0), {&M_DDH});
 
     FermionVector eta, D_eta, psi, fv_Kpsi;
-    CuC* d_psi = nullptr;
-    CuC* d_k5  = nullptr;
-    CUDA_CHECK(cudaMalloc(&d_psi, N*CD));
-    CUDA_CHECK(cudaMalloc(&d_k5,  N*CD));
 
     const std::vector<Idx> nns5(base.nns[ix_focus].begin(), base.nns[ix_focus].end());
     const int n_sp5 = static_cast<int>(nns5.size());
@@ -591,16 +572,15 @@ int main(int argc, char* argv[]) {
           e_i.set_pt_source(k / Comp::Nx, (k % Comp::Nx) / NS, k % NS);
           op_D.from_cpu<N>(D_e.field, e_i.field);                       // D e_k
           op_DDH.solve<N>(psi_e.field, D_e.field, Comp::TOL_OUTER);     // psi_e = D^{-dag} e_k
-          CUDA_CHECK(cudaMemcpy(d_psi, reinterpret_cast<const CuC*>(psi_e.field), N*CD, H2D));
           for(int j = 0; j < n_sp5; j++) {
-            kop.apply_k_dag(d_k5, d_psi, U, std::pair<int,BaseLink>{s_focus, BaseLink{ix_focus, nns5[j]}});
-            CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(fv_Ke.field), d_k5, N*CD, D2H));
+            kop.set(U, std::pair<int,BaseLink>{s_focus, BaseLink{ix_focus, nns5[j]}}, /*dag=*/true);
+            op_K.from_cpu<N>(fv_Ke.field, psi_e.field);   // K^dag psi_k
             JV_exact[j] += fv_Ke.field[k];
           }
           if(Nt > 1) {
             for(int t = 0; t < 2; t++) {
-              kop.apply_k_dag(d_k5, d_psi, U, tlinks5[t]);
-              CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(fv_Ke.field), d_k5, N*CD, D2H));
+              kop.set(U, tlinks5[t], /*dag=*/true);
+              op_K.from_cpu<N>(fv_Ke.field, psi_e.field);   // K^dag psi_k
               JV_exact_t[t] += tsign5[t] * fv_Ke.field[k];
             }
           }
@@ -634,19 +614,18 @@ int main(int argc, char* argv[]) {
         eta.fill_z2_source(rng5_stoch);
         op_D.from_cpu<N>(D_eta.field, eta.field);                   // D eta
         op_DDH.solve<N>(psi.field, D_eta.field, Comp::TOL_OUTER);   // psi = D^{-dag} eta
-        CUDA_CHECK(cudaMemcpy(d_psi, reinterpret_cast<const CuC*>(psi.field), N*CD, H2D));
 
         Complex div_h(0.0,0.0);
         for(int j = 0; j < n_sp5; j++) {
-          kop.apply_k_dag(d_k5, d_psi, U, std::pair<int,BaseLink>{s_focus, BaseLink{ix_focus, nns5[j]}});
-          CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(fv_Kpsi.field), d_k5, N*CD, D2H));
+          kop.set(U, std::pair<int,BaseLink>{s_focus, BaseLink{ix_focus, nns5[j]}}, /*dag=*/true);
+          op_K.from_cpu<N>(fv_Kpsi.field, psi.field);   // K^dag psi
           const Complex c = eta.dag(fv_Kpsi);
           C_acc[j] += c; C_all[j].push_back(c); div_h += c;
         }
         if(Nt > 1) {
           for(int t = 0; t < 2; t++) {
-            kop.apply_k_dag(d_k5, d_psi, U, tlinks5[t]);
-            CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(fv_Kpsi.field), d_k5, N*CD, D2H));
+            kop.set(U, tlinks5[t], /*dag=*/true);
+            op_K.from_cpu<N>(fv_Kpsi.field, psi.field);   // K^dag psi
             const Complex c = eta.dag(fv_Kpsi);
             C_t_acc[t] += tsign5[t] * c; C_t_all[t].push_back(tsign5[t] * c); div_h += tsign5[t] * c;
           }
@@ -705,16 +684,10 @@ int main(int argc, char* argv[]) {
 
     U = U_free5;
     D.update(U);
-
-    CUDA_CHECK(cudaFree(d_psi));
-    CUDA_CHECK(cudaFree(d_k5));
   }
 
   // --- cleanup ---
   CUDA_CHECK(cudaFree(d_phi));
-  CUDA_CHECK(cudaFree(d_eta));
-  CUDA_CHECK(cudaFree(d_Kphi));
-  CUDA_CHECK(cudaFree(d_Kdeta));
   for(int i = 0; i < Comp::NSTREAMS; i++) d_MemorySets[i].deallocate();
 
   return 0;

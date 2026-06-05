@@ -94,7 +94,8 @@ using CuC = cuDoubleComplex;
 
 // ======================================
 
-#include "sparse_matrix.h"
+// #include "sparse_matrix.h"            // C4b -> multishift copy below
+#include "sparse_matrix_claude.h"
 
 #include "dirac_simp.h"
 #include "dirac_ext.h"
@@ -103,7 +104,8 @@ using CuC = cuDoubleComplex;
 // #include "matpoly.h"
 #include "matpoly_claude.h"
 #include "includes/overlap_wmass_claude.h"
-#include "pseudofermion.h"
+// #include "pseudofermion.h"            // C4b -> multishift copy below
+#include "pseudofermion_claude.h"
 
 #include "integrator.h"
 #include "hmc.h"

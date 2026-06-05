@@ -224,11 +224,16 @@ int main(int argc, char* argv[]) {
   D.update(U);
   std::cout << "# D updated (free-field)." << std::endl;
 
-  ConservedCurrent<Fermion> kop(D);
+  ConservedCurrent<Fermion,Gauge> kop(D);
   std::cout << "# ConservedCurrent set." << std::endl;
   std::cout << "# lambda_max = " << D.lambda_max << std::endl;
 
-  // --- device vectors ---
+  // K applied through MatPoly::from_cpu (same path as the production measurement) in the
+  // tr(K) / Ward-identity sections below; configure the link via kop.set(U, el, dag) first.
+  // The synchronous on_gpu path is used (no async), as apply_k itself syncs internally.
+  MatPoly op_K; op_K.push_back(cplx(1.0), {&kop});
+
+  // --- device vectors (used by the raw-pointer force / Theta-commutator micro-tests) ---
   CuC* d_xi   = nullptr;
   CuC* d_k_xi = nullptr;
   CUDA_CHECK(cudaMalloc(&d_xi,   N*CD));
@@ -645,16 +650,13 @@ int main(int argc, char* argv[]) {
         std::cout << "\n# --- tr(K) exact (" << glabel << ") at (s=0, ix=0) ---" << std::endl;
 
         FermionVector e_i, fv_Ke;
-        CuC* d_ei = nullptr;
-        CUDA_CHECK(cudaMalloc(&d_ei, N*CD));
 
         auto trK_link = [&](auto el) -> Complex {
+          kop.set(U, el, /*dag=*/false);
           Complex trK(0.0, 0.0);
           for(Idx k = 0; k < N; k++) {
             e_i.set_pt_source(k / Comp::Nx, (k % Comp::Nx) / NS, k % NS);
-            CUDA_CHECK(cudaMemcpy(d_ei, reinterpret_cast<const CuC*>(e_i.field), N*CD, H2D));
-            kop.apply_k(d_k_xi, d_ei, U, el);
-            CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(fv_Ke.field), d_k_xi, N*CD, D2H));
+            op_K.from_cpu<N>(fv_Ke.field, e_i.field);   // K e_k
             trK += fv_Ke.field[k];
           }
           return trK;
@@ -674,8 +676,6 @@ int main(int argc, char* argv[]) {
           std::cout << "# trK  tlink_bwd"
                     << " = (" << trK_exact_t[1].real() << "," << trK_exact_t[1].imag() << ")" << std::endl;
         }
-
-        CUDA_CHECK(cudaFree(d_ei));
       }
 
       // ---- Stochastic tr(K): Z2xZ2 noise ----
@@ -686,8 +686,6 @@ int main(int argc, char* argv[]) {
         RngTrK rng_trk(base, 42);
 
         FermionVector eta, fv_Keta;
-        CuC* d_eta = nullptr;
-        CUDA_CHECK(cudaMalloc(&d_eta, N*CD));
 
         std::vector<Complex> acc(n_spatial, Complex(0.0, 0.0));
         std::vector<std::vector<Complex>> all_hits(n_spatial);
@@ -697,11 +695,10 @@ int main(int argc, char* argv[]) {
 
         for(int h = 0; h < nhits; h++) {
           eta.fill_z2_source(rng_trk);
-          CUDA_CHECK(cudaMemcpy(d_eta, reinterpret_cast<const CuC*>(eta.field), N*CD, H2D));
           for(int j = 0; j < n_spatial; j++) {
             const BaseLink lk_j{ix_focus, nns_list[j]};
-            kop.apply_k(d_k_xi, d_eta, U, std::pair<int,BaseLink>{s_focus, lk_j});
-            CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(fv_Keta.field), d_k_xi, N*CD, D2H));
+            kop.set(U, std::pair<int,BaseLink>{s_focus, lk_j}, /*dag=*/false);
+            op_K.from_cpu<N>(fv_Keta.field, eta.field);   // K eta
             const Complex c = eta.dag(fv_Keta);
             acc[j] += c;
             all_hits[j].push_back(c);
@@ -712,8 +709,8 @@ int main(int argc, char* argv[]) {
               {(s_focus-1+Nt)%Nt, ix_focus}
             };
             for(int t = 0; t < 2; t++) {
-              kop.apply_k(d_k_xi, d_eta, U, tlinks[t]);
-              CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(fv_Keta.field), d_k_xi, N*CD, D2H));
+              kop.set(U, tlinks[t], /*dag=*/false);
+              op_K.from_cpu<N>(fv_Keta.field, eta.field);   // K eta
               const Complex c = eta.dag(fv_Keta);
               acc_t[t] += c;
               all_hits_t[t].push_back(c);
@@ -755,8 +752,6 @@ int main(int argc, char* argv[]) {
           print_stderr("tlink_fwd", acc_t[0], all_hits_t[0], trK_exact_t[0]);
           print_stderr("tlink_bwd", acc_t[1], all_hits_t[1], trK_exact_t[1]);
         }
-
-        CUDA_CHECK(cudaFree(d_eta));
       }
     }; // end run_trK
 
@@ -798,8 +793,6 @@ int main(int argc, char* argv[]) {
     MatPoly op_DHD; op_DHD.push_back(cplx(1.0), {&M_DHD});
 
     FermionVector eta, DH_eta, phi;
-    CuC* d_phi_dev = nullptr;
-    CUDA_CHECK(cudaMalloc(&d_phi_dev, N*CD));
 
     std::vector<Idx> nns_list(base.nns[ix_focus].begin(), base.nns[ix_focus].end());
     const int n_spatial = static_cast<int>(nns_list.size());
@@ -818,11 +811,10 @@ int main(int argc, char* argv[]) {
         e_i.set_pt_source(k / Comp::Nx, (k % Comp::Nx) / NS, k % NS);
         op_DH.from_cpu<N>(DH_e.field, e_i.field);
         op_DHD.solve<N>(phi_e.field, DH_e.field, Comp::TOL_OUTER);
-        CUDA_CHECK(cudaMemcpy(d_phi_dev, reinterpret_cast<const CuC*>(phi_e.field), N*CD, H2D));
         for(int j = 0; j < n_spatial; j++) {
           const BaseLink lk_j{ix_focus, nns_list[j]};
-          kop.apply_k(d_k_xi, d_phi_dev, U, std::pair<int,BaseLink>{s_focus, lk_j});
-          CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(fv_Ke.field), d_k_xi, N*CD, D2H));
+          kop.set(U, std::pair<int,BaseLink>{s_focus, lk_j}, /*dag=*/false);
+          op_K.from_cpu<N>(fv_Ke.field, phi_e.field);   // K phi_k
           JV_exact[j] += fv_Ke.field[k];
         }
         if(Nt > 1) {
@@ -832,8 +824,8 @@ int main(int argc, char* argv[]) {
           };
           const double tsign[2] = {1.0, -1.0};
           for(int t = 0; t < 2; t++) {
-            kop.apply_k(d_k_xi, d_phi_dev, U, tlinks[t]);
-            CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(fv_Ke.field), d_k_xi, N*CD, D2H));
+            kop.set(U, tlinks[t], /*dag=*/false);
+            op_K.from_cpu<N>(fv_Ke.field, phi_e.field);   // K phi_k
             JV_exact_t[t] += tsign[t] * fv_Ke.field[k];
           }
         }
@@ -872,13 +864,12 @@ int main(int argc, char* argv[]) {
       eta.fill_z2_source(rng_stoch);
       op_DH.from_cpu<N>(DH_eta.field, eta.field);
       op_DHD.solve<N>(phi.field, DH_eta.field, Comp::TOL_OUTER);
-      CUDA_CHECK(cudaMemcpy(d_phi_dev, reinterpret_cast<const CuC*>(phi.field), N*CD, H2D));
 
       Complex div_h = Complex(0.0,0.0);
       for(int j = 0; j < n_spatial; j++) {
         const BaseLink lk_j{ix_focus, nns_list[j]};
-        kop.apply_k(d_k_xi, d_phi_dev, U, std::pair<int,BaseLink>{s_focus, lk_j});
-        CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(fv_Kphi.field), d_k_xi, N*CD, D2H));
+        kop.set(U, std::pair<int,BaseLink>{s_focus, lk_j}, /*dag=*/false);
+        op_K.from_cpu<N>(fv_Kphi.field, phi.field);   // K phi
         const Complex c = eta.dag(fv_Kphi);
         C_acc[j] += c;
         C_all[j].push_back(c);
@@ -891,8 +882,8 @@ int main(int argc, char* argv[]) {
         };
         const double tsign[2] = {1.0, -1.0};
         for(int t = 0; t < 2; t++) {
-          kop.apply_k(d_k_xi, d_phi_dev, U, tlinks[t]);
-          CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(fv_Kphi.field), d_k_xi, N*CD, D2H));
+          kop.set(U, tlinks[t], /*dag=*/false);
+          op_K.from_cpu<N>(fv_Kphi.field, phi.field);   // K phi
           const Complex c = eta.dag(fv_Kphi);
           C_t_acc[t] += tsign[t] * c;
           C_t_all[t].push_back(tsign[t] * c);
@@ -953,8 +944,6 @@ int main(int argc, char* argv[]) {
       print_ward("tlink_bwd", C_t_all[1], JV_exact_t[1]);
     }
     print_ward("SUM", div_all, div_exact);
-
-    CUDA_CHECK(cudaFree(d_phi_dev));
   }
 
   // ---- Chunk 6: stochastic Ward identity on Gaussian gauge config ----
@@ -980,8 +969,6 @@ int main(int argc, char* argv[]) {
 
     Rng6 rng6_stoch(base, 42);
     FermionVector eta6, DH_eta6, phi6, fv_Kphi6;
-    CuC* d_phi6 = nullptr;
-    CUDA_CHECK(cudaMalloc(&d_phi6, N*CD));
 
     const std::vector<Idx> nns6(base.nns[ix_focus6].begin(), base.nns[ix_focus6].end());
     const int n_sp6 = static_cast<int>(nns6.size());
@@ -997,11 +984,10 @@ int main(int argc, char* argv[]) {
         e_i6.set_pt_source(k / Comp::Nx, (k % Comp::Nx) / NS, k % NS);
         op_DH6.from_cpu<N>(DH_e6.field, e_i6.field);
         op_DHD6.solve<N>(phi_e6.field, DH_e6.field, Comp::TOL_OUTER);
-        CUDA_CHECK(cudaMemcpy(d_phi6, reinterpret_cast<const CuC*>(phi_e6.field), N*CD, H2D));
         for(int j = 0; j < n_sp6; j++) {
           const BaseLink lk_j{ix_focus6, nns6[j]};
-          kop.apply_k(d_k_xi, d_phi6, U, std::pair<int,BaseLink>{s_focus6, lk_j});
-          CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(fv_Ke6.field), d_k_xi, N*CD, D2H));
+          kop.set(U, std::pair<int,BaseLink>{s_focus6, lk_j}, /*dag=*/false);
+          op_K.from_cpu<N>(fv_Ke6.field, phi_e6.field);   // K phi_k
           JV_exact6[j] += fv_Ke6.field[k];
         }
         if(Nt > 1) {
@@ -1011,8 +997,8 @@ int main(int argc, char* argv[]) {
           };
           const double tsign6_e[2] = {1.0, -1.0};
           for(int t = 0; t < 2; t++) {
-            kop.apply_k(d_k_xi, d_phi6, U, tlinks6_e[t]);
-            CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(fv_Ke6.field), d_k_xi, N*CD, D2H));
+            kop.set(U, tlinks6_e[t], /*dag=*/false);
+            op_K.from_cpu<N>(fv_Ke6.field, phi_e6.field);   // K phi_k
             JV_exact6_t[t] += tsign6_e[t] * fv_Ke6.field[k];
           }
         }
@@ -1048,13 +1034,12 @@ int main(int argc, char* argv[]) {
       eta6.fill_z2_source(rng6_stoch);
       op_DH6.from_cpu<N>(DH_eta6.field, eta6.field);
       op_DHD6.solve<N>(phi6.field, DH_eta6.field, Comp::TOL_OUTER);
-      CUDA_CHECK(cudaMemcpy(d_phi6, reinterpret_cast<const CuC*>(phi6.field), N*CD, H2D));
 
       Complex div_h6 = Complex(0.0,0.0);
       for(int j = 0; j < n_sp6; j++) {
         const BaseLink lk_j{ix_focus6, nns6[j]};
-        kop.apply_k(d_k_xi, d_phi6, U, std::pair<int,BaseLink>{s_focus6, lk_j});
-        CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(fv_Kphi6.field), d_k_xi, N*CD, D2H));
+        kop.set(U, std::pair<int,BaseLink>{s_focus6, lk_j}, /*dag=*/false);
+        op_K.from_cpu<N>(fv_Kphi6.field, phi6.field);   // K phi
         const Complex c = eta6.dag(fv_Kphi6);
         C_acc6[j] += c; C_all6[j].push_back(c);
         div_h6 += c;
@@ -1066,8 +1051,8 @@ int main(int argc, char* argv[]) {
         };
         const double tsign6[2] = {1.0, -1.0};
         for(int t = 0; t < 2; t++) {
-          kop.apply_k(d_k_xi, d_phi6, U, tlinks6[t]);
-          CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(fv_Kphi6.field), d_k_xi, N*CD, D2H));
+          kop.set(U, tlinks6[t], /*dag=*/false);
+          op_K.from_cpu<N>(fv_Kphi6.field, phi6.field);   // K phi
           const Complex c = eta6.dag(fv_Kphi6);
           C_t_acc6[t] += tsign6[t] * c; C_t_all6[t].push_back(tsign6[t] * c);
           div_h6 += tsign6[t] * c;
@@ -1127,8 +1112,6 @@ int main(int argc, char* argv[]) {
       print_ward6("tlink_bwd", C_t_all6[1], JV_exact6_t[1]);
     }
     print_ward6("SUM", div_all6, div_exact6);
-
-    CUDA_CHECK(cudaFree(d_phi6));
   }
 
   // --- cleanup ---

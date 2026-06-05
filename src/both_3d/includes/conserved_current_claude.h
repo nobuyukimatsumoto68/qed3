@@ -2,6 +2,8 @@
 
 #include <array>
 #include <vector>
+#include <utility>
+#include <cassert>
 
 // BaseLink: canonical oriented spatial link {site_w, site_z}.
 // Matches GaugeExt::BaseLink = std::array<int,2>.
@@ -12,17 +14,32 @@ using BaseLink = std::array<int,2>;
 // Usage: one-end trick kernel in meson_pq_wall_v2_claude.cu and disc_claude.cu,
 //        replacing mult_sigma.
 
-template<typename OverlapOp>
-struct ConservedCurrent {
+// ConservedCurrent is a LinOp: with a link element and gauge configured via set_temporal /
+// set_spatial, operator()(d_res, d_v) applies K (or K^dag) for that link, so the kernel can be
+// pushed into a MatPoly and applied through MatPoly::from_cpu exactly like the Dirac operators.
+// The raw-pointer apply_k / apply_k_dag API is retained for callers that manage device memory.
+template<typename OverlapOp, typename Gauge>
+struct ConservedCurrent : public LinOp {
   static constexpr Idx N = Comp::N;
 
   const OverlapOp& D;          // const ref; read-only access to DW, M_DW, M_DWH,
                                //   A[], cp[], k, C, lambda_max, size, stream[], handle[], nstreams
 
+  // scratch is logically mutable: operator() is const (LinOp interface) but apply_k writes
+  // through these device pointers (never reassigns them), so the methods can stay const.
   std::vector<CuC*> d_Zs;     // d_Zs[0]=Z_0; d_Zs[1..size-1]=Z_ell; pre-allocated scratch
   CuC* d_tmp1;
   CuC* d_tmp2;
   CuC* d_tmp3;
+
+  // ---- LinOp configuration: link element + gauge + dagger flag, set before operator() ----
+  enum class Kind { TEMPORAL, SPATIAL };
+  const Gauge* cfg_U = nullptr;        // gauge for the configured link
+  Kind     cfg_kind  = Kind::TEMPORAL;
+  bool     cfg_dag   = false;          // false: K ; true: K^dag
+  int      cfg_ts    = 0;              // timeslice t (temporal) or spatial source slot s (spatial)
+  Idx      cfg_n     = 0;              // dual site n (temporal link K^{t,t+1}(n))
+  BaseLink cfg_lk    = {0,0};          // oriented spatial link {w,z} (spatial)
 
   explicit ConservedCurrent(const OverlapOp& D_)
     : D(D_)
@@ -44,11 +61,46 @@ struct ConservedCurrent {
     CUDA_CHECK(cudaFree(d_tmp3));
   }
 
+  // configure the operator as the temporal link K^{t,t+1}(n) [dag=false] or its adjoint [dag=true]
+  void set_temporal(const Gauge& U, int t, Idx n, bool dag) {
+    cfg_U=&U; cfg_kind=Kind::TEMPORAL; cfg_ts=t; cfg_n=n; cfg_dag=dag;
+  }
+  // configure the operator as the spatial link K^{wz} at slot s [dag=false] or its adjoint [dag=true]
+  void set_spatial(const Gauge& U, int s, BaseLink lk, bool dag) {
+    cfg_U=&U; cfg_kind=Kind::SPATIAL; cfg_ts=s; cfg_lk=lk; cfg_dag=dag;
+  }
+
+  // generic configure from a link element (matches the apply_k / apply_k_dag el types), so
+  // call sites that hold an el pair can configure the LinOp uniformly.
+  void set(const Gauge& U, const std::pair<int,Idx>& el, bool dag)     { set_temporal(U, el.first, el.second, dag); }
+  void set(const Gauge& U, const std::pair<int,BaseLink>& el, bool dag){ set_spatial (U, el.first, el.second, dag); }
+
+  // LinOp interface: apply the configured kernel (synchronous; uses the raw-pointer API below).
+  void operator()(CuC* d_res, const CuC* d_v) const override {
+    assert(cfg_U != nullptr);
+    if(cfg_kind == Kind::TEMPORAL) {
+      const std::pair<int,Idx> el{cfg_ts, cfg_n};
+      if(cfg_dag) apply_k_dag(d_res, d_v, *cfg_U, el);
+      else        apply_k    (d_res, d_v, *cfg_U, el);
+    } else {
+      const std::pair<int,BaseLink> el{cfg_ts, cfg_lk};
+      if(cfg_dag) apply_k_dag(d_res, d_v, *cfg_U, el);
+      else        apply_k    (d_res, d_v, *cfg_U, el);
+    }
+  }
+
+  // apply_k is internally synchronous on the default stream; the stream argument is ignored
+  // (same posture as LinOpDHDWrapper).  Only reached if a MatPoly runs this op asynchronously.
+  void Async(CuC* d_res, const CuC* d_v, const cudaStream_t /*stream*/) const override {
+    this->operator()(d_res, d_v);
+    CUDA_CHECK(cudaDeviceSynchronize());
+  }
+
   // build_W: computes W^{wz} (eq. 3.26) as a COO for link el.
   // W^{wz}_{xy} = (1/lambda_M)(delta_{xw}delta_{yz}C_{wz} - delta_{xz}delta_{yw}C_{zw})
   // where C_{xy} = -kappa_{xy} P_{xy} U_{xy}; d_coo_format = i*C at each entry.
   // multiply by +i/lambda_M: (i/lambda_M)*(i*C) = -C/lambda_M = W.
-  template<typename Gauge, typename LinkEl>
+  template<typename LinkEl>
   void build_W(COO<N>& coo, const Gauge& U, const LinkEl& el) const {
     D.DW.d_coo_format(coo.en, U, el);
     for(auto& e : coo.en) {
@@ -59,7 +111,6 @@ struct ConservedCurrent {
   }
 
   // build_W_wz: spatial link wrapper (eq. (3.35)).
-  template<typename Gauge>
   void build_W_wz(COO<N>& coo, const Gauge& U, int s, BaseLink lk) const {
     build_W(coo, U, std::pair<int,BaseLink>{s, lk});
   }
@@ -67,8 +118,8 @@ struct ConservedCurrent {
   // apply_k: compute d_result = K(el) d_xi for link element el; eq. (3.34).
   // Works for both spatial (std::pair<int,BaseLink>) and temporal (std::pair<int,Idx>) links.
   // d_tmp1/2/3 and d_Zs[] are used as scratch; not valid after return.
-  template<typename Gauge, typename LinkEl>
-  void apply_k(CuC* d_result, const CuC* d_xi, const Gauge& U, const LinkEl& el) {
+  template<typename LinkEl>
+  void apply_k(CuC* d_result, const CuC* d_xi, const Gauge& U, const LinkEl& el) const {
 
     // --- Step 1: Z solves ---
 #ifdef _OPENMP
@@ -139,8 +190,7 @@ struct ConservedCurrent {
   }
 
   // apply_k_wz: spatial link wrapper; eq. (3.34).
-  template<typename Gauge>
-  void apply_k_wz(CuC* d_result, const CuC* d_xi, const Gauge& U, int s, BaseLink lk) {
+  void apply_k_wz(CuC* d_result, const CuC* d_xi, const Gauge& U, int s, BaseLink lk) const {
     apply_k(d_result, d_xi, U, std::pair<int,BaseLink>{s, lk});
   }
 
@@ -153,8 +203,8 @@ struct ConservedCurrent {
   // Y_m = R_m X^dag xi (instead of Z_m = R_m xi). d_Zs[1..size-1] hold Y_m;
   // d_Zs[0] is reused as temporary storage for w0 = W^dag xi.
   // d_tmp1/2/3 and d_Zs[] are used as scratch; not valid after return.
-  template<typename Gauge, typename LinkEl>
-  void apply_k_dag(CuC* d_result, const CuC* d_xi, const Gauge& U, const LinkEl& el) {
+  template<typename LinkEl>
+  void apply_k_dag(CuC* d_result, const CuC* d_xi, const Gauge& U, const LinkEl& el) const {
 
     // --- Step 1: seed Y_m = R_m X^dag xi (link-independent) ---
     // p = X^dag xi stored in d_tmp1, read-only by the parallel solve loop.
@@ -226,8 +276,7 @@ struct ConservedCurrent {
   }
 
   // apply_k_dag_wz: spatial link wrapper for the adjoint kernel.
-  template<typename Gauge>
-  void apply_k_dag_wz(CuC* d_result, const CuC* d_xi, const Gauge& U, int s, BaseLink lk) {
+  void apply_k_dag_wz(CuC* d_result, const CuC* d_xi, const Gauge& U, int s, BaseLink lk) const {
     apply_k_dag(d_result, d_xi, U, std::pair<int,BaseLink>{s, lk});
   }
 
