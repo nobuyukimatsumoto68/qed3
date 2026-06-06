@@ -320,7 +320,7 @@ int main(int argc, char* argv[]){
   // CONNECTED-only file (disc = standalone jj_disc_claude.cu; see plan Sec. 3.8 solve-sharing note).
   // Connected source legs held across the shared sink pass (one per (insertion,t0)); std::vector is safe
   // now that FermionVector has a move ctor (valence_claude.h).  Indexers ITP/IYL flatten (insertion,b).
-  FermionVector eta, phi, phimm, kphi, rho, tmp;
+  FermionVector eta, phi, phimm, kphi, rho, tmp, chi;
   std::array<FermionVector, N_ELL> srcL, PhiL;
   std::vector<FermionVector> psi_tp(n_sites * n_t0);   // tp source legs  psi_tp[ITP(n,b)]
   std::vector<FermionVector> psi_yl(N_ELL   * n_t0);   // ylm source towers psi_yl[IYL(l,b)]
@@ -523,7 +523,68 @@ int main(int argc, char* argv[]){
         }
       }
 
-      // TODO C6 axial tp/sp: GW chi=(1-D_ov)phi'; K^dag(a,t)chi sink; keys axial/{tp,sp}/Apm.
+      // ============ CONNECTED AXIAL -- C_{A+-} (tp + sp; own GW chi=(1-D_ov)phi' and K^dag sink) ======
+      // Valence legs (Sec. 1.1): flavor m_F -> massless D_ov both legs; parity m_P -> sink tilde; else D_m.
+      // Only C_{A+-} (Apm) is computed; C_{A-+} = reflection dt->Nt-dt (Eq. 3.57) is reconstructed downstream.
+      // psi_tp/psi_sp are REUSED (the vector results above are already written to h5); phi is overwritten
+      // with the axial forward leg.
+      {
+        // forward leg phi'_A = X^{-1} eta  (X = D_ov if flavor, else D_m);  chi = (1 - D_ov) phi'_A
+        if(flavor){ op_DH.from_cpu<N>(tmp.field, eta.field);  op_Dsq.solve<N>(phi.field, tmp.field, Comp::TOL_OUTER); }
+        else      { op_DmH.from_cpu<N>(tmp.field, eta.field); op_Dmsq.solve<N>(phi.field, tmp.field, Comp::TOL_OUTER); }
+        op_oneMinusD.from_cpu<N>(chi.field, phi.field);            // chi = (1 - D_ov) phi'_A
+
+        // --- axial tp ---  source: psi_tp[ITP(n,b)] = X_sink^{-1} (1 - D_ov) K^dag(n,t0) eta
+        for(int b=0;b<n_t0;b++){
+          const int t0=t0s[b];
+          for(int n=0;n<n_sites;n++){
+            kop.set_temporal(U, t0, (Idx)n, /*dag=*/true);
+            op_K.from_cpu<N>(rho.field, eta.field);                // rho = K^dag(n,t0) eta
+            op_oneMinusD.from_cpu<N>(rho.field, rho.field);        // rho = (1 - D_ov) rho
+            if(flavor){      op_DH.from_cpu<N>(tmp.field, rho.field);     op_Dsq.solve<N>(psi_tp[ITP(n,b)].field, tmp.field, Comp::TOL_OUTER); }
+            else if(parity){ op_tilDmH.from_cpu<N>(tmp.field, rho.field); op_tilDmsq.solve<N>(psi_tp[ITP(n,b)].field, tmp.field, Comp::TOL_OUTER); }
+            else {           op_DmH.from_cpu<N>(tmp.field, rho.field);    op_Dmsq.solve<N>(psi_tp[ITP(n,b)].field, tmp.field, Comp::TOL_OUTER); }
+          }
+        }
+        {
+          std::vector<std::vector<Complex>> Atp(n_t0, std::vector<Complex>(Nt, Complex(0,0)));
+          for(int t=0;t<Nt;t++){
+            for(int n=0;n<n_sites;n++){
+              kop.set_temporal(U, t, (Idx)n, /*dag=*/true);
+              op_K.from_cpu<N>(kphi.field, chi.field);             // kphi = K^dag(n,t) chi
+              for(int b=0;b<n_t0;b++){ const int dt=(t - t0s[b] + Nt)%Nt; Atp[b][dt] += w_tp[n]*psi_tp[ITP(n,b)].dag(kphi); }
+            }
+          }
+          for(int b=0;b<n_t0;b++){ const std::string kp=hp+"t0_"+std::to_string(b)+"/"; write_corr(h5, kp+"axial/tp/Apm", Atp[b]); }
+        }
+
+        // --- axial sp ---  source: psi_sp[ISP(a,b)] = X_sink^{-1} (1 - D_ov) K^dag(lk,t0) eta
+        for(int b=0;b<n_t0;b++){
+          const int t0=t0s[b];
+          for(int a=0;a<n_links;a++){
+            const BaseLink lk = base.links[a];
+            kop.set_spatial(U, t0, lk, /*dag=*/true);
+            op_K.from_cpu<N>(rho.field, eta.field);                // rho = K^dag(lk,t0) eta
+            op_oneMinusD.from_cpu<N>(rho.field, rho.field);        // rho = (1 - D_ov) rho
+            if(flavor){      op_DH.from_cpu<N>(tmp.field, rho.field);     op_Dsq.solve<N>(psi_sp[ISP(a,b)].field, tmp.field, Comp::TOL_OUTER); }
+            else if(parity){ op_tilDmH.from_cpu<N>(tmp.field, rho.field); op_tilDmsq.solve<N>(psi_sp[ISP(a,b)].field, tmp.field, Comp::TOL_OUTER); }
+            else {           op_DmH.from_cpu<N>(tmp.field, rho.field);    op_Dmsq.solve<N>(psi_sp[ISP(a,b)].field, tmp.field, Comp::TOL_OUTER); }
+          }
+        }
+        {
+          std::vector<std::vector<Complex>> Asp(n_t0, std::vector<Complex>(Nt, Complex(0,0)));
+          for(int t=0;t<Nt;t++){
+            for(int a=0;a<n_links;a++){
+              const BaseLink lk = base.links[a];
+              const Idx il = base.map2il.at(lk);
+              kop.set_spatial(U, t, lk, /*dag=*/true);
+              op_K.from_cpu<N>(kphi.field, chi.field);             // kphi = K^dag(lk,t) chi
+              for(int b=0;b<n_t0;b++){ const int dt=(t - t0s[b] + Nt)%Nt; Asp[b][dt] += w_sp[il]*psi_sp[ISP(a,b)].dag(kphi); }
+            }
+          }
+          for(int b=0;b<n_t0;b++){ const std::string kp=hp+"t0_"+std::to_string(b)+"/"; write_corr(h5, kp+"axial/sp/Apm", Asp[b]); }
+        }
+      }
 
       const double secs = std::chrono::duration<double>(std::chrono::steady_clock::now()-t_hit0).count();
       std::cout << "#   hit "<<(h+1)<<" done (tp+ylm vector) ["<<secs<<" s]" << std::endl;
