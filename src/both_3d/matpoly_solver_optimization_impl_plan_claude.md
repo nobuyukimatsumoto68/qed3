@@ -1,5 +1,11 @@
 # MatPoly solver optimization -- impl plan (device-scalar CG + multi-RHS)
 
+> **SUPERSEDED (2026-06-05).** This plan's M1 (device-scalar CG) was implemented then REVERTED
+> (it can't help the inner-pole-dominated outer solve). The work pivoted to INNER-POLE MULTI-SHIFT
+> CG, now done + validated (4.36x end-to-end). **Canonical plan:
+> `inner_pole_batched_solve_impl_plan_claude.md`.** M2 (multi-RHS) lives on there as C6 (multi-RHS
+> layered on the multi-shift seed, jj spatial-site sink loop). Kept only for history.
+
 ## Goal
 
 Speed up the overlap CG solves (the dominant cost of the JJ / HMC code) by removing the two

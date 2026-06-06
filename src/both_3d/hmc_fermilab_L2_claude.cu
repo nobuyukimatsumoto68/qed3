@@ -111,7 +111,8 @@ using CuC = cuDoubleComplex;
 
 // ======================================
 
-#include "sparse_matrix.h"
+// #include "sparse_matrix.h"             // _ms: multishift copy below
+#include "sparse_matrix_claude.h"
 
 #include "dirac_simp.h"
 // #include "dirac_dual.h"
@@ -121,8 +122,10 @@ using CuC = cuDoubleComplex;
 // #include "matpoly.h"
 #include "matpoly_claude.h"
 // #include "dirac_pf.h"
-#include "overlap.h"
-#include "pseudofermion.h"
+// #include "overlap.h"                    // _ms: OverlapWMass copy below
+#include "overlap_wmass_claude.h"
+// #include "pseudofermion.h"              // _ms: multishift copy below
+#include "pseudofermion_claude.h"
 
 # include "integrator.h"
 #include "hmc.h"
@@ -183,7 +186,8 @@ int main(int argc, char* argv[]){
 #ifdef IS_OVERLAP
   const double r = 1.0;
   const double M5 = -1.0; // -1.6/2.0 * 0.5*(1.0 + std::sqrt( 5.0 + 2.0*std::sqrt(2.0) ));
-  using Fermion=Overlap<WilsonDirac>;
+  // using Fermion=Overlap<WilsonDirac>;             // _ms: OverlapWMass below
+  using Fermion=OverlapWMass<WilsonDirac>;           // massless (mass=0), enables _ms solver
 #else
   const double r = 1.0;
   const double M5 = 0.0;
@@ -207,7 +211,9 @@ int main(int argc, char* argv[]){
 
   // HERE
 #ifdef IS_OVERLAP
-  Fermion D(DW, 21); // 31
+  const Complex mass = Complex(0.0, 0.0); // massless
+  // Fermion D(DW, 21); // 31                         // _ms: OverlapWMass ctor below
+  Fermion D(DW, mass, 21);
   std::cout << "# Dov set; M5 = " << M5 << std::endl;
   D.update(U);
   std::cout << "# min max ratio: "
@@ -279,9 +285,10 @@ int main(int argc, char* argv[]){
   const double tmax = 1.9; // 0.1
   int nsteps;
   // 2026-06-02 15:03: bumped +3 (Nf=2: 4->7, Nf=4,6: 5->8) to reduce discretization error after Nf=4,6 runs stuck at 100% rejection
-  if(Nf==2) nsteps = 7;
-  else if(Nf==4) nsteps = 8;
-  else if(Nf==6) nsteps = 8;
+  // 2026-06-04 10:42: bumped to 2x the original (Nf=2: 4->8, Nf=4,6: 5->10) to reduce discretization error after Nf=4,6 runs stuck at 100% rejection
+  if(Nf==2) nsteps = 8;
+  else if(Nf==4) nsteps = 10;
+  else if(Nf==6) nsteps = 10;
   else nsteps = 10;
   std::cout << "# tmax = " << tmax << std::endl
             << "# nsteps = " << nsteps << std::endl;

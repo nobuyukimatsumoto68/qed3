@@ -217,9 +217,11 @@ int main(int argc, char* argv[]){
   Force pi( base );
   const double tmax = 1.9;
   int nsteps;
-  if(Nf==2) nsteps = 4;
-  else if(Nf==4) nsteps = 5;
-  else if(Nf==6) nsteps = 5;
+  // 2026-06-02 15:03: bumped +3 (Nf=2: 4->7, Nf=4,6: 5->8) to reduce discretization error after Nf=4,6 runs stuck at 100% rejection
+  // 2026-06-04 10:42: bumped to 2x the original (Nf=2: 4->8, Nf=4,6: 5->10) to reduce discretization error after Nf=4,6 runs stuck at 100% rejection
+  if(Nf==2) nsteps = 8;
+  else if(Nf==4) nsteps = 10;
+  else if(Nf==6) nsteps = 10;
   else nsteps = 10;
   // if( mass.imag()>0.00001 ) nsteps *= 2.0;
   std::cout << "# tmax = " << tmax << std::endl

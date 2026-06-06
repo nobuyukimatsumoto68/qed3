@@ -1,5 +1,30 @@
 # Inner pole-solve batching -- impl plan (multi-shift / block CG over the Zolotarev poles)
 
+**Reference (algorithm):** B. Jegerlehner, "Krylov space solvers for shifted linear systems",
+hep-lat/9612014 -- the multi-shift CG used throughout this plan.
+
+## BUGFIX -- freeze-converged (HMC NaN, 2026-06-05)
+
+Running multi-shift inside HMC (massless `OverlapWMass`, `hmc_claude.cu`/`hmc_claude_debug.cu`,
+free field) NaN'd at the first solve. **Root cause:** the `zeta` recurrence hits `0/0 = NaN` for
+*converged* shifts -- the fast LARGEST-shift pole converges first, `zeta_m -> 0`, and
+`zeta_new = (zeta*zeta_old*al_old)/denom` underflows to 0/0 while the slow seed keeps iterating; the
+NaN `Z_m` poisons the reduction `sum A[m] Z_m` -> overlap output -> outer `dot2self` NaN. Intermittent;
+the pole-loop is immune (no shared `zeta`). Not the pole count (n=11 and n=21 both), not the class
+swap, not tolerance, not the lambda-escape print (benign, gives correct 1.154/10.82).
+
+**Fix (in `matpoly_claude.h::solve_multishift`, SHARED header -> protects jj too):** FREEZE-CONVERGED.
+`std::vector<char> frozen(npole)`; when `zeta[m]^2 * mu < mu_crit` the shift's residual is below tol ->
+`frozen[m]=1`; frozen shifts skip the recurrence (`alm=0`, `zeta_new=0`) and the p-update (`betm=0`),
+so `x_m` is kept at ~`TOL_INNER` and `zeta_m` never reaches the 0/0 underflow. The seed (`zeta=1`) is
+never frozen early. Confirmed: no nan/assert/breakdown over 316 outer / 196 inner solves.
+
+Diagnostic infra added (DEBUG): the `gam` breakdown guard now `assert(false)` (hard fail) + an
+`IsVerbose2` per-shift true-residual/`||Z_m||` dump (at breakdown and end-of-loop). NOTE the
+`assert(false)` is in the shared header (affects production) -- decide keep-loud-fail vs revert to
+`break`. Side effect: fast poles now stop at ~1e-9 (not over-converged ~1e-11), so re-run
+`test_overlap_multishift`/`test_mrhs` to confirm they still PASS (< 1e-6).
+
 ## Status
 
 - M1 (device-scalar CG in `matpoly_claude.h`) was **reverted** (git restore; `gpu_header_claude.h`
@@ -174,10 +199,14 @@ Scales the right way: $n_\text{sites}=10L^2+2$ = 12 at $L{=}1$, 42 at $L{=}2$ --
 when the lattice is more expensive.
 
 Combined object: `nrhs` seeds $\times$ `npole` shifts; per-`(rhs,pole)` scalar arrays; seed matvec
-over $N\times$nrhs (column-major); per-seed convergence (iterate-to-slowest in v1, freeze-converged
-deferred). `solve_multishift` threads an `nrhs` arg; `multishift_x_update`/`_p_update` already block
-over $N\times$npole -> extend to $N\times$nrhs$\times$npole. DO AFTER C4b/C5; Nsight the seed matvec
+over $N\times$nstack (column-major); per-seed convergence (iterate-to-slowest in v1, freeze-converged
+deferred). `solve_multishift` threads an `nstack` arg; `multishift_x_update`/`_p_update` already block
+over $N\times$npole -> extend to $N\times$nstack$\times$npole. DO AFTER C4b/C5; Nsight the seed matvec
 first to size the headroom (gain stacks on the 4.36x but is bounded by that matvec's occupancy slack).
+**FULL DESIGN (canonical): `mrhs_multishift_impl_plan_claude.md` -- STATUS: PARKED.** Decided not to
+build: ~1.1-1.5x expected gain vs a large bug-prone `_block` refactor; multi-shift's 4.36x already
+stands. Revisit only if L=2/A100 widens the occupancy gap or a profile shows big headroom. Locked
+decisions retained (specialized two-CSR seed, shared worst-column stop, `nstack` runtime, adaptive grid).
 
 ## Future work -- conserved-current kernel (GATED on D_ov verification)
 
@@ -194,10 +223,25 @@ directly replaceable by `solve_multishift` exactly as in the overlap mult/adj:
   single-Krylov multi-shift. Candidate for batched-independent block CG (Option B) for occupancy
   only; leave as-is for now.
 
-DO THIS LATER, only AFTER the D_ov multi-shift (C3/C4) is verified correct and the call sites are
-switched (C3b). The three same-RHS loops reuse `solve_multishift` + the existing `A[m]`-weighted
-block reduction verbatim; they need their own `d_Zblock`-style buffers (the kernel already keeps
-`d_Zs[]`, mirror the overlap pattern). This is a separate chunk (call it C5) once C1-C4 land.
+**C5 IMPLEMENTED (side-by-side, pending user compile).** `conserved_current_claude.h`: added member
+`d_Zblock` (N*(size-1); alloc ctor / free dtor) and side-by-side methods `apply_k_ms` /
+`apply_k_dag_ms` (originals UNTOUCHED). Each same-RHS loop -> ONE `solve_multishift` over the seed
+`{&D.M_DW,&D.M_DWH}`/lambda_max^2 with shifts `-k^2/cp[m]`:
+- `apply_k_ms` Step 1 (RHS `d_xi`) -> multishift into `d_Zblock`, COPY OUT to `d_Zs[1..]` so the
+  reduction + Term B are byte-identical to `apply_k`. Term B (m-dependent RHS) unchanged.
+- `apply_k_dag_ms` Step 1 (RHS `X^dag xi` in `d_tmp1`) -> multishift, copy out to `d_Zs[1..]` (=Y_m).
+  Term A^dag (RHS `w0=d_Zs[0]`) -> multishift, reduce `d_result += C*A[m]*d_Zblock[m-1]` directly
+  (no copy-out). Term B^dag (m-dependent RHS r_m) unchanged. `d_Zblock` reused across the two
+  multishift passes (Y_m already copied to `d_Zs[]` before the 2nd pass).
+Driver `test_conserved_multishift_claude.cu`: temporal link el={0,0}, free field, diffs `apply_k` vs
+`apply_k_ms` and `apply_k_dag` vs `apply_k_dag_ms` (expect rel < 1e-6) + loop/ms timing.
+**C5 VALIDATED (PASS):** test_conserved_multishift_claude.cu -- K rel `1.3e-10` (1.34x), K^dag rel
+`5.2e-10` (2.19x) vs the pole-loop originals (partial speedup: Term B/B^dag + COO matvecs aren't
+multi-shift). **C5b DONE:** `operator()` dispatch (`:83`) switched to `apply_k*_ms` (old lines
+commented) -> jj/meson/disc/sp/axial `op_K` now multi-shift; `check_conserved_current*_claude.cu`
+call `apply_k`/`apply_k_dag` DIRECTLY (not via `operator()`) so they still validate the ORIGINAL
+reference -- unaffected. Originals kept (not retired).
+NOTE (line refs above are pre-C5-edit; apply_k_ms@:297, apply_k_dag_ms@:358 after the edit).
 
 ## Decisions (locked)
 

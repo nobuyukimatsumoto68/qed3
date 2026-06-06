@@ -483,6 +483,10 @@ struct OverlapWMass : public Zolotarev {
 
   template<typename Gauge>
   void precalc_grad_deviceAsyncLaunch( const Gauge& U, const CuC* d_eta ) {
+#ifdef FORCE_MULTISHIFT
+    precalc_grad_deviceAsyncLaunch_ms(U, d_eta);   // multishift force; toggle = FORCE_MULTISHIFT (def'd in the .cu)
+    return;
+#endif
     {
       MatPoly XH;
       XH.push_back ( cplx(1.0/(lambda_max)), {&M_DWH} );
@@ -503,6 +507,33 @@ struct OverlapWMass : public Zolotarev {
       Op.solveAsync<N>( d_Ys[m], d_Ys[0], Comp::TOL_INNER );
       CUDA_CHECK(cudaStreamSynchronize(stream[istream]));
     }
+
+    is_precalc = true;
+    CUDA_CHECK(cudaDeviceSynchronize());
+  }
+
+  // multishift force precompute (C-force): the two SAME-RHS pole loops of precalc_grad
+  // (RHS d_eta and RHS d_Ys[0]) each become ONE solve_multishift pass over the seed
+  // A=(1/lambda_max^2) D_W^dag D_W with shifts -k^2/cp[m]; results copied into
+  // d_Zs[1..]/d_Ys[1..] so grad_deviceAsyncLaunch is byte-identical. Reuses d_Zblock/d_Yblock.
+  template<typename Gauge>
+  void precalc_grad_deviceAsyncLaunch_ms( const Gauge& U, const CuC* d_eta ) {
+    {
+      MatPoly XH;
+      XH.push_back ( cplx(1.0/(lambda_max)), {&M_DWH} );
+      XH.on_gpu<N>(d_Ys[0], d_eta);                  // d_Ys[0] = (1/lambda_max) D_W^dag eta
+    }
+
+    MatPoly Aseed;
+    Aseed.push_back ( cplx(1.0/(lambda_max*lambda_max)), {&M_DW, &M_DWH} );
+    std::vector<double> sigma(size-1);
+    for(int m=1; m<size; m++) sigma[m-1] = -k*k/cp[m];
+
+    Aseed.solve_multishift<N>( d_Zblock, d_eta,   sigma.data(), size-1, Comp::TOL_INNER ); // Z_m = R_m eta
+    for(int m=1; m<size; m++) CUDA_CHECK(cudaMemcpy(d_Zs[m], d_Zblock + (size_t)(m-1)*N, N*CD, D2D));
+
+    Aseed.solve_multishift<N>( d_Yblock, d_Ys[0], sigma.data(), size-1, Comp::TOL_INNER ); // Y_m = R_m (X^dag eta)
+    for(int m=1; m<size; m++) CUDA_CHECK(cudaMemcpy(d_Ys[m], d_Yblock + (size_t)(m-1)*N, N*CD, D2D));
 
     is_precalc = true;
     CUDA_CHECK(cudaDeviceSynchronize());

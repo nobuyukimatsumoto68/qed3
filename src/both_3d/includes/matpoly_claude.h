@@ -391,6 +391,10 @@ struct MatPoly{
     std::vector<double> zeta(npole,1.0), zeta_old(npole,1.0);
     std::vector<double> alm(npole), zeta_new(npole), betm(npole);
     double al_old=1.0, bet_old=0.0;   // al_{-1}=1, bet_{-1}=0
+    // freeze-converged: once a shift's residual zeta_m^2 * mu < mu_crit it is CONVERGED.
+    // Freeze it (stop updating zeta_m/x_m/p_m) so the recurrence never drives zeta_m -> 0,
+    // which underflows to 0/0 = NaN for the fast large-shift poles (the bug we diagnosed).
+    std::vector<char> frozen(npole, 0);
 
     // zero RHS guard (cf. solve()): X stays 0 when ||b||=0.
     if(abs(b_norm_sq) < 1.0e-14 || mu<mu_crit){
@@ -405,10 +409,38 @@ struct MatPoly{
         this->on_gpu<N>(d_q, d_p0);
         Taxpy<CuC,N><<<NBlocks, NThreadsPerBlock>>>(d_q, cplx(sig0), d_p0, d_q);
         CuC gam; dot<N>(&gam, d_p0, d_q);     // host-pointer dot => blocks (sync point)
-        const double al = mu/real(gam);
+        // BREAKDOWN GUARD: the seed curvature <p0|A p0> is > 0 for SPD A+sigma_s; roundoff
+        // drives it to <=0 only when the orthogonal search direction collapses (seed at its
+        // residual floor). Per request this is a HARD FAILURE (core dump), not a silent
+        // return -- dump the per-shift state at the breakdown moment, then assert(false).
+        const double gam_re = real(gam);
+        if(!(gam_re > 0.0) || !std::isfinite(gam_re) || !std::isfinite(mu)){
+          std::clog << "MULTISHIFT BREAKDOWN at iter " << k
+                    << ": gam = " << gam_re << ", mu = " << mu << std::endl;
+#ifdef IsVerbose2
+          { const double bnorm = std::sqrt(b_norm_sq);
+            for(int m=0; m<npole; m++){
+              this->on_gpu<N>(d_q, d_X + (size_t)m*N);                                              // A Z_m
+              Taxpy<CuC,N><<<NBlocks,NThreadsPerBlock>>>(d_q, cplx(sigma[m]), d_X+(size_t)m*N, d_q); // + sigma_m Z_m
+              Taxpy<CuC,N><<<NBlocks,NThreadsPerBlock>>>(d_q, cplx(-1.0), d_b, d_q);                 // - b
+              double rn=0.0, zn=0.0;
+              CUBLAS_CHECK( cublasDznrm2(handle, N, d_q, 1, &rn) );
+              CUBLAS_CHECK( cublasDznrm2(handle, N, d_X + (size_t)m*N, 1, &zn) );
+              std::clog << "MULTISHIFT-CHK(breakdown): m=" << m << " sigma=" << sigma[m]
+                        << " true_resid=" << (bnorm>0.0 ? rn/bnorm : rn)
+                        << " ||Z_m||=" << zn << std::endl;
+            } }
+#endif
+          assert(false);   // core dump on breakdown (asserts are ON in this project)
+        }
+        const double al = mu/gam_re;
 
-        // host zeta recurrence + al_m (uses al and the previous al_old/bet_old)
+        // host zeta recurrence + al_m (uses al and the previous al_old/bet_old).
+        // Freeze a shift once its residual zeta_m^2 * mu falls below mu_crit: its x_m is
+        // already converged, and continuing would drive zeta_m -> 0 -> 0/0 = NaN.
         for(int m=0;m<npole;m++){
+          if(!frozen[m] && zeta[m]*zeta[m]*mu < mu_crit) frozen[m]=1;
+          if(frozen[m]){ alm[m]=0.0; zeta_new[m]=0.0; continue; }  // no x update; zeta_m -> 0
           const double denom = al*bet_old*(zeta_old[m]-zeta[m])
                              + zeta_old[m]*al_old*(1.0 + hat[m]*al);
           zeta_new[m] = (zeta[m]*zeta_old[m]*al_old)/denom;
@@ -423,8 +455,12 @@ struct MatPoly{
         if(mu_new<mu_crit || std::isnan(mu_new)) break;   // X_m already updated this iter => final
         const double bet = mu_new/mu;
 
-        // host bet_m; p_m = zeta_new r + bet_m p_m; seed p0 = r + bet p0
-        for(int m=0;m<npole;m++){ const double ratio=zeta_new[m]/zeta[m]; betm[m]=bet*ratio*ratio; }
+        // host bet_m; p_m = zeta_new r + bet_m p_m; seed p0 = r + bet p0.
+        // Frozen shifts: zeta_new[m]=0 (above) and bet_m=0 => p_m zeroed (unused), no recurrence.
+        for(int m=0;m<npole;m++){
+          if(frozen[m]){ betm[m]=0.0; continue; }
+          const double ratio=zeta_new[m]/zeta[m]; betm[m]=bet*ratio*ratio;
+        }
         CUDA_CHECK(cudaMemcpy(d_zeta, zeta_new.data(), npole*sizeof(double), H2D)); // sync
         CUDA_CHECK(cudaMemcpy(d_betm, betm.data(),     npole*sizeof(double), H2D)); // sync
         multishift_p_update<N><<<nb_blk, NThreadsPerBlock>>>(d_pm, d_zeta, d_r, d_betm, npole);
@@ -441,6 +477,27 @@ struct MatPoly{
       std::clog << "MULTISHIFT:   #iter (final): " << k << ", mu = " << mu << std::endl;
 #endif
     }
+
+#ifdef IsVerbose2
+    {
+      // DEBUG: per-shift TRUE residual ||(A+sigma_m) Z_m - b||/||b|| and ||Z_m||, to detect
+      // shifted-solution DRIFT/overflow despite seed convergence (the multi-shift weakness:
+      // fast poles get over-corrected by the zeta recurrence while the slow seed grinds on).
+      // Costs npole extra matvecs -- verbose-only. d_q is reused as scratch (freed below).
+      const double bnorm = std::sqrt(b_norm_sq);
+      for(int m=0; m<npole; m++){
+        this->on_gpu<N>(d_q, d_X + (size_t)m*N);                                              // A Z_m
+        Taxpy<CuC,N><<<NBlocks,NThreadsPerBlock>>>(d_q, cplx(sigma[m]), d_X+(size_t)m*N, d_q); // + sigma_m Z_m
+        Taxpy<CuC,N><<<NBlocks,NThreadsPerBlock>>>(d_q, cplx(-1.0), d_b, d_q);                 // - b
+        double rn=0.0, zn=0.0;
+        CUBLAS_CHECK( cublasDznrm2(handle, N, d_q, 1, &rn) );
+        CUBLAS_CHECK( cublasDznrm2(handle, N, d_X + (size_t)m*N, 1, &zn) );
+        std::clog << "MULTISHIFT-CHK: m=" << m << " sigma=" << sigma[m]
+                  << " true_resid=" << (bnorm>0.0 ? rn/bnorm : rn)
+                  << " ||Z_m||=" << zn << std::endl;
+      }
+    }
+#endif
 
     CUDA_CHECK(cudaFree(d_p0)); CUDA_CHECK(cudaFree(d_q));
     CUDA_CHECK(cudaFree(d_r));  CUDA_CHECK(cudaFree(d_pm));

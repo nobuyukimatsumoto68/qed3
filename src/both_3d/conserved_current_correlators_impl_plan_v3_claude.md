@@ -154,11 +154,16 @@ stay symbol-for-symbol consistent with this plan:
 
 1. **No raw `CuC*`.** The kernel $K$ is the `LinOp` `ConservedCurrent<Fermion,Gauge> kop`; apply it
    only through `MatPoly op_K; op_K.from_cpu<N>(out.field, in.field)` after `kop.set_temporal`/
-   `set_spatial`. All buffers are host `FermionVector`s.
-2. **Uniform operator set (Sec. 2.1).** Build the three Fermions **by value, unconditionally**
-   (`Fermion D` massless, `Fermion Dm`, `Fermion Dtil` with $\tilde m=m/(1-m)$), `Dm.update`/
-   `Dtil.update` each config. For each used overlap $X$ build `op_X`/`op_XH`/`op_Xsq`
-   (`X.mult`/`adj`/`DDH`). Solve rule: $X^{-1}b$ = `op_XH`+`op_Xsq`; $X^{-\dagger}b$ = `op_X`+`op_Xsq`.
+   `set_spatial`. All buffers are host `FermionVector`s.  **The kernel is automatically the
+   multishift `apply_k_ms`/`apply_k_dag_ms`** -- `ConservedCurrent::operator()` (the path
+   `op_K.from_cpu` runs) dispatches to the `_ms` kernels for both temporal and spatial links
+   (`conserved_current_claude.h:91-98`; constructor allocates `d_Zblock`, signature unchanged).
+   So any program following this pattern inherits the fast K with no call-site change.
+2. **Uniform operator set (Sec. 2.1), bound to the `_ms` overlaps.** Build the three Fermions
+   **by value, unconditionally** (`Fermion D` massless, `Fermion Dm`, `Fermion Dtil` with
+   $\tilde m=m/(1-m)$), `Dm.update`/`Dtil.update` each config. For each used overlap $X$ build
+   `op_X`/`op_XH`/`op_Xsq` bound to `X.mult_/adj_/DDH_deviceAsyncLaunch_ms` (multishift, ~4x).
+   Solve rule: $X^{-1}b$ = `op_XH`+`op_Xsq`; $X^{-\dagger}b$ = `op_X`+`op_Xsq`.
    (Vector leaves the massless `D` set commented; **axial UNCOMMENTS it** -- it is the prototype for
    the $(1-D_\text{ov})$/$(1-D_\text{ov}^\dagger)$ GW factors, which are always massless `op_D`/`op_DH`.)
 3. **fix-$0$/loop-$t$ estimator.** Solve the shared forward leg $\phi'$ once; loop insertion points
@@ -400,6 +405,197 @@ the new default for all subsequent programs.  (The multi-RHS batching of the $1+
 sink solves is a later pass by the solver agent; the code is structured so the insertion-point loop
 is the batching lever.)  `CL_sp = G_s = +C_j(D-1)e^{-\Delta t}(1-e^{-t})^{-2\Delta}>0` (Eq. 4.28),
 **opposite sign to tp** $G_t<0$ (Eq. 4.31) -- the sign cross-check.
+
+### 3.6 Spherical-harmonic (ylm) realization -- REPLAN: $m$-summed tower $G_\ell(t)$ (one solve per $\ell$)
+
+ylm is a **temporal** projection (Eq. 4.36) that folds the real $Y_{\ell m}$ over **all** sites at **both**
+currents -> in general a **matrix** $G^t_{(\ell_1 m_1),(\ell_2 m_2)}(t)$.  **REPLAN (user, supersedes the
+full $n_c\times n_c$ matrix below):** the correlator is **diagonal in $(m_1,m_2)$** (and in $\ell$), so keep
+only $\ell_1=\ell_2=\ell$ and **sum both $m_1,m_2$ over the full range** $-\ell\le m_1,m_2\le\ell$.  Output is
+a **tower** $G_\ell(t)$, $\ell=0,1,2$ ($n_\ell=\ell_{\max}+1=3$; $\ell=0\approx0$ by charge conservation, a
+check).  $m$-resolved channels and off-diagonal $(\ell_1\neq\ell_2)$ pairs are dropped.
+
+**Why this is *cheap* -- pre-sum the sources, one inversion per $\ell$ (not per $(\ell,m)$).**  Because the
+inner product is bilinear and the inversion is linear, the double $m$-sum collapses *before* the solve:
+$$
+G_\ell(t)=\sum_{m_1=-\ell}^{\ell}\sum_{m_2=-\ell}^{\ell} G^t_{(\ell m_1),(\ell m_2)}(t)
+        =\Big(\sum_{m_1}\psi_{(\ell m_1)}\Big)^{\!\dagger}\Big(\sum_{m_2}\Phi_{(\ell m_2)}\Big)
+        =\Psi_\ell^{\dagger}\,\bar\Phi_\ell .
+$$
+The source leg sums **inside** the inverse: with the **combined real weight**
+$$
+W_\ell(n)=\sum_{m=-\ell}^{\ell} w^{(\ell m)}_n
+         =\frac{A_n}{\kappa^{(0)}_{t,t+1}(n)}\sum_{m=-\ell}^{\ell} Y_{\ell m}(\hat n),
+\qquad
+\text{SRC}_\ell=\sum_n W_\ell(n)\,K^\dagger(n,t_0)\eta,\quad \Psi_\ell=D_m^{-\dagger}\,\text{SRC}_\ell ,
+$$
+so there is **one solve per $\ell$**, not one per $(\ell,m)$.  The sink leg uses the same $W_\ell(n)$:
+$\bar\Phi_\ell(t)=\sum_n W_\ell(n)\,K(n,t)\phi'$ (no solve).  *(The pre-summed estimator computes the FULL
+double sum incl. off-diagonal $m_1\neq m_2$; since those vanish in expectation it is an **unbiased**
+estimator of the diagonal trace $\sum_m G_{(\ell m)(\ell m)}$, carrying only extra off-diagonal noise -- the
+price for collapsing $2\ell+1$ solves to one.  User accepts this given the known $m$-diagonality.)*
+
+Per-channel weight (real scalar, $\kappa$ to the **first** power, Eq. 4.36 -- not $\kappa^2$ as in tp):
+$$
+w^{(\ell m)}_n=\frac{A_n\,Y_{\ell m}(\hat n)}{\kappa^{(0)}_{t,t+1}(n)}
+  =\texttt{base.dual\_areas[n]}\cdot\texttt{Ylm\_real(l,m,base.sites[n])}/\texttt{DW.kappa\_t[n]}.
+$$
+($Y_{\ell m}$ = the real harmonic via the free `Ylm_real(l,m,VE)` of `valence_claude.h:20`; **not**
+`FermionVector::mult_Ylm_real`, which weights a vector by its *own* field-site -- wrong here because the
+overlap kernel spreads, so the sum must weight each per-site kernel vector by its **current-site** scalar.)
+Precompute $W_\ell(n)=\sum_m w^{(\ell m)}_n$ once (real, per $\ell$, per site).
+
+$(++)$ estimator (Sec. 2.2 op-set + `op_K`; $n_\ell=3$ towers):
+- $\phi'=D_m^{-1}\eta$ -- **shared with the disc loop**: the disconnected single-current trace
+  inevitably computes $\phi'=D_m^{-1}\eta$ for each hit, so in the unified file **store it and reuse** here
+  (no extra solve charged to the connected ylm).
+- **Source (one inversion per $\ell$):** loop sites $n$, `kop.set_temporal(U,t0,n,dag=true);
+  op_K.from_cpu(rho,eta)` $[=K^\dagger(n,t_0)\eta]$, then **accumulate** `srcL[l].field[i] +=
+  W_ell[l][n]*rho.field[i]` for all $\ell$ (host axpy). Then per $\ell$: $\Psi_\ell=D_m^{-\dagger}\,$`srcL[l]`
+  (`op_Dm`+`op_Dmsq`). -> $n_\ell$ inversions per (hit,$t_0$).
+- **Loop $dt$:** zero `PhiL[*]`; loop $n$, `kop.set_temporal(U,(t0+dt)%Nt,n,dag=false);
+  op_K.from_cpu(kphi,phi)` $[=K(n,t)\phi']$, accumulate `PhiL[l].field[i] += W_ell[l][n]*kphi.field[i]`.
+  Then $G^{++}_\ell(dt)\mathrel{+}=\frac1{4\pi}\Psi_\ell^\dagger\,$`PhiL[l]` (one inner product per $\ell$).
+
+$(--)$ = operator-adjoint mirror of $(++)$ (Sec. 3.2): massless/$m_F$ -> $G^{--}_\ell=\overline{G^{++}_\ell}$
+(real weights preserve it); parity ($m_P$) -> $D_m\to\tilde D_{m_P}$, RHS-formers/kernels adjointed,
+an independent computation.
+
+**Solve count (per config, $n_\ell=3$):** source solves $=n_\text{hits}\,n_\ell\,n_{t_0}$ (massless/$m_F$;
+$\times2$ for parity), **plus** the shared $\phi'$ (1/hit, charged to disc).  E.g. `--nhits 4`, `n_t0=2`:
+$4\cdot3\cdot2=24$ source solves (vs 76 in the old per-$(\ell,m)$ scheme; $\phi'$ now free).
+
+**Storage** (n_t0 scheme, Sec. 3.7): per-$\ell$ length-$N_t$ vectors under
+`h{h}/t0_{b}/Vpp/l{l}/{real,imag}` (and `Vmm`), $\ell=0,1,2$, + top-level `ls` (the $\ell$ list).  Channel
+vectors held in `std::array<FermionVector,n_ell>` (no `std::vector` push_back -- no safe copy ctor).
+
+**STATUS:** **DONE** in standalone `jj_conn_ylmproj_claude.cu` -- restructured from the full $n_c\times n_c$
+matrix to the $m$-summed tower (one solve per $\ell$; combined weight `W_ell[l][n]`; `std::array<FermionVector,
+n_ell>` `srcL`/`psiL`/`PhiL`; keys `h{h}/t0_{b}/Vpp|Vmm/l{l}/{real,imag}`, top-level `ls`).  Read-only
+"last key = `Vmm/l{ls.back()}/imag`" skip.  To be **ported into the unified file** (Sec. 3.8) next.  Notebook
+ylm loaders -> update to the tower format.
+
+### 3.7 Source origins `n_t0` + per-(hit,t0) storage -- ALL connected programs (tp/sp/ylm, vector+axial)
+
+**DONE** in all 5 connected `.cu` (tp/sp vector+axial, ylm vector) + notebook + `run_jj_analysis_claude.sh`
+(NOT compiled by Claude).  **Supersedes the earlier `tmax`/block-averaging design** (which windowed the
+output to $|dt|\le t_{\max}$ and averaged origins in-program).  New scheme: **`n_t0` evenly-spaced source
+origins, full `dt`, store every (hit, $t_0$) separately, average + jackknife downstream.**  Replaces `tmax`
+everywhere.
+
+- **CLI `--n-t0 N`** (default 2 -- the old `tmax=Nt/4` gave $nblock=2$).  `assert(Nt % n_t0 == 0)`;
+  origins **`t0 = b*(Nt/n_t0)`**, $b=0..n_t0-1$ ($n_t0{=}2\Rightarrow t_0=0,64$ at $N_t{=}128$).
+- $\phi'=D^{-1}\eta$ **shared** (per hit).  Per origin $b$: source leg $\psi_b=D^{-\dagger}K^\dagger(t_0)\eta$
+  (per insertion point / channel); **full** separation loop $dt=0..N_t{-}1$, sink
+  $t_\text{sink}=(t_0+dt)\bmod N_t$, $C_b[dt]\mathrel{+}=w\,\psi_b^\dagger K(t_\text{sink})\phi'$.
+  **No in-program averaging** over $h$ or $t_0$ -- each $C_b[dt]$ ($\times 1/4\pi$) is stored raw.
+- Source solves $=n_t0\cdot n_\text{ins}$ per hit (unchanged from blocks); applies $=n_t0\cdot n_\text{ins}\cdot N_t$
+  (full $dt$, up from the window).  Same `_ms` kernel + op-set.
+
+**Output -- ONE file per config** `conn.<k>.h5` (hit no longer in the filename; resume skips a config whose
+file exists).  Dir **`data_<ESNID>/<proj>_<current>_nt0<N>_nhits<H>/`**.  Key ordering is **hit/t0 first,
+then channel** (per user instruction `/hit/t0/.../real`), each a length-$N_t$ dataset:
+- vector: `h{h}/t0_{b}/Vpp/{real,imag}`, `h{h}/t0_{b}/Vmm/{real,imag}`.
+- axial: `h{h}/t0_{b}/Apm/{real,imag}`.
+- ylm: `h{h}/t0_{b}/Vpp/l{l1}/m{m1}/l{l2}/m{m2}/{real,imag}` (and `Vmm`) -- full $(l,m)$ slashes in the key.
+- top-level: `t0s`, `n_t0`, `nhits` (and `ls`/`ms` for ylm).  *(ylm $\times$ nhits $\times$ n_t0 $\times nc^2$
+  keys is large; fall back to one `(nc*nc,Nt)` dataset per $(h,t_0)$ if h5 I/O is slow.)*
+
+**Notebook (DONE)**: loaders glob `conn.*.h5`, enumerate all `h*/t0_*` groups via `list_ht0`, **average over
+$h$ and $t_0$ per config** (one row per config), then **jackknife the config-indexed dataset**.  Completeness
+= file declares `nhits`/`n_t0` and has exactly $nhits\cdot n_t0$ complete groups.  **Caveat:** the free-field
+check is a single config -> averaging over hits collapses it to ONE sample (no jackknife error); for free-field
+error bars, load the raw per-$(h,t_0)$ keys as the samples instead (the storage supports either grouping).
+
+**Reference (user-flagged, relevant to this block-averaging / source handling):**
+[arXiv:0804.1501](https://arxiv.org/abs/0804.1501) -- read before finalizing.
+
+---
+
+### 3.8 Unified single-file program `jj_conn_correlators_claude.cu` -- IN PROGRESS (CONNECTED-only)
+
+**Goal (user, revised):** disc is treated **SEPARATELY** (standalone `jj_disc_claude.cu` -- DONE, projected
+single-current $J$ dump, vector only) because the solve-sharing analysis below shows disc and connected share
+nothing but $\phi'$ and the sink applies.  The unified file is therefore **CONNECTED-only**: tp/sp/ylm
+(vector + axial) in one program, sharing $\phi'=D_m^{-1}\eta$ and the temporal sink pass $K(n,t)\phi'$ across
+tp and ylm.  **Since tp/sp/axial connected already exist as working standalone `jj_conn_*` files, the
+substantive NEW code is the ylm $m$-summed tower (Sec. 3.6); tp/sp/axial are ports.**  Standalone
+`jj_conn_*` kept (user: not deleted even after unification).
+
+**The unification lever (within the connected piece).**  conn-tp and conn-ylm **both** evaluate
+$K(n,t)\phi'$ with the *same* $\phi'=D_m^{-1}\eta$, so one temporal pass feeds both:
+$$
+T(a,t)=\eta^\dagger\,[K(a,t)\phi'] \quad(\text{disc, apply-only}),\qquad
+C_b(a,dt)\mathrel{+}=w_a\,\psi_a(t_{0,b})^\dagger\,[K(a,t)\phi'] \quad(\text{conn, }t=t_{0,b}+dt).
+$$
+So **one** insertion-loop computing $K(a,t)\phi'$ for all $(a,t)$ feeds disc, connected-tp, and connected-ylm
+at once.  Only the connected **source** legs $\psi_a(t_0)=D_m^{-\dagger}K^\dagger(a,t_0)\eta$ cost solves.
+
+**Per-hit structure (vector; massless/$m_F$):**
+1. $\phi'=D_m^{-1}\eta$ -- ONE forward solve (`op_DmH`+`op_Dmsq`), shared everywhere.
+2. **Connected source solves** (the only solves besides $\phi'$), per origin $b$, $t_0=t_{0,b}$:
+   - tp: $\psi^{tp}_n(t_0)=D_m^{-\dagger}K^\dagger(n,t_0)\eta$ for all sites $n$ ($n_\text{sites}\,n_{t_0}$ solves).
+   - ylm: $\Psi_\ell(t_0)=D_m^{-\dagger}\sum_n W_\ell(n)K^\dagger(n,t_0)\eta$, $\ell=0..2$ ($n_\ell\,n_{t_0}$ solves;
+     **shares** the per-site $K^\dagger(n,t_0)\eta$ with tp's source build).
+   - sp: $\psi^{sp}_{l}(t_0)=D_m^{-\dagger}K^\dagger(l,t_0)\eta$ for all spatial links $l$ ($n_\text{links}\,n_{t_0}$).
+   Hold $\psi$ in `std::array`/`std::vector<FermionVector>` indexed by (insertion, $b$).
+3. **Unified temporal-insertion sink loop** (sites $n$, times $t=0..N_t{-}1$): `kop.set_temporal(U,t,n,false);
+   op_K.from_cpu(kphi,phi)` $[=K(n,t)\phi']$, then in the same pass:
+   - **disc-tp**: `Ttp[n][t] = eta.dag(kphi)`.
+   - **conn-tp** (insertion-diagonal): for $b$: `Cpp_tp[b][(t-t0b+Nt)%Nt] += w_tp[n]*psi_tp[n][b].dag(kphi)`.
+   - **conn-ylm** (insertion-summed): `PhiL[l].axpy(W_ell[l][n], kphi)` for $\ell$; after the site loop at fixed
+     $t$, for $b$: `Gpp_ylm[l][b][(t-t0b)%Nt] += Psi_ylm[l][b].dag(PhiL[l])`.
+4. **Spatial-insertion sink loop** (links $l$, times $t$): `kop.set_spatial(...)`, $K(l,t)\phi'$ once; feeds
+   **disc-sp** `Tsp[l][t]=eta.dag(kphi)` and **conn-sp** `Cpp_sp[b][dt]+=w_sp[il]*psi_sp[l][b].dag(kphi)`.
+5. **$(--)$ channels** = operator-adjoint mirror (Sec. 3.2): massless/$m_F$ $\Rightarrow$ conj of $(++)$ (and
+   $\tilde T=T^*$ for disc); parity $m_P$ $\Rightarrow$ independent $\tilde D_{m_P}$ legs ($K\leftrightarrow K^\dagger$).
+6. **Axial** (conn only, $C_{A+-}$): own GW factor $\chi=(1-D_{ov})\phi'$ and own
+   $K^\dagger(a,t)\chi$ applies (massless $D_{ov}$ legs in flavor case) -- same loop skeleton, separate buffers;
+   computed in a second insertion pass (vector and axial kernels differ: $K$ vs $K^\dagger$ on different legs).
+
+**Solves per config** (massless/$m_F$): $n_\text{hits}\big[\,1_{\phi'} + n_{t_0}(n_\text{sites}+n_\ell+n_\text{links})_\text{conn-V}
++ \text{axial source solves}\,\big]$.  Disc adds **zero** solves (apply-only, reuses $\phi'$ and the $K\phi'$ pass).
+
+**Solve-sharing analysis (disc $\leftrightarrow$ connected -- the sharing runs ONE way).**  A natural hope is
+that the disc solves can fund the connected legs.  They cannot, because the disc and connected invert
+*different right-hand sides*:
+- **Disc** (efficient = estimator-1) inverts $\eta$ ONCE: $T(n,t)=\eta^\dagger K(n,t)\phi'$, $\phi'=D_m^{-1}\eta$;
+  all $(n,t)$ follow by bare $K$-applies.  Disc never solves $D^{-1}K^\dagger(n,t_0)\eta$ -- that would be
+  estimator-2 ($\eta^\dagger D^{-1}K(n,t)\eta$, one solve **per** $(n,t)$), which is strictly *more* expensive and
+  is never used.  So there is **no pool of disc solves** to draw on -- disc = 1 solve/hit.
+- **Connected** inverts the *current-dressed* source $K^\dagger(n,t_0)\eta$:
+  $\psi_n(t_0)=D_m^{-\dagger}K^\dagger(n,t_0)\eta$.  Different RHS than $\eta$ $\Rightarrow$ a genuinely new solve
+  per $(n,t_0)$; irreducible (the second propagator is tied to a localized current at $t_0$).
+- **The one real identity** goes connected $\to$ disc, not the reverse:
+  $$T(n,t_0)=\psi_n(t_0)^\dagger\eta=\eta^\dagger K(n,t_0)D_m^{-1}\eta .$$
+  i.e. the connected legs (which we solve anyway) **hand the disc trace at the origins for free** -- but disc
+  needs $T(n,t)$ at **all** $t$, and those come from the apply-pass on $\phi'$ (already free).  So $\phi'$ (1) and
+  the connected legs ($n_\text{ins}n_{t_0}$) are **both** needed; the connected count stands.  Disc factorizes
+  (apply-only); connected ties two propagators (must solve).
+
+**Output** (n_t0 scheme, Sec. 3.7; ONE `corr.<k>.h5` per config).  **Skip via a `"complete"` sentinel
+dataset written LAST** (after every dataset) -- read-only open, `exist("complete")` $\Rightarrow$ skip, else
+recompute (robust as chunks add datasets; the user's read-only completeness requirement).
+- conn: `h{h}/t0_{b}/{tp,sp}/Vpp|Vmm/{real,imag}`, `…/ylm/Vpp/l{l}/{real,imag}`, `…/axial/{tp,sp}/Apm/{real,imag}`.
+- disc (**C2 DONE -- PROJECTED single-current** $J(t)=\sum w\,T(\cdot,t)$, RAW i.e. no $1/4\pi$; origin-agnostic
+  -> per hit, not per $t_0$): `h{h}/disc/tp/J/{real,imag}`, `h{h}/disc/sp/J/{real,imag}`,
+  `h{h}/disc/ylm/l{l}/J/{real,imag}` (length $N_t$ each); parity adds `…/Jtil/…` ($\tilde T$; massless/$m_F$
+  use $\tilde T=T^*$ downstream).  Disconnected correlator downstream $=\tfrac1{4\pi}\langle J(t_0)J(t_1)\rangle$;
+  with `nhits>1` pair DIFFERENT hits for the two factors to remove the same-hit connected bias (concern (a)).
+  *(Deviates from the old raw-per-insertion $T$ dump: projected is compact, notebook-friendly, and the temporal
+  pass feeds $J_{tp}$ and $J_\ell$ for free.  User flagged; revertible to raw if desired.)*
+- top-level `t0s`,`n_t0`,`nhits`,`ls`(=$\ell$ list).
+
+**Chunks** (chunked approval): (C1 DONE) scaffold; (C2 DONE then MOVED OUT) disc dump -> the disc code was
+extracted to the standalone **`jj_disc_claude.cu`** (projected $J$, vector only) and removed from the unified
+file once disc was decided separate; **(C3+C4 DONE)** unified VECTOR temporal pass -- conn-tp + conn-ylm
+$m$-summed tower in ONE shared `kphi=K(n,t)phi'` pass (computed once per $(n,t)$, fed to tp per $(n,b)$ and to
+ylm via `PhiL[l]` accumulation), $(++)$/$(--)$ with parity tilde mirror; source legs held in
+`std::vector<FermionVector>` (needed a **move ctor added to `FermionVector`**, `valence_claude.h`); keys
+`h{h}/t0_{b}/tp/Vpp|Vmm` and `…/ylm/Vpp|Vmm/l{l}`; (C5) conn-sp vector (spatial pass); (C6) axial tp/sp (GW
+$\chi=(1-D_{ov})\phi'$); (C7) notebook loaders + `run_jj_analysis` wiring.  **Open Qs -- RESOLVED (user):**
+(a) disc shares the connected's single full-lattice $Z_2$ source -- mathematically correct, accepted (now moot,
+disc standalone); (b) the 5 standalone `jj_conn_*` files are **KEPT** as reference.
 
 ---
 

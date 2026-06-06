@@ -120,7 +120,7 @@ void PrintHelp(){
   printf("  --current <c>        vector | axial (default: vector)\n");
   printf("  --ens-dir <path>     sea config directory; OMIT => free field (U=1) check\n");
   printf("  --nhits <n>          stochastic hits (default: 1)\n");
-  printf("  --tmax <T>           t-loop computes |dt| in [0,T] and [Nt-T,Nt-1] only (default: Nt/4)\n");
+  printf("  --n-t0 <N>           number of source-time origins t0=b*(Nt/N), b=0..N-1 (default: 2)\n");
   printf("  -h, --help           show this help\n");
   exit(0);
 }
@@ -128,7 +128,7 @@ void PrintHelp(){
 void ParseArgs(int argc, char* argv[],
                double& gsq, int& Nf, double& nu0, double& nu1,
                double& mass_re, double& mass_im,
-               std::string& current, std::string& ens_dir, int& nhits, int& tmax){
+               std::string& current, std::string& ens_dir, int& nhits, int& n_t0){
   static struct option long_opts[] = {
     {"gsq",     required_argument, nullptr, 'g'},
     {"Nf",      required_argument, nullptr, 'N'},
@@ -139,7 +139,7 @@ void ParseArgs(int argc, char* argv[],
     {"current", required_argument, nullptr, 'c'},
     {"ens-dir", required_argument, nullptr, 'e'},
     {"nhits",   required_argument, nullptr, 'H'},
-    {"tmax",    required_argument, nullptr, 'T'},
+    {"n-t0",    required_argument, nullptr, 'T'},
     {"help",    no_argument,       nullptr, 'h'},
     {nullptr, 0, nullptr, 0}
   };
@@ -155,7 +155,7 @@ void ParseArgs(int argc, char* argv[],
     case 'c': current = optarg; break;
     case 'e': ens_dir = optarg; break;
     case 'H': nhits   = std::stoi(optarg); break;
-    case 'T': tmax    = std::stoi(optarg); break;
+    case 'T': n_t0    = std::stoi(optarg); break;
     case 'h':
     case '?':
     default:  PrintHelp(); break;
@@ -173,9 +173,9 @@ int main(int argc, char* argv[]){
   std::string current="vector";
   std::string ens_dir="";     // empty => free-field mode
   int nhits=1;
-  int tmax=-1;   // <0 sentinel => default Nt/4 (set after Nt is known)
+  int n_t0=2;   // number of source-time origins (Sec. 3.7)
 
-  ParseArgs(argc, argv, gsq, Nf, nu0, nu1, mass_re, mass_im, current, ens_dir, nhits, tmax);
+  ParseArgs(argc, argv, gsq, Nf, nu0, nu1, mass_re, mass_im, current, ens_dir, nhits, n_t0);
   if(nu1 < 0.0) nu1 = nu0;    // valence asymmetry defaults to the sea value nu0 (knob retained)
 
   const Complex valence_mass(mass_re, mass_im);
@@ -203,10 +203,13 @@ int main(int argc, char* argv[]){
   constexpr Idx N  = Comp::N;
   constexpr int Nt = Comp::Nt;
 
-  // tmax cap: t-loop computes |dt| in [0,tmax] and [Nt-tmax,Nt-1] only (skip the noise middle).
-  if(tmax < 0)     tmax = Nt/4;     // default
-  if(tmax > Nt-1)  tmax = Nt-1;     // clamp
-  std::cout << "# tmax=" << tmax << " (t-loop = [0,"<<tmax<<"] U ["<<(Nt-tmax)<<","<<(Nt-1)<<"])" << std::endl;
+  // source-time origins (Sec. 3.7): n_t0 evenly-spaced t0 = b*(Nt/n_t0); FULL dt-loop dt=0..Nt-1;
+  // store every (hit, t0) raw (no in-program averaging); average + jackknife downstream.
+  assert(n_t0 >= 1 && Nt % n_t0 == 0 && "Nt must be divisible by n_t0");
+  const int t0_spacing = Nt / n_t0;
+  std::vector<int> t0s(n_t0);
+  for(int b=0; b<n_t0; b++) t0s[b] = b*t0_spacing;
+  std::cout << "# n_t0=" << n_t0 << " source origins (t0=b*"<<t0_spacing<<"), full dt; one file/config, keys per (h,t0)" << std::endl;
 
   using Base=S2Simp;
   using WilsonDirac=DiracExt<Base, DiracS2Simp>;
@@ -294,7 +297,8 @@ int main(int argc, char* argv[]){
   { const auto slash = ens_base.find_last_of('/'); if(slash!=std::string::npos) ens_base = ens_base.substr(slash+1); }
   const std::string esnid = (free_field ? std::string("free") : ens_base)
                           + "_vmRe"+std::to_string(mass_re)+"vmIm"+std::to_string(mass_im);
-  const std::string dir_out = "data_"+esnid+"/tp_"+current+"_tmax"+std::to_string(tmax)+"/";
+  const std::string dir_out = "data_"+esnid+"/tp_"+current
+                            +"_nt0"+std::to_string(n_t0)+"_nhits"+std::to_string(nhits)+"/";
   std::filesystem::create_directories(dir_out);
   std::cout << "# dir_out = " << dir_out << std::endl;
 
@@ -305,10 +309,9 @@ int main(int argc, char* argv[]){
     return 0;
   }
 
-  // ---- host buffers (shared by BOTH channels; Sec. 3.2 symbols, no +-/subscript) ----------
-  //   phi  := phi'   (forward leg, reused over sites and t),   psi := psi_n (fixed-0 leg),
-  //   phit := phi(t) (looped current),   rho := the K-applied source,
-  //   tmp  := the preconditioned CG RHS (an operator X^{(dag)} applied to eta or rho, either channel).
+  // ---- host buffers (Sec. 3.2 symbols) ----------
+  //   phi := phi' (shared forward leg),  psi := source leg (per site/origin),
+  //   phit := looped current,  rho := K-applied source,  tmp := preconditioned CG RHS.
   FermionVector eta, phi, tmp, rho, psi, phit;
 
   // free field: single deterministic config (k=0), U=1.  ensemble: loop ckpoint_lat.k in ens_dir.
@@ -321,89 +324,97 @@ int main(int argc, char* argv[]){
       if(!std::filesystem::exists(str_lat)){ if(k==0) continue; else break; }
       U.read(str_lat);
     }
-    Dm.update(U);  Dtil.update(U);   // D.update(U);  -- massless D unused (axial prototype)
+    // ONE file per config (Sec. 3.7).  Resume: skip ONLY if the file is COMPLETE -- HighFive writes
+    // datasets sequentially, so the LAST key present implies the whole config is there; an interrupted
+    // write leaves it absent -> recompute.  Read-only open (never truncates a maybe-good file).
+    const std::string h5path = dir_out + "conn." + std::to_string(k) + ".h5";
+    if(std::filesystem::exists(h5path)){
+      bool complete = false;
+      try {
+        HighFive::File h5check(h5path, HighFive::File::ReadOnly);
+        const std::string last_ds = "h"+std::to_string(nhits-1)+"/t0_"+std::to_string(n_t0-1)+"/Vmm/imag";
+        complete = h5check.exist(last_ds);
+      } catch(...) {}
+      if(complete){ std::cout<<"# skip k="<<k<<" (complete)"<<std::endl; continue; }
+      std::cout<<"# k="<<k<<" exists but INCOMPLETE -> recompute"<<std::endl;
+    }
+    Dm.update(U);  Dtil.update(U);
     std::cout << "# k="<<k<<(free_field?" (free field)":"")
               << "  lambda_min/max="<<Dm.lambda_min<<"/"<<Dm.lambda_max<<std::endl;
 
+    HighFive::File h5(h5path, HighFive::File::ReadWrite|HighFive::File::Create|HighFive::File::Truncate);
+    h5.createDataSet("t0s",   t0s);                       // the n_t0 source origins
+    h5.createDataSet("n_t0",  std::vector<int>{n_t0});
+    h5.createDataSet("nhits", std::vector<int>{nhits});
+
     for(int h=0; h<nhits; h++){
-      // one stochastic hit -> one file conn.<k>.<h>.h5 (single-realization estimate; average in post)
-      const std::string h5path = dir_out + "conn." + std::to_string(k) + "." + std::to_string(h) + ".h5";
-      if(std::filesystem::exists(h5path)){ std::cout<<"# skip k="<<k<<" h="<<h<<" (done)"<<std::endl; continue; }
-      std::cout << "# k="<<k<<" hit "<<(h+1)<<"/"<<nhits<<" : start ("<<n_sites<<" sites x "<<Nt<<" t)" << std::endl;
       const auto t_hit0 = std::chrono::steady_clock::now();
-
-      // shared stochastic source for both channels
+      std::cout << "# k="<<k<<" hit "<<(h+1)<<"/"<<nhits<<" : "<<n_t0<<" origins x "<<n_sites<<" sites x "<<Nt<<" dt" << std::endl;
       eta.fill_z2_source(rng);
-      std::vector<double> ppRe(Nt), ppIm(Nt), mmRe(Nt), mmIm(Nt);
+      const std::string hp = "h" + std::to_string(h) + "/";   // key prefix /h{h}/
 
-      // (++) channel: G^{pp}(dt) = (1/4pi) sum_n w_n <J_{V,+}(n,0) J_{V,+}(n,t)> = C_{V++,c}
-      {
-        // phi'_++ = D_m^{-1} eta  (forward solve: adj RHS-former op_DmH + op_Dmsq), shared/reused
-        op_DmH.from_cpu<N>(tmp.field, eta.field);                  // tmp = D_m^dag eta
-        op_Dmsq.solve<N>(phi.field, tmp.field, Comp::TOL_OUTER);  // phi := phi'_++
-        std::cout << "#   phi'_++ = D_m^{-1} eta solved (reused for all sites)" << std::endl;
-
+      // (++) channel: phi'_++ = D_m^{-1} eta (forward solve; shared across origins/sites)
+      op_DmH.from_cpu<N>(tmp.field, eta.field);
+      op_Dmsq.solve<N>(phi.field, tmp.field, Comp::TOL_OUTER);
+      for(int b=0; b<n_t0; b++){
+        const int t0 = t0s[b];
         std::vector<Complex> Cpp(Nt, Complex(0.0,0.0));
-        // explicit loop over spatial sites (site-diagonal temporal projection, Eq. 4.32)
         for(int n=0; n<n_sites; n++){
-          std::cout << "#   (++) site "<<(n+1)<<"/"<<n_sites<<" : sink solve + "<<Nt<<" kernel applies" << std::endl;
-          // fixed at (n,0): psi_++,n = D_m^{-dag} K^dag(n,0) eta  (dagger solve: mult RHS-former op_Dm)
-          kop.set_temporal(U, 0, (Idx)n, /*dag=*/true);
-          op_K.from_cpu<N>(rho.field, eta.field);                 // rho = K^dag(n,0) eta
-          op_Dm.from_cpu<N>(tmp.field, rho.field);             // tmp = D_m rho
-          op_Dmsq.solve<N>(psi.field, tmp.field, Comp::TOL_OUTER);  // psi := psi_++,n
-          // looped kernel (no inversion): phi_++,n(t) = K(n,t) phi'_++;  Cpp[t] += w_n psi_++,n^dag phi_++,n(t)
-          for(int t=0; t<Nt; t++){
-            if(t>tmax && t<Nt-tmax) continue;   // tmax cap: skip the noise middle (both signal ends kept)
-            kop.set_temporal(U, t, (Idx)n, /*dag=*/false);
-            op_K.from_cpu<N>(phit.field, phi.field);                 // phit = K(n,t) phi'_++
-            Cpp[t] += w_tp[n] * psi.dag(phit);
+          // psi_++ = D_m^{-dag} K^dag(n,t0) eta  (dagger solve)
+          kop.set_temporal(U, t0, (Idx)n, /*dag=*/true);
+          op_K.from_cpu<N>(rho.field, eta.field);
+          op_Dm.from_cpu<N>(tmp.field, rho.field);
+          op_Dmsq.solve<N>(psi.field, tmp.field, Comp::TOL_OUTER);
+          // full dt: phi(n,t0+dt) = K(n,(t0+dt)%Nt) phi'_++;  Cpp[dt] += w_n psi^dag phi
+          for(int dt=0; dt<Nt; dt++){
+            kop.set_temporal(U, (t0+dt)%Nt, (Idx)n, /*dag=*/false);
+            op_K.from_cpu<N>(phit.field, phi.field);
+            Cpp[dt] += w_tp[n] * psi.dag(phit);
           }
-          const double se = std::chrono::duration<double>(std::chrono::steady_clock::now()-t_hit0).count();
-          std::cout << "#   (++) site "<<(n+1)<<"/"<<n_sites<<" done  ["<<se<<" s]" << std::endl;
         }
-        for(int t=0;t<Nt;t++){ const Complex g = inv4pi*Cpp[t]; ppRe[t]=g.real(); ppIm[t]=g.imag(); }
+        std::vector<double> ppRe(Nt), ppIm(Nt);
+        for(int dt=0;dt<Nt;dt++){ const Complex g=inv4pi*Cpp[dt]; ppRe[dt]=g.real(); ppIm[dt]=g.imag(); }
+        const std::string kp = hp + "t0_" + std::to_string(b) + "/";   // /h{h}/t0_{b}/
+        h5.createDataSet(kp+"Vpp/real", ppRe);
+        h5.createDataSet(kp+"Vpp/imag", ppIm);
+        if(!parity){   // massless / m_F: Vmm = conj(Vpp)
+          std::vector<double> mmRe(Nt), mmIm(Nt);
+          for(int dt=0;dt<Nt;dt++){ mmRe[dt]=ppRe[dt]; mmIm[dt]=-ppIm[dt]; }
+          h5.createDataSet(kp+"Vmm/real", mmRe);
+          h5.createDataSet(kp+"Vmm/imag", mmIm);
+        }
       }
 
-      // (--) channel.  massless / m_F: C_{V--,c} = (C_{V++,c})^*.  parity: independent via tilde D_{m_P}.
+      // (--) parity channel: phi'_-- = tilde^{-dag} eta; independent tilde computation per origin
       if(parity){
-        // phi'_-- = tilde^{-dag} eta  (dagger solve: mult RHS-former op_tilDm + op_tilDmsq), shared/reused
-        op_tilDm.from_cpu<N>(tmp.field, eta.field);                    // tmp = tilde eta
-        op_tilDmsq.solve<N>(phi.field, tmp.field, Comp::TOL_OUTER);  // phi := phi'_-- = tilde^{-dag} eta
-        std::cout << "#   phi'_-- = tilde^{-dag} eta solved (reused for all sites)" << std::endl;
-
-        std::vector<Complex> Cmm(Nt, Complex(0.0,0.0));
-        for(int n=0; n<n_sites; n++){
-          std::cout << "#   (--) site "<<(n+1)<<"/"<<n_sites<<" : sink solve + "<<Nt<<" kernel applies" << std::endl;
-          // fixed at (n,0): psi_--,n = tilde^{-1} K(n,0) eta  (forward solve: adj RHS-former op_tilDmH; K, not K^dag)
-          kop.set_temporal(U, 0, (Idx)n, /*dag=*/false);
-          op_K.from_cpu<N>(rho.field, eta.field);                  // rho = K(n,0) eta
-          op_tilDmH.from_cpu<N>(tmp.field, rho.field);          // tmp = tilde^dag rho
-          op_tilDmsq.solve<N>(psi.field, tmp.field, Comp::TOL_OUTER); // psi := psi_--,n = tilde^{-1} K(n,0) eta
-          // looped kernel (no inversion): phi_--,n(t) = K^dag(n,t) phi'_--;  Cmm[t] += w_n psi_--,n^dag phi_--,n(t)
-          for(int t=0; t<Nt; t++){
-            if(t>tmax && t<Nt-tmax) continue;   // tmax cap: skip the noise middle (both signal ends kept)
-            kop.set_temporal(U, t, (Idx)n, /*dag=*/true);
-            op_K.from_cpu<N>(phit.field, phi.field);                  // phit = K^dag(n,t) phi'_--
-            Cmm[t] += w_tp[n] * psi.dag(phit);
+        op_tilDm.from_cpu<N>(tmp.field, eta.field);
+        op_tilDmsq.solve<N>(phi.field, tmp.field, Comp::TOL_OUTER);
+        for(int b=0; b<n_t0; b++){
+          const int t0 = t0s[b];
+          std::vector<Complex> Cmm(Nt, Complex(0.0,0.0));
+          for(int n=0; n<n_sites; n++){
+            // psi_-- = tilde^{-1} K(n,t0) eta  (forward solve: adj RHS-former op_tilDmH; K, not K^dag)
+            kop.set_temporal(U, t0, (Idx)n, /*dag=*/false);
+            op_K.from_cpu<N>(rho.field, eta.field);
+            op_tilDmH.from_cpu<N>(tmp.field, rho.field);
+            op_tilDmsq.solve<N>(psi.field, tmp.field, Comp::TOL_OUTER);
+            for(int dt=0; dt<Nt; dt++){
+              kop.set_temporal(U, (t0+dt)%Nt, (Idx)n, /*dag=*/true);
+              op_K.from_cpu<N>(phit.field, phi.field);
+              Cmm[dt] += w_tp[n] * psi.dag(phit);
+            }
           }
-          const double se = std::chrono::duration<double>(std::chrono::steady_clock::now()-t_hit0).count();
-          std::cout << "#   (--) site "<<(n+1)<<"/"<<n_sites<<" done  ["<<se<<" s]" << std::endl;
+          std::vector<double> mmRe(Nt), mmIm(Nt);
+          for(int dt=0;dt<Nt;dt++){ const Complex g=inv4pi*Cmm[dt]; mmRe[dt]=g.real(); mmIm[dt]=g.imag(); }
+          const std::string kp = hp + "t0_" + std::to_string(b) + "/";
+          h5.createDataSet(kp+"Vmm/real", mmRe);
+          h5.createDataSet(kp+"Vmm/imag", mmIm);
         }
-        for(int t=0;t<Nt;t++){ const Complex g = inv4pi*Cmm[t]; mmRe[t]=g.real(); mmIm[t]=g.imag(); }
-      } else {
-        for(int t=0;t<Nt;t++){ mmRe[t]=ppRe[t]; mmIm[t]=-ppIm[t]; }   // C_{V--,c} = (C_{V++,c})^*
       }
-
-      HighFive::File h5(h5path, HighFive::File::ReadWrite|HighFive::File::Create|HighFive::File::Truncate);
-      h5.createDataSet("Vpp/real", ppRe);   // <J_{V,+} J_{V,+}> connected
-      h5.createDataSet("Vpp/imag", ppIm);
-      h5.createDataSet("Vmm/real", mmRe);   // <J_{V,-} J_{V,-}> connected (same placeholder both cases)
-      h5.createDataSet("Vmm/imag", mmIm);
-      h5.createDataSet("tmax", std::vector<int>{tmax});   // computed region = [0,tmax] U [Nt-tmax,Nt-1]
       const double secs = std::chrono::duration<double>(std::chrono::steady_clock::now()-t_hit0).count();
-      std::cout << "# wrote "<<h5path<<"  Vpp(dt=0)=("<<ppRe[0]<<","<<ppIm[0]<<")  ["<<secs<<" s]"<<std::endl;
+      std::cout << "#   hit "<<(h+1)<<" done ["<<secs<<" s]" << std::endl;
     } // hits
+    std::cout << "# wrote " << h5path << std::endl;
   } // k
 
   for(int i=0; i<Comp::NSTREAMS; i++) d_MemorySets[i].deallocate();
