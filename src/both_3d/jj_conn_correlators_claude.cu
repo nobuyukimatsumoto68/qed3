@@ -126,6 +126,7 @@ void PrintHelp(){
   printf("  --ens-dir <path>     sea config directory; OMIT => free field (U=1) check\n");
   printf("  --nhits <n>          stochastic hits (default: 1)\n");
   printf("  --n-t0 <N>           number of source-time origins t0=b*(Nt/N), b=0..N-1 (default: 2)\n");
+  printf("  --ninter <N>         ensemble config stride: measure ckpoint_lat.k for k=0,N,2N,... (default: 10)\n");
   printf("  -h, --help           show this help\n");
   exit(0);
 }
@@ -133,7 +134,7 @@ void PrintHelp(){
 void ParseArgs(int argc, char* argv[],
                double& gsq, int& Nf, double& nu0, double& nu1,
                double& mass_re, double& mass_im,
-               std::string& ens_dir, int& nhits, int& n_t0){
+               std::string& ens_dir, int& nhits, int& n_t0, int& ninter){
   static struct option long_opts[] = {
     {"gsq",     required_argument, nullptr, 'g'},
     {"Nf",      required_argument, nullptr, 'N'},
@@ -144,11 +145,12 @@ void ParseArgs(int argc, char* argv[],
     {"ens-dir", required_argument, nullptr, 'e'},
     {"nhits",   required_argument, nullptr, 'H'},
     {"n-t0",    required_argument, nullptr, 'T'},
+    {"ninter",  required_argument, nullptr, 'I'},
     {"help",    no_argument,       nullptr, 'h'},
     {nullptr, 0, nullptr, 0}
   };
   int opt, idx;
-  while((opt = getopt_long(argc, argv, "g:N:n:m:r:i:e:H:T:h", long_opts, &idx)) != -1){
+  while((opt = getopt_long(argc, argv, "g:N:n:m:r:i:e:H:T:I:h", long_opts, &idx)) != -1){
     switch(opt){
     case 'g': gsq     = std::stod(optarg); break;
     case 'N': Nf      = std::stoi(optarg); break;
@@ -159,6 +161,7 @@ void ParseArgs(int argc, char* argv[],
     case 'e': ens_dir = optarg; break;
     case 'H': nhits   = std::stoi(optarg); break;
     case 'T': n_t0    = std::stoi(optarg); break;
+    case 'I': ninter  = std::stoi(optarg); break;
     case 'h':
     case '?':
     default:  PrintHelp(); break;
@@ -176,8 +179,9 @@ int main(int argc, char* argv[]){
   std::string ens_dir="";     // empty => free-field mode
   int nhits=1;
   int n_t0=2;   // number of source-time origins (Sec. 3.7)
+  int ninter=10;   // ensemble config stride (k = 0, ninter, 2*ninter, ...)
 
-  ParseArgs(argc, argv, gsq, Nf, nu0, nu1, mass_re, mass_im, ens_dir, nhits, n_t0);
+  ParseArgs(argc, argv, gsq, Nf, nu0, nu1, mass_re, mass_im, ens_dir, nhits, n_t0, ninter);
   if(nu1 < 0.0) nu1 = nu0;    // valence asymmetry defaults to the sea value nu0 (knob retained)
 
   const Complex valence_mass(mass_re, mass_im);
@@ -302,13 +306,13 @@ int main(int argc, char* argv[]){
       W_ell[l][n] = base.dual_areas[n] * s / kt;
     }
 
-  // ---- output: data_<ESNID>/corr_nt0<N>_nhits<H>/corr.<config>.h5 ------------------------------
+  // ---- output: data_<ESNID>/conn_nt0<N>_nhits<H>/corr.<config>.h5 ------------------------------
   std::string ens_base = ens_dir;
   if(!ens_base.empty() && ens_base.back()=='/') ens_base.pop_back();
   { const auto slash = ens_base.find_last_of('/'); if(slash!=std::string::npos) ens_base = ens_base.substr(slash+1); }
   const std::string esnid = (free_field ? std::string("free") : ens_base)
                           + "_vmRe"+std::to_string(mass_re)+"vmIm"+std::to_string(mass_im);
-  const std::string dir_out = "data_"+esnid+"/corr_nt0"+std::to_string(n_t0)+"_nhits"+std::to_string(nhits)+"/";
+  const std::string dir_out = "data_"+esnid+"/conn_nt0"+std::to_string(n_t0)+"_nhits"+std::to_string(nhits)+"/";
   std::filesystem::create_directories(dir_out);
   std::cout << "# dir_out = " << dir_out
             << "  (n_sites="<<n_sites<<", n_links="<<n_links<<", n_ell="<<N_ELL<<")" << std::endl;
@@ -342,8 +346,9 @@ int main(int argc, char* argv[]){
     h5.createDataSet(key+"/real", re);  h5.createDataSet(key+"/imag", im);
   };
 
-  // free field: single deterministic config (k=0), U=1.  ensemble: loop ckpoint_lat.k in ens_dir.
-  const int k_ckpoint = free_field ? 1 : 10;
+  // free field: single deterministic config (k=0), U=1.  ensemble: loop ckpoint_lat.k in ens_dir
+  // with stride ninter (--ninter; default 10).
+  const int k_ckpoint = free_field ? 1 : ninter;
   const int kmax      = free_field ? 0 : 1000;
 
   for(int k = 0; k <= kmax; k += k_ckpoint){
@@ -374,19 +379,24 @@ int main(int argc, char* argv[]){
 
     for(int h=0; h<nhits; h++){
       const auto t_hit0 = std::chrono::steady_clock::now();
-      std::cout << "# k="<<k<<" hit "<<(h+1)<<"/"<<nhits<<std::endl;
+      auto elapsed = [&](){ return std::chrono::duration<double>(std::chrono::steady_clock::now()-t_hit0).count(); };
+      std::cout << "# k="<<k<<" hit "<<(h+1)<<"/"<<nhits<<"  (n_t0="<<n_t0<<", n_sites="<<n_sites
+                << ", n_links="<<n_links<<", n_ell="<<N_ELL<<")" << std::endl;
       eta.fill_z2_source(rng);
       const std::string hp = "h" + std::to_string(h) + "/";   // key prefix /h{h}/
 
       // shared forward leg phi' = D_m^{-1} eta (op_DmH RHS-former + op_Dmsq CG); reused by ALL connected
       // projections (tp/sp/ylm) as the sink leg K(.,t)phi'.
+      std::cout << "#   phi' = D_m^{-1} eta : solving ..." << std::flush;
       op_DmH.from_cpu<N>(tmp.field, eta.field);
       op_Dmsq.solve<N>(phi.field, tmp.field, Comp::TOL_OUTER);
+      std::cout << " done ["<<elapsed()<<" s]" << std::endl;
 
       // ============ CONNECTED VECTOR -- temporal tp + ylm (shared phi' + shared K(n,t)phi' pass) =======
       // (++) source legs at all origins (the per-site K^dag(n,t0)eta apply is shared by tp and ylm):
       //   tp:  psi_tp[ITP(n,b)] = D_m^{-dag} K^dag(n,t0_b) eta
       //   ylm: psi_yl[IYL(l,b)] = D_m^{-dag} sum_n W_ell[l][n] K^dag(n,t0_b) eta   (m-summed tower)
+      std::cout << "#   [vec tp+ylm ++] source solves ("<<n_t0<<" t0 x ("<<n_sites<<" tp + "<<N_ELL<<" ylm)) ..." << std::endl;
       for(int b=0;b<n_t0;b++){
         const int t0=t0s[b];
         for(int l=0;l<N_ELL;l++) memset(srcL[l].field, 0, Comp::N*CD);
@@ -401,8 +411,10 @@ int main(int argc, char* argv[]){
           op_Dm.from_cpu<N>(tmp.field, srcL[l].field);               // tmp = D_m srcL[l]
           op_Dmsq.solve<N>(psi_yl[IYL(l,b)].field, tmp.field, Comp::TOL_OUTER);
         }
+        std::cout << "#     t0="<<t0<<" ("<<(b+1)<<"/"<<n_t0<<") source done ["<<elapsed()<<" s]" << std::endl;
       }
       // (++) shared sink pass: kphi = K(n,t) phi' ONCE per (n,t); feeds tp (per (n,b)) + ylm (accumulate)
+      std::cout << "#   [vec tp+ylm ++] sink pass ("<<Nt<<" t x "<<n_sites<<" applies) ..." << std::flush;
       {
         std::vector<std::vector<Complex>> Ctp(n_t0, std::vector<Complex>(Nt, Complex(0,0)));
         std::vector<std::vector<Complex>> Gyl(N_ELL*n_t0, std::vector<Complex>(Nt, Complex(0,0)));
@@ -426,9 +438,11 @@ int main(int argc, char* argv[]){
           }
         }
       }
+      std::cout << " done ["<<elapsed()<<" s]" << std::endl;
 
       // (--) parity: independent tilde legs (operator-adjoint mirror of (++)).  Writes Vmm only.
       if(parity){
+        std::cout << "#   [vec tp+ylm --] tilde source+sink ..." << std::flush;
         op_tilDm.from_cpu<N>(tmp.field, eta.field);                  // tmp = tilde eta
         op_tilDmsq.solve<N>(phimm.field, tmp.field, Comp::TOL_OUTER);// phimm = tilde D_{m_P}^{-dag} eta
         for(int b=0;b<n_t0;b++){
@@ -463,10 +477,12 @@ int main(int argc, char* argv[]){
           write_corr(h5, kp+"tp/Vmm", Ctp[b]);
           for(int l=0;l<N_ELL;l++) write_corr(h5, kp+"ylm/Vmm/l"+std::to_string(l), Gyl[IYL(l,b)]);
         }
+        std::cout << " done ["<<elapsed()<<" s]" << std::endl;
       }
 
       // ============ CONNECTED VECTOR -- spatial sp (own K(l,t)phi' pass over links) =================
       // (++) source legs (insertion-diagonal over links): psi_sp[ISP(a,b)] = D_m^{-dag} K^dag(lk,t0_b) eta
+      std::cout << "#   [vec sp ++] source solves ("<<n_t0<<" t0 x "<<n_links<<" links) + sink pass ..." << std::flush;
       for(int b=0;b<n_t0;b++){
         const int t0=t0s[b];
         for(int a=0;a<n_links;a++){
@@ -495,8 +511,10 @@ int main(int argc, char* argv[]){
           if(!parity) write_corr_conj(h5, kp+"sp/Vmm", Csp[b]);      // massless/m_F: Vmm = conj(Vpp)
         }
       }
+      std::cout << " done ["<<elapsed()<<" s]" << std::endl;
       // (--) parity sp: tilde mirror.  phimm = tilde^{-dag} eta reused from the temporal (--) block above.
       if(parity){
+        std::cout << "#   [vec sp --] tilde source+sink ..." << std::flush;
         for(int b=0;b<n_t0;b++){
           const int t0=t0s[b];
           for(int a=0;a<n_links;a++){
@@ -521,6 +539,7 @@ int main(int argc, char* argv[]){
           const std::string kp = hp + "t0_" + std::to_string(b) + "/";
           write_corr(h5, kp+"sp/Vmm", Csp[b]);
         }
+        std::cout << " done ["<<elapsed()<<" s]" << std::endl;
       }
 
       // ============ CONNECTED AXIAL -- C_{A+-} (tp + sp; own GW chi=(1-D_ov)phi' and K^dag sink) ======
@@ -530,11 +549,14 @@ int main(int argc, char* argv[]){
       // with the axial forward leg.
       {
         // forward leg phi'_A = X^{-1} eta  (X = D_ov if flavor, else D_m);  chi = (1 - D_ov) phi'_A
+        std::cout << "#   [axial] forward leg + chi=(1-D_ov)phi' ..." << std::flush;
         if(flavor){ op_DH.from_cpu<N>(tmp.field, eta.field);  op_Dsq.solve<N>(phi.field, tmp.field, Comp::TOL_OUTER); }
         else      { op_DmH.from_cpu<N>(tmp.field, eta.field); op_Dmsq.solve<N>(phi.field, tmp.field, Comp::TOL_OUTER); }
         op_oneMinusD.from_cpu<N>(chi.field, phi.field);            // chi = (1 - D_ov) phi'_A
+        std::cout << " done ["<<elapsed()<<" s]" << std::endl;
 
         // --- axial tp ---  source: psi_tp[ITP(n,b)] = X_sink^{-1} (1 - D_ov) K^dag(n,t0) eta
+        std::cout << "#   [axial tp] source solves ("<<n_t0<<" t0 x "<<n_sites<<") + sink pass ..." << std::flush;
         for(int b=0;b<n_t0;b++){
           const int t0=t0s[b];
           for(int n=0;n<n_sites;n++){
@@ -557,8 +579,10 @@ int main(int argc, char* argv[]){
           }
           for(int b=0;b<n_t0;b++){ const std::string kp=hp+"t0_"+std::to_string(b)+"/"; write_corr(h5, kp+"axial/tp/Apm", Atp[b]); }
         }
+        std::cout << " done ["<<elapsed()<<" s]" << std::endl;
 
         // --- axial sp ---  source: psi_sp[ISP(a,b)] = X_sink^{-1} (1 - D_ov) K^dag(lk,t0) eta
+        std::cout << "#   [axial sp] source solves ("<<n_t0<<" t0 x "<<n_links<<") + sink pass ..." << std::flush;
         for(int b=0;b<n_t0;b++){
           const int t0=t0s[b];
           for(int a=0;a<n_links;a++){
@@ -584,10 +608,11 @@ int main(int argc, char* argv[]){
           }
           for(int b=0;b<n_t0;b++){ const std::string kp=hp+"t0_"+std::to_string(b)+"/"; write_corr(h5, kp+"axial/sp/Apm", Asp[b]); }
         }
+        std::cout << " done ["<<elapsed()<<" s]" << std::endl;
       }
 
       const double secs = std::chrono::duration<double>(std::chrono::steady_clock::now()-t_hit0).count();
-      std::cout << "#   hit "<<(h+1)<<" done (tp+ylm vector) ["<<secs<<" s]" << std::endl;
+      std::cout << "#   hit "<<(h+1)<<" done (tp+sp+ylm vector + axial) ["<<secs<<" s]" << std::endl;
     } // hits
 
     h5.createDataSet("complete", std::vector<int>{1});   // sentinel: ALL datasets present (written LAST)

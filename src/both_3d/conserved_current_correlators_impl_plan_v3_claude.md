@@ -593,7 +593,12 @@ $m$-summed tower in ONE shared `kphi=K(n,t)phi'` pass (computed once per $(n,t)$
 ylm via `PhiL[l]` accumulation), $(++)$/$(--)$ with parity tilde mirror; source legs held in
 `std::vector<FermionVector>` (needed a **move ctor added to `FermionVector`**, `valence_claude.h`); keys
 `h{h}/t0_{b}/tp/Vpp|Vmm` and `…/ylm/Vpp|Vmm/l{l}`; (C5) conn-sp vector (spatial pass); (C6) axial tp/sp (GW
-$\chi=(1-D_{ov})\phi'$); (C7) notebook loaders + `run_jj_analysis` wiring.  **Open Qs -- RESOLVED (user):**
+$\chi=(1-D_{ov})\phi'$, three valence cases, $C_{A+-}$ only); **(C7 DONE)** verbose progress prints
+sandwich every heavy inversion (`elapsed()`, section announces + `done [s]`); `run_connected` (disc +
+unified, ONE valence -- axial legs auto-selected) wired into `run_jj_analysis_claude.sh` (free+sweep),
+legacy `run_vector/run_axial` kept; notebook unified loaders `load_u`/`u_tp`/`u_sp`/`u_ylm`/`u_axial`
+(`corr.<k>.h5`, "complete" sentinel gate, avg $(h,t_0)$) + cross-check cell.  Clean equation<->code spec:
+**`jj_conn_correlators_spec_claude.md`**.  **Open Qs -- RESOLVED (user):**
 (a) disc shares the connected's single full-lattice $Z_2$ source -- mathematically correct, accepted (now moot,
 disc standalone); (b) the 5 standalone `jj_conn_*` files are **KEPT** as reference.
 

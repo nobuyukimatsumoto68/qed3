@@ -35,22 +35,32 @@ NU1="${NU0}"   # valence asymmetry defaults to sea nu0 (knob retained)
 AT=0.2
 NT=128
 L=1
-NHITS="${NHITS:-}"   # hits per program call; per-mode default applied after CLI (free 16, sweep 1)
+NHITS="${NHITS:-}"   # hits per program call; per-mode default applied after CLI (free 16, sweep/ens 1)
 NT0="${NT0:-}"       # # source-time origins; empty => program default (2); override --n-t0/-T or NT0= env
+NINTER="${NINTER:-}" # ensemble config stride k=0,N,2N,...; empty => program default (10); --ninter/-I or NINTER=
+
+# 'ens' mode (single explicit ensemble) knobs -- set via CLI:
+ENS_DIR="${ENS_DIR:-}"   # explicit sea config directory (must end with /)
+ENS_NF="${ENS_NF:-2}"    # Nf label for the ens-mode run
+VAL_RE="${VAL_RE:-0.0}"  # valence mass Re for the ens-mode run
+VAL_IM="${VAL_IM:-0.0}"  # valence mass Im for the ens-mode run
 
 NFS=(2 4 6)
 MASSES=(0.01 0.05 0.1 0.2)
 
-# program binaries (CLI: --gsq --Nf --nu0 --nu1 --mass-re --mass-im --current --ens-dir --nhits)
-DISC="${BINDIR}/jj_disc_claude.o"                       # (not yet implemented)
-CONN_SP="${BINDIR}/jj_conn_spproj_claude.o"             # vector sp  (implemented)
-CONN_SP_AXIAL="${BINDIR}/jj_conn_spproj_axial_claude.o" # axial  sp  (implemented)
-CONN_TP="${BINDIR}/jj_conn_tpproj_claude.o"             # vector tp  (implemented)
-CONN_TP_AXIAL="${BINDIR}/jj_conn_tpproj_axial_claude.o" # axial  tp  (implemented)
-CONN_YLM="${BINDIR}/jj_conn_ylmproj_claude.o"           # vector ylm (implemented; vector only)
+# program binaries.  PRODUCTION path = the unified connected program + the standalone disc:
+DISC="${BINDIR}/jj_disc_claude.o"                       # disconnected, vector only (corr = single-time traces)
+CONN_UNIFIED="${BINDIR}/jj_conn_correlators_claude.o"   # UNIFIED connected: vector tp/sp/ylm + axial tp/sp
+                                                        #   (no --current; axial legs auto-selected by mass)
+# Legacy per-projection standalone programs (kept as reference; driven by run_vector/run_axial below):
+CONN_SP="${BINDIR}/jj_conn_spproj_claude.o"             # vector sp
+CONN_SP_AXIAL="${BINDIR}/jj_conn_spproj_axial_claude.o" # axial  sp
+CONN_TP="${BINDIR}/jj_conn_tpproj_claude.o"             # vector tp
+CONN_TP_AXIAL="${BINDIR}/jj_conn_tpproj_axial_claude.o" # axial  tp
+CONN_YLM="${BINDIR}/jj_conn_ylmproj_claude.o"           # vector ylm (m-summed tower)
 
-CONN_PROGS=("${CONN_TP}" "${CONN_SP}" "${CONN_YLM}")     # vector projections
-CONN_AXIAL_PROGS=("${CONN_TP_AXIAL}" "${CONN_SP_AXIAL}")  # axial projections; add ylm axial as implemented
+CONN_PROGS=("${CONN_TP}" "${CONN_SP}" "${CONN_YLM}")     # vector projections (legacy)
+CONN_AXIAL_PROGS=("${CONN_TP_AXIAL}" "${CONN_SP_AXIAL}")  # axial projections (legacy)
 
 # ---------------- helpers ----------------
 # sea config directory matching hmc_w_mass_claude.cu dir3 (std::to_string => 6 decimals)
@@ -85,7 +95,25 @@ run_axial() {  # args: Nf valRe valIm [ens_dir or "" for free]
   done
 }
 
+# PRODUCTION: unified connected (+ disc) for one (ensemble, valence).  ONE valence mass suffices: the
+# unified binary computes vector tp/sp/ylm AND axial tp/sp, and its internal flavor/parity logic selects
+# the axial legs (flavor m_F -> massless D_ov axial = the old "axial valence 0"; parity m_P -> tilde sink).
+run_connected() {  # args: Nf valRe valIm [ens_dir or "" for free]
+  local Nf="$1" vr="$2" vi="$3" ed="$4"
+  local edflag=(); [[ -n "${ed}" ]]     && edflag=(--ens-dir "${ed}")
+  local ntflag=(); [[ -n "${NT0}" ]]    && ntflag=(--n-t0 "${NT0}")       # empty => program default (2)
+  local niflag=(); [[ -n "${NINTER}" ]] && niflag=(--ninter "${NINTER}")  # empty => program default (10)
+  # disconnected dump (vector only; origin-agnostic, no --n-t0)
+  [[ -x "${DISC}" ]] && "${DISC}" --gsq "${GSQ}" --Nf "${Nf}" --nu0 "${NU0}" --nu1 "${NU1}" \
+        --mass-re "${vr}" --mass-im "${vi}" --nhits "${NHITS}" "${niflag[@]}" "${edflag[@]}"
+  # unified connected (vector tp/sp/ylm + axial tp/sp; no --current)
+  [[ -x "${CONN_UNIFIED}" ]] && "${CONN_UNIFIED}" --gsq "${GSQ}" --Nf "${Nf}" --nu0 "${NU0}" --nu1 "${NU1}" \
+        --mass-re "${vr}" --mass-im "${vi}" --nhits "${NHITS}" "${ntflag[@]}" "${niflag[@]}" "${edflag[@]}"
+}
+
 # ---------------- CLI ----------------
+USAGE="usage: $0 [--gpu N[,N...]] [--nhits N] [--n-t0 N] [--ninter N] [free|sweep|ens]   (default: free)
+  ens mode (single explicit ensemble): also pass --ens-dir <path/> [--Nf N] [--mass-re X] [--mass-im Y]"
 MODE=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -95,9 +123,19 @@ while [[ $# -gt 0 ]]; do
     --nhits=*)   NHITS="${1#*=}"; shift ;;
     -T|--n-t0)   NT0="$2"; shift 2 ;;
     --n-t0=*)    NT0="${1#*=}"; shift ;;
-    free|sweep)  MODE="$1"; shift ;;
-    -h|--help)   echo "usage: $0 [--gpu N[,N...]] [--nhits N] [--n-t0 N] [free|sweep]   (default: free)"; exit 0 ;;
-    *)           echo "unknown arg: $1"; echo "usage: $0 [--gpu N[,N...]] [--nhits N] [--n-t0 N] [free|sweep]"; exit 1 ;;
+    -I|--ninter) NINTER="$2"; shift 2 ;;
+    --ninter=*)  NINTER="${1#*=}"; shift ;;
+    --ens-dir)   ENS_DIR="$2"; shift 2 ;;
+    --ens-dir=*) ENS_DIR="${1#*=}"; shift ;;
+    --Nf)        ENS_NF="$2"; shift 2 ;;
+    --Nf=*)      ENS_NF="${1#*=}"; shift ;;
+    --mass-re)   VAL_RE="$2"; shift 2 ;;
+    --mass-re=*) VAL_RE="${1#*=}"; shift ;;
+    --mass-im)   VAL_IM="$2"; shift 2 ;;
+    --mass-im=*) VAL_IM="${1#*=}"; shift ;;
+    free|sweep|ens) MODE="$1"; shift ;;
+    -h|--help)   echo "${USAGE}"; exit 0 ;;
+    *)           echo "unknown arg: $1"; echo "${USAGE}"; exit 1 ;;
   esac
 done
 MODE="${MODE:-free}"
@@ -105,7 +143,7 @@ MODE="${MODE:-free}"
 export CUDA_VISIBLE_DEVICES="${GPU}"
 export NVIDIA_VISIBLE_DEVICES="${GPU}"
 echo "### GPU(s): CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES} ###"
-echo "### n_t0: ${NT0:-<program default 2>} ###"
+echo "### n_t0: ${NT0:-<program default 2>}   ninter: ${NINTER:-<program default 10>} ###"
 
 # ---------------- modes ----------------
 if [[ "${MODE}" == "free" ]]; then
@@ -113,33 +151,31 @@ if [[ "${MODE}" == "free" ]]; then
   NHITS="${NHITS:-16}"   # free-field precision via hits (default 16; override --nhits N or NHITS= env)
   # one Nf is enough for the free field (gauge-independent); use Nf=2.
   Nf=2
-  # massless valence
-  run_vector "${Nf}" 0.0 0.0 ""
-  run_axial  "${Nf}" 0.0 0.0 ""
-  # a flavor-breaking valence (real) and a parity-breaking valence (imaginary)
-  run_vector "${Nf}" 0.1 0.0 "";  run_axial "${Nf}" 0.1 0.0 ""
-  run_vector "${Nf}" 0.0 0.1 "";  run_axial "${Nf}" 0.0 0.1 ""
+  run_connected "${Nf}" 0.0 0.0 ""    # massless valence
+  run_connected "${Nf}" 0.1 0.0 ""    # flavor-breaking valence (real)
+  run_connected "${Nf}" 0.0 0.1 ""    # parity-breaking valence (imaginary)
 
 elif [[ "${MODE}" == "sweep" ]]; then
   echo "### production sweep over 27 ensembles ###"
   NHITS="${NHITS:-1}"   # one hit per config by default (override --nhits N or NHITS= env)
   for Nf in "${NFS[@]}"; do
-    # massless ensemble (sea = 0): vector + axial, valence 0
-    ed=$(ens_dir "${Nf}" 0.0 0.0)
-    run_vector "${Nf}" 0.0 0.0 "${ed}"
-    run_axial  "${Nf}" 0.0 0.0 "${ed}"
+    # massless ensemble (sea = 0): valence 0
+    run_connected "${Nf}" 0.0 0.0 "$(ens_dir "${Nf}" 0.0 0.0)"
     for m in "${MASSES[@]}"; do
-      # flavor-breaking ensemble (sea real m_F): vector valence m_F ; axial valence 0
-      ed=$(ens_dir "${Nf}" "${m}" 0.0)
-      run_vector "${Nf}" "${m}" 0.0 "${ed}"
-      run_axial  "${Nf}" 0.0   0.0 "${ed}"
-      # parity-breaking ensemble (sea imag m_P): vector + axial valence m_P
-      ed=$(ens_dir "${Nf}" 0.0 "${m}")
-      run_vector "${Nf}" 0.0 "${m}" "${ed}"
-      run_axial  "${Nf}" 0.0 "${m}" "${ed}"
+      # flavor-breaking ensemble (sea real m_F): valence m_F (axial auto-massless inside the unified binary)
+      run_connected "${Nf}" "${m}" 0.0 "$(ens_dir "${Nf}" "${m}" 0.0)"
+      # parity-breaking ensemble (sea imag m_P): valence m_P
+      run_connected "${Nf}" 0.0 "${m}" "$(ens_dir "${Nf}" 0.0 "${m}")"
     done
   done
 
+elif [[ "${MODE}" == "ens" ]]; then
+  : "${ENS_DIR:?ens mode needs --ens-dir <path/>}"
+  [[ "${ENS_DIR}" != */ ]] && ENS_DIR="${ENS_DIR}/"   # binary expects a trailing slash
+  NHITS="${NHITS:-1}"
+  echo "### single ensemble: ${ENS_DIR}  (Nf=${ENS_NF} valence mRe=${VAL_RE} mIm=${VAL_IM}) ###"
+  run_connected "${ENS_NF}" "${VAL_RE}" "${VAL_IM}" "${ENS_DIR}"
+
 else
-  echo "usage: $0 [free|sweep]"; exit 1
+  echo "${USAGE}"; exit 1
 fi

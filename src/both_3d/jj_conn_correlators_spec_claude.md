@@ -120,7 +120,7 @@ w_tp[n]*psi_tp.dag(kphi)`); sp source/sink `:561-585` (same with links).  `psi_t
 
 ---
 
-## 6. Output  (h5; `corr.<k>.h5` in `data_<ESNID>/corr_nt0<N>_nhits<H>/`)
+## 6. Output  (h5; `corr.<k>.h5` in `data_<ESNID>/conn_nt0<N>_nhits<H>/`)
 
 `ESNID = (free|<ens-basename>) + _vmRe<re>vmIm<im>`.  One file per config; resume skips iff the
 `"complete"` sentinel (written LAST, `:474`-area) is present (read-only check `:367-376`).

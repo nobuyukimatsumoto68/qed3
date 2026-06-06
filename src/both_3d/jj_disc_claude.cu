@@ -122,6 +122,7 @@ void PrintHelp(){
   printf("  --mass-im <y>        valence mass Im (default: 0.0)\n");
   printf("  --ens-dir <path>     sea config directory; OMIT => free field (U=1) check\n");
   printf("  --nhits <n>          stochastic hits (default: 1)\n");
+  printf("  --ninter <N>         ensemble config stride: measure ckpoint_lat.k for k=0,N,2N,... (default: 10)\n");
   printf("  -h, --help           show this help\n");
   exit(0);
 }
@@ -129,7 +130,7 @@ void PrintHelp(){
 void ParseArgs(int argc, char* argv[],
                double& gsq, int& Nf, double& nu0, double& nu1,
                double& mass_re, double& mass_im,
-               std::string& ens_dir, int& nhits){
+               std::string& ens_dir, int& nhits, int& ninter){
   static struct option long_opts[] = {
     {"gsq",     required_argument, nullptr, 'g'},
     {"Nf",      required_argument, nullptr, 'N'},
@@ -139,11 +140,12 @@ void ParseArgs(int argc, char* argv[],
     {"mass-im", required_argument, nullptr, 'i'},
     {"ens-dir", required_argument, nullptr, 'e'},
     {"nhits",   required_argument, nullptr, 'H'},
+    {"ninter",  required_argument, nullptr, 'I'},
     {"help",    no_argument,       nullptr, 'h'},
     {nullptr, 0, nullptr, 0}
   };
   int opt, idx;
-  while((opt = getopt_long(argc, argv, "g:N:n:m:r:i:e:H:h", long_opts, &idx)) != -1){
+  while((opt = getopt_long(argc, argv, "g:N:n:m:r:i:e:H:I:h", long_opts, &idx)) != -1){
     switch(opt){
     case 'g': gsq     = std::stod(optarg); break;
     case 'N': Nf      = std::stoi(optarg); break;
@@ -153,6 +155,7 @@ void ParseArgs(int argc, char* argv[],
     case 'i': mass_im = std::stod(optarg); break;
     case 'e': ens_dir = optarg; break;
     case 'H': nhits   = std::stoi(optarg); break;
+    case 'I': ninter  = std::stoi(optarg); break;
     case 'h':
     case '?':
     default:  PrintHelp(); break;
@@ -169,8 +172,9 @@ int main(int argc, char* argv[]){
   double mass_re=0.0, mass_im=0.0;
   std::string ens_dir="";     // empty => free-field mode
   int nhits=1;
+  int ninter=10;   // ensemble config stride (k = 0, ninter, 2*ninter, ...)
 
-  ParseArgs(argc, argv, gsq, Nf, nu0, nu1, mass_re, mass_im, ens_dir, nhits);
+  ParseArgs(argc, argv, gsq, Nf, nu0, nu1, mass_re, mass_im, ens_dir, nhits, ninter);
   if(nu1 < 0.0) nu1 = nu0;    // valence asymmetry defaults to the sea value nu0 (knob retained)
 
   const Complex valence_mass(mass_re, mass_im);
@@ -284,8 +288,9 @@ int main(int argc, char* argv[]){
     h5.createDataSet(key+"/imag", im);
   };
 
-  // free field: single deterministic config (k=0), U=1.  ensemble: loop ckpoint_lat.k in ens_dir.
-  const int k_ckpoint = free_field ? 1 : 10;
+  // free field: single deterministic config (k=0), U=1.  ensemble: loop ckpoint_lat.k in ens_dir
+  // with stride ninter (--ninter; default 10).
+  const int k_ckpoint = free_field ? 1 : ninter;
   const int kmax      = free_field ? 0 : 1000;
 
   for(int k = 0; k <= kmax; k += k_ckpoint){
