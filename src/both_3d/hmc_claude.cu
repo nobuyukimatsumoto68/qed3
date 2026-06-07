@@ -124,6 +124,7 @@ using CuC = cuDoubleComplex;
 #include "matpoly_claude.h"
 // #include "dirac_pf.h"
 // #include "overlap.h"                    // _ms: OverlapWMass copy below
+#define GRAD_L1   // L1 (HMC force opt): hoisted X Z_m/X Y_m grad; BYTE-IDENTICAL force (test PASS, 1.65x grad)
 #include "overlap_wmass_claude.h"
 // #include "pseudofermion.h"              // _ms: multishift copy below
 #include "pseudofermion_claude.h"

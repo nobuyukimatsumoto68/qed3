@@ -29,7 +29,16 @@ Called PER GAUGE LINK (`n_links*Nt` links x ~`2*nsteps+1` force evals/traj). Per
 The matvecs are also occupancy-starved single-vector (N=3072 -> 13 of 80 SMs); `nstreams=4` only partly
 hides it. The per-pole `cudaStreamSynchronize` after each dot serializes.
 
-## L1 -- HOIST the link-independent `X Z_m`/`X Y_m` out of `grad` (HEADLINE; near-pure win, byte-identical)
+## L1 -- HOIST the link-independent `X Z_m`/`X Y_m` out of `grad` [DONE+VALIDATED 2026-06-06]
+**DONE.** `d_XZpre`/`d_XYpre` buffers + precompute in BOTH precalc_grad variants; `grad_deviceAsyncLaunch_l1`
+(drops the 2 X applies, reads the precomputed vectors); `grad_deviceAsyncLaunch` dispatches to `_l1` under
+`#ifdef GRAD_L1` (`-DGRAD_L1`, like FORCE_MULTISHIFT; gauge_ext.h call site untouched). All in
+overlap_wmass_claude.h, originals kept. Test `test_grad_l1_claude.cu` (per-link grad vs grad_l1, 336
+links, mass=0.1): **max|ref-L1| = 0.000e+00 (BIT-IDENTICAL)**, grad sweep **1.651x** (0.455 -> 0.276 s).
+Byte-identical force => HMC dH reproduces EXACTLY (no traj run needed for correctness). DEPLOY = define
+GRAD_L1 in hmc_claude.cu; optional end-to-end `# HMC` traj time vs the 913 s baseline.
+
+## L1 (original plan text below) -- HOIST the link-independent `X Z_m`/`X Y_m` out of `grad`
 `X Z_m` and `X Y_m` depend ONLY on pole `m` (not the link). Compute them ONCE per force eval in
 `precalc_grad` (npole vectors each, into NEW persistent buffers `d_XZpre[m]`/`d_XYpre[m]`); `grad` then
 drops the two `X.on_gpu` calls and reads `d_XZpre[m]`/`d_XYpre[m]` in the dots. Removes ~half of `grad`'s
@@ -51,6 +60,24 @@ byte-identical (same arithmetic, fewer recomputes) -> validate dH match (~1e-8) 
   call site) to `grad_l1` behind a toggle (e.g. `#define GRAD_L1` in the .cu, like FORCE_MULTISHIFT).
   Benchmark a trajectory `# HMC` time + confirm dH matches the original to ~1e-8. Files:
   includes/pseudofermion_claude.h, hmc_claude.cu (toggle + bench).
+
+## L1 DEPLOY (2026-06-06): GRAD_L1 enabled in ALL 6 OverlapWMass hmc files
+`#define GRAD_L1` before the overlap_wmass include (byte-identical force => safe on-by-default):
+hmc_claude.cu, hmc_w_mass_claude.cu, hmc_w_mass_check_claude.cu, AND (user: include fermilab)
+hmc_fermilab_claude.cu, hmc_fermilab_L2_claude.cu, hmc_fermilab_wmass_claude.cu. NOT hmc_debug_claude.cu
+(legacy overlap.h -- no GRAD_L1 dispatch there). NOTE fermilab files are make-excluded (*_fermilab*) so
+build them manually. pf-block (L3) = WON'T DO per user 2026-06-06.
+
+## PF-BLOCK (user 2026-06-06) -- batch the n_pf = Nf/2 pseudofermions (Nf>=4 only)
+`hmc_claude.cu:242` `for f<Nf/2` => n_pf = Nf/2 (Nf2->1 NO benefit, Nf4->2, Nf6->3). The n_pf
+pseudofermions are INDEPENDENT (own action solve, precalc_grad, grad; force = sum_pf). Feasible to batch
+as nstack=n_pf RHS, but TWO different axes:
+- the INVERSIONS (action op_Dmsq solve + precalc_grad's 2 multishift solves) batch over pf via BlockedMat
+  (nstack=n_pf) -- the D1/mrhs lever; nstack=2-3 small => modest (~1.04x like jj source solves).
+- `grad`'s big occupancy axis is the POLES (npole~10 = L2), NOT pf (2-3). pf could be an EXTRA block axis
+  (npole x n_pf) but L2 dominates.
+=> pf-block is COMPLEMENTARY (targets inversions) + composes with L1/L2 (target grad). Needs restructuring
+the HMC `for(auto pf : pfs)` loop. LOWER priority than L1/L2 (small nstack). DEFER unless Nf>=4 runs need it.
 
 ## L2 -- BLOCK `grad`/precompute over poles (compounds L1; fills the SMs)
 After L1, `grad`'s remaining per-link work is `npole` matvecs of the SAME `coo` (`coo Z_m`, `coo Y_m`)

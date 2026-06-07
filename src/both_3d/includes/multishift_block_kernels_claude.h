@@ -150,3 +150,47 @@ void multishift_p_update_block( CuC* d_p, const double* d_zeta, const CuC* d_r,
     d_p[gid] = d_zeta[col]*d_r[c*N + i] + d_betm[col]*d_p[gid];
   }
 }
+
+// ===== L2 (HMC force opt): block-COO matvec + block-dot with RUNTIME ncol =====
+// mult_coo_block: apply a SINGLE CSR (the per-link grad COO) to ncol RHS at once (block length N*ncol);
+// runtime ncol = npole = size-1 (the Zolotarev poles). Same body as mult_block but ncol is a kernel arg.
+template<typename T, Idx N> __global__
+void mult_coo_block( T* res, const T* v, const T* v_csr, const Idx* cols, const Idx* rows, const int ncol ){
+  const Idx gid = (Idx)blockIdx.x*blockDim.x + threadIdx.x;
+  const Idx total = (Idx)N*ncol;
+  if(gid < total){
+    const Idx c    = gid / N;            // RHS column
+    const Idx i    = gid - c*N;          // lattice index
+    const Idx base = c*N;
+    res[gid] = cplx(0.0);
+    const int row_start = rows[i];
+    const int row_end   = rows[i+1];
+    for(int jj=row_start; jj<row_end; jj++) res[gid] = res[gid] + v_csr[jj] * v[ base + cols[jj] ];
+  }
+}
+
+// block_dot: per-column conjugate dot  d_out[c] = sum_i conj(a[c*N+i]) b[c*N+i]  (= cublasZdotc(a_c,b_c)),
+// for c = 0..ncol-1. ONE thread block per column reduces N elements (shared-mem reduction). Launch with
+// ncol blocks x NThreadsPerBlock threads (NThreadsPerBlock <= 256). Replaces the per-pole streamed
+// cublasZdotc + host sync in grad with ONE kernel + ONE memcpy (the L2 host-sync killer).
+template<Idx N> __global__
+void block_dot( CuC* d_out, const CuC* d_a, const CuC* d_b, const int ncol ){
+  const int c = blockIdx.x;
+  if(c >= ncol) return;
+  __shared__ double sh_re[256];
+  __shared__ double sh_im[256];
+  const Idx base = (Idx)c*N;
+  double re=0.0, im=0.0;
+  for(Idx i=threadIdx.x; i<N; i+=blockDim.x){
+    const CuC a = d_a[base+i], b = d_b[base+i];
+    re += cuCreal(a)*cuCreal(b) + cuCimag(a)*cuCimag(b);   // Re conj(a)b
+    im += cuCreal(a)*cuCimag(b) - cuCimag(a)*cuCreal(b);   // Im conj(a)b
+  }
+  sh_re[threadIdx.x]=re; sh_im[threadIdx.x]=im;
+  __syncthreads();
+  for(int s=blockDim.x/2; s>0; s>>=1){
+    if(threadIdx.x<s){ sh_re[threadIdx.x]+=sh_re[threadIdx.x+s]; sh_im[threadIdx.x]+=sh_im[threadIdx.x+s]; }
+    __syncthreads();
+  }
+  if(threadIdx.x==0) d_out[c] = make_cuDoubleComplex(sh_re[0], sh_im[0]);
+}
