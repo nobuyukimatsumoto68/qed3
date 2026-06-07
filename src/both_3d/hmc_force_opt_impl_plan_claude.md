@@ -1,5 +1,19 @@
 # HMC force optimization -- impl plan (2026-06-06)
 
+## STATUS 2026-06-06: L1+L2+L4 DONE+VALIDATED+DEPLOYED -- grad ~3.4x, force exact to ~1e-16
+The grad stack is complete and deployed (`#define GRAD_L4` in all 6 OverlapWMass hmc files; dispatch
+precedence L4>L2>L1 in grad_deviceAsyncLaunch). All in includes/overlap_wmass_claude.h (+ the 3 kernels
+mult_coo_block/block_dot/link_matvec_block in includes/multishift_block_kernels_claude.h); originals kept.
+- **L1** hoist link-indep X Z_m/X Y_m into precalc_grad (grad_l1): BYTE-IDENTICAL, ~1.6x.
+- **L2** block the pole loop (grad_l2): 2 block-COO matvecs (mult_coo_block) + 2 block-dots (block_dot) +
+  1 sync, replacing npole streamed matvecs/dots + per-pole host syncs; ~1.7x ON TOP of L1 (~2.8x vs ref).
+- **L4** skip coo.do_it() (grad_l4): upload raw single-link entries, apply via link_matvec_block
+  (atomicAdd, no CSR/O(N) rows loop/3 cudaMalloc); ~1.05x on top of L2 (the COO build was ~11% of grad_l2).
+- Full stack grad_l4: **~3.4x vs ref** (varies 3.2-5x run-to-run), max|ref-L4|=6.66e-16 => HMC dH to
+  machine. Validated test_grad_l1_claude.cu (ref/L1/L2/L4 per-link + sweep timing, tmp_claude4.sh GPU0).
+- pf-block (multi-pseudofermion, Nf>=4) = WON'T DO (user). End-to-end `# HMC` traj speedup NOT measured
+  (grad's fraction of the 913 s traj unknown -- optional). DONE for today.
+
 ## Algorithm sources (cite in code)
 - HMC: Duane, Kennedy, Pendleton, Roweth, Phys. Lett. B195 (1987) 216.
 - Overlap force = derivative of the Zolotarev rational sign approximation; the inner shifted solves are a
@@ -79,7 +93,18 @@ as nstack=n_pf RHS, but TWO different axes:
 => pf-block is COMPLEMENTARY (targets inversions) + composes with L1/L2 (target grad). Needs restructuring
 the HMC `for(auto pf : pfs)` loop. LOWER priority than L1/L2 (small nstack). DEFER unless Nf>=4 runs need it.
 
-## L2 -- BLOCK `grad`/precompute over poles (compounds L1; fills the SMs)
+## L2 -- BLOCK `grad` over poles [DONE+VALIDATED+DEPLOYED 2026-06-06]
+**DONE.** New runtime-`ncol` kernels `mult_coo_block<T,N>` + `block_dot<N>` (multishift_block_kernels_claude.h);
+contiguous `d_Zg/d_Yg/d_XZg/d_XYg/d_CY/d_CZ` + `d_dotA/d_dotB` gathered in both precalc_grad variants;
+`grad_deviceAsyncLaunch_l2` = 2 block-COO matvecs + 2 block-dots + 1 sync (replaces the npole-streamed
+loop + per-pole host syncs); `grad` dispatches `_l2` under `#ifdef GRAD_L2` (precedence over GRAD_L1).
+Profile confirmed the pole loop = 93% of grad (COO build only ~6.4% -> L4 NOT worth it, user agreed).
+Test (test_grad_l1_claude.cu, ref vs L1 vs L2): max|ref-L2|=**6.66e-16** (machine), grad **2.79x vs ref /
+1.73x vs L1**. DEPLOYED: GRAD_L1 -> **GRAD_L2** in all 6 OverlapWMass hmc files. force==ref to ~1e-16 =>
+HMC dH reproduces to machine (safe; not strictly byte-identical like L1). End-to-end `# HMC` traj speedup
+NOT yet measured (grad's fraction of the 913 s traj unknown -- optional benchmark).
+
+## L2 (original plan text) -- BLOCK `grad`/precompute over poles (compounds L1; fills the SMs)
 After L1, `grad`'s remaining per-link work is `npole` matvecs of the SAME `coo` (`coo Z_m`, `coo Y_m`)
 + `npole` dots -- a block over poles: one block COO matvec (npole RHS, `mult_block`-style over the
 single-link CSR) + a fused block-dot, instead of `npole` `nstreams`-streamed occupancy-starved kernels.

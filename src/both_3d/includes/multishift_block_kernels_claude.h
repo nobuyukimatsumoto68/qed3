@@ -194,3 +194,22 @@ void block_dot( CuC* d_out, const CuC* d_a, const CuC* d_b, const int ncol ){
   }
   if(threadIdx.x==0) d_out[c] = make_cuDoubleComplex(sh_re[0], sh_im[0]);
 }
+
+// L4 (HMC force): single-link matvec from the RAW COO entries -- SKIPS coo.do_it() (its O(N) CSR-rows
+// loop + 3 cudaMalloc, ~11% of grad_l2). out[c*N+ei[k]] += ev[k] * in[c*N+ej[k]] over nent entries x ncol
+// RHS; out MUST be zeroed first (memset). atomicAdd: a single-link COO's entries are on a few distinct
+// rows so contention is ~nil (=> deterministic); atomics just keep it correct if any row repeats.
+__device__ inline void atomicAddCuC( CuC* a, const CuC b ){
+  atomicAdd( &(reinterpret_cast<double*>(a)[0]), cuCreal(b) );
+  atomicAdd( &(reinterpret_cast<double*>(a)[1]), cuCimag(b) );
+}
+template<Idx N> __global__
+void link_matvec_block( CuC* out, const CuC* in, const Idx* ei, const Idx* ej, const CuC* ev,
+                        const int nent, const int ncol ){
+  const int gid = blockIdx.x*blockDim.x + threadIdx.x;
+  if(gid < nent*ncol){
+    const int c = gid / nent;
+    const int k = gid - c*nent;
+    atomicAddCuC( &out[(size_t)c*N + ei[k]], ev[k] * in[(size_t)c*N + ej[k]] );
+  }
+}

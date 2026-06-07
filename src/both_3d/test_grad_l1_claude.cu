@@ -179,6 +179,30 @@ int main(int argc, char* argv[]){
   CUDA_CHECK(cudaDeviceSynchronize());
   const double t_l1=std::chrono::duration<double>(std::chrono::steady_clock::now()-t0).count();
 
+  // ---- L2 sweep (block over poles) ----
+  std::vector<double> l2;
+  CUDA_CHECK(cudaDeviceSynchronize());
+  t0=std::chrono::steady_clock::now();
+  for(int s=0;s<NS_TEST;s++){
+    for(int ell=0;ell<n_links;ell++){ const BaseLink lk{base.links[ell][0], base.links[ell][1]};
+      l2.push_back( Dm.grad_deviceAsyncLaunch_l2( std::pair<int,BaseLink>(s, lk), U, d_eta ) ); }
+    for(int ix=0;ix<n_sites;ix++)    l2.push_back( Dm.grad_deviceAsyncLaunch_l2( std::pair<int,Idx>(s, ix), U, d_eta ) );
+  }
+  CUDA_CHECK(cudaDeviceSynchronize());
+  const double t_l2=std::chrono::duration<double>(std::chrono::steady_clock::now()-t0).count();
+
+  // ---- L4 sweep (block over poles + skip do_it via single-link matvec) ----
+  std::vector<double> l4;
+  CUDA_CHECK(cudaDeviceSynchronize());
+  t0=std::chrono::steady_clock::now();
+  for(int s=0;s<NS_TEST;s++){
+    for(int ell=0;ell<n_links;ell++){ const BaseLink lk{base.links[ell][0], base.links[ell][1]};
+      l4.push_back( Dm.grad_deviceAsyncLaunch_l4( std::pair<int,BaseLink>(s, lk), U, d_eta ) ); }
+    for(int ix=0;ix<n_sites;ix++)    l4.push_back( Dm.grad_deviceAsyncLaunch_l4( std::pair<int,Idx>(s, ix), U, d_eta ) );
+  }
+  CUDA_CHECK(cudaDeviceSynchronize());
+  const double t_l4=std::chrono::duration<double>(std::chrono::steady_clock::now()-t0).count();
+
   // ---- COO-build-only timing: isolate the per-link do_it cost (O(N) rows loop + 3 cudaMalloc).
   //      L2 (block poles) does NOT touch this; L4 (single-link matvec / cache) does. Tells us the ceiling.
   CUDA_CHECK(cudaDeviceSynchronize());
@@ -198,20 +222,29 @@ int main(int argc, char* argv[]){
     maxabs=std::max(maxabs,d);
     const double den=std::abs(ref[i]); if(den>1e-300) maxrel=std::max(maxrel, d/den);
   }
+  double maxabs2=0.0, maxabs4=0.0;
+  for(size_t i=0;i<ref.size();i++){ maxabs2=std::max(maxabs2, std::abs(ref[i]-l2[i]));
+                                    maxabs4=std::max(maxabs4, std::abs(ref[i]-l4[i])); }
   const int nlink = (int)ref.size();
-  const bool ok = maxabs<1e-10;
+  const bool ok  = maxabs <1e-10;   // L1: byte-identical
+  const bool ok2 = maxabs2<1e-8;    // L2: ~reduction-order (block_dot vs cublasZdotc)
+  const bool ok4 = maxabs4<1e-8;    // L4: ~reduction/atomic order
   std::cout << std::scientific << std::setprecision(3);
   std::cout << "# nlinks="<<nlink<<" (NS_TEST="<<NS_TEST<<" x ("<<n_links<<" sp + "<<n_sites<<" tp))\n";
   std::cout << "# max|ref-L1|="<<maxabs<<"  max rel="<<maxrel<<"  ("<<(ok?"PASS":"FAIL")<<")\n";
-  std::cout << "# force sweep:  grad(ref)="<<t_ref<<"s  grad_l1="<<t_l1<<"s  speedup="<<(t_l1>0?t_ref/t_l1:0.0)<<"x\n";
-  std::cout << "# COO-build only="<<t_coo<<"s  ("<<std::fixed<<std::setprecision(1)<<(t_l1>0?100.0*t_coo/t_l1:0.0)
-            <<"% of grad_l1; remainder = pole-loop + post)"<<std::scientific<<"\n";
-  std::cout << "#   => " << (t_coo>0.5*t_l1
-              ? "COO BUILD DOMINATES -> L4 (single-link matvec / cache do_it) is the lever"
-              : "pole loop dominates -> L2 (block poles) is the lever") << "\n";
-  std::cout << "# L1 RESULT: " << (ok ? "PASS" : "FAIL") << std::endl;
+  std::cout << "# max|ref-L2|="<<maxabs2<<"  ("<<(ok2?"PASS":"FAIL")<<")   max|ref-L4|="<<maxabs4<<"  ("<<(ok4?"PASS":"FAIL")<<")\n";
+  std::cout << "# force sweep:  grad(ref)="<<t_ref<<"s  grad_l1="<<t_l1<<"s ("<<(t_l1>0?t_ref/t_l1:0.0)<<"x)"
+            <<"  grad_l2="<<t_l2<<"s ("<<(t_l2>0?t_ref/t_l2:0.0)<<"x)  grad_l4="<<t_l4<<"s ("
+            <<(t_l4>0?t_ref/t_l4:0.0)<<"x vs ref, "<<(t_l4>0?t_l2/t_l4:0.0)<<"x vs L2)\n";
+  std::cout << "# COO-build only="<<t_coo<<"s  = "<<std::fixed<<std::setprecision(1)
+            <<(t_l1>0?100.0*t_coo/t_l1:0.0)<<"% of grad_l1, "<<(t_l2>0?100.0*t_coo/t_l2:0.0)
+            <<"% of grad_l2"<<std::scientific<<"\n";
+  std::cout << "#   L4 CEILING (remove COO build): grad ~"<<(t_l2-t_coo>0?t_ref/(t_l2-t_coo):0.0)
+            <<"x vs ref  (vs L2 "<<(t_l2>0?t_ref/t_l2:0.0)<<"x) => L4 worth ~"<<std::fixed<<std::setprecision(1)
+            <<(t_l2>0?100.0*t_coo/t_l2:0.0)<<"% more on grad"<<std::scientific<<"\n";
+  std::cout << "# L1+L2+L4 RESULT: " << ((ok&&ok2&&ok4) ? "PASS" : "FAIL") << std::endl;
 
   CUDA_CHECK(cudaFree(d_eta));
   for(int i=0;i<Comp::NSTREAMS;i++) d_MemorySets[i].deallocate();
-  return ok ? 0 : 1;
+  return (ok&&ok2&&ok4) ? 0 : 1;
 }
