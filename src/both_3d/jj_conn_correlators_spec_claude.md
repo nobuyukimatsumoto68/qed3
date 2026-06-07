@@ -4,7 +4,9 @@ Clean, self-contained spec of the **unified connected** current-current correlat
 estimator equation can be checked **line-to-line** against the code.  Reference: `qed3int_v2-10.pdf`
 (equation numbers below) and `conserved_current_correlators_impl_plan_v3_claude.md` (design history).
 
-Disconnected is a **separate** program (`jj_disc_claude.cu`) -- not here.
+This is the **connected-only** program (output `conn_nt0<N>_nhits<H>/`).  Disconnected is the separate
+`jj_disc_claude.cu` (`disc_` dir).  The **combined** conn+disc program is `jj_corr_claude.cu` (`corr_` dir);
+its spec `jj_corr_spec_claude.md` references this one and adds the disc fold.
 
 Conventions: two-component spinors ($\xi/\eta$); overlap $D_\text{ov}$ (Zolotarev); $Z_2$ stochastic source
 $\eta$ with $E[\eta\eta^\dagger]=\mathbb{1}$; $N=N_s\,N_\text{site}\,N_t$.  All overlap applies/solves go through
@@ -112,11 +114,15 @@ $$
 C_{A+-}(t_0\!\to\! t)=\frac1{4\pi}\sum_a w_a\,\psi^A_a(t_0)^\dagger\,K^\dagger(a,t)\,\chi,\qquad
 \psi^A_a(t_0)=X_\text{sink}^{-1}\,(1-D_\text{ov})\,K^\dagger(a,t_0)\,\eta,
 $$
-$X_\text{sink}=D_\text{ov}$ (flavor) / $\tilde D_{m_P}$ (parity) / $D_m$ (else).  Code: forward leg `:533-535`;
-$\chi$ `:536`; tp source `:539-549` (`op_K(rho,eta)` -> `op_oneMinusD(rho,rho)` -> case solve into
-`psi_tp[ITP(n,b)]`); tp sink `:551-558` (`set_temporal(U,t,n,dag=true)` -> `op_K(kphi,chi)` -> `Atp[b][dt] +=
-w_tp[n]*psi_tp.dag(kphi)`); sp source/sink `:561-585` (same with links).  `psi_tp`/`psi_sp` are **reused**
-(the vector results are already written).
+$X_\text{sink}=D_\text{ov}$ (flavor) / $\tilde D_{m_P}$ (parity) / $D_m$ (else).  Code: forward leg + $\chi$
+near the axial block top; tp source (`op_oneMinusD(rho, rho_tp[ITP(n,b)])` -> case solve into `psi_tp[ITP(n,b)]`);
+tp sink (`set_temporal(U,t,n,dag=true)` -> `op_K(kphi,chi)` -> `Atp[b][dt] += w_tp[n]*psi_tp.dag(kphi)`); sp
+source/sink the same with links.  `psi_tp`/`psi_sp` are **reused** (the vector results are already written).
+
+**Reuse A.**  The axial source does NOT re-apply $K^\dagger$: the vector $(++)$ tp/sp source passes cache
+$\texttt{rho\_tp}[ITP(n,b)]=K^\dagger(n,t_0)\eta$ and $\texttt{rho\_sp}[ISP(a,b)]=K^\dagger(\ell_a,t_0)\eta$
+(both run with `dag=true` in every mass case), and the axial source starts from $(1-D_\text{ov})\,\texttt{rho\_*}$.
+Saves $n_{t_0}(n_\text{sites}+n_\text{links})$ kernel applies per hit at ~4 MB of cached buffers.
 
 ---
 

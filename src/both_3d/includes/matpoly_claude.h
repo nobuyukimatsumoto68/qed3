@@ -1,6 +1,7 @@
 #pragma once
 
-#include "multishift_kernels_claude.h"   // block kernels for solve_multishift
+#include "multishift_kernels_claude.h"        // per-pole block kernels for solve_multishift
+#include "multishift_block_kernels_claude.h"  // mrhs (nstack) block kernels, used by BlockedMat (blocked_mat_claude.h)
 
 // device memory set
 struct DeviceMemorySetN{
@@ -125,6 +126,30 @@ struct MatPoly{
     }
     CUDA_CHECK(cudaFree(d_tmp));
     CUDA_CHECK(cudaFree(d_Mv0));
+  }
+
+
+  // PREALLOC variant of on_gpu: the caller supplies scratch d_tmp/d_Mv0 (length N each) so that
+  // on_gpu's per-call cudaMalloc/cudaFree -- DEVICE-WIDE syncs, ~10-100 us each -- are hoisted out
+  // of the CG loop. Used by solve_multishift's hot, occupancy-starved seed matvec. Body is
+  // otherwise byte-identical to on_gpu. Profile-gate A/B: swap the seed matvec call between on_gpu
+  // and on_gpu_pre to size the cudaMalloc/cudaFree overhead (see solve_multishift seed matvec).
+  template<Idx N> __host__
+  void on_gpu_pre(CuC* d_v, const CuC* d_v0, CuC* d_tmp, CuC* d_Mv0) const {
+    CUDA_CHECK(cudaMemset(d_v, 0, N*CD));
+
+    for(int i=0; i<vec_mats.size(); i++){
+      CUDA_CHECK(cudaMemcpy(d_tmp, d_v0, N*CD, D2D));
+      CUDA_CHECK(cudaMemcpy(d_Mv0, d_v0, N*CD, D2D));
+      for(int j=0; j<vec_mats[i].size(); j++){
+        vec_mats[i][j]->operator()(d_Mv0, d_tmp);
+        CUDA_CHECK(cudaMemcpy(d_tmp, d_Mv0, N*CD, D2D));
+      }
+      Taxpy<CuC, N><<<NBlocks, NThreadsPerBlock>>>(d_v,
+                                                   coeffs[i],
+        					   d_Mv0,
+        					   d_v);
+    }
   }
 
 
@@ -373,6 +398,12 @@ struct MatPoly{
     CUDA_CHECK(cudaMalloc(&d_zeta, npole*sizeof(double)));
     CUDA_CHECK(cudaMalloc(&d_betm, npole*sizeof(double)));
 
+    // PREALLOC scratch for the seed matvec (on_gpu_pre): hoists on_gpu's per-call cudaMalloc/Free
+    // out of the CG loop. Allocated once per solve. Profile-gate A/B (see the seed matvec below).
+    CuC *d_tmp_mv, *d_Mv0_mv;
+    CUDA_CHECK(cudaMalloc(&d_tmp_mv, N*CD));
+    CUDA_CHECK(cudaMalloc(&d_Mv0_mv, N*CD));
+
     // grid sized for the N*npole block work (NOT the N-sized NBlocks macro)
     const Idx total = (Idx)N*npole;
     const int nb_blk = (total + NThreadsPerBlock)/NThreadsPerBlock;
@@ -407,6 +438,11 @@ struct MatPoly{
       for(; k<maxiter; ++k){
         // seed matvec: q = A p0 + sig0 p0   (one matvec shared by all poles)
         this->on_gpu<N>(d_q, d_p0);
+        // PROFILE-GATE A/B (OFF -- free-field wash: only ~370 cudaMalloc removed, dominated by a
+        // one-time startup alloc): preallocated-scratch seed matvec hoists the per-matvec
+        // cudaMalloc/cudaFree out of the CG loop. May help on long thermalized solves; swap to the
+        // line below to re-enable.
+        // this->on_gpu_pre<N>(d_q, d_p0, d_tmp_mv, d_Mv0_mv);
         Taxpy<CuC,N><<<NBlocks, NThreadsPerBlock>>>(d_q, cplx(sig0), d_p0, d_q);
         CuC gam; dot<N>(&gam, d_p0, d_q);     // host-pointer dot => blocks (sync point)
         // BREAKDOWN GUARD: the seed curvature <p0|A p0> is > 0 for SPD A+sigma_s; roundoff
@@ -502,6 +538,7 @@ struct MatPoly{
     CUDA_CHECK(cudaFree(d_p0)); CUDA_CHECK(cudaFree(d_q));
     CUDA_CHECK(cudaFree(d_r));  CUDA_CHECK(cudaFree(d_pm));
     CUDA_CHECK(cudaFree(d_alm)); CUDA_CHECK(cudaFree(d_zeta)); CUDA_CHECK(cudaFree(d_betm));
+    CUDA_CHECK(cudaFree(d_tmp_mv)); CUDA_CHECK(cudaFree(d_Mv0_mv));
   }
 
 

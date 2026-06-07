@@ -214,8 +214,8 @@ int main(int argc, char* argv[]){
 #ifdef IS_OVERLAP
   const Complex mass = Complex(0.0, 0.0); // massless
   // Fermion D(DW, 11); // 21                         // _ms: OverlapWMass ctor below
-  // Fermion D(DW, mass, 11);   // n=11 (5 poles) -- old pole count; those ensembles archived as *_pole11
-  Fermion D(DW, mass, 21);      // n=21 (10 poles): unified pole count (multishift-validated, freeze-safe)
+  Fermion D(DW, mass, 11);      // n=11 (5 poles) -- reverted per request (hmc_claude.cu ONLY; jj keeps n=21)
+  // Fermion D(DW, mass, 21);   // n=21 (10 poles): unified pole count (multishift-validated, freeze-safe)
   std::cout << "# Dov set; M5 = " << M5 << std::endl;
   D.update(U);
   std::cout << "# min max ratio: "

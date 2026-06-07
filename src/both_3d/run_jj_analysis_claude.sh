@@ -38,6 +38,7 @@ L=1
 NHITS="${NHITS:-}"   # hits per program call; per-mode default applied after CLI (free 16, sweep/ens 1)
 NT0="${NT0:-}"       # # source-time origins; empty => program default (2); override --n-t0/-T or NT0= env
 NINTER="${NINTER:-}" # ensemble config stride k=0,N,2N,...; empty => program default (10); --ninter/-I or NINTER=
+COMPONENT="${COMPONENT:-all}"  # which program to run: all (combined corr_) | conn | disc; --all/--conn/--disc or COMPONENT=
 
 # 'ens' mode (single explicit ensemble) knobs -- set via CLI:
 ENS_DIR="${ENS_DIR:-}"   # explicit sea config directory (must end with /)
@@ -48,10 +49,17 @@ VAL_IM="${VAL_IM:-0.0}"  # valence mass Im for the ens-mode run
 NFS=(2 4 6)
 MASSES=(0.01 0.05 0.1 0.2)
 
-# program binaries.  PRODUCTION path = the unified connected program + the standalone disc:
-DISC="${BINDIR}/jj_disc_claude.o"                       # disconnected, vector only (corr = single-time traces)
-CONN_UNIFIED="${BINDIR}/jj_conn_correlators_claude.o"   # UNIFIED connected: vector tp/sp/ylm + axial tp/sp
-                                                        #   (no --current; axial legs auto-selected by mass)
+# program binaries.  Three production programs (one per --all/--conn/--disc):
+# C6f-c: deploy the t-BLOCKED sink binaries (2.99x whole-jj; same output dirs => analysis unchanged).
+# Old lines kept commented as reference fallback (validated bit-identical/within-1e-10 to the block_t).
+# CORR="${BINDIR}/jj_corr_claude.o"             # --all : pre-block_t (jj_corr; mrhs = jj_corr_mrhs_claude.o)
+CORR="${BINDIR}/jj_corr_block_t_claude.o"       # --all : COMBINED conn + folded disc, t-blocked sink (corr_ dir; 2.99x)
+CONN="${BINDIR}/jj_conn_correlators_claude.o"   # --conn: connected only (vector tp/sp/ylm + axial tp/sp; conn_ dir)
+DISC="${BINDIR}/jj_disc_claude.o"               # --disc: disconnected only (vector; cheap, no conn solves; disc_ dir)
+                                                #   NOTE: --all (jj_corr_block_t) ALREADY includes disc (folded in,
+                                                #   block-t'd); jj_disc is only the disc-ONLY cheap path. jj_disc_block_t
+                                                #   exists but is REDUNDANT for --all production (left parked, not used here).
+                                                #   (none take --current; axial legs auto-selected by mass)
 # Legacy per-projection standalone programs (kept as reference; driven by run_vector/run_axial below):
 CONN_SP="${BINDIR}/jj_conn_spproj_claude.o"             # vector sp
 CONN_SP_AXIAL="${BINDIR}/jj_conn_spproj_axial_claude.o" # axial  sp
@@ -95,25 +103,52 @@ run_axial() {  # args: Nf valRe valIm [ens_dir or "" for free]
   done
 }
 
-# PRODUCTION: unified connected (+ disc) for one (ensemble, valence).  ONE valence mass suffices: the
-# unified binary computes vector tp/sp/ylm AND axial tp/sp, and its internal flavor/parity logic selects
-# the axial legs (flavor m_F -> massless D_ov axial = the old "axial valence 0"; parity m_P -> tilde sink).
-run_connected() {  # args: Nf valRe valIm [ens_dir or "" for free]
+# PRODUCTION (--all): COMBINED connected + disc for one (ensemble, valence).  ONE valence mass suffices:
+# the binary computes vector tp/sp/ylm AND axial tp/sp AND the disc traces, with internal flavor/parity
+# logic selecting the axial legs (flavor m_F -> massless D_ov axial; parity m_P -> tilde sink).
+run_corr() {  # args: Nf valRe valIm [ens_dir or "" for free]  -> data_<ESNID>/corr_nt0<N>_nhits<H>/
   local Nf="$1" vr="$2" vi="$3" ed="$4"
   local edflag=(); [[ -n "${ed}" ]]     && edflag=(--ens-dir "${ed}")
   local ntflag=(); [[ -n "${NT0}" ]]    && ntflag=(--n-t0 "${NT0}")       # empty => program default (2)
   local niflag=(); [[ -n "${NINTER}" ]] && niflag=(--ninter "${NINTER}")  # empty => program default (10)
-  # disconnected dump (vector only; origin-agnostic, no --n-t0)
-  [[ -x "${DISC}" ]] && "${DISC}" --gsq "${GSQ}" --Nf "${Nf}" --nu0 "${NU0}" --nu1 "${NU1}" \
-        --mass-re "${vr}" --mass-im "${vi}" --nhits "${NHITS}" "${niflag[@]}" "${edflag[@]}"
-  # unified connected (vector tp/sp/ylm + axial tp/sp; no --current)
-  [[ -x "${CONN_UNIFIED}" ]] && "${CONN_UNIFIED}" --gsq "${GSQ}" --Nf "${Nf}" --nu0 "${NU0}" --nu1 "${NU1}" \
+  [[ -x "${CORR}" ]] && "${CORR}" --gsq "${GSQ}" --Nf "${Nf}" --nu0 "${NU0}" --nu1 "${NU1}" \
         --mass-re "${vr}" --mass-im "${vi}" --nhits "${NHITS}" "${ntflag[@]}" "${niflag[@]}" "${edflag[@]}"
 }
 
+# --conn: CONNECTED-only program (no disc) for one (ensemble, valence).
+run_conn() {  # args: Nf valRe valIm [ens_dir or "" for free]  -> data_<ESNID>/conn_nt0<N>_nhits<H>/
+  local Nf="$1" vr="$2" vi="$3" ed="$4"
+  local edflag=(); [[ -n "${ed}" ]]     && edflag=(--ens-dir "${ed}")
+  local ntflag=(); [[ -n "${NT0}" ]]    && ntflag=(--n-t0 "${NT0}")       # empty => program default (2)
+  local niflag=(); [[ -n "${NINTER}" ]] && niflag=(--ninter "${NINTER}")  # empty => program default (10)
+  [[ -x "${CONN}" ]] && "${CONN}" --gsq "${GSQ}" --Nf "${Nf}" --nu0 "${NU0}" --nu1 "${NU1}" \
+        --mass-re "${vr}" --mass-im "${vi}" --nhits "${NHITS}" "${ntflag[@]}" "${niflag[@]}" "${edflag[@]}"
+}
+
+# --disc: DISCONNECTED-only dump (vector; origin-agnostic, no --n-t0).  Cheap path for many configs.
+run_disc() {  # args: Nf valRe valIm [ens_dir or "" for free]  -> data_<ESNID>/disc_nhits<H>/
+  local Nf="$1" vr="$2" vi="$3" ed="$4"
+  local edflag=(); [[ -n "${ed}" ]]     && edflag=(--ens-dir "${ed}")
+  local niflag=(); [[ -n "${NINTER}" ]] && niflag=(--ninter "${NINTER}")  # empty => program default (10)
+  [[ -x "${DISC}" ]] && "${DISC}" --gsq "${GSQ}" --Nf "${Nf}" --nu0 "${NU0}" --nu1 "${NU1}" \
+        --mass-re "${vr}" --mass-im "${vi}" --nhits "${NHITS}" "${niflag[@]}" "${edflag[@]}"
+}
+
+# Dispatcher honouring COMPONENT {all|conn|disc} (--all default / --conn / --disc).
+run_connected() {  # args: Nf valRe valIm [ens_dir or "" for free]
+  case "${COMPONENT}" in
+    all)  run_corr "$@" ;;   # combined corr_ (efficient: shares phi' + sink across conn & disc)
+    conn) run_conn "$@" ;;   # connected-only conn_
+    disc) run_disc "$@" ;;   # disconnected-only disc_ (cheap)
+  esac
+}
+
 # ---------------- CLI ----------------
-USAGE="usage: $0 [--gpu N[,N...]] [--nhits N] [--n-t0 N] [--ninter N] [free|sweep|ens]   (default: free)
-  ens mode (single explicit ensemble): also pass --ens-dir <path/> [--Nf N] [--mass-re X] [--mass-im Y]"
+USAGE="usage: $0 [--gpu N[,N...]] [--nhits N] [--n-t0 N] [--ninter N] [--all|--conn|--disc] [free|sweep|ens]   (default: free, --all)
+  ens mode (single explicit ensemble): also pass --ens-dir <path/> [--Nf N] [--mass-re X] [--mass-im Y]
+  --all  (default) run the COMBINED jj_corr binary (corr_ dir = connected + folded disc; efficient: shared phi'/sink)
+  --conn run ONLY the connected binary jj_conn_correlators (conn_ dir)
+  --disc run ONLY the disconnected binary jj_disc (disc_ dir; cheap, no connected solves -- for many configs)"
 MODE=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -125,6 +160,11 @@ while [[ $# -gt 0 ]]; do
     --n-t0=*)    NT0="${1#*=}"; shift ;;
     -I|--ninter) NINTER="$2"; shift 2 ;;
     --ninter=*)  NINTER="${1#*=}"; shift ;;
+    --all)       COMPONENT="all";  shift ;;
+    --conn)      COMPONENT="conn"; shift ;;
+    --disc)      COMPONENT="disc"; shift ;;
+    --only)      COMPONENT="$2"; shift 2 ;;   # alias: --only all|conn|disc
+    --only=*)    COMPONENT="${1#*=}"; shift ;;
     --ens-dir)   ENS_DIR="$2"; shift 2 ;;
     --ens-dir=*) ENS_DIR="${1#*=}"; shift ;;
     --Nf)        ENS_NF="$2"; shift 2 ;;
@@ -139,11 +179,12 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 MODE="${MODE:-free}"
+case "${COMPONENT}" in all|conn|disc) ;; *) echo "component must be all|conn|disc (got '${COMPONENT}')"; exit 1 ;; esac
 
 export CUDA_VISIBLE_DEVICES="${GPU}"
 export NVIDIA_VISIBLE_DEVICES="${GPU}"
 echo "### GPU(s): CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES} ###"
-echo "### n_t0: ${NT0:-<program default 2>}   ninter: ${NINTER:-<program default 10>} ###"
+echo "### n_t0: ${NT0:-<program default 2>}   ninter: ${NINTER:-<program default 10>}   component: ${COMPONENT} ###"
 
 # ---------------- modes ----------------
 if [[ "${MODE}" == "free" ]]; then

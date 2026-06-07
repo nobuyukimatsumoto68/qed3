@@ -151,6 +151,10 @@ struct OverlapWMass : public Zolotarev {
   std::vector<cublasHandle_t> handle;
 
   std::vector<CuC*> d_Ys, d_Zs, d_XYs, d_XZs;
+  // L1 (HMC force, hmc_force_opt_impl_plan_claude.md): X Z_m / X Y_m are LINK-INDEPENDENT, so precompute
+  // them ONCE per force eval in precalc_grad (here) and reuse in grad_..._l1 instead of recomputing per
+  // link.  X = M_DW/lambda_max.  Indexed 1..size-1 (m=0 unused).
+  std::vector<CuC*> d_XZpre, d_XYpre;
 
   // contiguous N*(size-1) blocks for the multi-shift inner solve (column-major
   // [m*N + i], pole index m = 0..size-2). Used by mult/adj_deviceAsyncLaunch_ms.
@@ -172,6 +176,8 @@ struct OverlapWMass : public Zolotarev {
     , d_Zs(size)
     , d_XYs(size)
     , d_XZs(size)
+    , d_XZpre(size)
+    , d_XYpre(size)
     , is_precalc(false)
     , is_update(true)
     , mass(mass_)
@@ -190,6 +196,8 @@ struct OverlapWMass : public Zolotarev {
       CUDA_CHECK(cudaMalloc(&d_Ys[m], N*CD));
       CUDA_CHECK(cudaMalloc(&d_XZs[m], N*CD));
       CUDA_CHECK(cudaMalloc(&d_XYs[m], N*CD));
+      CUDA_CHECK(cudaMalloc(&d_XZpre[m], N*CD));   // L1: X Z_m (link-indep precompute)
+      CUDA_CHECK(cudaMalloc(&d_XYpre[m], N*CD));   // L1: X Y_m
     }
     CUDA_CHECK(cudaMalloc(&d_Zblock, (size_t)N*(size-1)*CD));
     CUDA_CHECK(cudaMalloc(&d_Yblock, (size_t)N*(size-1)*CD));
@@ -202,6 +210,8 @@ struct OverlapWMass : public Zolotarev {
       CUDA_CHECK(cudaFree(d_Ys[m]));
       CUDA_CHECK(cudaFree(d_XZs[m]));
       CUDA_CHECK(cudaFree(d_XYs[m]));
+      CUDA_CHECK(cudaFree(d_XZpre[m]));   // L1
+      CUDA_CHECK(cudaFree(d_XYpre[m]));   // L1
     }
     CUDA_CHECK(cudaFree(d_Zblock));
     CUDA_CHECK(cudaFree(d_Yblock));
@@ -480,7 +490,6 @@ struct OverlapWMass : public Zolotarev {
     this->DHD_deviceAsyncLaunch_ms(d_res, d_xi);  // DDH = DHD for normal D
   }
 
-
   template<typename Gauge>
   void precalc_grad_deviceAsyncLaunch( const Gauge& U, const CuC* d_eta ) {
 #ifdef FORCE_MULTISHIFT
@@ -505,6 +514,19 @@ struct OverlapWMass : public Zolotarev {
 
       Op.solveAsync<N>( d_Zs[m], d_eta, Comp::TOL_INNER );
       Op.solveAsync<N>( d_Ys[m], d_Ys[0], Comp::TOL_INNER );
+      CUDA_CHECK(cudaStreamSynchronize(stream[istream]));
+    }
+
+    // L1: precompute the LINK-INDEPENDENT X Z_m / X Y_m (X = M_DW/lambda_max) once, for grad_..._l1.
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(nstreams)
+#endif
+    for(int m=1; m<size; m++) {
+      const int istream = omp_get_thread_num();
+      MatPoly X(handle[istream], stream[istream], istream);
+      X.push_back ( cplx(1.0/(lambda_max)), {&M_DW} );
+      X.on_gpuAsync<N>( d_XZpre[m], d_Zs[m] );
+      X.on_gpuAsync<N>( d_XYpre[m], d_Ys[m] );
       CUDA_CHECK(cudaStreamSynchronize(stream[istream]));
     }
 
@@ -535,12 +557,28 @@ struct OverlapWMass : public Zolotarev {
     Aseed.solve_multishift<N>( d_Yblock, d_Ys[0], sigma.data(), size-1, Comp::TOL_INNER ); // Y_m = R_m (X^dag eta)
     for(int m=1; m<size; m++) CUDA_CHECK(cudaMemcpy(d_Ys[m], d_Yblock + (size_t)(m-1)*N, N*CD, D2D));
 
+    // L1: precompute the LINK-INDEPENDENT X Z_m / X Y_m once, for grad_..._l1 (same as the pole-loop variant).
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(nstreams)
+#endif
+    for(int m=1; m<size; m++) {
+      const int istream = omp_get_thread_num();
+      MatPoly X(handle[istream], stream[istream], istream);
+      X.push_back ( cplx(1.0/(lambda_max)), {&M_DW} );
+      X.on_gpuAsync<N>( d_XZpre[m], d_Zs[m] );
+      X.on_gpuAsync<N>( d_XYpre[m], d_Ys[m] );
+      CUDA_CHECK(cudaStreamSynchronize(stream[istream]));
+    }
+
     is_precalc = true;
     CUDA_CHECK(cudaDeviceSynchronize());
   }
 
   template<typename Link, typename Gauge>
   double grad_deviceAsyncLaunch( const Link& link, const Gauge& U, const CuC* d_eta ) const {
+#ifdef GRAD_L1
+    return grad_deviceAsyncLaunch_l1(link, U, d_eta);   // L1: hoisted X Z_m/X Y_m; toggle = -DGRAD_L1
+#endif
     assert( is_precalc );
 
     COO<N> coo;
@@ -578,6 +616,59 @@ struct OverlapWMass : public Zolotarev {
 
     double res = 0.0;
     // reductions
+    for(int m=1; m<size; m++) res+=tmp2reduce[m];
+
+    CUDA_CHECK(cudaMemcpy(d_Zs[0], d_eta, N*CD, D2D));
+    for(int m=1; m<size; m++) Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_Zs[0], A[m], d_Zs[m], d_Zs[0]);
+    coo( d_Ys[0], d_Zs[0] );
+    CuC inner;
+    {
+      MatPoly XH;
+      XH.dot<N>( &inner, d_eta, d_Ys[0] );
+    }
+    res += real(cplx(Complex(1.0)+std::conj(mass)) * inner);
+    res *= -2.0*C/lambda_max;
+    return res;
+  }
+
+  // L1 (HMC force opt, hmc_force_opt_impl_plan_claude.md): byte-identical variant of
+  // grad_deviceAsyncLaunch that DROPS the two link-independent X applies (X Z_m, X Y_m) and reads the
+  // precomputed d_XZpre[m]/d_XYpre[m] (set in precalc_grad). Only the per-link COO matvecs (coo Z_m,
+  // coo Y_m) remain in the pole loop. Requires precalc_grad to have run (it fills d_XZpre/d_XYpre).
+  // Toggle at the call site (e.g. #define GRAD_L1 in the .cu); original grad kept as the dH reference.
+  template<typename Link, typename Gauge>
+  double grad_deviceAsyncLaunch_l1( const Link& link, const Gauge& U, const CuC* d_eta ) const {
+    assert( is_precalc );
+
+    COO<N> coo;
+    DW.d_coo_format(coo.en, U, link);
+    coo.do_it();
+
+    std::vector<double> tmp2reduce(size, 0.0);
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(nstreams) // schedule(static)
+#endif
+    for(int m=1; m<size; m++) {
+      const int istream = omp_get_thread_num(); // m%nstreams;
+      MatPoly X(handle[istream], stream[istream], istream);   // for dotAsync (handle/stream only; no apply)
+
+      coo.Async( d_XYs[m], d_Ys[m], stream[istream] );         // coo Y_m  (link-dep)
+      CuC inner;
+      X.dotAsync<N>( &inner, d_XYs[m], d_XZpre[m] );           // <coo Y_m, X Z_m>  (X Z_m precomputed)
+      CUDA_CHECK(cudaStreamSynchronize(stream[istream]));
+      tmp2reduce[m] -= real(cplx(Complex(1.0)+std::conj(mass)) * inner);
+
+      coo.Async( d_XZs[m], d_Zs[m], stream[istream] );         // coo Z_m  (link-dep)
+      X.dotAsync<N>( &inner, d_XYpre[m], d_XZs[m] );           // <X Y_m, coo Z_m>  (X Y_m precomputed)
+      CUDA_CHECK(cudaStreamSynchronize(stream[istream]));
+      tmp2reduce[m] -= real(cplx(Complex(1.0)+std::conj(mass)) * inner);
+
+      tmp2reduce[m] *= A[m];
+      CUDA_CHECK(cudaStreamSynchronize(stream[istream]));
+    }
+    CUDA_CHECK(cudaDeviceSynchronize());
+
+    double res = 0.0;
     for(int m=1; m<size; m++) res+=tmp2reduce[m];
 
     CUDA_CHECK(cudaMemcpy(d_Zs[0], d_eta, N*CD, D2D));

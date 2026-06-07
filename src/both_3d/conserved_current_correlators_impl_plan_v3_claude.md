@@ -512,15 +512,30 @@ error bars, load the raw per-$(h,t_0)$ keys as the samples instead (the storage 
 
 ---
 
-### 3.8 Unified single-file program `jj_conn_correlators_claude.cu` -- IN PROGRESS (CONNECTED-only)
+### 3.8 Correlator programs -- THREE-PROGRAM SPLIT (2026-06-06, FINAL)
 
-**Goal (user, revised):** disc is treated **SEPARATELY** (standalone `jj_disc_claude.cu` -- DONE, projected
-single-current $J$ dump, vector only) because the solve-sharing analysis below shows disc and connected share
-nothing but $\phi'$ and the sink applies.  The unified file is therefore **CONNECTED-only**: tp/sp/ylm
-(vector + axial) in one program, sharing $\phi'=D_m^{-1}\eta$ and the temporal sink pass $K(n,t)\phi'$ across
-tp and ylm.  **Since tp/sp/axial connected already exist as working standalone `jj_conn_*` files, the
-substantive NEW code is the ylm $m$-summed tower (Sec. 3.6); tp/sp/axial are ports.**  Standalone
-`jj_conn_*` kept (user: not deleted even after unification).
+**Final layout (user):** three production programs, one per run-script flag (`--all`/`--conn`/`--disc`):
+
+| flag (default `--all`) | program | output dir | content | spec |
+|---|---|---|---|---|
+| `--all` | `jj_corr_claude.cu` | `corr_nt0<N>_nhits<H>/` | **COMBINED** connected + folded disc (efficient) | `jj_corr_spec_claude.md` |
+| `--conn` | `jj_conn_correlators_claude.cu` | `conn_nt0<N>_nhits<H>/` | connected only (vector tp/sp/ylm + axial tp/sp) | `jj_conn_correlators_spec_claude.md` |
+| `--disc` | `jj_disc_claude.cu` | `disc_nhits<H>/` | disconnected only (vector; cheap, no conn solves) | -- |
+
+History: disc was first folded into the unified file, then **split out** to the standalone `jj_disc_claude.cu`
+(the solve-sharing analysis below showed disc and connected share only $\phi'$ + the sink applies), then -- once
+it was clear the shared sink applies are the *dominant* apply cost -- **re-combined** into `jj_corr_claude.cu`
+while **keeping** `jj_conn_correlators_claude.cu` (connected-only) as a separate program.  All three coexist.
+
+**Reuse A (in BOTH `jj_conn_correlators` and `jj_corr`).**  The axial source legs reuse the cached
+$K^\dagger(a,t_0)\eta$ from the vector $(++)$ source passes (`rho_tp`/`rho_sp`, always `dag=true`); axial starts
+from $(1-D_\text{ov})\,\texttt{rho\_*}$, saving $n_{t_0}(n_\text{sites}+n_\text{links})$ kernel applies/hit.
+
+**Disc fold (in `jj_corr` only).**  $T(a,t)=\eta^\dagger K(a,t)\phi'$ rides the connected $(++)$ sink loops at
+zero extra $K$ applies (the $K(a,t)\phi'$ are already computed for the connected sink); only the parity tilde
+trace $\tilde T=(K\tilde\phi)^\dagger\eta$, $\tilde\phi=\tilde D_{m_P}^{-1}\eta$, needs its own solve + pass.
+See `jj_corr_spec_claude.md` Sec. A.  The per-hit lever/structure (shared $\phi'$, one sink pass feeding
+disc+conn-tp+conn-ylm) is documented below and realized in `jj_corr_claude.cu`.
 
 **The unification lever (within the connected piece).**  conn-tp and conn-ylm **both** evaluate
 $K(n,t)\phi'$ with the *same* $\phi'=D_m^{-1}\eta$, so one temporal pass feeds both:

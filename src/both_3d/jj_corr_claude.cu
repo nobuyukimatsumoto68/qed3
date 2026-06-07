@@ -1,14 +1,16 @@
-// jj_conn_correlators_claude.cu
-// UNIFIED CONNECTED current-current correlator program (plan: conserved_current_correlators_impl_plan_v3_claude.md
-// Sec. 3.8).  Computes ALL connected pieces per config, sharing phi'=D_m^{-1} eta and the K phi' applies.
-// Output: data_<ESNID>/conn_nt0<N>_nhits<H>/.  (Disconnected lives in the standalone jj_disc_claude.cu;
-// the COMBINED conn+disc program is jj_corr_claude.cu -> corr_ dir.)
+// jj_corr_claude.cu
+// UNIFIED current-current correlator program (plan: conserved_current_correlators_impl_plan_v3_claude.md
+// Sec. 3.8).  ONE program computes EVERYTHING per config -- connected AND disconnected -- sharing
+// phi'=D_m^{-1} eta and the K phi' applies between the two pieces.  Output: data_<ESNID>/corr_nt0<N>_nhits<H>/.
+//   - disconnected (vector): single-time traces J(t) = sum_a w_a eta^dag K(a,t) phi'  (raw; tp/sp/ylm + parity Jtil).
 //   - connected tp/sp (vector + axial): source leg psi_a(t0)=D^{-dag} K^dag(a,t0) eta, sink = K(a,t) phi'.
 //   - connected ylm (vector): m-summed tower G_l(t), ONE solve per l (combined weight W_l, Sec. 3.6).
 //
-// Reuse: one temporal-site sink loop feeds conn-tp + conn-ylm; the K^dag(a,t0)eta sources cached in the
-// (++) passes are reused by the axial source legs ((1-D_ov)*rho) at zero extra K applies.  Only the
-// connected SOURCE legs cost solves.
+// Unification lever (Sec. 3.8): the disc trace and the connected SINK both evaluate K(a,t) phi' with the
+// SAME phi'.  The (++) tp+ylm sink loop feeds disc-tp + conn-tp + conn-ylm; the (++) sp sink loop feeds
+// disc-sp + conn-sp -- so the non-parity disc costs NO extra K applies.  Only the connected SOURCE legs
+// cost solves; the parity disc tilde trace (\tilde D_{m_P}^{-1} eta) needs its own solve + sink pass.
+// The standalone jj_disc_claude.cu is kept as the cheap disc-only path (many configs, no connected solves).
 //
 // Conventions (v3): valence mass via --mass-re/--mass-im (D_m = D_ov + m); ensemble via --ens-dir
 // (omit => free field, U = 1); kernel K is always the massless-form Noether kernel (mass-independent).
@@ -306,13 +308,13 @@ int main(int argc, char* argv[]){
       W_ell[l][n] = base.dual_areas[n] * s / kt;
     }
 
-  // ---- output: data_<ESNID>/conn_nt0<N>_nhits<H>/corr.<config>.h5 ------------------------------
+  // ---- output: data_<ESNID>/corr_nt0<N>_nhits<H>/corr.<config>.h5  (connected + folded disc) -------
   std::string ens_base = ens_dir;
   if(!ens_base.empty() && ens_base.back()=='/') ens_base.pop_back();
   { const auto slash = ens_base.find_last_of('/'); if(slash!=std::string::npos) ens_base = ens_base.substr(slash+1); }
   const std::string esnid = (free_field ? std::string("free") : ens_base)
                           + "_vmRe"+std::to_string(mass_re)+"vmIm"+std::to_string(mass_im);
-  const std::string dir_out = "data_"+esnid+"/conn_nt0"+std::to_string(n_t0)+"_nhits"+std::to_string(nhits)+"/";
+  const std::string dir_out = "data_"+esnid+"/corr_nt0"+std::to_string(n_t0)+"_nhits"+std::to_string(nhits)+"/";
   std::filesystem::create_directories(dir_out);
   std::cout << "# dir_out = " << dir_out
             << "  (n_sites="<<n_sites<<", n_links="<<n_links<<", n_ell="<<N_ELL<<")" << std::endl;
@@ -324,7 +326,7 @@ int main(int argc, char* argv[]){
   // CONNECTED-only file (disc = standalone jj_disc_claude.cu; see plan Sec. 3.8 solve-sharing note).
   // Connected source legs held across the shared sink pass (one per (insertion,t0)); std::vector is safe
   // now that FermionVector has a move ctor (valence_claude.h).  Indexers ITP/IYL flatten (insertion,b).
-  FermionVector eta, phi, phimm, kphi, rho, tmp, chi;
+  FermionVector eta, phi, phimm, kphi, rho, tmp, chi, tilphi;   // tilphi = tilde D_{m_P}^{-1} eta (parity disc)
   std::array<FermionVector, N_ELL> srcL, PhiL;
   std::vector<FermionVector> psi_tp(n_sites * n_t0);   // tp source legs  psi_tp[ITP(n,b)]
   std::vector<FermionVector> psi_yl(N_ELL   * n_t0);   // ylm source towers psi_yl[IYL(l,b)]
@@ -348,6 +350,12 @@ int main(int argc, char* argv[]){
   auto write_corr_conj = [&](HighFive::File& h5, const std::string& key, const std::vector<Complex>& C){
     std::vector<double> re(Nt), im(Nt);
     for(int t=0;t<Nt;t++){ const Complex g=inv4pi*C[t]; re[t]=g.real(); im[t]=-g.imag(); }
+    h5.createDataSet(key+"/real", re);  h5.createDataSet(key+"/imag", im);
+  };
+  // disconnected single-current traces J(t) are RAW (no 1/4pi fold), matching jj_disc_claude.cu.
+  auto write_vec = [&](HighFive::File& h5, const std::string& key, const std::vector<Complex>& C){
+    std::vector<double> re(Nt), im(Nt);
+    for(int t=0;t<Nt;t++){ re[t]=C[t].real(); im[t]=C[t].imag(); }
     h5.createDataSet(key+"/real", re);  h5.createDataSet(key+"/imag", im);
   };
 
@@ -397,6 +405,12 @@ int main(int argc, char* argv[]){
       op_Dmsq.solve<N>(phi.field, tmp.field, Comp::TOL_OUTER);
       std::cout << " done ["<<elapsed()<<" s]" << std::endl;
 
+      // disconnected single-current traces J(t) = sum_a w_a eta^dag K(a,t) phi' (RAW); these RIDE the
+      // connected (++) sink passes below (the K(.,t)phi' applies are shared) -- zero extra K applies in
+      // the non-parity case.  Origin-independent: accumulated over the whole hit, written once.
+      std::vector<Complex> Jtp(Nt, Complex(0,0)), Jsp(Nt, Complex(0,0));
+      std::vector<std::vector<Complex>> Jyl(N_ELL, std::vector<Complex>(Nt, Complex(0,0)));
+
       // ============ CONNECTED VECTOR -- temporal tp + ylm (shared phi' + shared K(n,t)phi' pass) =======
       // (++) source legs at all origins (the per-site K^dag(n,t0)eta apply is shared by tp and ylm):
       //   tp:  psi_tp[ITP(n,b)] = D_m^{-dag} K^dag(n,t0_b) eta
@@ -428,9 +442,11 @@ int main(int argc, char* argv[]){
           for(int n=0;n<n_sites;n++){
             kop.set_temporal(U, t, (Idx)n, /*dag=*/false);
             op_K.from_cpu<N>(kphi.field, phi.field);                 // kphi = K(n,t) phi'
+            Jtp[t] += w_tp[n]*eta.dag(kphi);                         // disc tp: T(n,t)=eta^dag kphi (rides this apply)
             for(int b=0;b<n_t0;b++){ const int dt=(t - t0s[b] + Nt)%Nt; Ctp[b][dt] += w_tp[n]*psi_tp[ITP(n,b)].dag(kphi); }
             for(int l=0;l<N_ELL;l++){ const double w=W_ell[l][n]; for(Idx i=0;i<N;i++) PhiL[l].field[i]+=w*kphi.field[i]; }
           }
+          for(int l=0;l<N_ELL;l++) Jyl[l][t] += eta.dag(PhiL[l]);    // disc ylm: J_l(t)=eta^dag PhiL[l]
           for(int b=0;b<n_t0;b++){ const int dt=(t - t0s[b] + Nt)%Nt; for(int l=0;l<N_ELL;l++) Gyl[IYL(l,b)][dt] += psi_yl[IYL(l,b)].dag(PhiL[l]); }
         }
         for(int b=0;b<n_t0;b++){
@@ -507,6 +523,7 @@ int main(int argc, char* argv[]){
             const Idx il = base.map2il.at(lk);
             kop.set_spatial(U, t, lk, /*dag=*/false);
             op_K.from_cpu<N>(kphi.field, phi.field);                 // kphi = K(lk,t) phi'
+            Jsp[t] += w_sp[il]*eta.dag(kphi);                        // disc sp: rides this apply
             for(int b=0;b<n_t0;b++){ const int dt=(t - t0s[b] + Nt)%Nt; Csp[b][dt] += w_sp[il]*psi_sp[ISP(a,b)].dag(kphi); }
           }
         }
@@ -544,6 +561,43 @@ int main(int argc, char* argv[]){
           const std::string kp = hp + "t0_" + std::to_string(b) + "/";
           write_corr(h5, kp+"sp/Vmm", Csp[b]);
         }
+        std::cout << " done ["<<elapsed()<<" s]" << std::endl;
+      }
+
+      // ============ DISCONNECTED single-current traces (folded in; rode the (++) sink applies) ===========
+      // Jtp/Jsp/Jyl were accumulated inside the (++) tp+ylm and sp sink passes above at zero extra K-applies;
+      // origin-independent, written once per hit.  RAW (no 1/4pi), matching jj_disc_claude.cu.
+      write_vec(h5, hp+"disc/tp/J", Jtp);
+      write_vec(h5, hp+"disc/sp/J", Jsp);
+      for(int l=0;l<N_ELL;l++) write_vec(h5, hp+"disc/ylm/l"+std::to_string(l)+"/J", Jyl[l]);
+      std::cout << "#   [disc] J(t) written (rode the (++) sink passes)" << std::endl;
+      // parity: dagger-leg tilde trace \tilde T(a,t) = (K(a,t) tilphi)^dag eta, tilphi = tilde D_{m_P}^{-1} eta.
+      // Cannot ride the connected parity sink (that applies K^dag phimm) -> own forward solve + K applies.
+      if(parity){
+        std::cout << "#   [disc --] tilde trace (tilphi solve + sink) ..." << std::flush;
+        op_tilDmH.from_cpu<N>(tmp.field, eta.field);
+        op_tilDmsq.solve<N>(tilphi.field, tmp.field, Comp::TOL_OUTER);   // tilphi = tilde D_{m_P}^{-1} eta
+        std::vector<Complex> JtpT(Nt, Complex(0,0)), JspT(Nt, Complex(0,0));
+        std::vector<std::vector<Complex>> JylT(N_ELL, std::vector<Complex>(Nt, Complex(0,0)));
+        for(int t=0;t<Nt;t++){
+          for(int n=0;n<n_sites;n++){
+            kop.set_temporal(U, t, (Idx)n, /*dag=*/false);
+            op_K.from_cpu<N>(kphi.field, tilphi.field);              // kphi = K(n,t) tilphi
+            const Complex TtilNT = kphi.dag(eta);                    // \tilde T(n,t) = (K tilphi)^dag eta
+            JtpT[t] += w_tp[n]*TtilNT;
+            for(int l=0;l<N_ELL;l++) JylT[l][t] += W_ell[l][n]*TtilNT;
+          }
+          for(int a=0;a<n_links;a++){
+            const BaseLink lk = base.links[a];
+            const Idx il = base.map2il.at(lk);
+            kop.set_spatial(U, t, lk, /*dag=*/false);
+            op_K.from_cpu<N>(kphi.field, tilphi.field);              // kphi = K(lk,t) tilphi
+            JspT[t] += w_sp[il]*kphi.dag(eta);
+          }
+        }
+        write_vec(h5, hp+"disc/tp/Jtil", JtpT);
+        write_vec(h5, hp+"disc/sp/Jtil", JspT);
+        for(int l=0;l<N_ELL;l++) write_vec(h5, hp+"disc/ylm/l"+std::to_string(l)+"/Jtil", JylT[l]);
         std::cout << " done ["<<elapsed()<<" s]" << std::endl;
       }
 
