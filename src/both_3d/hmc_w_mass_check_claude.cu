@@ -88,7 +88,8 @@ using CuC = cuDoubleComplex;
 
 // ======================================
 
-#include "sparse_matrix.h"
+// #include "sparse_matrix.h"            // C4b -> multishift copy below
+#include "sparse_matrix_claude.h"
 
 #include "dirac_simp.h"
 #include "dirac_ext.h"
@@ -96,8 +97,10 @@ using CuC = cuDoubleComplex;
 #include "sparse_dirac.h"
 // #include "matpoly.h"
 #include "matpoly_claude.h"
+#define GRAD_L4   // HMC force opt L1+L2+L4 (hoist + block poles + skip do_it); force==ref ~1e-16 (~3.4x grad)
 #include "includes/overlap_wmass_claude.h"
-#include "pseudofermion.h"
+// #include "pseudofermion.h"            // C4b -> multishift copy below
+#include "pseudofermion_claude.h"
 
 
 int main(int argc, char* argv[]){

@@ -1,0 +1,622 @@
+// jj_conn_correlators_claude.cu
+// UNIFIED CONNECTED current-current correlator program (plan: conserved_current_correlators_impl_plan_v3_claude.md
+// Sec. 3.8).  Computes ALL connected pieces per config, sharing phi'=D_m^{-1} eta and the K phi' applies.
+// Output: data_<ESNID>/conn_nt0<N>_nhits<H>/.  (Disconnected lives in the standalone jj_disc_claude.cu;
+// the COMBINED conn+disc program is jj_corr_claude.cu -> corr_ dir.)
+//   - connected tp/sp (vector + axial): source leg psi_a(t0)=D^{-dag} K^dag(a,t0) eta, sink = K(a,t) phi'.
+//   - connected ylm (vector): m-summed tower G_l(t), ONE solve per l (combined weight W_l, Sec. 3.6).
+//
+// Reuse: one temporal-site sink loop feeds conn-tp + conn-ylm; the K^dag(a,t0)eta sources cached in the
+// (++) passes are reused by the axial source legs ((1-D_ov)*rho) at zero extra K applies.  Only the
+// connected SOURCE legs cost solves.
+//
+// Conventions (v3): valence mass via --mass-re/--mass-im (D_m = D_ov + m); ensemble via --ens-dir
+// (omit => free field, U = 1); kernel K is always the massless-form Noether kernel (mass-independent).
+// Parity ( m purely imaginary ) dagger leg uses \tilde D_{m_P} = D_ov + m_P/(1-m_P); massless / m_F uses
+// D_m itself.  All overlap applies/solves go through the multi-shift (_ms) entry points.
+//
+// Solver: overlap multishift (*_deviceAsyncLaunch_ms) + the kernel is the multishift apply_k_ms via
+// ConservedCurrent::operator() (inherited through op_K.from_cpu).  --n-t0 sets the source origins.
+
+#include <typeinfo>
+#include <cmath>
+#include <iostream>
+#include <iomanip>
+#include <fstream>
+#include <highfive/H5File.hpp>
+#include <cstdlib>
+#include <cassert>
+#include <algorithm>
+#include <filesystem>
+#include <chrono>
+#include <cstdint>
+#include <complex>
+#include <array>
+#include <vector>
+#include <map>
+#include <string>
+#include <random>
+#include <Eigen/Dense>
+
+using Double = double;
+using Idx = std::int32_t;
+using Complex = std::complex<double>;
+
+using Link = std::array<Idx,2>;
+using Face = std::vector<Idx>;
+
+using MS=Eigen::Matrix2cd;
+using VD=Eigen::Vector2d;
+using VE=Eigen::Vector3d;
+using VC=Eigen::VectorXcd;
+
+static constexpr int NS = 2;
+static constexpr int DIM = 2;
+static constexpr Complex I = Complex(0.0, 1.0);
+
+
+namespace Comp{
+  constexpr bool is_compact=false;
+
+  constexpr int NPARALLEL_DUPDATE=1;
+  constexpr int NPARALLEL=NPARALLEL_DUPDATE;
+  constexpr int NSTREAMS=4; // NPARALLEL_DUPDATE;
+  constexpr int NPARALLEL_GAUGE=NPARALLEL_DUPDATE;
+  constexpr int NPARALLEL_SORT=NPARALLEL_DUPDATE;
+
+  constexpr int N_REFINE=1;
+  constexpr int NS=2;
+  constexpr int Nt=128;
+
+  constexpr Idx N_SITES=10*N_REFINE*N_REFINE+2;
+  constexpr int N_LINKS=30*N_REFINE*N_REFINE;
+
+  constexpr Idx Nx=NS*N_SITES;
+  constexpr Idx N=Nx*Nt;
+
+  const double TOL_INNER=1.0e-9;   // inner Zolotarev pole solves
+  const double TOL_OUTER=1.0e-5;   // outer CG; above the ~1e-15 machine-precision residual floor
+                                   // for the small-norm sink RHS (plenty for the correlator)
+}
+
+const std::string dir = "../../geometry/data/";
+
+#include "timer.h"
+
+#include "s2n_simp.h"
+#include "s2n_dual.h"
+#include "rng.h"
+
+#include <cuComplex.h>
+#include <cuda_runtime.h>
+#include <cublas_v2.h>
+#include <cublas_api.h>
+#include <cusolverDn.h>
+using CuC = cuDoubleComplex;
+#include "gpu_header.h"
+
+#include "valence_claude.h"
+#include "gauge_ext.h"
+#include "action_ext.h"
+
+#include "sparse_matrix.h"
+#include "dirac_base.h"
+#include "dirac_simp.h"
+#include "dirac_dual.h"
+#include "dirac_ext.h"
+
+#include "sparse_dirac.h"
+// #include "matpoly.h"
+#include "matpoly_claude.h"
+
+#include "overlap_wmass_claude.h"        // complex-mass overlap (massless at mass=0)
+#include "conserved_current_claude.h"   // ConservedCurrent: apply_k / apply_k_dag (multishift apply_k_ms)
+
+//------------------------------------------
+#include <getopt.h>
+
+void PrintHelp(){
+  printf("Usage: ./a.out [options]   (UNIFIED: computes disc + conn tp/sp/ylm, vector + axial)\n");
+  printf("  --gsq <gsq>          Wilson coupling squared (ensemble id; default: 8.0)\n");
+  printf("  --Nf <Nf>            number of fermion flavors (ensemble id; default: 2)\n");
+  printf("  --nu0 <nu0>          sea quark asymmetry (ensemble id; default: 1.0)\n");
+  printf("  --nu1 <nu1>          valence Wilson-Dirac asymmetry (operator; default: nu0)\n");
+  printf("  --mass-re <x>        valence mass Re (default: 0.0)\n");
+  printf("  --mass-im <y>        valence mass Im (default: 0.0)\n");
+  printf("  --ens-dir <path>     sea config directory; OMIT => free field (U=1) check\n");
+  printf("  --nhits <n>          stochastic hits (default: 1)\n");
+  printf("  --n-t0 <N>           number of source-time origins t0=b*(Nt/N), b=0..N-1 (default: 2)\n");
+  printf("  --ninter <N>         ensemble config stride: measure ckpoint_lat.k for k=0,N,2N,... (default: 10)\n");
+  printf("  -h, --help           show this help\n");
+  exit(0);
+}
+
+void ParseArgs(int argc, char* argv[],
+               double& gsq, int& Nf, double& nu0, double& nu1,
+               double& mass_re, double& mass_im,
+               std::string& ens_dir, int& nhits, int& n_t0, int& ninter){
+  static struct option long_opts[] = {
+    {"gsq",     required_argument, nullptr, 'g'},
+    {"Nf",      required_argument, nullptr, 'N'},
+    {"nu0",     required_argument, nullptr, 'n'},
+    {"nu1",     required_argument, nullptr, 'm'},
+    {"mass-re", required_argument, nullptr, 'r'},
+    {"mass-im", required_argument, nullptr, 'i'},
+    {"ens-dir", required_argument, nullptr, 'e'},
+    {"nhits",   required_argument, nullptr, 'H'},
+    {"n-t0",    required_argument, nullptr, 'T'},
+    {"ninter",  required_argument, nullptr, 'I'},
+    {"help",    no_argument,       nullptr, 'h'},
+    {nullptr, 0, nullptr, 0}
+  };
+  int opt, idx;
+  while((opt = getopt_long(argc, argv, "g:N:n:m:r:i:e:H:T:I:h", long_opts, &idx)) != -1){
+    switch(opt){
+    case 'g': gsq     = std::stod(optarg); break;
+    case 'N': Nf      = std::stoi(optarg); break;
+    case 'n': nu0     = std::stod(optarg); break;
+    case 'm': nu1     = std::stod(optarg); break;
+    case 'r': mass_re = std::stod(optarg); break;
+    case 'i': mass_im = std::stod(optarg); break;
+    case 'e': ens_dir = optarg; break;
+    case 'H': nhits   = std::stoi(optarg); break;
+    case 'T': n_t0    = std::stoi(optarg); break;
+    case 'I': ninter  = std::stoi(optarg); break;
+    case 'h':
+    case '?':
+    default:  PrintHelp(); break;
+    }
+  }
+}
+//------------------------------------------
+
+int main(int argc, char* argv[]){
+  std::cout << std::scientific << std::setprecision(15);
+  std::clog << std::scientific << std::setprecision(15);
+
+  double gsq=8.0;  int Nf=2;  double nu0=1.0;  double nu1=-1.0;   // nu1<0 => default to nu0
+  double mass_re=0.0, mass_im=0.0;
+  std::string ens_dir="";     // empty => free-field mode
+  int nhits=1;
+  int n_t0=2;   // number of source-time origins (Sec. 3.7)
+  int ninter=10;   // ensemble config stride (k = 0, ninter, 2*ninter, ...)
+
+  ParseArgs(argc, argv, gsq, Nf, nu0, nu1, mass_re, mass_im, ens_dir, nhits, n_t0, ninter);
+  if(nu1 < 0.0) nu1 = nu0;    // valence asymmetry defaults to the sea value nu0 (knob retained)
+
+  const Complex valence_mass(mass_re, mass_im);
+  const bool free_field = ens_dir.empty();
+
+  // parity case: purely imaginary valence mass -> dagger leg uses \tilde D_{m_P}
+  const bool parity = (std::abs(mass_im) > 1.0e-15) && (std::abs(mass_re) <= 1.0e-15);
+  // flavor case: purely real valence mass -> axial uses massless D_ov legs (m_F formulas)
+  const bool flavor = (std::abs(mass_re) > 1.0e-15) && (std::abs(mass_im) <= 1.0e-15);
+
+  std::cout << "# gsq="<<gsq<<" Nf="<<Nf<<" nu0="<<nu0<<" nu1="<<nu1
+            << " mass=("<<mass_re<<","<<mass_im<<")"
+            << " ens_dir="<<(free_field?std::string("<free-field U=1>"):ens_dir)
+            << " nhits="<<nhits << std::endl;
+
+  for(int i=0; i<Comp::NSTREAMS; i++) d_MemorySets[i].allocate();
+
+  int device;
+  CUDA_CHECK(cudaGetDeviceCount(&device));
+  cudaDeviceProp device_prop[device];
+  cudaGetDeviceProperties(&device_prop[0], 0);
+  std::cout << "# dev = " << device_prop[0].name << std::endl;
+  CUDA_CHECK(cudaSetDevice(0));
+
+  constexpr Idx N  = Comp::N;
+  constexpr int Nt = Comp::Nt;
+
+  // source-time origins (Sec. 3.7): n_t0 evenly-spaced t0 = b*(Nt/n_t0); FULL dt-loop dt=0..Nt-1;
+  // store every (hit, t0) raw (no in-program averaging); average + jackknife downstream.
+  assert(n_t0 >= 1 && Nt % n_t0 == 0 && "Nt must be divisible by n_t0");
+  const int t0_spacing = Nt / n_t0;
+  std::vector<int> t0s(n_t0);
+  for(int b=0; b<n_t0; b++) t0s[b] = b*t0_spacing;
+  std::cout << "# n_t0=" << n_t0 << " source origins (t0=b*"<<t0_spacing<<"), full dt; one file/config" << std::endl;
+
+  using Base=S2Simp;
+  using WilsonDirac=DiracExt<Base, DiracS2Simp>;
+  using Gauge=GaugeExt<Base,Nt,Comp::is_compact>;
+  using Rng=ParallelRngExt<Base,Nt>;
+  using Fermion=OverlapWMass<WilsonDirac>;
+
+  // ---- operators (grouped as in hmc_w_mass_claude.cu) -----------------------------
+  Base base(Comp::N_REFINE);
+  std::cout << "# lattice set." << std::endl;
+
+  const double r  = 1.0;
+  const double M5 = -1.0;
+  const double at = 0.2;
+  if(Nt!=1) assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
+  WilsonDirac DW(base, 0.0, 1.0, M5, at, nu1);
+  std::cout << "# DW set." << std::endl;
+
+  Gauge U(base);                       // free field (U=1) unless a config is read below
+  Rng rng(base, 1234);
+
+  // Overlap operators:
+  //   D    = D_ov              (massless; axial GW factors + flavor-axial legs)
+  //   Dm   = D_ov + m          (Eq. 3.60; vector (++) both legs; tp/sp/ylm)
+  //   Dtil = D_ov + m/(1-m)    (\tilde D_{m_P}, Eq. 3.63; parity (-) dagger leg)
+  Fermion D   (DW, Complex(0.0), 21);
+  Fermion Dm  (DW, valence_mass, 21);
+  Fermion Dtil(DW, valence_mass / (Complex(1.0) - valence_mass), 21);
+  std::cout << "# overlap operators set: D_ov, D_m, tilde D_{m_P} (M5="<<M5<<")." << std::endl;
+
+  ConservedCurrent<Fermion,Gauge> kop(Dm);   // K is mass-independent; multishift apply_k_ms via operator()
+  MatPoly op_K; op_K.push_back(cplx(1.0), {&kop});   // apply K via op_K.from_cpu (no raw device buffers)
+
+  // Uniform operator set, multishift (_ms) entry points (~4x).  For each overlap X:
+  //   mult = X,  H = X^dag,  sq = X^dag X = X X^dag (D_ov+m normal -> fused DDH=DHD).
+  //   X^{-1} b  = op_XH (RHS X^dag b) + op_Xsq (CG);  X^{-dag} b = op_X (RHS X b) + op_Xsq.
+  // massless D_ov: op_oneMinusD = (1 - D_ov) GW factor (apply); op_DH/op_Dsq for the flavor-axial solve.
+  auto f_D   = std::bind(&Fermion::mult_deviceAsyncLaunch_ms, &D, std::placeholders::_1, std::placeholders::_2);
+  auto f_DH  = std::bind(&Fermion::adj_deviceAsyncLaunch_ms,  &D, std::placeholders::_1, std::placeholders::_2);
+  auto f_Dsq = std::bind(&Fermion::DDH_deviceAsyncLaunch_ms,  &D, std::placeholders::_1, std::placeholders::_2);
+  LinOpWrapper M_D(f_D), M_DH(f_DH), M_Dsq(f_Dsq);
+  MatPoly op_oneMinusD;
+  op_oneMinusD.push_back(cplx( 1.0), {});       // identity term (empty product)
+  op_oneMinusD.push_back(cplx(-1.0), {&M_D});   // - D_ov   => op_oneMinusD : v -> (1 - D_ov) v
+  MatPoly op_DH;  op_DH.push_back(cplx(1.0), {&M_DH});
+  MatPoly op_Dsq; op_Dsq.push_back(cplx(1.0), {&M_Dsq});
+
+  auto f_Dm   = std::bind(&Fermion::mult_deviceAsyncLaunch_ms, &Dm, std::placeholders::_1, std::placeholders::_2);
+  auto f_DmH  = std::bind(&Fermion::adj_deviceAsyncLaunch_ms,  &Dm, std::placeholders::_1, std::placeholders::_2);
+  auto f_Dmsq = std::bind(&Fermion::DDH_deviceAsyncLaunch_ms,  &Dm, std::placeholders::_1, std::placeholders::_2);
+  LinOpWrapper M_Dm(f_Dm), M_DmH(f_DmH), M_Dmsq(f_Dmsq);
+  MatPoly op_Dm;   op_Dm.push_back(cplx(1.0), {&M_Dm});
+  MatPoly op_DmH;  op_DmH.push_back(cplx(1.0), {&M_DmH});
+  MatPoly op_Dmsq; op_Dmsq.push_back(cplx(1.0), {&M_Dmsq});
+
+  auto f_tilDm   = std::bind(&Fermion::mult_deviceAsyncLaunch_ms, &Dtil, std::placeholders::_1, std::placeholders::_2);
+  auto f_tilDmH  = std::bind(&Fermion::adj_deviceAsyncLaunch_ms,  &Dtil, std::placeholders::_1, std::placeholders::_2);
+  auto f_tilDmsq = std::bind(&Fermion::DDH_deviceAsyncLaunch_ms,  &Dtil, std::placeholders::_1, std::placeholders::_2);
+  LinOpWrapper M_tilDm(f_tilDm), M_tilDmH(f_tilDmH), M_tilDmsq(f_tilDmsq);
+  MatPoly op_tilDm;   op_tilDm.push_back(cplx(1.0), {&M_tilDm});
+  MatPoly op_tilDmH;  op_tilDmH.push_back(cplx(1.0), {&M_tilDmH});
+  MatPoly op_tilDmsq; op_tilDmsq.push_back(cplx(1.0), {&M_tilDmsq});
+
+  // ---- geometry weights ------------------------------------------------------------------------
+  const double inv4pi = 1.0/(4.0*std::acos(-1.0));
+  const int n_sites = static_cast<int>(base.n_sites);
+  const int n_links = static_cast<int>(base.links.size());
+
+  // temporal projection (Eq. 4.32): w_tp[n] = A_n / kappa_t(n)^2   (kappa^2)
+  std::vector<double> w_tp(base.n_sites);
+  for(Idx n=0; n<base.n_sites; n++){ const double kt=DW.kappa_t[n]; w_tp[n]=base.dual_areas[n]/(kt*kt); }
+
+  // spatial projection (Eq. 4.29): w_sp[il] = A_{nn'} / kappa^{(0)2}_{nn'} = link_volume[il]/kappa[il]^2
+  std::vector<double> w_sp(base.n_links);
+  for(Idx il=0; il<base.n_links; il++){ const double ks=DW.bd.kappa[il]; w_sp[il]=base.link_volume[il]/(ks*ks); }
+
+  // ylm m-summed tower (Sec. 3.6): keep l_1=l_2=l, sum m_1,m_2 over -l..l.  ONE solve per l via the
+  // COMBINED real weight W_ell[l][n] = (A_n / kappa_t(n)) * sum_{m=-l}^{l} Y_lm(n^)  (kappa^1, Eq. 4.36).
+  constexpr int L_MAX = 2;
+  constexpr int N_ELL = L_MAX + 1;                 // l = 0,1,2  (l=0 ~ 0 by charge conservation, a check)
+  std::vector<int> ls(N_ELL); for(int l=0;l<N_ELL;l++) ls[l]=l;
+  std::vector<std::vector<double>> W_ell(N_ELL, std::vector<double>(n_sites, 0.0));
+  for(int l=0; l<N_ELL; l++)
+    for(int n=0; n<n_sites; n++){
+      const double kt = DW.kappa_t[n];
+      double s = 0.0;
+      for(int m=-l; m<=l; m++) s += Ylm_real(l, m, base.sites[n]);   // sum over m at this current-site
+      W_ell[l][n] = base.dual_areas[n] * s / kt;
+    }
+
+  // ---- output: data_<ESNID>/conn_nt0<N>_nhits<H>/corr.<config>.h5 ------------------------------
+  std::string ens_base = ens_dir;
+  if(!ens_base.empty() && ens_base.back()=='/') ens_base.pop_back();
+  { const auto slash = ens_base.find_last_of('/'); if(slash!=std::string::npos) ens_base = ens_base.substr(slash+1); }
+  const std::string esnid = (free_field ? std::string("free") : ens_base)
+                          + "_vmRe"+std::to_string(mass_re)+"vmIm"+std::to_string(mass_im);
+  const std::string dir_out = "data_"+esnid+"/conn_nt0"+std::to_string(n_t0)+"_nhits"+std::to_string(nhits)+"/";
+  std::filesystem::create_directories(dir_out);
+  std::cout << "# dir_out = " << dir_out
+            << "  (n_sites="<<n_sites<<", n_links="<<n_links<<", n_ell="<<N_ELL<<")" << std::endl;
+
+  // ---- host buffers ----------------------------------------------------------------------------
+  //   eta = shared Z_2 source; phi = phi'_++ = D_m^{-1} eta; phimm = phi'_-- = tilde D_{m_P}^{-dag} eta
+  //   (parity sink leg); kphi = K(.,t) phi' (sink apply, shared tp+ylm); rho = K^dag-applied source;
+  //   tmp = preconditioned CG RHS; srcL[l]/PhiL[l] = ylm m-summed source/sink towers.
+  // CONNECTED-only file (disc = standalone jj_disc_claude.cu; see plan Sec. 3.8 solve-sharing note).
+  // Connected source legs held across the shared sink pass (one per (insertion,t0)); std::vector is safe
+  // now that FermionVector has a move ctor (valence_claude.h).  Indexers ITP/IYL flatten (insertion,b).
+  FermionVector eta, phi, phimm, kphi, rho, tmp, chi;
+  std::array<FermionVector, N_ELL> srcL, PhiL;
+  std::vector<FermionVector> psi_tp(n_sites * n_t0);   // tp source legs  psi_tp[ITP(n,b)]
+  std::vector<FermionVector> psi_yl(N_ELL   * n_t0);   // ylm source towers psi_yl[IYL(l,b)]
+  std::vector<FermionVector> psi_sp(n_links * n_t0);   // sp source legs  psi_sp[ISP(a,b)]
+  // Reuse A: cache the K^dag-applied sources rho = K^dag(insertion,t0) eta produced by the vector (++)
+  // source passes (always run, dag=true).  The axial source passes then reuse them as (1-D_ov)*rho_*
+  // instead of re-applying K^dag, saving n_t0*(n_sites+n_links) kernel applies per hit.
+  std::vector<FermionVector> rho_tp(n_sites * n_t0);   // = K^dag(n ,t0_b) eta  (sites)
+  std::vector<FermionVector> rho_sp(n_links * n_t0);   // = K^dag(lk,t0_b) eta  (links)
+  auto ITP = [&](int n,int b){ return n*n_t0 + b; };
+  auto IYL = [&](int l,int b){ return l*n_t0 + b; };
+  auto ISP = [&](int a,int b){ return a*n_t0 + b; };
+
+  // helpers: write a length-Nt complex correlator (1/4pi folded) under <key>/{real,imag};
+  // write_corr_conj writes the elementwise conjugate (massless / m_F: Vmm = conj(Vpp)).
+  auto write_corr = [&](HighFive::File& h5, const std::string& key, const std::vector<Complex>& C){
+    std::vector<double> re(Nt), im(Nt);
+    for(int t=0;t<Nt;t++){ const Complex g=inv4pi*C[t]; re[t]=g.real(); im[t]=g.imag(); }
+    h5.createDataSet(key+"/real", re);  h5.createDataSet(key+"/imag", im);
+  };
+  auto write_corr_conj = [&](HighFive::File& h5, const std::string& key, const std::vector<Complex>& C){
+    std::vector<double> re(Nt), im(Nt);
+    for(int t=0;t<Nt;t++){ const Complex g=inv4pi*C[t]; re[t]=g.real(); im[t]=-g.imag(); }
+    h5.createDataSet(key+"/real", re);  h5.createDataSet(key+"/imag", im);
+  };
+
+  // free field: single deterministic config (k=0), U=1.  ensemble: loop ckpoint_lat.k in ens_dir
+  // with stride ninter (--ninter; default 10).
+  const int k_ckpoint = free_field ? 1 : ninter;
+  const int kmax      = free_field ? 0 : 1000;
+
+  for(int k = 0; k <= kmax; k += k_ckpoint){
+    if(!free_field){
+      const std::string str_lat = ens_dir + "ckpoint_lat." + std::to_string(k);
+      if(!std::filesystem::exists(str_lat)){ if(k==0) continue; else break; }
+      U.read(str_lat);
+    }
+    // ONE file per config.  Resume: skip ONLY if the "complete" sentinel (written LAST, after every
+    // dataset) is present -- an interrupted write lacks it -> recompute.  Read-only open.
+    const std::string h5path = dir_out + "corr." + std::to_string(k) + ".h5";
+    if(std::filesystem::exists(h5path)){
+      bool complete = false;
+      try { HighFive::File h5c(h5path, HighFive::File::ReadOnly); complete = h5c.exist("complete"); }
+      catch(...) {}
+      if(complete){ std::cout<<"# skip k="<<k<<" (complete)"<<std::endl; continue; }
+      std::cout<<"# k="<<k<<" exists but INCOMPLETE -> recompute"<<std::endl;
+    }
+    D.update(U);  Dm.update(U);  Dtil.update(U);
+    std::cout << "# k="<<k<<(free_field?" (free field)":"")
+              << "  lambda_min/max="<<Dm.lambda_min<<"/"<<Dm.lambda_max<<std::endl;
+
+    HighFive::File h5(h5path, HighFive::File::ReadWrite|HighFive::File::Create|HighFive::File::Truncate);
+    h5.createDataSet("t0s",   t0s);
+    h5.createDataSet("n_t0",  std::vector<int>{n_t0});
+    h5.createDataSet("nhits", std::vector<int>{nhits});
+    h5.createDataSet("ls",    ls);
+
+    for(int h=0; h<nhits; h++){
+      const auto t_hit0 = std::chrono::steady_clock::now();
+      auto elapsed = [&](){ return std::chrono::duration<double>(std::chrono::steady_clock::now()-t_hit0).count(); };
+      std::cout << "# k="<<k<<" hit "<<(h+1)<<"/"<<nhits<<"  (n_t0="<<n_t0<<", n_sites="<<n_sites
+                << ", n_links="<<n_links<<", n_ell="<<N_ELL<<")" << std::endl;
+      eta.fill_z2_source(rng);
+      const std::string hp = "h" + std::to_string(h) + "/";   // key prefix /h{h}/
+
+      // shared forward leg phi' = D_m^{-1} eta (op_DmH RHS-former + op_Dmsq CG); reused by ALL connected
+      // projections (tp/sp/ylm) as the sink leg K(.,t)phi'.
+      std::cout << "#   phi' = D_m^{-1} eta : solving ..." << std::flush;
+      op_DmH.from_cpu<N>(tmp.field, eta.field);
+      op_Dmsq.solve<N>(phi.field, tmp.field, Comp::TOL_OUTER);
+      std::cout << " done ["<<elapsed()<<" s]" << std::endl;
+
+      // ============ CONNECTED VECTOR -- temporal tp + ylm (shared phi' + shared K(n,t)phi' pass) =======
+      // (++) source legs at all origins (the per-site K^dag(n,t0)eta apply is shared by tp and ylm):
+      //   tp:  psi_tp[ITP(n,b)] = D_m^{-dag} K^dag(n,t0_b) eta
+      //   ylm: psi_yl[IYL(l,b)] = D_m^{-dag} sum_n W_ell[l][n] K^dag(n,t0_b) eta   (m-summed tower)
+      std::cout << "#   [vec tp+ylm ++] source solves ("<<n_t0<<" t0 x ("<<n_sites<<" tp + "<<N_ELL<<" ylm)) ..." << std::endl;
+      for(int b=0;b<n_t0;b++){
+        const int t0=t0s[b];
+        for(int l=0;l<N_ELL;l++) memset(srcL[l].field, 0, Comp::N*CD);
+        for(int n=0;n<n_sites;n++){
+          kop.set_temporal(U, t0, (Idx)n, /*dag=*/true);
+          op_K.from_cpu<N>(rho_tp[ITP(n,b)].field, eta.field);       // rho = K^dag(n,t0) eta (CACHED for axial reuse)
+          op_Dm.from_cpu<N>(tmp.field, rho_tp[ITP(n,b)].field);      // tmp = D_m rho
+          op_Dmsq.solve<N>(psi_tp[ITP(n,b)].field, tmp.field, Comp::TOL_OUTER);  // = D_m^{-dag} K^dag eta
+          for(int l=0;l<N_ELL;l++){ const double w=W_ell[l][n]; for(Idx i=0;i<N;i++) srcL[l].field[i]+=w*rho_tp[ITP(n,b)].field[i]; }
+        }
+        for(int l=0;l<N_ELL;l++){
+          op_Dm.from_cpu<N>(tmp.field, srcL[l].field);               // tmp = D_m srcL[l]
+          op_Dmsq.solve<N>(psi_yl[IYL(l,b)].field, tmp.field, Comp::TOL_OUTER);
+        }
+        std::cout << "#     t0="<<t0<<" ("<<(b+1)<<"/"<<n_t0<<") source done ["<<elapsed()<<" s]" << std::endl;
+      }
+      // (++) shared sink pass: kphi = K(n,t) phi' ONCE per (n,t); feeds tp (per (n,b)) + ylm (accumulate)
+      std::cout << "#   [vec tp+ylm ++] sink pass ("<<Nt<<" t x "<<n_sites<<" applies) ..." << std::flush;
+      {
+        std::vector<std::vector<Complex>> Ctp(n_t0, std::vector<Complex>(Nt, Complex(0,0)));
+        std::vector<std::vector<Complex>> Gyl(N_ELL*n_t0, std::vector<Complex>(Nt, Complex(0,0)));
+        for(int t=0;t<Nt;t++){
+          for(int l=0;l<N_ELL;l++) memset(PhiL[l].field, 0, Comp::N*CD);
+          for(int n=0;n<n_sites;n++){
+            kop.set_temporal(U, t, (Idx)n, /*dag=*/false);
+            op_K.from_cpu<N>(kphi.field, phi.field);                 // kphi = K(n,t) phi'
+            for(int b=0;b<n_t0;b++){ const int dt=(t - t0s[b] + Nt)%Nt; Ctp[b][dt] += w_tp[n]*psi_tp[ITP(n,b)].dag(kphi); }
+            for(int l=0;l<N_ELL;l++){ const double w=W_ell[l][n]; for(Idx i=0;i<N;i++) PhiL[l].field[i]+=w*kphi.field[i]; }
+          }
+          for(int b=0;b<n_t0;b++){ const int dt=(t - t0s[b] + Nt)%Nt; for(int l=0;l<N_ELL;l++) Gyl[IYL(l,b)][dt] += psi_yl[IYL(l,b)].dag(PhiL[l]); }
+        }
+        for(int b=0;b<n_t0;b++){
+          const std::string kp = hp + "t0_" + std::to_string(b) + "/";
+          write_corr(h5, kp+"tp/Vpp", Ctp[b]);
+          if(!parity) write_corr_conj(h5, kp+"tp/Vmm", Ctp[b]);      // massless/m_F: Vmm = conj(Vpp)
+          for(int l=0;l<N_ELL;l++){
+            write_corr(h5, kp+"ylm/Vpp/l"+std::to_string(l), Gyl[IYL(l,b)]);
+            if(!parity) write_corr_conj(h5, kp+"ylm/Vmm/l"+std::to_string(l), Gyl[IYL(l,b)]);
+          }
+        }
+      }
+      std::cout << " done ["<<elapsed()<<" s]" << std::endl;
+
+      // (--) parity: independent tilde legs (operator-adjoint mirror of (++)).  Writes Vmm only.
+      if(parity){
+        std::cout << "#   [vec tp+ylm --] tilde source+sink ..." << std::flush;
+        op_tilDm.from_cpu<N>(tmp.field, eta.field);                  // tmp = tilde eta
+        op_tilDmsq.solve<N>(phimm.field, tmp.field, Comp::TOL_OUTER);// phimm = tilde D_{m_P}^{-dag} eta
+        for(int b=0;b<n_t0;b++){
+          const int t0=t0s[b];
+          for(int l=0;l<N_ELL;l++) memset(srcL[l].field, 0, Comp::N*CD);
+          for(int n=0;n<n_sites;n++){
+            kop.set_temporal(U, t0, (Idx)n, /*dag=*/false);
+            op_K.from_cpu<N>(rho.field, eta.field);                  // rho = K(n,t0) eta
+            op_tilDmH.from_cpu<N>(tmp.field, rho.field);             // tmp = tilde^dag rho
+            op_tilDmsq.solve<N>(psi_tp[ITP(n,b)].field, tmp.field, Comp::TOL_OUTER);  // tilde^{-1} K eta
+            for(int l=0;l<N_ELL;l++){ const double w=W_ell[l][n]; for(Idx i=0;i<N;i++) srcL[l].field[i]+=w*rho.field[i]; }
+          }
+          for(int l=0;l<N_ELL;l++){
+            op_tilDmH.from_cpu<N>(tmp.field, srcL[l].field);
+            op_tilDmsq.solve<N>(psi_yl[IYL(l,b)].field, tmp.field, Comp::TOL_OUTER);
+          }
+        }
+        std::vector<std::vector<Complex>> Ctp(n_t0, std::vector<Complex>(Nt, Complex(0,0)));
+        std::vector<std::vector<Complex>> Gyl(N_ELL*n_t0, std::vector<Complex>(Nt, Complex(0,0)));
+        for(int t=0;t<Nt;t++){
+          for(int l=0;l<N_ELL;l++) memset(PhiL[l].field, 0, Comp::N*CD);
+          for(int n=0;n<n_sites;n++){
+            kop.set_temporal(U, t, (Idx)n, /*dag=*/true);
+            op_K.from_cpu<N>(kphi.field, phimm.field);               // kphi = K^dag(n,t) phimm
+            for(int b=0;b<n_t0;b++){ const int dt=(t - t0s[b] + Nt)%Nt; Ctp[b][dt] += w_tp[n]*psi_tp[ITP(n,b)].dag(kphi); }
+            for(int l=0;l<N_ELL;l++){ const double w=W_ell[l][n]; for(Idx i=0;i<N;i++) PhiL[l].field[i]+=w*kphi.field[i]; }
+          }
+          for(int b=0;b<n_t0;b++){ const int dt=(t - t0s[b] + Nt)%Nt; for(int l=0;l<N_ELL;l++) Gyl[IYL(l,b)][dt] += psi_yl[IYL(l,b)].dag(PhiL[l]); }
+        }
+        for(int b=0;b<n_t0;b++){
+          const std::string kp = hp + "t0_" + std::to_string(b) + "/";
+          write_corr(h5, kp+"tp/Vmm", Ctp[b]);
+          for(int l=0;l<N_ELL;l++) write_corr(h5, kp+"ylm/Vmm/l"+std::to_string(l), Gyl[IYL(l,b)]);
+        }
+        std::cout << " done ["<<elapsed()<<" s]" << std::endl;
+      }
+
+      // ============ CONNECTED VECTOR -- spatial sp (own K(l,t)phi' pass over links) =================
+      // (++) source legs (insertion-diagonal over links): psi_sp[ISP(a,b)] = D_m^{-dag} K^dag(lk,t0_b) eta
+      std::cout << "#   [vec sp ++] source solves ("<<n_t0<<" t0 x "<<n_links<<" links) + sink pass ..." << std::flush;
+      for(int b=0;b<n_t0;b++){
+        const int t0=t0s[b];
+        for(int a=0;a<n_links;a++){
+          const BaseLink lk = base.links[a];
+          kop.set_spatial(U, t0, lk, /*dag=*/true);
+          op_K.from_cpu<N>(rho_sp[ISP(a,b)].field, eta.field);       // rho = K^dag(lk,t0) eta (CACHED for axial reuse)
+          op_Dm.from_cpu<N>(tmp.field, rho_sp[ISP(a,b)].field);      // tmp = D_m rho
+          op_Dmsq.solve<N>(psi_sp[ISP(a,b)].field, tmp.field, Comp::TOL_OUTER);  // = D_m^{-dag} K^dag eta
+        }
+      }
+      // (++) sink pass: kphi = K(lk,t) phi' once per (a,t); pair into Csp[b][dt]
+      {
+        std::vector<std::vector<Complex>> Csp(n_t0, std::vector<Complex>(Nt, Complex(0,0)));
+        for(int t=0;t<Nt;t++){
+          for(int a=0;a<n_links;a++){
+            const BaseLink lk = base.links[a];
+            const Idx il = base.map2il.at(lk);
+            kop.set_spatial(U, t, lk, /*dag=*/false);
+            op_K.from_cpu<N>(kphi.field, phi.field);                 // kphi = K(lk,t) phi'
+            for(int b=0;b<n_t0;b++){ const int dt=(t - t0s[b] + Nt)%Nt; Csp[b][dt] += w_sp[il]*psi_sp[ISP(a,b)].dag(kphi); }
+          }
+        }
+        for(int b=0;b<n_t0;b++){
+          const std::string kp = hp + "t0_" + std::to_string(b) + "/";
+          write_corr(h5, kp+"sp/Vpp", Csp[b]);
+          if(!parity) write_corr_conj(h5, kp+"sp/Vmm", Csp[b]);      // massless/m_F: Vmm = conj(Vpp)
+        }
+      }
+      std::cout << " done ["<<elapsed()<<" s]" << std::endl;
+      // (--) parity sp: tilde mirror.  phimm = tilde^{-dag} eta reused from the temporal (--) block above.
+      if(parity){
+        std::cout << "#   [vec sp --] tilde source+sink ..." << std::flush;
+        for(int b=0;b<n_t0;b++){
+          const int t0=t0s[b];
+          for(int a=0;a<n_links;a++){
+            const BaseLink lk = base.links[a];
+            kop.set_spatial(U, t0, lk, /*dag=*/false);
+            op_K.from_cpu<N>(rho.field, eta.field);                  // rho = K(lk,t0) eta
+            op_tilDmH.from_cpu<N>(tmp.field, rho.field);             // tmp = tilde^dag rho
+            op_tilDmsq.solve<N>(psi_sp[ISP(a,b)].field, tmp.field, Comp::TOL_OUTER);  // tilde^{-1} K eta
+          }
+        }
+        std::vector<std::vector<Complex>> Csp(n_t0, std::vector<Complex>(Nt, Complex(0,0)));
+        for(int t=0;t<Nt;t++){
+          for(int a=0;a<n_links;a++){
+            const BaseLink lk = base.links[a];
+            const Idx il = base.map2il.at(lk);
+            kop.set_spatial(U, t, lk, /*dag=*/true);
+            op_K.from_cpu<N>(kphi.field, phimm.field);               // kphi = K^dag(lk,t) phimm
+            for(int b=0;b<n_t0;b++){ const int dt=(t - t0s[b] + Nt)%Nt; Csp[b][dt] += w_sp[il]*psi_sp[ISP(a,b)].dag(kphi); }
+          }
+        }
+        for(int b=0;b<n_t0;b++){
+          const std::string kp = hp + "t0_" + std::to_string(b) + "/";
+          write_corr(h5, kp+"sp/Vmm", Csp[b]);
+        }
+        std::cout << " done ["<<elapsed()<<" s]" << std::endl;
+      }
+
+      // ============ CONNECTED AXIAL -- C_{A+-} (tp + sp; own GW chi=(1-D_ov)phi' and K^dag sink) ======
+      // Valence legs (Sec. 1.1): flavor m_F -> massless D_ov both legs; parity m_P -> sink tilde; else D_m.
+      // Only C_{A+-} (Apm) is computed; C_{A-+} = reflection dt->Nt-dt (Eq. 3.57) is reconstructed downstream.
+      // psi_tp/psi_sp are REUSED (the vector results above are already written to h5); phi is overwritten
+      // with the axial forward leg.
+      {
+        // forward leg phi'_A = X^{-1} eta  (X = D_ov if flavor, else D_m);  chi = (1 - D_ov) phi'_A
+        std::cout << "#   [axial] forward leg + chi=(1-D_ov)phi' ..." << std::flush;
+        if(flavor){ op_DH.from_cpu<N>(tmp.field, eta.field);  op_Dsq.solve<N>(phi.field, tmp.field, Comp::TOL_OUTER); }
+        else      { op_DmH.from_cpu<N>(tmp.field, eta.field); op_Dmsq.solve<N>(phi.field, tmp.field, Comp::TOL_OUTER); }
+        op_oneMinusD.from_cpu<N>(chi.field, phi.field);            // chi = (1 - D_ov) phi'_A
+        std::cout << " done ["<<elapsed()<<" s]" << std::endl;
+
+        // --- axial tp ---  source: psi_tp[ITP(n,b)] = X_sink^{-1} (1 - D_ov) K^dag(n,t0) eta
+        std::cout << "#   [axial tp] source solves ("<<n_t0<<" t0 x "<<n_sites<<") + sink pass ..." << std::flush;
+        for(int b=0;b<n_t0;b++){
+          for(int n=0;n<n_sites;n++){
+            op_oneMinusD.from_cpu<N>(rho.field, rho_tp[ITP(n,b)].field);  // rho = (1 - D_ov) K^dag(n,t0) eta  (K^dag reused from vec ++)
+            if(flavor){      op_DH.from_cpu<N>(tmp.field, rho.field);     op_Dsq.solve<N>(psi_tp[ITP(n,b)].field, tmp.field, Comp::TOL_OUTER); }
+            else if(parity){ op_tilDmH.from_cpu<N>(tmp.field, rho.field); op_tilDmsq.solve<N>(psi_tp[ITP(n,b)].field, tmp.field, Comp::TOL_OUTER); }
+            else {           op_DmH.from_cpu<N>(tmp.field, rho.field);    op_Dmsq.solve<N>(psi_tp[ITP(n,b)].field, tmp.field, Comp::TOL_OUTER); }
+          }
+        }
+        {
+          std::vector<std::vector<Complex>> Atp(n_t0, std::vector<Complex>(Nt, Complex(0,0)));
+          for(int t=0;t<Nt;t++){
+            for(int n=0;n<n_sites;n++){
+              kop.set_temporal(U, t, (Idx)n, /*dag=*/true);
+              op_K.from_cpu<N>(kphi.field, chi.field);             // kphi = K^dag(n,t) chi
+              for(int b=0;b<n_t0;b++){ const int dt=(t - t0s[b] + Nt)%Nt; Atp[b][dt] += w_tp[n]*psi_tp[ITP(n,b)].dag(kphi); }
+            }
+          }
+          for(int b=0;b<n_t0;b++){ const std::string kp=hp+"t0_"+std::to_string(b)+"/"; write_corr(h5, kp+"axial/tp/Apm", Atp[b]); }
+        }
+        std::cout << " done ["<<elapsed()<<" s]" << std::endl;
+
+        // --- axial sp ---  source: psi_sp[ISP(a,b)] = X_sink^{-1} (1 - D_ov) K^dag(lk,t0) eta
+        std::cout << "#   [axial sp] source solves ("<<n_t0<<" t0 x "<<n_links<<") + sink pass ..." << std::flush;
+        for(int b=0;b<n_t0;b++){
+          for(int a=0;a<n_links;a++){
+            op_oneMinusD.from_cpu<N>(rho.field, rho_sp[ISP(a,b)].field);  // rho = (1 - D_ov) K^dag(lk,t0) eta  (K^dag reused from vec ++)
+            if(flavor){      op_DH.from_cpu<N>(tmp.field, rho.field);     op_Dsq.solve<N>(psi_sp[ISP(a,b)].field, tmp.field, Comp::TOL_OUTER); }
+            else if(parity){ op_tilDmH.from_cpu<N>(tmp.field, rho.field); op_tilDmsq.solve<N>(psi_sp[ISP(a,b)].field, tmp.field, Comp::TOL_OUTER); }
+            else {           op_DmH.from_cpu<N>(tmp.field, rho.field);    op_Dmsq.solve<N>(psi_sp[ISP(a,b)].field, tmp.field, Comp::TOL_OUTER); }
+          }
+        }
+        {
+          std::vector<std::vector<Complex>> Asp(n_t0, std::vector<Complex>(Nt, Complex(0,0)));
+          for(int t=0;t<Nt;t++){
+            for(int a=0;a<n_links;a++){
+              const BaseLink lk = base.links[a];
+              const Idx il = base.map2il.at(lk);
+              kop.set_spatial(U, t, lk, /*dag=*/true);
+              op_K.from_cpu<N>(kphi.field, chi.field);             // kphi = K^dag(lk,t) chi
+              for(int b=0;b<n_t0;b++){ const int dt=(t - t0s[b] + Nt)%Nt; Asp[b][dt] += w_sp[il]*psi_sp[ISP(a,b)].dag(kphi); }
+            }
+          }
+          for(int b=0;b<n_t0;b++){ const std::string kp=hp+"t0_"+std::to_string(b)+"/"; write_corr(h5, kp+"axial/sp/Apm", Asp[b]); }
+        }
+        std::cout << " done ["<<elapsed()<<" s]" << std::endl;
+      }
+
+      const double secs = std::chrono::duration<double>(std::chrono::steady_clock::now()-t_hit0).count();
+      std::cout << "#   hit "<<(h+1)<<" done (tp+sp+ylm vector + axial) ["<<secs<<" s]" << std::endl;
+    } // hits
+
+    h5.createDataSet("complete", std::vector<int>{1});   // sentinel: ALL datasets present (written LAST)
+    std::cout << "# wrote " << h5path << std::endl;
+  } // k
+
+  for(int i=0; i<Comp::NSTREAMS; i++) d_MemorySets[i].deallocate();
+  return 0;
+}

@@ -1,3 +1,14 @@
+// DEBUG: CG verbose DISABLED for a fast run to reach the first dH line. Uncomment to
+// re-enable the SOLVER/MULTISHIFT iteration prints + per-shift dump for solve-level
+// debugging. The freeze-converged FIX in matpoly_claude.h is NOT gated by these.
+// #define IsVerbose
+// #define IsVerbose2
+
+// FORCE multi-shift: routes the HMC force precompute (precalc_grad) through its _ms variant
+// -- overlap_wmass_claude.h's precalc_grad dispatches on this macro, so it must be defined
+// BEFORE that header is included (hence here at the top). Comment out for the pole-loop force.
+#define FORCE_MULTISHIFT
+
 #include <typeinfo>
 #include <iostream>
 #include <iomanip>
@@ -59,8 +70,8 @@ namespace Comp{
   constexpr int NPARALLEL=1; // 12
   constexpr int NSTREAMS=12; // for grad loop
 #endif
-  constexpr int NPARALLEL_GAUGE=4; // 12
-  constexpr int NPARALLEL_SORT=4; // 12
+  constexpr int NPARALLEL_GAUGE=1; // 12
+  constexpr int NPARALLEL_SORT=1; // 12
 
   constexpr int N_REFINE=1;
   constexpr int NS=2;
@@ -82,9 +93,11 @@ namespace Comp{
   constexpr Idx N=Nx*Nt; // matrix size of DW
 
   const double TOL_INNER=1.0e-9;
-  const double TOL_OUTER=1.0e-8;
+  // const double TOL_OUTER=1.0e-8;   // DEBUG: tight value tripped the CG floor (cf. jj); loosened below
+  const double TOL_OUTER=1.0e-5;      // DEBUG: matches the jj fix (small-norm RHS -> mu_crit floor)
 }
 
+// const std::string dir = "../../dats/";
 const std::string dir = "../../geometry/data/";
 // #include "../../integrator/geodesic.h"
 #include "../../geometry/geodesic.h"
@@ -111,8 +124,10 @@ using CuC = cuDoubleComplex;
 
 // ======================================
 
-// #include "sparse_matrix.h"             // _ms: multishift copy below
-#include "sparse_matrix_claude.h"
+// BENCHMARK A/B: pole-loop (non-ms) selected for the timing comparison vs the multishift
+// build (multishift = sparse_matrix_claude.h + pseudofermion_claude.h). Same OverlapWMass, n=21.
+// #include "sparse_matrix.h"
+#include "sparse_matrix_claude.h"          // _ms multishift action solve (FULL multishift run)
 
 #include "dirac_simp.h"
 // #include "dirac_dual.h"
@@ -123,10 +138,14 @@ using CuC = cuDoubleComplex;
 #include "matpoly_claude.h"
 // #include "dirac_pf.h"
 // #include "overlap.h"                    // _ms: OverlapWMass copy below
-#define GRAD_L4   // HMC force opt L1+L2+L4 (hoist + block poles + skip do_it); force==ref ~1e-16 (~3.4x grad)
 #include "overlap_wmass_claude.h"
-// #include "pseudofermion.h"              // _ms: multishift copy below
-#include "pseudofermion_claude.h"
+// #include "pseudofermion.h"              // pole-loop heatbath
+#include "pseudofermion_claude.h"          // _ms multishift heatbath (FULL multishift run)
+
+// PARTIAL multi-shift toggles (independent): ACTION solve = the includes above
+// (sparse_matrix_claude.h + pseudofermion_claude.h => ms; plain => pole-loop); FORCE precompute =
+// FORCE_MULTISHIFT (defined at the TOP of this file, before overlap_wmass_claude.h, whose
+// precalc_grad then dispatches to _ms). Mix freely: force-only, action-only, or full multi-shift.
 
 # include "integrator.h"
 #include "hmc.h"
@@ -137,6 +156,11 @@ using CuC = cuDoubleComplex;
 int main(int argc, char* argv[]){
   std::cout << std::scientific << std::setprecision(15);
   std::clog << std::scientific << std::setprecision(15);
+  // DEBUG: flush every insertion. std::clog is buffered, so on the assert->abort the
+  // last verbose lines (right before the NaN) would be LOST; unitbuf emits each line
+  // immediately. With OpenMP threads off this also prevents inter-line garbling.
+  std::cout << std::unitbuf;
+  std::clog << std::unitbuf;
 
   for (int i = 1; i < argc; i++) {
     if (std::string(argv[i]) == "-h") {
@@ -213,8 +237,9 @@ int main(int argc, char* argv[]){
   // HERE
 #ifdef IS_OVERLAP
   const Complex mass = Complex(0.0, 0.0); // massless
-  // Fermion D(DW, 21); // 31                         // _ms: OverlapWMass ctor below
-  Fermion D(DW, mass, 21);
+  // Fermion D(DW, 11); // 21                         // _ms: OverlapWMass ctor below
+  // Fermion D(DW, mass, 11);                         // n=11 (5 poles) -> multishift NaNs (unvalidated)
+  Fermion D(DW, mass, 21);                            // DEBUG: n=21 (10 poles), the validated count
   std::cout << "# Dov set; M5 = " << M5 << std::endl;
   D.update(U);
   std::cout << "# min max ratio: "
@@ -254,8 +279,8 @@ int main(int argc, char* argv[]){
   std::filesystem::create_directory(dir3);
   // const int k_ckpoint=1;
   const int k_ckpoint=1;
-  const int k_ckpoint_rng=1000; // keep checkpoint every this many trajectories
-  const int kmax=20; // 1e4; // @@@@
+  const int k_ckpoint_rng=10; // keep checkpoint every this many trajectories
+  const int kmax=4e3; // @@@@
   // const int kmax=2;
 
   int k_tmp=0;
@@ -316,7 +341,8 @@ int main(int argc, char* argv[]){
       std::cout << "# k = " << k << std::endl;
     }
 
-    if(k%k_ckpoint==0){
+    if(false){   // DEBUG (hmc_claude_debug.cu): checkpoint writes DISABLED -- no output
+                 // files written while debugging. Reads the existing config normally.
       const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k);
       const std::string str_rng=dir3+"ckpoint_rng."+std::to_string(k);
       U.ckpoint( str_lat );

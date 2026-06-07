@@ -77,12 +77,29 @@ struct FermionVector {
     memset(field, 0, Comp::N*CD);
   }
   ~FermionVector(){
-    CUDA_CHECK(cudaFreeHost(field));
+    if(field) CUDA_CHECK(cudaFreeHost(field));   // field may be null after a move
   }
 
   FermionVector& operator=(const FermionVector& other) {
     if (this == &other) return *this;
     memcpy( this->data(), other.data(), size()*CD );
+    return *this;
+  }
+
+  // Move ctor / move-assignment: STEAL the pinned buffer (no deep copy, no double-free) so that a
+  // FermionVector can live in a std::vector that reallocates -- used by the unified jj_correlators
+  // connected source-leg holders (std::vector<FermionVector> sized at runtime by n_sites/n_links x n_t0).
+  // The copy ctor is kept (defaulted, shallow) to preserve existing behaviour; std::vector prefers the
+  // noexcept move on reallocation, so it never copy-constructs these.
+  FermionVector(const FermionVector&) = default;
+  FermionVector(FermionVector&& other) noexcept : field(other.field), Nt(other.Nt) {
+    other.field = nullptr;
+  }
+  FermionVector& operator=(FermionVector&& other) noexcept {
+    if(this != &other){
+      if(field) CUDA_CHECK(cudaFreeHost(field));
+      field = other.field; Nt = other.Nt; other.field = nullptr;
+    }
     return *this;
   }
 
