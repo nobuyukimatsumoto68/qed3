@@ -59,8 +59,8 @@ namespace Comp{
   const double TOL_OUTER=1.0e-8;
 }
 
-const std::string dir = "../../geometry/data/";
-#include "../../geometry/geodesic.h"
+const std::string dir = "/project/affine/nmatsum/qed3/geometry/data/";
+#include "/project/affine/nmatsum/qed3/geometry/geodesic.h"
 
 #include "timer.h"
 #include "s2n_simp.h"

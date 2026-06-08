@@ -15,7 +15,7 @@ echo $app
 #     echo $1 $2 $3
 for gsq in 8.0
 do
-    for Nf in 4
+    for Nf in 6
     # for Nf in 4
     do
         for nu0 in 1.0
