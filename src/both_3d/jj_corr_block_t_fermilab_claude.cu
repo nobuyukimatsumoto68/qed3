@@ -1,3 +1,10 @@
+// jj_corr_block_t_fermilab_claude.cu  (FERMILAB build of jj_corr_block_t_claude.cu)
+// Identical to jj_corr_block_t_claude.cu EXCEPT the runtime geometry path is ABSOLUTE (the relative
+// "../../geometry/data/" does not resolve when run on the cluster).  Excluded from the local Makefile by
+// the *_fermilab* filter; build/run on Fermilab.  Edit the GEOM root below if the repo path differs.
+// NOTE: npole left at 21 here (the cluster agent sets it before the Fermilab ensembles); the LOCAL
+// jj_corr_block_t_claude.cu uses npole=11 to match the HMC.
+//
 // jj_corr_block_t_claude.cu  (C6f-c: t-BLOCKED sink variant of jj_corr_mrhs_claude.cu)
 // Same physics/output as jj_corr_mrhs; the SINK passes are restructured outer-n + block-over-t: each
 // pass `for t: for n/a: op_K.from_cpu(kphi,sinkvec)` becomes `for n/a: kblock.apply_k[_dag]_block_t(
@@ -67,7 +74,7 @@ static constexpr Complex I = Complex(0.0, 1.0);
 namespace Comp{
   constexpr bool is_compact=false;
 
-  constexpr int NPARALLEL_DUPDATE=1;
+  constexpr int NPARALLEL_DUPDATE=16;   // FERMILAB: match the HMC nparallel (local uses 1)
   constexpr int NPARALLEL=NPARALLEL_DUPDATE;
   constexpr int NSTREAMS=4; // NPARALLEL_DUPDATE;
   constexpr int NPARALLEL_GAUGE=NPARALLEL_DUPDATE;
@@ -88,7 +95,7 @@ namespace Comp{
                                    // for the small-norm sink RHS (plenty for the correlator)
 }
 
-const std::string dir = "../../geometry/data/";
+const std::string dir = "/project/qed3/qed3/geometry/data/";   // FERMILAB: absolute (edit root if repo differs)
 
 #include "timer.h"
 
@@ -252,9 +259,9 @@ int main(int argc, char* argv[]){
   //   D    = D_ov              (massless; axial GW factors + flavor-axial legs)
   //   Dm   = D_ov + m          (Eq. 3.60; vector (++) both legs; tp/sp/ylm)
   //   Dtil = D_ov + m/(1-m)    (\tilde D_{m_P}, Eq. 3.63; parity (-) dagger leg)
-  Fermion D   (DW, Complex(0.0), 11);                              // npole=11 (match the HMC; was 21)
-  Fermion Dm  (DW, valence_mass, 11);
-  Fermion Dtil(DW, valence_mass / (Complex(1.0) - valence_mass), 11);
+  Fermion D   (DW, Complex(0.0), 21);
+  Fermion Dm  (DW, valence_mass, 21);
+  Fermion Dtil(DW, valence_mass / (Complex(1.0) - valence_mass), 21);
   std::cout << "# overlap operators set: D_ov, D_m, tilde D_{m_P} (M5="<<M5<<")." << std::endl;
 
   ConservedCurrent<Fermion,Gauge> kop(Dm);   // K is mass-independent; multishift apply_k_ms via operator()
@@ -313,7 +320,7 @@ int main(int argc, char* argv[]){
   // ---- mrhs (C6e) block scratch: batch the connected SOURCE solves over n_sites (tp) / n_links (sp).
   // The per-site/per-link op_*sq.solve loops become ONE block solve (MatPoly::solve_block_cg over
   // DDH_..._ms_block<NSTACK>). NSTACK is compile-time (Comp:: constexpr); cap = max(N_SITES, N_LINKS);
-  // buffers in the PARENT-stream set. D/Dm/Dtil all n=11 -> npole = size-1 identical.
+  // buffers in the PARENT-stream set. D/Dm/Dtil all n=21 -> npole = size-1 identical.
   assert(n_sites==NSTACK_TP && n_links==NSTACK_SP);   // NSTACK_TP/SP defined with the block-apply ops above
   const int nstack_cap = (NSTACK_TP > NSTACK_SP ? NSTACK_TP : NSTACK_SP);
   std::vector<Complex> hblk((size_t)Comp::N * nstack_cap);   // host RHS/solution block staging (in-place; device I/O is inside BlockedMat)

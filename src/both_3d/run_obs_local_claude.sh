@@ -51,16 +51,19 @@ ENS_NAMES=(
 )
 
 DO_BUILD="${DO_BUILD:-0}"; DRYRUN=0
+NF_FILTER="${NF_FILTER:-}"   # if set (e.g. 2), run ONLY the Nf<N> ensemble(s) -- for per-GPU splitting
 
 # ---------------- CLI ----------------
-USAGE="usage: $0 --ens-root DIR [--gpu N] [--nhits N] [--n-t0 N] [--ninter N] [--build] [--dry-run]
-  Mass case via env: VAL_RE/VAL_IM + ENS_NAMES (default massless)."
+USAGE="usage: $0 --ens-root DIR [--gpu N] [--nf N] [--nhits N] [--n-t0 N] [--ninter N] [--build] [--dry-run]
+  --nf N   run only the Nf<N> ensemble (split across GPUs).  Mass case via env: VAL_RE/VAL_IM + ENS_NAMES."
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -g|--gpu)     GPU="$2"; shift 2 ;;
     --gpu=*)      GPU="${1#*=}"; shift ;;
     --ens-root)   ENS_ROOT="$2"; shift 2 ;;
     --ens-root=*) ENS_ROOT="${1#*=}"; shift ;;
+    --nf)         NF_FILTER="$2"; shift 2 ;;
+    --nf=*)       NF_FILTER="${1#*=}"; shift ;;
     -H|--nhits)   NHITS="$2"; shift 2 ;;
     --nhits=*)    NHITS="${1#*=}"; shift ;;
     -T|--n-t0)    NT0="$2"; shift 2 ;;
@@ -78,8 +81,15 @@ done
 export CUDA_VISIBLE_DEVICES="${GPU}"
 export NVIDIA_VISIBLE_DEVICES="${GPU}"
 
+# filter to a single Nf if --nf given (per-GPU splitting)
+if [[ -n "${NF_FILTER}" ]]; then
+  filtered=(); for nm in "${ENS_NAMES[@]}"; do [[ "${nm}" =~ ^Nf${NF_FILTER}_ ]] && filtered+=("${nm}"); done
+  ENS_NAMES=("${filtered[@]}")
+  [[ ${#ENS_NAMES[@]} -gt 0 ]] || { echo "no ensemble matches Nf${NF_FILTER} in ENS_NAMES"; exit 1; }
+fi
+
 parity=0; awk "BEGIN{exit !(${VAL_IM}>0)}" && parity=1
-echo "### local obs | valence mRe=${VAL_RE} mIm=${VAL_IM} (parity=${parity}) | GPU=${GPU} nhits=${NHITS} n-t0=${NT0} ###"
+echo "### local obs | valence mRe=${VAL_RE} mIm=${VAL_IM} (parity=${parity}) | GPU=${GPU} nhits=${NHITS} n-t0=${NT0}${NF_FILTER:+ | Nf=${NF_FILTER}} ###"
 echo "### ens-root = ${ENS_ROOT} ###"
 
 run() { echo "+ $*"; [[ "${DRYRUN}" == 1 ]] || "$@"; }
