@@ -2,7 +2,9 @@
 
 
 
-#define NThreadsPerBlock (256) // 256: 63%; 512:53%; upto 1024 for A100
+#ifndef NThreadsPerBlock
+#define NThreadsPerBlock (256) // 256: 63%; 512:53%; upto 1024 for A100; override with -DNThreadsPerBlock=X
+#endif
 #define NBlocks (N+NThreadsPerBlock)/NThreadsPerBlock
 #define H2D (cudaMemcpyHostToDevice)
 #define D2H (cudaMemcpyDeviceToHost)
