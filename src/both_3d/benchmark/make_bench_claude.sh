@@ -1,10 +1,10 @@
 #!/bin/bash
-# Build bench_nthreads_claude.cu -> bench_256_claude.o / bench_512_claude.o / bench_1024_claude.o
-# Run from benchmark/ directory (or anywhere; uses absolute paths).
+# Build bench_nthreads_claude.cu (lives in both_3d/) -> bench_256/512/1024_claude.o in benchmark/.
+# Compiles from the both_3d/ source dir so bare includes resolve via -Iincludes/ (same as production).
 set -e
 
-SRCDIR="$(cd "$(dirname "$0")/.." && pwd)"
-BENCHDIR="$(cd "$(dirname "$0")" && pwd)"
+SRCDIR="$(cd "$(dirname "$0")/.." && pwd)"      # both_3d/
+BENCHDIR="$(cd "$(dirname "$0")" && pwd)"       # both_3d/benchmark/
 
 source /lustre2/qed3/env.sh
 
@@ -21,8 +21,9 @@ NVCCFLAGS="-arch=sm_80 -g -O3 -std=c++20 \
 LDFLAGS="-L\"/srv/software/el8/x86_64/eb/HDF5/1.14.2-GCC-12.3.0-serial/lib/\" \
          -L\"/project/qed3//gsl/lib/\" -lhdf5 -lgsl -lgslcblas -lm"
 
-SRC="${BENCHDIR}/bench_nthreads_claude.cu"
+SRC="${SRCDIR}/bench_nthreads_claude.cu"
 
+cd "${SRCDIR}"
 for NT in 256 512 1024; do
   OUT="${BENCHDIR}/bench_${NT}_claude.o"
   echo "==> Compiling NThreadsPerBlock=${NT} -> ${OUT}"

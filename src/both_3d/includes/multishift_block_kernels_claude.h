@@ -171,14 +171,16 @@ void mult_coo_block( T* res, const T* v, const T* v_csr, const Idx* cols, const 
 
 // block_dot: per-column conjugate dot  d_out[c] = sum_i conj(a[c*N+i]) b[c*N+i]  (= cublasZdotc(a_c,b_c)),
 // for c = 0..ncol-1. ONE thread block per column reduces N elements (shared-mem reduction). Launch with
-// ncol blocks x NThreadsPerBlock threads (NThreadsPerBlock <= 256). Replaces the per-pole streamed
-// cublasZdotc + host sync in grad with ONE kernel + ONE memcpy (the L2 host-sync killer).
+// ncol blocks x NThreadsPerBlock threads (must be a power of 2 for the tree reduction). Replaces the
+// per-pole streamed cublasZdotc + host sync in grad with ONE kernel + ONE memcpy (the L2 host-sync killer).
 template<Idx N> __global__
 void block_dot( CuC* d_out, const CuC* d_a, const CuC* d_b, const int ncol ){
   const int c = blockIdx.x;
   if(c >= ncol) return;
-  __shared__ double sh_re[256];
-  __shared__ double sh_im[256];
+  // shared scratch sized to the launch block width; must match NThreadsPerBlock (was hardcoded [256],
+  // which wrote out of bounds / CUDA-errored at NThreadsPerBlock > 256).
+  __shared__ double sh_re[NThreadsPerBlock];
+  __shared__ double sh_im[NThreadsPerBlock];
   const Idx base = (Idx)c*N;
   double re=0.0, im=0.0;
   for(Idx i=threadIdx.x; i<N; i+=blockDim.x){

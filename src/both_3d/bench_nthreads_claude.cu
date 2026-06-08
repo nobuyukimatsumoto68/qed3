@@ -62,9 +62,9 @@ namespace Comp{
 const std::string dir = "/project/affine/nmatsum/qed3/geometry/data/";
 #include "/project/affine/nmatsum/qed3/geometry/geodesic.h"
 
-#include "../timer.h"
-#include "../s2n_simp.h"
-#include "../rng.h"
+#include "timer.h"
+#include "s2n_simp.h"
+#include "rng.h"
 
 #include <cuComplex.h>
 #include <cuda_runtime.h>
@@ -72,17 +72,17 @@ const std::string dir = "/project/affine/nmatsum/qed3/geometry/data/";
 #include <cublas_api.h>
 #include <cusolverDn.h>
 using CuC = cuDoubleComplex;
-#include "../includes/gpu_header.h"
-#include "../includes/valence.h"
-#include "../includes/gauge_ext.h"
-#include "../includes/action_ext.h"
-#include "../includes/sparse_matrix.h"
-#include "../includes/dirac_simp.h"
-#include "../includes/dirac_ext.h"
-#include "../includes/sparse_dirac.h"
-#include "../includes/matpoly.h"
-#include "../includes/overlap_wmass_claude.h"
-#include "../includes/blocked_mat_claude.h"
+#include "gpu_header.h"
+#include "valence.h"
+#include "gauge_ext.h"
+#include "action_ext.h"
+#include "sparse_matrix_claude.h"
+#include "dirac_simp.h"
+#include "dirac_ext.h"
+#include "sparse_dirac.h"
+#include "matpoly_claude.h"
+#include "includes/overlap_wmass_claude.h"
+#include "blocked_mat_claude.h"
 
 static double wall_sec(){
   struct timespec t; clock_gettime(CLOCK_MONOTONIC,&t);
@@ -129,22 +129,22 @@ int main(){
   }
 
   // -------------------------------------------------------
-  // Part 1: HMC force  (precalc_grad + N_LINKS * grad_l4)
+  // Part 1: HMC force  (precalc_grad + full GaugeExt::compute, GRAD_L4 path)
+  // GaugeExt::compute sweeps all spatial links (pair<int,BaseLink>) and temporal
+  // sites (pair<int,Idx>) -- the same per-link grad the production force does.
   // -------------------------------------------------------
   std::cout << "\n# --- Part 1: HMC force (GRAD_L4) ---" << std::endl;
+  using Force=GaugeExt<Base,Nt,Comp::is_compact>;
+  Force pi(base);
   const int N_WARM_HMC = 3;
   const int N_BENCH_HMC = 10;
   std::vector<double> hmc_times;
-
-  auto links = base.links;   // vector of Link objects
-  const int nlinks = (int)links.size();
 
   for(int iter=0; iter < N_WARM_HMC + N_BENCH_HMC; iter++){
     CUDA_CHECK(cudaDeviceSynchronize());
     double t0 = wall_sec();
     D.precalc_grad_deviceAsyncLaunch(U, d_eta);
-    for(int li=0; li<nlinks; li++)
-      D.grad_deviceAsyncLaunch_l4(links[li], U, d_eta);
+    pi.compute(U, d_eta, D);
     CUDA_CHECK(cudaDeviceSynchronize());
     double t1 = wall_sec();
     if(iter >= N_WARM_HMC) hmc_times.push_back(t1-t0);
@@ -152,7 +152,7 @@ int main(){
   std::sort(hmc_times.begin(), hmc_times.end());
   double hmc_med = hmc_times[N_BENCH_HMC/2];
   std::cout << "# HMC force: min=" << hmc_times.front() << "s  median=" << hmc_med
-            << "s  max=" << hmc_times.back() << "s  (nlinks=" << nlinks << ")" << std::endl;
+            << "s  max=" << hmc_times.back() << "s" << std::endl;
 
   // -------------------------------------------------------
   // Part 2: jj source solve  (BlockedMat::solve_sq, NSTACK=N_SITES=12)
