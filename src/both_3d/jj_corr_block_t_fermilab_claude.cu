@@ -44,6 +44,7 @@
 #include <cassert>
 #include <algorithm>
 #include <filesystem>
+#include <memory>
 #include <chrono>
 #include <cstdint>
 #include <complex>
@@ -144,7 +145,9 @@ void PrintHelp(){
   printf("  --ens-dir <path>     sea config directory; OMIT => free field (U=1) check\n");
   printf("  --nhits <n>          stochastic hits (default: 1)\n");
   printf("  --n-t0 <N>           number of source-time origins t0=b*(Nt/N), b=0..N-1 (default: 2)\n");
-  printf("  --ninter <N>         ensemble config stride: measure ckpoint_lat.k for k=0,N,2N,... (default: 10)\n");
+  printf("  --ninter <N>         ensemble config stride: measure ckpoint_lat.k for k=kmin,kmin+N,... (default: 10)\n");
+  printf("  --kmin <k>           first ckpoint index, inclusive (default: 0)\n");
+  printf("  --kmax <k>           one past last ckpoint index, EXCLUSIVE: kmin <= k < kmax (default: 1000000)\n");
   printf("  -h, --help           show this help\n");
   exit(0);
 }
@@ -152,7 +155,8 @@ void PrintHelp(){
 void ParseArgs(int argc, char* argv[],
                double& gsq, int& Nf, double& nu0, double& nu1,
                double& mass_re, double& mass_im,
-               std::string& ens_dir, int& nhits, int& n_t0, int& ninter){
+               std::string& ens_dir, int& nhits, int& n_t0, int& ninter,
+               int& kmin, int& kmax){
   static struct option long_opts[] = {
     {"gsq",     required_argument, nullptr, 'g'},
     {"Nf",      required_argument, nullptr, 'N'},
@@ -164,11 +168,13 @@ void ParseArgs(int argc, char* argv[],
     {"nhits",   required_argument, nullptr, 'H'},
     {"n-t0",    required_argument, nullptr, 'T'},
     {"ninter",  required_argument, nullptr, 'I'},
+    {"kmin",    required_argument, nullptr, 'a'},
+    {"kmax",    required_argument, nullptr, 'b'},
     {"help",    no_argument,       nullptr, 'h'},
     {nullptr, 0, nullptr, 0}
   };
   int opt, idx;
-  while((opt = getopt_long(argc, argv, "g:N:n:m:r:i:e:H:T:I:h", long_opts, &idx)) != -1){
+  while((opt = getopt_long(argc, argv, "g:N:n:m:r:i:e:H:T:I:a:b:h", long_opts, &idx)) != -1){
     switch(opt){
     case 'g': gsq     = std::stod(optarg); break;
     case 'N': Nf      = std::stoi(optarg); break;
@@ -180,6 +186,8 @@ void ParseArgs(int argc, char* argv[],
     case 'H': nhits   = std::stoi(optarg); break;
     case 'T': n_t0    = std::stoi(optarg); break;
     case 'I': ninter  = std::stoi(optarg); break;
+    case 'a': kmin    = std::stoi(optarg); break;
+    case 'b': kmax    = std::stoi(optarg); break;
     case 'h':
     case '?':
     default:  PrintHelp(); break;
@@ -197,9 +205,11 @@ int main(int argc, char* argv[]){
   std::string ens_dir="";     // empty => free-field mode
   int nhits=1;
   int n_t0=2;   // number of source-time origins (Sec. 3.7)
-  int ninter=10;   // ensemble config stride (k = 0, ninter, 2*ninter, ...)
+  int ninter=10;   // ensemble config stride (k = kmin, kmin+ninter, ...)
+  int kmin=0;          // first ckpoint index, inclusive
+  int kmax=1000000;    // one past last, exclusive: kmin <= k < kmax (existence-break ends it earlier)
 
-  ParseArgs(argc, argv, gsq, Nf, nu0, nu1, mass_re, mass_im, ens_dir, nhits, n_t0, ninter);
+  ParseArgs(argc, argv, gsq, Nf, nu0, nu1, mass_re, mass_im, ens_dir, nhits, n_t0, ninter, kmin, kmax);
   if(nu1 < 0.0) nu1 = nu0;    // valence asymmetry defaults to the sea value nu0 (knob retained)
 
   const Complex valence_mass(mass_re, mass_im);
@@ -415,9 +425,10 @@ int main(int argc, char* argv[]){
   // free field: single deterministic config (k=0), U=1.  ensemble: loop ckpoint_lat.k in ens_dir
   // with stride ninter (--ninter; default 10).
   const int k_ckpoint = free_field ? 1 : ninter;
-  const int kmax      = free_field ? 0 : 1000;
+  const int k_lo      = free_field ? 0 : kmin;   // inclusive
+  const int k_hi      = free_field ? 1 : kmax;   // exclusive: kmin <= k < kmax
 
-  for(int k = 0; k <= kmax; k += k_ckpoint){
+  for(int k = k_lo; k < k_hi; k += k_ckpoint){
     if(!free_field){
       const std::string str_lat = ens_dir + "ckpoint_lat." + std::to_string(k);
       if(!std::filesystem::exists(str_lat)){ if(k==0) continue; else break; }
@@ -437,7 +448,13 @@ int main(int argc, char* argv[]){
     std::cout << "# k="<<k<<(free_field?" (free field)":"")
               << "  lambda_min/max="<<Dm.lambda_min<<"/"<<Dm.lambda_max<<std::endl;
 
-    HighFive::File h5(h5path, HighFive::File::ReadWrite|HighFive::File::Create|HighFive::File::Truncate);
+    // ATOMIC WRITE: write to "<h5path>.tmp", then rename() to the final name after the 'complete'
+    // sentinel + close.  rename(2) is atomic on POSIX, so readers / the resume check never see a
+    // partial file; an interrupted run leaves only a stale ".tmp" (ignored by the *.h5 globs).
+    const std::string h5tmp = h5path + ".tmp";
+    auto h5p = std::make_unique<HighFive::File>(h5tmp,
+                 HighFive::File::ReadWrite|HighFive::File::Create|HighFive::File::Truncate);
+    HighFive::File& h5 = *h5p;
     h5.createDataSet("t0s",   t0s);
     h5.createDataSet("n_t0",  std::vector<int>{n_t0});
     h5.createDataSet("nhits", std::vector<int>{nhits});
@@ -795,6 +812,8 @@ int main(int argc, char* argv[]){
     } // hits
 
     h5.createDataSet("complete", std::vector<int>{1});   // sentinel: ALL datasets present (written LAST)
+    h5p.reset();                                          // CLOSE the .tmp file before publishing
+    std::filesystem::rename(h5tmp, h5path);               // atomic publish: now visible as corr.<k>.h5
     std::cout << "# wrote " << h5path << std::endl;
   } // k
 

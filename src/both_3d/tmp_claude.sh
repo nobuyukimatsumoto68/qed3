@@ -1,76 +1,29 @@
 #!/usr/bin/env bash
-# B1a (FIXED): thermalized-config h5diff -- jj_corr_mrhs == jj_corr BIT-IDENTICAL on ONE real config.
-#
-# BUG in the previous version: the ensemble has 3426 ckpoint_lat.* (dense; ckpoint_lat.448 exists), so
-# --ninter 224 measured k=224,448,672,... (EVERY present multiple), ~46 min each => the REF loop ran for
-# hours and never reached the h5diff. FIX: point --ens-dir at a temp dir holding a SINGLE symlink
-# ckpoint_lat.224, so the loop measures k=224 then breaks at the missing k=448. One config, one hit.
-#
-# Both REF and MRHS use the same one-cfg dir => same esnid => one output path => h5diff. ~46 min PER
-# program (~1.5 h total + build); the sink K applies (unchanged by mrhs) dominate each run.
-#
-# Run from src/both_3d:   bash tmp_claude.sh   (uses GPU 0 by default)
+# Build + smoke-test the exact propagator builder (C1), L=1, free-field massless.
+# Run:  bash tmp_claude.sh 2>&1 | tee prop_exact_build_claude.log
 set -u
+LOG_TAG(){ echo; echo "===== $* ====="; }
 
-LOG=b1a_h5diff_claude.log
-WARN=b1a_build_warnings_claude.log
-H5DIFF=/mnt/hdd_barracuda/opt/myhdfstuff/hdf5-2.1.0/bin/h5diff
+cd /mnt/barracuda22/qed3/qed3/src/both_3d || exit 1
+module load cuda/12.8 2>/dev/null; module load gcc/13.2.0 2>/dev/null
 
-REALENS=Nf2_gsq8.000000at0.200000nu01.000000nt128L1_pole11
-KCFG=224
-ONECFG=b1a_onecfg_claude          # temp ens dir holding ONLY ckpoint_lat.224 (one symlink)
-NINTER=$KCFG                      # loop: k=0 missing -> continue, k=224 -> measure, k=448 missing -> break
-NHITS=1
-NT0=1
-GSQ=8 ; NF=2 ; NU0=1
+LOG_TAG "BUILD jj_propagator_exact_claude.o (L=1, default N_REFINE_CLI=1)"
+make jj_propagator_exact_claude.o || { echo "BUILD FAILED"; exit 1; }
 
-REF=jj_corr_claude.o
-MRHS=jj_corr_mrhs_claude.o
+LOG_TAG "RUN free-field massless (U=1) on GPU0"
+# free field = no --ens-dir; massless = mass 0; writes data_free_vmRe0.000000vmIm0.000000/prop_exact_L1/Dinv.0.h5
+CUDA_VISIBLE_DEVICES=0 ./jj_propagator_exact_claude.o --mass-re 0.0 --mass-im 0.0 || { echo "RUN FAILED"; exit 1; }
 
-OUTDIR=data_${ONECFG}_vmRe0.000000vmIm0.000000/corr_nt0${NT0}_nhits${NHITS}
-H5=$OUTDIR/corr.${KCFG}.h5
-H5REF=$OUTDIR/corr.${KCFG}.ref.h5
-
-ARGS="--gsq $GSQ --Nf $NF --nu0 $NU0 --ens-dir $ONECFG/ --ninter $NINTER --nhits $NHITS --n-t0 $NT0"
-
-: > "$LOG"
-exec > >(tee -a "$LOG") 2>&1
-echo "# B1a thermalized h5diff (one-config)  --  $(date)"
-
-echo; echo "=== [0] isolate a single config: $ONECFG/ckpoint_lat.$KCFG ==="
-rm -rf "$ONECFG"; mkdir -p "$ONECFG"
-ln -sfn "$PWD/$REALENS/ckpoint_lat.$KCFG" "$ONECFG/ckpoint_lat.$KCFG"
-if [ ! -e "$ONECFG/ckpoint_lat.$KCFG" ]; then echo "symlink failed"; exit 1; fi
-echo "# args: $ARGS"
-
-echo; echo "=== [1] build ref + mrhs (warnings -> $WARN) ==="
-if make -j4 "$REF" "$MRHS" 2>"$WARN"; then
-  echo "BUILD OK"
-else
-  echo "BUILD FAILED -- last 50 lines of $WARN:"; tail -50 "$WARN"; exit 1
-fi
-
-echo; echo "=== [2] clean stale outputs for cfg $KCFG ==="
-rm -f "$H5" "$H5REF"
-
-echo; echo "=== [3] run REFERENCE  $REF  ($(date +%T)) ==="
-if ! ./"$REF" $ARGS; then echo "REF run FAILED"; exit 1; fi
-if [ ! -f "$H5" ]; then echo "REF produced no $H5"; exit 1; fi
-mv "$H5" "$H5REF"
-echo "# stashed reference -> $H5REF"
-
-echo; echo "=== [4] run MRHS  $MRHS  ($(date +%T)) ==="
-if ! ./"$MRHS" $ARGS; then echo "MRHS run FAILED"; exit 1; fi
-if [ ! -f "$H5" ]; then echo "MRHS produced no $H5"; exit 1; fi
-
-echo; echo "=== [5] h5diff  (expect: 0 differences, bit-identical)  ($(date +%T)) ==="
-if "$H5DIFF" "$H5REF" "$H5"; then
-  echo "H5DIFF: NO DIFFERENCES -- jj_corr_mrhs == jj_corr  BIT-IDENTICAL  PASS"
-else
-  rc=$?
-  echo "H5DIFF: differences/error (exit $rc) -- verbose detail:"
-  "$H5DIFF" -v "$H5REF" "$H5" | head -80
-  echo "H5DIFF FAIL"
-fi
-
-echo; echo "=== done; log=$LOG  warnings=$WARN ==="
+LOG_TAG "OUTPUT check"
+OUT=data_free_vmRe0.000000vmIm0.000000/prop_exact_L1/Dinv.0.h5
+ls -l "$OUT" 2>/dev/null && python3 - "$OUT" << 'PY'
+import h5py, sys, numpy as np
+f=h5py.File(sys.argv[1],'r')
+print("keys:", list(f.keys()))
+N=f['N'][0]; print("N=",N,"parity=",f['parity'][0],"complete=",'complete' in f)
+re=np.array(f['Dm_inv/real']); im=np.array(f['Dm_inv/imag'])
+print("Dm_inv len=",re.size," expect N^2=",N*N," match=",re.size==N*N)
+P=(re+1j*im).reshape(N,N)
+print("Dm_inv[0,0]=",P[0,0]," |P| frob=",np.linalg.norm(P))
+PY
+LOG_TAG "DONE"

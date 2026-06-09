@@ -35,6 +35,7 @@
 #include <cassert>
 #include <algorithm>
 #include <filesystem>
+#include <memory>
 #include <chrono>
 #include <cstdint>
 #include <complex>
@@ -319,13 +320,18 @@ int main(int argc, char* argv[]){
     std::cout << "# k="<<k<<"  R = ("<<Rval.real()<<", "<<Rval.imag()<<")  |R|="<<std::abs(Rval)
               << "  ["<<timer.currentSeconds()<<" s]" << std::endl;
 
-    // write data_<ESNID>/R/R.<k>.h5
-    HighFive::File h5(h5path, HighFive::File::ReadWrite|HighFive::File::Create|HighFive::File::Truncate);
+    // write data_<ESNID>/R/R.<k>.h5  (ATOMIC: .tmp + rename after 'complete' + close)
+    const std::string h5tmp = h5path + ".tmp";
+    auto h5p = std::make_unique<HighFive::File>(h5tmp,
+                 HighFive::File::ReadWrite|HighFive::File::Create|HighFive::File::Truncate);
+    HighFive::File& h5 = *h5p;
     write_cvec(h5, "lam", lam);                                   // eigenvalues of D_ov (mP-independent)
     write_cvec(h5, "R",   std::vector<Complex>{Rval});            // the reweighting factor
     write_cvec(h5, "mP",  std::vector<Complex>{mP});              // mass label
     h5.createDataSet("k", std::vector<int>{k});
     h5.createDataSet("complete", std::vector<int>{1});           // sentinel, written LAST
+    h5p.reset();                                                 // CLOSE the .tmp before publishing
+    std::filesystem::rename(h5tmp, h5path);                      // atomic publish
     std::cout << "#   wrote " << h5path << std::endl;
   }
 

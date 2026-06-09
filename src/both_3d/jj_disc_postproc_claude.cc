@@ -35,6 +35,7 @@
 #include <vector>
 #include <string>
 #include <filesystem>
+#include <memory>
 #include <iostream>
 #include <cmath>
 #include <regex>
@@ -146,8 +147,11 @@ static bool process_file(const std::string& in_path, const std::string& out_path
   const auto Ctp = two_point(Jtp, Jtp);
   const auto Csp = two_point(Jsp, Jsp);
 
-  HighFive::File o(out_path,
+  // ATOMIC WRITE: write to "<out_path>.tmp", then rename() after the 'complete' sentinel + close.
+  const std::string out_tmp = out_path + ".tmp";
+  auto op = std::make_unique<HighFive::File>(out_tmp,
       HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Truncate);
+  HighFive::File& o = *op;
   // carry-through scalars for the downstream loader.
   o.createDataSet("nhits",  std::vector<int>{nhits});
   o.createDataSet("ls",     ls);
@@ -172,6 +176,8 @@ static bool process_file(const std::string& in_path, const std::string& out_path
   }
 
   o.createDataSet("complete", std::vector<int>{1});   // sentinel, written LAST
+  op.reset();                                          // CLOSE the .tmp before publishing
+  fs::rename(out_tmp, out_path);                       // atomic publish
   std::cout << "#   wrote " << out_path << (parity ? "  [parity]" : "") << std::endl;
   return true;
 }
