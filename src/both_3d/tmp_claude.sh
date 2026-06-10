@@ -1,29 +1,28 @@
 #!/usr/bin/env bash
-# Build + smoke-test the exact propagator builder (C1), L=1, free-field massless.
-# Run:  bash tmp_claude.sh 2>&1 | tee prop_exact_build_claude.log
+# Drive the EXACT pipeline (free, L=1, massless) via the orchestrator, then check Eq.4.28.
+# Stage 1b (K-build) is the slow part (~30-50 min, N x n_insertions multishift applies);
+# the propagator (stage 1a) already exists from the earlier C1 run and will be skipped.
+# Run:  bash tmp_claude.sh 2>&1 | tee contract_exact_claude.log
 set -u
-LOG_TAG(){ echo; echo "===== $* ====="; }
-
 cd /mnt/barracuda22/qed3/qed3/src/both_3d || exit 1
-module load cuda/12.8 2>/dev/null; module load gcc/13.2.0 2>/dev/null
 
-LOG_TAG "BUILD jj_propagator_exact_claude.o (L=1, default N_REFINE_CLI=1)"
-make jj_propagator_exact_claude.o || { echo "BUILD FAILED"; exit 1; }
+echo "===== run_exact_claude.sh  (free, L=1, mass 0:0) ====="
+bash run_exact_claude.sh --L 1 --masses "0:0" --free --gpu 0 --n-t0 2 || { echo "PIPELINE FAILED"; exit 1; }
 
-LOG_TAG "RUN free-field massless (U=1) on GPU0"
-# free field = no --ens-dir; massless = mass 0; writes data_free_vmRe0.000000vmIm0.000000/prop_exact_L1/Dinv.0.h5
-CUDA_VISIBLE_DEVICES=0 ./jj_propagator_exact_claude.o --mass-re 0.0 --mass-im 0.0 || { echo "RUN FAILED"; exit 1; }
-
-LOG_TAG "OUTPUT check"
-OUT=data_free_vmRe0.000000vmIm0.000000/prop_exact_L1/Dinv.0.h5
+echo
+echo "===== Eq.4.28 ratio check  (CFT: G_s/G_t = -(D-1) = -2 at every dt) ====="
+OUT=data_free_vmRe0.000000vmIm0.000000/corr_exact_L1/corr.0.h5
 ls -l "$OUT" 2>/dev/null && python3 - "$OUT" << 'PY'
 import h5py, sys, numpy as np
 f=h5py.File(sys.argv[1],'r')
-print("keys:", list(f.keys()))
-N=f['N'][0]; print("N=",N,"parity=",f['parity'][0],"complete=",'complete' in f)
-re=np.array(f['Dm_inv/real']); im=np.array(f['Dm_inv/imag'])
-print("Dm_inv len=",re.size," expect N^2=",N*N," match=",re.size==N*N)
-P=(re+1j*im).reshape(N,N)
-print("Dm_inv[0,0]=",P[0,0]," |P| frob=",np.linalg.norm(P))
+def g(leaf): return f[leaf+'/real'][:]+1j*f[leaf+'/imag'][:]
+tp=g('h0/t0_0/tp/Vpp').real; sp=g('h0/t0_0/sp/Vpp').real
+ds=[1,2,3,4,6,8,12,16]
+print("complete=",'complete' in f," n_t0=",f['n_t0'][0])
+print(" dt   :", " ".join("%7d"%d for d in ds))
+print(" Gt   :", " ".join("%+7.1e"%tp[d] for d in ds))
+print(" Gs   :", " ".join("%+7.1e"%sp[d] for d in ds))
+with np.errstate(divide='ignore',invalid='ignore'): r=sp/tp
+print(" Gs/Gt:", " ".join("%+7.3f"%r[d] for d in ds), "  (CFT: -2)")
 PY
-LOG_TAG "DONE"
+echo "===== DONE ====="
