@@ -24,20 +24,26 @@ need an **A100-80**; a 12 GB Titan V cannot hold them.
    cuSOLVER `Zgetrf`/`Zgetrs`, and writes `data_free_vmRe0.000000vmIm0.000000/prop_deter_L4/Dinv.0.h5`
    (datasets `Dm_inv` $=D_\text{ov}^{-1}$ and `Dov`; ~55 GB total).  Has a built-in self-check that prints
    `[check] || D_m . D_m^{-1} - I ||_F` (should be ~1e-13).
-2. **Local-op contraction (host)** — `jj_local_deter_claude.cu` (from the repo): builds the ultralocal
+2. **B = local op + lattice $P$ (host)** — `jj_local_deter_claude.cu` (from the repo): builds the ultralocal
    current $W^P(t)$ (bare $\hat e\cdot\sigma$, no $\Omega$, no $-r\sigma_0$), forms $A(t)=W^P(t)\,P$ and
    $\mathrm{conn}(t_0,t)=\mathrm{tr}(A(t_0)A(t))$ per timeslice, writes
-   `.../corr_deter_local_L4/corr.0.h5`.  This stage is host-memory bound (no GPU needed).
+   `.../corr_deter_local_L4/corr.0.h5`.  Host-memory bound (no GPU needed).
+3. **D = local op + continuum $G$ (host)** — same `jj_local_deter` binary with
+   `--prop-file cont_prop_L4/Dinv.0.h5 --out-tag cont` -> `.../corr_deter_local_cont_L4/corr.0.h5`. Reads the
+   continuum propagator instead of the lattice one (same Dinv schema). Host-memory bound; needs
+   `cont_prop_L4/Dinv.0.h5` (27.5 GB) present on this server. Stage auto-skips if that file is absent.
 
-`L4_a100_run_claude.sh` runs both.
+`L4_a100_run_claude.sh` runs all three.
 
 ## Prerequisites (must exist in the working dir = `src/both_3d/`)
 
 - `includes/` — the full qed3 header set (lattice `s2n_*.h`, `dirac_*.h`, `overlap_wmass_claude.h`,
   `matpoly_claude.h`, `sparse_matrix.h`, `gpu_header.h`, `valence_claude.h`, ...).
-- `jj_local_deter_claude.cu` — the stage-2 local-op contraction (same dir).
+- `jj_local_deter_claude.cu` — the stage-2/3 local-op contraction (same dir).
 - geometry data `../../geometry/data/*_n4.dat` (pts/links/nns/alpha/omega for $N_\text{refine}=4$).
   **Already generated in the repo** — confirm `alpha_n4.dat`, `omega_n4.dat`, `pts_n4.dat`, ... are present.
+- (stage 3 only) `cont_prop_L4/Dinv.0.h5` (27.5 GB continuum propagator) — transfer it to this server if not
+  present; stage 3 auto-skips otherwise.
 - Eigen 3.4, HighFive, HDF5 1.x.  **Edit `INCLUDES`/`LDFLAGS` in the .sh** to this server's paths.
 - Modules: `cuda/12.8`+, `gcc/13.2.0`+.
 
@@ -70,8 +76,9 @@ actuals.)
 - Propagator self-check `|| D_m . D_m^{-1} - I ||_F` must be ~1e-13 (printed by stage 1).
 - B(L4) connected ratio `Gs/Gt` (printed at the end) should be **closer to $-2$** than L=1 ($\approx-12$)
   and L=2 -- that is the whole point (cutoff reduction).
-- **Return:** `data_free_vmRe0.000000vmIm0.000000/corr_deter_local_L4/corr.0.h5` (small).  Keep the 55 GB
-  `prop_deter_L4/Dinv.0.h5` on the server (too large to ship; only needed if we later add other contractions).
+- **Return:** `corr_deter_local_L4/corr.0.h5` (B) and `corr_deter_local_cont_L4/corr.0.h5` (D), both small,
+  under `data_free_vmRe0.000000vmIm0.000000/`.  Keep the 55 GB `prop_deter_L4/Dinv.0.h5` on the server (too
+  large to ship; only needed if we later add other contractions).
 
 ## Notes / scope
 

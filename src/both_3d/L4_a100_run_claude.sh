@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# L4_a100_run_claude.sh -- build + run the free L=4 current-correlator computation on an A100-80.
-# Stage 1 (A100): dense propagator  L4_a100_prop_claude.cu  -> data_free_.../prop_deter_L4/Dinv.0.h5
-# Stage 2 (host): local-op contract  jj_local_deter_claude.cu -> data_free_.../corr_deter_local_L4/corr.0.h5
+# L4_a100_run_claude.sh -- build + run the free L=4 DETER current-correlator computation on an A100-80.
+# Stage 1 (A100): dense propagator   L4_a100_prop_claude.cu   -> data_free_.../prop_deter_L4/Dinv.0.h5
+# Stage 2 (host): B = local + lattice P   jj_local_deter_claude.cu -> .../corr_deter_local_L4/corr.0.h5
+# Stage 3 (host): D = local + continuum G  (same binary, --prop-file cont_prop_L4) -> .../corr_deter_local_cont_L4/
 # See L4_a100_README_claude.md for prerequisites, memory, and what to return.
 # Run:  bash L4_a100_run_claude.sh 2>&1 | tee L4_a100_claude.log
 set -u
@@ -43,4 +44,14 @@ with np.errstate(divide='ignore',invalid='ignore'): r=gs/gt
 print(" dt   :", " ".join("%8d"%d for d in [1,2,3,4,6,8]))
 print(" Gs/Gt:", " ".join("%+8.3f"%r[d] for d in [1,2,3,4,6,8]), "  (CFT -2)")
 PY
-echo "===== DONE -- return data_free_vmRe0.000000vmIm0.000000/corr_deter_local_L4/corr.0.h5 ====="
+echo "===== [3] method D: local op + CONTINUUM G (free, L4) -- host-dense (~110 GB RAM) ====="
+# needs cont_prop_L4/Dinv.0.h5 (27.5 GB) on this server. Same binary, propagator overridden.
+if [ -f cont_prop_L4/Dinv.0.h5 ]; then
+  rm -f data_free_vmRe0.000000vmIm0.000000/corr_deter_local_cont_L4/corr.0.h5*
+  ./jj_local_deter_${L}.o --mass-re 0.0 --mass-im 0.0 --n-t0 2 \
+    --prop-file cont_prop_L4/Dinv.0.h5 --out-tag cont || { echo "D FAILED (host RAM? -> GPU port)"; exit 1; }
+else
+  echo "  SKIP stage 3: cont_prop_L4/Dinv.0.h5 not present on this server (transfer it, 27.5 GB)."
+fi
+
+echo "===== DONE -- return corr_deter_local_L4/corr.0.h5  (and corr_deter_local_cont_L4/corr.0.h5 if stage 3 ran) ====="
