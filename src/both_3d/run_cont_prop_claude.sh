@@ -19,8 +19,8 @@ LOG=cont_prop_run_claude.log
 GEO=../../geometry/data
 NT=128; AT=0.2; NMAX=40
 
-# match the hdf5/highfive paths used by run_reweighting_R_claude.sh
-INC='-I/mnt/hdd_barracuda/opt/highfive/include/ -I/mnt/hdd_barracuda/opt/myhdfstuff/hdf5-2.1.0/include/'
+# match the hdf5/highfive paths used by run_reweighting_R_claude.sh; boost for the stable Jacobi xi
+INC='-I/mnt/hdd_barracuda/opt/highfive/include/ -I/mnt/hdd_barracuda/opt/myhdfstuff/hdf5-2.1.0/include/ -I../../qfe_mod/include/boost_1_86_0'
 LIB='-L/mnt/hdd_barracuda/opt/myhdfstuff/hdf5-2.1.0/lib/ -lhdf5 -lgsl -lgslcblas -lm'
 
 DO_BUILD=1

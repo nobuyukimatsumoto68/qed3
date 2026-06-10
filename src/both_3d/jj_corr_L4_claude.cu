@@ -1,11 +1,4 @@
-// jj_corr_block_t_claude.cu  (C6f-c: t-BLOCKED sink variant of jj_corr_mrhs_claude.cu)
-// Same physics/output as jj_corr_mrhs; the SINK passes are restructured outer-n + block-over-t: each
-// pass `for t: for n/a: op_K.from_cpu(kphi,sinkvec)` becomes `for n/a: kblock.apply_k[_dag]_block_t(
-// d_kphi_block, sinkvec, U, fixed); D2H; for t: <same accumulation on column t>`. Sink K applies drop
-// from Nt*n per pass to n block applies (~3x apply, the C6f lever). Numerically equals jj_corr_mrhs to
-// ~1e-15 (block K's Term B solve_shift_block) -> validate with h5diff -d 1e-10 (NOT bit-exact). The
-// mrhs SOURCE-solve batching (blk_*.solve_sq_from_cpu) is KEPT unchanged.
-//
+// jj_corr_claude.cu
 // UNIFIED current-current correlator program (plan: conserved_current_correlators_impl_plan_v3_claude.md
 // Sec. 3.8).  ONE program computes EVERYTHING per config -- connected AND disconnected -- sharing
 // phi'=D_m^{-1} eta and the K phi' applies between the two pieces.  Output: data_<ESNID>/corr_nt0<N>_nhits<H>/.
@@ -74,7 +67,7 @@ namespace Comp{
   constexpr int NPARALLEL_GAUGE=NPARALLEL_DUPDATE;
   constexpr int NPARALLEL_SORT=NPARALLEL_DUPDATE;
 
-  constexpr int N_REFINE=1;
+  constexpr int N_REFINE=4;
   constexpr int NS=2;
   constexpr int Nt=128;
 
@@ -120,9 +113,7 @@ using CuC = cuDoubleComplex;
 #include "matpoly_claude.h"
 
 #include "overlap_wmass_claude.h"        // complex-mass overlap (massless at mass=0)
-#include "blocked_mat_claude.h"      // C7: BlockedMat<N,NSTACK,Op> (mrhs block solves, host-block solve_sq_from_cpu)
 #include "conserved_current_claude.h"   // ConservedCurrent: apply_k / apply_k_dag (multishift apply_k_ms)
-#include "conserved_current_block_claude.h"  // C6f-c: ConservedCurrentBlockT::apply_k[_dag]_block_t (t-blocked sink)
 
 //------------------------------------------
 #include <getopt.h>
@@ -138,9 +129,7 @@ void PrintHelp(){
   printf("  --ens-dir <path>     sea config directory; OMIT => free field (U=1) check\n");
   printf("  --nhits <n>          stochastic hits (default: 1)\n");
   printf("  --n-t0 <N>           number of source-time origins t0=b*(Nt/N), b=0..N-1 (default: 2)\n");
-  printf("  --ninter <N>         ensemble config stride: measure ckpoint_lat.k for k=kmin,kmin+N,... (default: 10)\n");
-  printf("  --kmin <k>           first ckpoint index, inclusive (default: 0)\n");
-  printf("  --kmax <k>           one past last ckpoint index, EXCLUSIVE: kmin <= k < kmax (default: 1000000)\n");
+  printf("  --ninter <N>         ensemble config stride: measure ckpoint_lat.k for k=0,N,2N,... (default: 10)\n");
   printf("  -h, --help           show this help\n");
   exit(0);
 }
@@ -148,8 +137,7 @@ void PrintHelp(){
 void ParseArgs(int argc, char* argv[],
                double& gsq, int& Nf, double& nu0, double& nu1,
                double& mass_re, double& mass_im,
-               std::string& ens_dir, int& nhits, int& n_t0, int& ninter,
-               int& kmin, int& kmax){
+               std::string& ens_dir, int& nhits, int& n_t0, int& ninter){
   static struct option long_opts[] = {
     {"gsq",     required_argument, nullptr, 'g'},
     {"Nf",      required_argument, nullptr, 'N'},
@@ -161,13 +149,11 @@ void ParseArgs(int argc, char* argv[],
     {"nhits",   required_argument, nullptr, 'H'},
     {"n-t0",    required_argument, nullptr, 'T'},
     {"ninter",  required_argument, nullptr, 'I'},
-    {"kmin",    required_argument, nullptr, 'a'},
-    {"kmax",    required_argument, nullptr, 'b'},
     {"help",    no_argument,       nullptr, 'h'},
     {nullptr, 0, nullptr, 0}
   };
   int opt, idx;
-  while((opt = getopt_long(argc, argv, "g:N:n:m:r:i:e:H:T:I:a:b:h", long_opts, &idx)) != -1){
+  while((opt = getopt_long(argc, argv, "g:N:n:m:r:i:e:H:T:I:h", long_opts, &idx)) != -1){
     switch(opt){
     case 'g': gsq     = std::stod(optarg); break;
     case 'N': Nf      = std::stoi(optarg); break;
@@ -179,8 +165,6 @@ void ParseArgs(int argc, char* argv[],
     case 'H': nhits   = std::stoi(optarg); break;
     case 'T': n_t0    = std::stoi(optarg); break;
     case 'I': ninter  = std::stoi(optarg); break;
-    case 'a': kmin    = std::stoi(optarg); break;
-    case 'b': kmax    = std::stoi(optarg); break;
     case 'h':
     case '?':
     default:  PrintHelp(); break;
@@ -198,11 +182,9 @@ int main(int argc, char* argv[]){
   std::string ens_dir="";     // empty => free-field mode
   int nhits=1;
   int n_t0=2;   // number of source-time origins (Sec. 3.7)
-  int ninter=10;   // ensemble config stride (k = kmin, kmin+ninter, ...)
-  int kmin=0;          // first ckpoint index, inclusive
-  int kmax=1000000;    // one past last, exclusive: kmin <= k < kmax (existence-break ends it earlier)
+  int ninter=10;   // ensemble config stride (k = 0, ninter, 2*ninter, ...)
 
-  ParseArgs(argc, argv, gsq, Nf, nu0, nu1, mass_re, mass_im, ens_dir, nhits, n_t0, ninter, kmin, kmax);
+  ParseArgs(argc, argv, gsq, Nf, nu0, nu1, mass_re, mass_im, ens_dir, nhits, n_t0, ninter);
   if(nu1 < 0.0) nu1 = nu0;    // valence asymmetry defaults to the sea value nu0 (knob retained)
 
   const Complex valence_mass(mass_re, mass_im);
@@ -262,16 +244,13 @@ int main(int argc, char* argv[]){
   //   D    = D_ov              (massless; axial GW factors + flavor-axial legs)
   //   Dm   = D_ov + m          (Eq. 3.60; vector (++) both legs; tp/sp/ylm)
   //   Dtil = D_ov + m/(1-m)    (\tilde D_{m_P}, Eq. 3.63; parity (-) dagger leg)
-  Fermion D   (DW, Complex(0.0), 11);                              // npole=11 (match the HMC; was 21)
-  Fermion Dm  (DW, valence_mass, 11);
-  Fermion Dtil(DW, valence_mass / (Complex(1.0) - valence_mass), 11);
+  Fermion D   (DW, Complex(0.0), 21);
+  Fermion Dm  (DW, valence_mass, 21);
+  Fermion Dtil(DW, valence_mass / (Complex(1.0) - valence_mass), 21);
   std::cout << "# overlap operators set: D_ov, D_m, tilde D_{m_P} (M5="<<M5<<")." << std::endl;
 
   ConservedCurrent<Fermion,Gauge> kop(Dm);   // K is mass-independent; multishift apply_k_ms via operator()
-  MatPoly op_K; op_K.push_back(cplx(1.0), {&kop});   // apply K via op_K.from_cpu (source K^dag(.,t0) applies)
-  // C6f-c: t-blocked sink kernel.  One wrapper (full pool ~189 MB + KBlockScratch ~19 MB), created once;
-  // apply_k[_dag]_block_t computes K(t,fixed) sinkvec for ALL t in one pass (the SINK lever).
-  ConservedCurrentBlockT<Fermion,Gauge,Comp::Nt> kblock(kop);
+  MatPoly op_K; op_K.push_back(cplx(1.0), {&kop});   // apply K via op_K.from_cpu (no raw device buffers)
 
   // Uniform operator set, multishift (_ms) entry points (~4x).  For each overlap X:
   //   mult = X,  H = X^dag,  sq = X^dag X = X X^dag (D_ov+m normal -> fused DDH=DHD).
@@ -303,30 +282,10 @@ int main(int argc, char* argv[]){
   MatPoly op_tilDmH;  op_tilDmH.push_back(cplx(1.0), {&M_tilDmH});
   MatPoly op_tilDmsq; op_tilDmsq.push_back(cplx(1.0), {&M_tilDmsq});
 
-  // ---- mrhs (C6e) block-apply ops: DDH(=op_*sq) on an NSTACK-wide block, used by
-  // MatPoly::solve_block_cg in the connected SOURCE loops. tp width = N_SITES, sp width = N_LINKS.
-  // These REPLACE the per-site/per-link single op_*sq.solve (left commented in the loops); the op_*sq
-  // objects still serve the single phi'/ylm/tilphi solves.
-  constexpr int NSTACK_TP = Comp::N_SITES;        // tp batch width
-  constexpr int NSTACK_SP = Comp::N_LINKS;        // sp batch width
-  // mrhs block engines (C7): one BlockedMat per (operator, width). Own their scratch (RAII),
-  // hold a const ref to the fermion (per-config coeffs read at solve time), expose solve_sq_from_cpu
-  // (host-block, hides device I/O). Created once; reused across hits/loops.
-  BlockedMat<N,NSTACK_TP,Fermion> blk_tp_D(D),  blk_tp_Dm(Dm),  blk_tp_Dtil(Dtil);
-  BlockedMat<N,NSTACK_SP,Fermion> blk_sp_D(D),  blk_sp_Dm(Dm),  blk_sp_Dtil(Dtil);
-
   // ---- geometry weights ------------------------------------------------------------------------
   const double inv4pi = 1.0/(4.0*std::acos(-1.0));
   const int n_sites = static_cast<int>(base.n_sites);
   const int n_links = static_cast<int>(base.links.size());
-
-  // ---- mrhs (C6e) block scratch: batch the connected SOURCE solves over n_sites (tp) / n_links (sp).
-  // The per-site/per-link op_*sq.solve loops become ONE block solve (MatPoly::solve_block_cg over
-  // DDH_..._ms_block<NSTACK>). NSTACK is compile-time (Comp:: constexpr); cap = max(N_SITES, N_LINKS);
-  // buffers in the PARENT-stream set. D/Dm/Dtil all n=11 -> npole = size-1 identical.
-  assert(n_sites==NSTACK_TP && n_links==NSTACK_SP);   // NSTACK_TP/SP defined with the block-apply ops above
-  const int nstack_cap = (NSTACK_TP > NSTACK_SP ? NSTACK_TP : NSTACK_SP);
-  std::vector<Complex> hblk((size_t)Comp::N * nstack_cap);   // host RHS/solution block staging (in-place; device I/O is inside BlockedMat)
 
   // temporal projection (Eq. 4.32): w_tp[n] = A_n / kappa_t(n)^2   (kappa^2)
   std::vector<double> w_tp(base.n_sites);
@@ -356,7 +315,7 @@ int main(int argc, char* argv[]){
   { const auto slash = ens_base.find_last_of('/'); if(slash!=std::string::npos) ens_base = ens_base.substr(slash+1); }
   const std::string esnid = (free_field ? std::string("free") : ens_base)
                           + "_vmRe"+std::to_string(mass_re)+"vmIm"+std::to_string(mass_im);
-  const std::string dir_out = "data_"+esnid+"/corr_nt0"+std::to_string(n_t0)+"_nhits"+std::to_string(nhits)+"/";
+  const std::string dir_out = "data_"+esnid+"/corr_nt0"+std::to_string(n_t0)+"_nhits"+std::to_string(nhits)+"_L"+std::to_string(Comp::N_REFINE)+"/";
   std::filesystem::create_directories(dir_out);
   std::cout << "# dir_out = " << dir_out
             << "  (n_sites="<<n_sites<<", n_links="<<n_links<<", n_ell="<<N_ELL<<")" << std::endl;
@@ -382,20 +341,6 @@ int main(int argc, char* argv[]){
   auto IYL = [&](int l,int b){ return l*n_t0 + b; };
   auto ISP = [&](int a,int b){ return a*n_t0 + b; };
 
-  // C6f-c sink block-t buffers:  d_sinkvec = the sink vector (phi'/phimm/chi/tilphi) uploaded once per
-  // pass;  d_kphi_block = K(t,fixed) sinkvec for all t (N*Nt device, apply_k_block_t output);  kblk =
-  // its host copy (D2H once per insertion);  PhiLt[l*Nt+t] = ylm m-summed sink tower per timeslice (was
-  // PhiL[l]; must hold all t across the outer-n loop).  IPL flattens (l,t).
-  CuC *d_sinkvec=nullptr, *d_kphi_block=nullptr;
-  CUDA_CHECK(cudaMalloc(&d_sinkvec,    (size_t)N*CD));
-  CUDA_CHECK(cudaMalloc(&d_kphi_block, (size_t)N*Nt*CD));
-  std::vector<Complex> kblk((size_t)N*Nt);
-  std::vector<FermionVector> PhiLt(N_ELL*Nt);     // ylm sink tower per (l,t)
-  auto IPL = [&](int l,int t){ return l*Nt + t; };
-  // copy column t of the K-block (host kblk) into kphi.field, so the existing per-(n,t) accumulation
-  // lines (eta.dag(kphi), psi.dag(kphi), PhiLt += w*kphi) run UNCHANGED.
-  auto kcol = [&](int t){ memcpy(kphi.field, kblk.data()+(size_t)t*N, (size_t)N*sizeof(Complex)); };
-
   // helpers: write a length-Nt complex correlator (1/4pi folded) under <key>/{real,imag};
   // write_corr_conj writes the elementwise conjugate (massless / m_F: Vmm = conj(Vpp)).
   auto write_corr = [&](HighFive::File& h5, const std::string& key, const std::vector<Complex>& C){
@@ -418,10 +363,9 @@ int main(int argc, char* argv[]){
   // free field: single deterministic config (k=0), U=1.  ensemble: loop ckpoint_lat.k in ens_dir
   // with stride ninter (--ninter; default 10).
   const int k_ckpoint = free_field ? 1 : ninter;
-  const int k_lo      = free_field ? 0 : kmin;   // inclusive
-  const int k_hi      = free_field ? 1 : kmax;   // exclusive: kmin <= k < kmax
+  const int kmax      = free_field ? 0 : 1000;
 
-  for(int k = k_lo; k < k_hi; k += k_ckpoint){
+  for(int k = 0; k <= kmax; k += k_ckpoint){
     if(!free_field){
       const std::string str_lat = ens_dir + "ckpoint_lat." + std::to_string(k);
       if(!std::filesystem::exists(str_lat)){ if(k==0) continue; else break; }
@@ -476,19 +420,13 @@ int main(int argc, char* argv[]){
       for(int b=0;b<n_t0;b++){
         const int t0=t0s[b];
         for(int l=0;l<N_ELL;l++) memset(srcL[l].field, 0, Comp::N*CD);
-        // mrhs (C6e): build the n_sites RHS block {D_m K^dag(n,t0) eta} then ONE block solve
-        // (op_Dmsq.solve_block_cg over DDH_..._ms_block) instead of n_sites single op_Dmsq solves.
         for(int n=0;n<n_sites;n++){
           kop.set_temporal(U, t0, (Idx)n, /*dag=*/true);
           op_K.from_cpu<N>(rho_tp[ITP(n,b)].field, eta.field);       // rho = K^dag(n,t0) eta (CACHED for axial reuse)
-          op_Dm.from_cpu<N>(hblk.data() + (size_t)n*N, rho_tp[ITP(n,b)].field);   // RHS block col n = D_m rho
-          // [pre-mrhs single solve, replaced by the block solve below]
-          // op_Dm.from_cpu<N>(tmp.field, rho_tp[ITP(n,b)].field);                // tmp = D_m rho
-          // op_Dmsq.solve<N>(psi_tp[ITP(n,b)].field, tmp.field, Comp::TOL_OUTER);  // = D_m^{-dag} K^dag eta
+          op_Dm.from_cpu<N>(tmp.field, rho_tp[ITP(n,b)].field);      // tmp = D_m rho
+          op_Dmsq.solve<N>(psi_tp[ITP(n,b)].field, tmp.field, Comp::TOL_OUTER);  // = D_m^{-dag} K^dag eta
           for(int l=0;l<N_ELL;l++){ const double w=W_ell[l][n]; for(Idx i=0;i<N;i++) srcL[l].field[i]+=w*rho_tp[ITP(n,b)].field[i]; }
         }
-        blk_tp_Dm.solve_sq_from_cpu(hblk.data(), hblk.data(), Comp::TOL_OUTER);  // psi block = D_m^{-dag} K^dag eta (in-place host)
-        for(int n=0;n<n_sites;n++) for(Idx i=0;i<N;i++) psi_tp[ITP(n,b)].field[i]=hblk[(size_t)n*N+i];
         for(int l=0;l<N_ELL;l++){
           op_Dm.from_cpu<N>(tmp.field, srcL[l].field);               // tmp = D_m srcL[l]
           op_Dmsq.solve<N>(psi_yl[IYL(l,b)].field, tmp.field, Comp::TOL_OUTER);
@@ -496,25 +434,21 @@ int main(int argc, char* argv[]){
         std::cout << "#     t0="<<t0<<" ("<<(b+1)<<"/"<<n_t0<<") source done ["<<elapsed()<<" s]" << std::endl;
       }
       // (++) shared sink pass: kphi = K(n,t) phi' ONCE per (n,t); feeds tp (per (n,b)) + ylm (accumulate)
-      std::cout << "#   [vec tp+ylm ++] sink pass (block-t: "<<n_sites<<" applies x "<<Nt<<" t) ..." << std::flush;
+      std::cout << "#   [vec tp+ylm ++] sink pass ("<<Nt<<" t x "<<n_sites<<" applies) ..." << std::flush;
       {
         std::vector<std::vector<Complex>> Ctp(n_t0, std::vector<Complex>(Nt, Complex(0,0)));
         std::vector<std::vector<Complex>> Gyl(N_ELL*n_t0, std::vector<Complex>(Nt, Complex(0,0)));
-        for(int l=0;l<N_ELL;l++) for(int t=0;t<Nt;t++) memset(PhiLt[IPL(l,t)].field, 0, Comp::N*CD);
-        CUDA_CHECK(cudaMemcpy(d_sinkvec, reinterpret_cast<CuC*>(phi.field), N*CD, H2D));
-        for(int n=0;n<n_sites;n++){
-          kblock.apply_k_block_t(d_kphi_block, d_sinkvec, U, (Idx)n);     // K(n,t) phi' for ALL t
-          CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(kblk.data()), d_kphi_block, (size_t)N*Nt*CD, D2H));
-          for(int t=0;t<Nt;t++){
-            kcol(t);                                                     // kphi = column t = K(n,t) phi'
-            Jtp[t] += w_tp[n]*eta.dag(kphi);                             // disc tp: T(n,t)=eta^dag kphi (rides this apply)
-            for(int b=0;b<n_t0;b++){ const int dt=(t - t0s[b] + Nt)%Nt; Ctp[b][dt] += w_tp[n]*psi_tp[ITP(n,b)].dag(kphi); }
-            for(int l=0;l<N_ELL;l++){ const double w=W_ell[l][n]; FermionVector& P=PhiLt[IPL(l,t)]; for(Idx i=0;i<N;i++) P.field[i]+=w*kphi.field[i]; }
-          }
-        }
         for(int t=0;t<Nt;t++){
-          for(int l=0;l<N_ELL;l++) Jyl[l][t] += eta.dag(PhiLt[IPL(l,t)]);   // disc ylm: J_l(t)=eta^dag PhiL[l](t)
-          for(int b=0;b<n_t0;b++){ const int dt=(t - t0s[b] + Nt)%Nt; for(int l=0;l<N_ELL;l++) Gyl[IYL(l,b)][dt] += psi_yl[IYL(l,b)].dag(PhiLt[IPL(l,t)]); }
+          for(int l=0;l<N_ELL;l++) memset(PhiL[l].field, 0, Comp::N*CD);
+          for(int n=0;n<n_sites;n++){
+            kop.set_temporal(U, t, (Idx)n, /*dag=*/false);
+            op_K.from_cpu<N>(kphi.field, phi.field);                 // kphi = K(n,t) phi'
+            Jtp[t] += w_tp[n]*eta.dag(kphi);                         // disc tp: T(n,t)=eta^dag kphi (rides this apply)
+            for(int b=0;b<n_t0;b++){ const int dt=(t - t0s[b] + Nt)%Nt; Ctp[b][dt] += w_tp[n]*psi_tp[ITP(n,b)].dag(kphi); }
+            for(int l=0;l<N_ELL;l++){ const double w=W_ell[l][n]; for(Idx i=0;i<N;i++) PhiL[l].field[i]+=w*kphi.field[i]; }
+          }
+          for(int l=0;l<N_ELL;l++) Jyl[l][t] += eta.dag(PhiL[l]);    // disc ylm: J_l(t)=eta^dag PhiL[l]
+          for(int b=0;b<n_t0;b++){ const int dt=(t - t0s[b] + Nt)%Nt; for(int l=0;l<N_ELL;l++) Gyl[IYL(l,b)][dt] += psi_yl[IYL(l,b)].dag(PhiL[l]); }
         }
         for(int b=0;b<n_t0;b++){
           const std::string kp = hp + "t0_" + std::to_string(b) + "/";
@@ -536,17 +470,13 @@ int main(int argc, char* argv[]){
         for(int b=0;b<n_t0;b++){
           const int t0=t0s[b];
           for(int l=0;l<N_ELL;l++) memset(srcL[l].field, 0, Comp::N*CD);
-          for(int n=0;n<n_sites;n++){    // mrhs (C6e): build RHS block {tilde^dag K(n,t0)eta} then one block solve
+          for(int n=0;n<n_sites;n++){
             kop.set_temporal(U, t0, (Idx)n, /*dag=*/false);
             op_K.from_cpu<N>(rho.field, eta.field);                  // rho = K(n,t0) eta
-            op_tilDmH.from_cpu<N>(hblk.data() + (size_t)n*N, rho.field);  // RHS block col n = tilde^dag rho
-            // [pre-mrhs single solve, replaced by the block solve below]
-            // op_tilDmH.from_cpu<N>(tmp.field, rho.field);             // tmp = tilde^dag rho
-            // op_tilDmsq.solve<N>(psi_tp[ITP(n,b)].field, tmp.field, Comp::TOL_OUTER);  // tilde^{-1} K eta
+            op_tilDmH.from_cpu<N>(tmp.field, rho.field);             // tmp = tilde^dag rho
+            op_tilDmsq.solve<N>(psi_tp[ITP(n,b)].field, tmp.field, Comp::TOL_OUTER);  // tilde^{-1} K eta
             for(int l=0;l<N_ELL;l++){ const double w=W_ell[l][n]; for(Idx i=0;i<N;i++) srcL[l].field[i]+=w*rho.field[i]; }
           }
-          blk_tp_Dtil.solve_sq_from_cpu(hblk.data(), hblk.data(), Comp::TOL_OUTER);  // tilde^{-1} K eta (in-place host)
-          for(int n=0;n<n_sites;n++) for(Idx i=0;i<N;i++) psi_tp[ITP(n,b)].field[i]=hblk[(size_t)n*N+i];
           for(int l=0;l<N_ELL;l++){
             op_tilDmH.from_cpu<N>(tmp.field, srcL[l].field);
             op_tilDmsq.solve<N>(psi_yl[IYL(l,b)].field, tmp.field, Comp::TOL_OUTER);
@@ -554,19 +484,15 @@ int main(int argc, char* argv[]){
         }
         std::vector<std::vector<Complex>> Ctp(n_t0, std::vector<Complex>(Nt, Complex(0,0)));
         std::vector<std::vector<Complex>> Gyl(N_ELL*n_t0, std::vector<Complex>(Nt, Complex(0,0)));
-        for(int l=0;l<N_ELL;l++) for(int t=0;t<Nt;t++) memset(PhiLt[IPL(l,t)].field, 0, Comp::N*CD);
-        CUDA_CHECK(cudaMemcpy(d_sinkvec, reinterpret_cast<CuC*>(phimm.field), N*CD, H2D));
-        for(int n=0;n<n_sites;n++){
-          kblock.apply_k_dag_block_t(d_kphi_block, d_sinkvec, U, (Idx)n);  // K^dag(n,t) phimm for ALL t
-          CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(kblk.data()), d_kphi_block, (size_t)N*Nt*CD, D2H));
-          for(int t=0;t<Nt;t++){
-            kcol(t);                                                       // kphi = column t = K^dag(n,t) phimm
-            for(int b=0;b<n_t0;b++){ const int dt=(t - t0s[b] + Nt)%Nt; Ctp[b][dt] += w_tp[n]*psi_tp[ITP(n,b)].dag(kphi); }
-            for(int l=0;l<N_ELL;l++){ const double w=W_ell[l][n]; FermionVector& P=PhiLt[IPL(l,t)]; for(Idx i=0;i<N;i++) P.field[i]+=w*kphi.field[i]; }
-          }
-        }
         for(int t=0;t<Nt;t++){
-          for(int b=0;b<n_t0;b++){ const int dt=(t - t0s[b] + Nt)%Nt; for(int l=0;l<N_ELL;l++) Gyl[IYL(l,b)][dt] += psi_yl[IYL(l,b)].dag(PhiLt[IPL(l,t)]); }
+          for(int l=0;l<N_ELL;l++) memset(PhiL[l].field, 0, Comp::N*CD);
+          for(int n=0;n<n_sites;n++){
+            kop.set_temporal(U, t, (Idx)n, /*dag=*/true);
+            op_K.from_cpu<N>(kphi.field, phimm.field);               // kphi = K^dag(n,t) phimm
+            for(int b=0;b<n_t0;b++){ const int dt=(t - t0s[b] + Nt)%Nt; Ctp[b][dt] += w_tp[n]*psi_tp[ITP(n,b)].dag(kphi); }
+            for(int l=0;l<N_ELL;l++){ const double w=W_ell[l][n]; for(Idx i=0;i<N;i++) PhiL[l].field[i]+=w*kphi.field[i]; }
+          }
+          for(int b=0;b<n_t0;b++){ const int dt=(t - t0s[b] + Nt)%Nt; for(int l=0;l<N_ELL;l++) Gyl[IYL(l,b)][dt] += psi_yl[IYL(l,b)].dag(PhiL[l]); }
         }
         for(int b=0;b<n_t0;b++){
           const std::string kp = hp + "t0_" + std::to_string(b) + "/";
@@ -581,30 +507,24 @@ int main(int argc, char* argv[]){
       std::cout << "#   [vec sp ++] source solves ("<<n_t0<<" t0 x "<<n_links<<" links) + sink pass ..." << std::flush;
       for(int b=0;b<n_t0;b++){
         const int t0=t0s[b];
-        for(int a=0;a<n_links;a++){    // mrhs (C6e): build RHS block {D_m K^dag(lk,t0)eta} then one block solve
+        for(int a=0;a<n_links;a++){
           const BaseLink lk = base.links[a];
           kop.set_spatial(U, t0, lk, /*dag=*/true);
           op_K.from_cpu<N>(rho_sp[ISP(a,b)].field, eta.field);       // rho = K^dag(lk,t0) eta (CACHED for axial reuse)
-          op_Dm.from_cpu<N>(hblk.data() + (size_t)a*N, rho_sp[ISP(a,b)].field);  // RHS block col a = D_m rho
-          // [pre-mrhs single solve, replaced by the block solve below]
-          // op_Dm.from_cpu<N>(tmp.field, rho_sp[ISP(a,b)].field);      // tmp = D_m rho
-          // op_Dmsq.solve<N>(psi_sp[ISP(a,b)].field, tmp.field, Comp::TOL_OUTER);  // = D_m^{-dag} K^dag eta
+          op_Dm.from_cpu<N>(tmp.field, rho_sp[ISP(a,b)].field);      // tmp = D_m rho
+          op_Dmsq.solve<N>(psi_sp[ISP(a,b)].field, tmp.field, Comp::TOL_OUTER);  // = D_m^{-dag} K^dag eta
         }
-        blk_sp_Dm.solve_sq_from_cpu(hblk.data(), hblk.data(), Comp::TOL_OUTER);  // psi block = D_m^{-dag} K^dag eta (in-place host)
-        for(int a=0;a<n_links;a++) for(Idx i=0;i<N;i++) psi_sp[ISP(a,b)].field[i]=hblk[(size_t)a*N+i];
       }
       // (++) sink pass: kphi = K(lk,t) phi' once per (a,t); pair into Csp[b][dt]
       {
         std::vector<std::vector<Complex>> Csp(n_t0, std::vector<Complex>(Nt, Complex(0,0)));
-        CUDA_CHECK(cudaMemcpy(d_sinkvec, reinterpret_cast<CuC*>(phi.field), N*CD, H2D));
-        for(int a=0;a<n_links;a++){
-          const BaseLink lk = base.links[a];
-          const Idx il = base.map2il.at(lk);
-          kblock.apply_k_block_t(d_kphi_block, d_sinkvec, U, lk);    // K(lk,t) phi' for ALL t
-          CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(kblk.data()), d_kphi_block, (size_t)N*Nt*CD, D2H));
-          for(int t=0;t<Nt;t++){
-            kcol(t);                                                // kphi = column t = K(lk,t) phi'
-            Jsp[t] += w_sp[il]*eta.dag(kphi);                       // disc sp: rides this apply
+        for(int t=0;t<Nt;t++){
+          for(int a=0;a<n_links;a++){
+            const BaseLink lk = base.links[a];
+            const Idx il = base.map2il.at(lk);
+            kop.set_spatial(U, t, lk, /*dag=*/false);
+            op_K.from_cpu<N>(kphi.field, phi.field);                 // kphi = K(lk,t) phi'
+            Jsp[t] += w_sp[il]*eta.dag(kphi);                        // disc sp: rides this apply
             for(int b=0;b<n_t0;b++){ const int dt=(t - t0s[b] + Nt)%Nt; Csp[b][dt] += w_sp[il]*psi_sp[ISP(a,b)].dag(kphi); }
           }
         }
@@ -620,27 +540,21 @@ int main(int argc, char* argv[]){
         std::cout << "#   [vec sp --] tilde source+sink ..." << std::flush;
         for(int b=0;b<n_t0;b++){
           const int t0=t0s[b];
-          for(int a=0;a<n_links;a++){    // mrhs (C6e): build RHS block {tilde^dag K(lk,t0)eta}
+          for(int a=0;a<n_links;a++){
             const BaseLink lk = base.links[a];
             kop.set_spatial(U, t0, lk, /*dag=*/false);
             op_K.from_cpu<N>(rho.field, eta.field);                  // rho = K(lk,t0) eta
-            op_tilDmH.from_cpu<N>(hblk.data() + (size_t)a*N, rho.field);  // RHS block col a = tilde^dag rho
-            // [pre-mrhs single solve, replaced by the block solve below]
-            // op_tilDmH.from_cpu<N>(tmp.field, rho.field);             // tmp = tilde^dag rho
-            // op_tilDmsq.solve<N>(psi_sp[ISP(a,b)].field, tmp.field, Comp::TOL_OUTER);  // tilde^{-1} K eta
+            op_tilDmH.from_cpu<N>(tmp.field, rho.field);             // tmp = tilde^dag rho
+            op_tilDmsq.solve<N>(psi_sp[ISP(a,b)].field, tmp.field, Comp::TOL_OUTER);  // tilde^{-1} K eta
           }
-          blk_sp_Dtil.solve_sq_from_cpu(hblk.data(), hblk.data(), Comp::TOL_OUTER);  // tilde^{-1} K eta (in-place host)
-          for(int a=0;a<n_links;a++) for(Idx i=0;i<N;i++) psi_sp[ISP(a,b)].field[i]=hblk[(size_t)a*N+i];
         }
         std::vector<std::vector<Complex>> Csp(n_t0, std::vector<Complex>(Nt, Complex(0,0)));
-        CUDA_CHECK(cudaMemcpy(d_sinkvec, reinterpret_cast<CuC*>(phimm.field), N*CD, H2D));
-        for(int a=0;a<n_links;a++){
-          const BaseLink lk = base.links[a];
-          const Idx il = base.map2il.at(lk);
-          kblock.apply_k_dag_block_t(d_kphi_block, d_sinkvec, U, lk);  // K^dag(lk,t) phimm for ALL t
-          CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(kblk.data()), d_kphi_block, (size_t)N*Nt*CD, D2H));
-          for(int t=0;t<Nt;t++){
-            kcol(t);                                                  // kphi = column t = K^dag(lk,t) phimm
+        for(int t=0;t<Nt;t++){
+          for(int a=0;a<n_links;a++){
+            const BaseLink lk = base.links[a];
+            const Idx il = base.map2il.at(lk);
+            kop.set_spatial(U, t, lk, /*dag=*/true);
+            op_K.from_cpu<N>(kphi.field, phimm.field);               // kphi = K^dag(lk,t) phimm
             for(int b=0;b<n_t0;b++){ const int dt=(t - t0s[b] + Nt)%Nt; Csp[b][dt] += w_sp[il]*psi_sp[ISP(a,b)].dag(kphi); }
           }
         }
@@ -666,24 +580,19 @@ int main(int argc, char* argv[]){
         op_tilDmsq.solve<N>(tilphi.field, tmp.field, Comp::TOL_OUTER);   // tilphi = tilde D_{m_P}^{-1} eta
         std::vector<Complex> JtpT(Nt, Complex(0,0)), JspT(Nt, Complex(0,0));
         std::vector<std::vector<Complex>> JylT(N_ELL, std::vector<Complex>(Nt, Complex(0,0)));
-        CUDA_CHECK(cudaMemcpy(d_sinkvec, reinterpret_cast<CuC*>(tilphi.field), N*CD, H2D));
-        for(int n=0;n<n_sites;n++){
-          kblock.apply_k_block_t(d_kphi_block, d_sinkvec, U, (Idx)n);  // K(n,t) tilphi for ALL t
-          CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(kblk.data()), d_kphi_block, (size_t)N*Nt*CD, D2H));
-          for(int t=0;t<Nt;t++){
-            kcol(t);                                                  // kphi = column t = K(n,t) tilphi
-            const Complex TtilNT = kphi.dag(eta);                     // \tilde T(n,t) = (K tilphi)^dag eta
+        for(int t=0;t<Nt;t++){
+          for(int n=0;n<n_sites;n++){
+            kop.set_temporal(U, t, (Idx)n, /*dag=*/false);
+            op_K.from_cpu<N>(kphi.field, tilphi.field);              // kphi = K(n,t) tilphi
+            const Complex TtilNT = kphi.dag(eta);                    // \tilde T(n,t) = (K tilphi)^dag eta
             JtpT[t] += w_tp[n]*TtilNT;
             for(int l=0;l<N_ELL;l++) JylT[l][t] += W_ell[l][n]*TtilNT;
           }
-        }
-        for(int a=0;a<n_links;a++){
-          const BaseLink lk = base.links[a];
-          const Idx il = base.map2il.at(lk);
-          kblock.apply_k_block_t(d_kphi_block, d_sinkvec, U, lk);      // K(lk,t) tilphi for ALL t
-          CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(kblk.data()), d_kphi_block, (size_t)N*Nt*CD, D2H));
-          for(int t=0;t<Nt;t++){
-            kcol(t);                                                  // kphi = column t = K(lk,t) tilphi
+          for(int a=0;a<n_links;a++){
+            const BaseLink lk = base.links[a];
+            const Idx il = base.map2il.at(lk);
+            kop.set_spatial(U, t, lk, /*dag=*/false);
+            op_K.from_cpu<N>(kphi.field, tilphi.field);              // kphi = K(lk,t) tilphi
             JspT[t] += w_sp[il]*kphi.dag(eta);
           }
         }
@@ -709,83 +618,44 @@ int main(int argc, char* argv[]){
         // --- axial tp ---  source: psi_tp[ITP(n,b)] = X_sink^{-1} (1 - D_ov) K^dag(n,t0) eta
         std::cout << "#   [axial tp] source solves ("<<n_t0<<" t0 x "<<n_sites<<") + sink pass ..." << std::flush;
         for(int b=0;b<n_t0;b++){
-          for(int n=0;n<n_sites;n++){    // mrhs (C6e): build RHS block {X^dag (1-D_ov) K^dag eta}
+          for(int n=0;n<n_sites;n++){
             op_oneMinusD.from_cpu<N>(rho.field, rho_tp[ITP(n,b)].field);  // rho = (1 - D_ov) K^dag(n,t0) eta  (K^dag reused from vec ++)
-            if(flavor)       op_DH.from_cpu<N>(hblk.data()+(size_t)n*N, rho.field);      // RHS block col n = X^dag rho
-            else if(parity)  op_tilDmH.from_cpu<N>(hblk.data()+(size_t)n*N, rho.field);
-            else             op_DmH.from_cpu<N>(hblk.data()+(size_t)n*N, rho.field);
-            // [pre-mrhs single solves, replaced by the block solve below]
-            // if(flavor){      op_DH.from_cpu<N>(tmp.field, rho.field);     op_Dsq.solve<N>(psi_tp[ITP(n,b)].field, tmp.field, Comp::TOL_OUTER); }
-            // else if(parity){ op_tilDmH.from_cpu<N>(tmp.field, rho.field); op_tilDmsq.solve<N>(psi_tp[ITP(n,b)].field, tmp.field, Comp::TOL_OUTER); }
-            // else {           op_DmH.from_cpu<N>(tmp.field, rho.field);    op_Dmsq.solve<N>(psi_tp[ITP(n,b)].field, tmp.field, Comp::TOL_OUTER); }
-          }
-          if(flavor)      blk_tp_D.solve_sq_from_cpu(hblk.data(), hblk.data(), Comp::TOL_OUTER);
-          else if(parity) blk_tp_Dtil.solve_sq_from_cpu(hblk.data(), hblk.data(), Comp::TOL_OUTER);
-          else            blk_tp_Dm.solve_sq_from_cpu(hblk.data(), hblk.data(), Comp::TOL_OUTER);
-          for(int n=0;n<n_sites;n++) for(Idx i=0;i<N;i++) psi_tp[ITP(n,b)].field[i]=hblk[(size_t)n*N+i];
-          // AXIAL YLM tower source: psi_yl[IYL(l,b)] = X_sink^{-1} (1-D_ov) srcL[l],
-          //   srcL[l] = sum_n W_ell[l][n] rho_tp[ITP(n,b)]  (rho_tp = K^dag(n,t0) eta, cached from vec ++).
-          //   (1-D_ov) pulls out of the m-sum; single solves (N_ELL per b, small).  Reuses srcL/psi_yl.
-          for(int l=0;l<N_ELL;l++){
-            memset(srcL[l].field, 0, Comp::N*CD);
-            for(int n=0;n<n_sites;n++){ const double w=W_ell[l][n]; for(Idx i=0;i<N;i++) srcL[l].field[i]+=w*rho_tp[ITP(n,b)].field[i]; }
-            op_oneMinusD.from_cpu<N>(rho.field, srcL[l].field);                 // rho = (1-D_ov) srcL[l]
-            if(flavor)      { op_DH.from_cpu<N>(tmp.field, rho.field);    op_Dsq.solve<N>(psi_yl[IYL(l,b)].field, tmp.field, Comp::TOL_OUTER); }
-            else if(parity) { op_tilDmH.from_cpu<N>(tmp.field, rho.field); op_tilDmsq.solve<N>(psi_yl[IYL(l,b)].field, tmp.field, Comp::TOL_OUTER); }
-            else            { op_DmH.from_cpu<N>(tmp.field, rho.field);   op_Dmsq.solve<N>(psi_yl[IYL(l,b)].field, tmp.field, Comp::TOL_OUTER); }
+            if(flavor){      op_DH.from_cpu<N>(tmp.field, rho.field);     op_Dsq.solve<N>(psi_tp[ITP(n,b)].field, tmp.field, Comp::TOL_OUTER); }
+            else if(parity){ op_tilDmH.from_cpu<N>(tmp.field, rho.field); op_tilDmsq.solve<N>(psi_tp[ITP(n,b)].field, tmp.field, Comp::TOL_OUTER); }
+            else {           op_DmH.from_cpu<N>(tmp.field, rho.field);    op_Dmsq.solve<N>(psi_tp[ITP(n,b)].field, tmp.field, Comp::TOL_OUTER); }
           }
         }
         {
           std::vector<std::vector<Complex>> Atp(n_t0, std::vector<Complex>(Nt, Complex(0,0)));
-          std::vector<std::vector<Complex>> Ayl(N_ELL*n_t0, std::vector<Complex>(Nt, Complex(0,0)));  // axial ylm tower
-          for(int l=0;l<N_ELL;l++) for(int t=0;t<Nt;t++) memset(PhiLt[IPL(l,t)].field, 0, Comp::N*CD);  // zero ylm sink tower
-          CUDA_CHECK(cudaMemcpy(d_sinkvec, reinterpret_cast<CuC*>(chi.field), N*CD, H2D));
-          for(int n=0;n<n_sites;n++){
-            kblock.apply_k_dag_block_t(d_kphi_block, d_sinkvec, U, (Idx)n);  // K^dag(n,t) chi for ALL t
-            CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(kblk.data()), d_kphi_block, (size_t)N*Nt*CD, D2H));
-            for(int t=0;t<Nt;t++){
-              kcol(t);                                                      // kphi = column t = K^dag(n,t) chi
+          for(int t=0;t<Nt;t++){
+            for(int n=0;n<n_sites;n++){
+              kop.set_temporal(U, t, (Idx)n, /*dag=*/true);
+              op_K.from_cpu<N>(kphi.field, chi.field);             // kphi = K^dag(n,t) chi
               for(int b=0;b<n_t0;b++){ const int dt=(t - t0s[b] + Nt)%Nt; Atp[b][dt] += w_tp[n]*psi_tp[ITP(n,b)].dag(kphi); }
-              // AXIAL YLM sink tower: rides this loop at ZERO extra K applies (PhiLt[l](t) = sum_n W_ell K^dag(n,t) chi)
-              for(int l=0;l<N_ELL;l++){ const double w=W_ell[l][n]; FermionVector& P=PhiLt[IPL(l,t)]; for(Idx i=0;i<N;i++) P.field[i]+=w*kphi.field[i]; }
             }
           }
-          for(int t=0;t<Nt;t++) for(int b=0;b<n_t0;b++){ const int dt=(t - t0s[b] + Nt)%Nt;
-            for(int l=0;l<N_ELL;l++) Ayl[IYL(l,b)][dt] += psi_yl[IYL(l,b)].dag(PhiLt[IPL(l,t)]); }
-          for(int b=0;b<n_t0;b++){ const std::string kp=hp+"t0_"+std::to_string(b)+"/";
-            write_corr(h5, kp+"axial/tp/Apm", Atp[b]);
-            for(int l=0;l<N_ELL;l++) write_corr(h5, kp+"axial/ylm/Apm/l"+std::to_string(l), Ayl[IYL(l,b)]); }  // NEW: axial ylm tower
+          for(int b=0;b<n_t0;b++){ const std::string kp=hp+"t0_"+std::to_string(b)+"/"; write_corr(h5, kp+"axial/tp/Apm", Atp[b]); }
         }
         std::cout << " done ["<<elapsed()<<" s]" << std::endl;
 
         // --- axial sp ---  source: psi_sp[ISP(a,b)] = X_sink^{-1} (1 - D_ov) K^dag(lk,t0) eta
         std::cout << "#   [axial sp] source solves ("<<n_t0<<" t0 x "<<n_links<<") + sink pass ..." << std::flush;
         for(int b=0;b<n_t0;b++){
-          for(int a=0;a<n_links;a++){    // mrhs (C6e): build RHS block {X^dag (1-D_ov) K^dag eta}
+          for(int a=0;a<n_links;a++){
             op_oneMinusD.from_cpu<N>(rho.field, rho_sp[ISP(a,b)].field);  // rho = (1 - D_ov) K^dag(lk,t0) eta  (K^dag reused from vec ++)
-            if(flavor)       op_DH.from_cpu<N>(hblk.data()+(size_t)a*N, rho.field);      // RHS block col a = X^dag rho
-            else if(parity)  op_tilDmH.from_cpu<N>(hblk.data()+(size_t)a*N, rho.field);
-            else             op_DmH.from_cpu<N>(hblk.data()+(size_t)a*N, rho.field);
-            // [pre-mrhs single solves, replaced by the block solve below]
-            // if(flavor){      op_DH.from_cpu<N>(tmp.field, rho.field);     op_Dsq.solve<N>(psi_sp[ISP(a,b)].field, tmp.field, Comp::TOL_OUTER); }
-            // else if(parity){ op_tilDmH.from_cpu<N>(tmp.field, rho.field); op_tilDmsq.solve<N>(psi_sp[ISP(a,b)].field, tmp.field, Comp::TOL_OUTER); }
-            // else {           op_DmH.from_cpu<N>(tmp.field, rho.field);    op_Dmsq.solve<N>(psi_sp[ISP(a,b)].field, tmp.field, Comp::TOL_OUTER); }
+            if(flavor){      op_DH.from_cpu<N>(tmp.field, rho.field);     op_Dsq.solve<N>(psi_sp[ISP(a,b)].field, tmp.field, Comp::TOL_OUTER); }
+            else if(parity){ op_tilDmH.from_cpu<N>(tmp.field, rho.field); op_tilDmsq.solve<N>(psi_sp[ISP(a,b)].field, tmp.field, Comp::TOL_OUTER); }
+            else {           op_DmH.from_cpu<N>(tmp.field, rho.field);    op_Dmsq.solve<N>(psi_sp[ISP(a,b)].field, tmp.field, Comp::TOL_OUTER); }
           }
-          if(flavor)      blk_sp_D.solve_sq_from_cpu(hblk.data(), hblk.data(), Comp::TOL_OUTER);
-          else if(parity) blk_sp_Dtil.solve_sq_from_cpu(hblk.data(), hblk.data(), Comp::TOL_OUTER);
-          else            blk_sp_Dm.solve_sq_from_cpu(hblk.data(), hblk.data(), Comp::TOL_OUTER);
-          for(int a=0;a<n_links;a++) for(Idx i=0;i<N;i++) psi_sp[ISP(a,b)].field[i]=hblk[(size_t)a*N+i];
         }
         {
           std::vector<std::vector<Complex>> Asp(n_t0, std::vector<Complex>(Nt, Complex(0,0)));
-          CUDA_CHECK(cudaMemcpy(d_sinkvec, reinterpret_cast<CuC*>(chi.field), N*CD, H2D));
-          for(int a=0;a<n_links;a++){
-            const BaseLink lk = base.links[a];
-            const Idx il = base.map2il.at(lk);
-            kblock.apply_k_dag_block_t(d_kphi_block, d_sinkvec, U, lk);  // K^dag(lk,t) chi for ALL t
-            CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(kblk.data()), d_kphi_block, (size_t)N*Nt*CD, D2H));
-            for(int t=0;t<Nt;t++){
-              kcol(t);                                                  // kphi = column t = K^dag(lk,t) chi
+          for(int t=0;t<Nt;t++){
+            for(int a=0;a<n_links;a++){
+              const BaseLink lk = base.links[a];
+              const Idx il = base.map2il.at(lk);
+              kop.set_spatial(U, t, lk, /*dag=*/true);
+              op_K.from_cpu<N>(kphi.field, chi.field);             // kphi = K^dag(lk,t) chi
               for(int b=0;b<n_t0;b++){ const int dt=(t - t0s[b] + Nt)%Nt; Asp[b][dt] += w_sp[il]*psi_sp[ISP(a,b)].dag(kphi); }
             }
           }
@@ -796,13 +666,12 @@ int main(int argc, char* argv[]){
 
       h5.createDataSet("complete", std::vector<int>{1});   // per-hit sentinel (written LAST)
       h5p.reset();                                          // close before the atomic rename
-      std::filesystem::rename(h5tmp, h5path_h);            // atomic publish: corr.<k>.h<h>.h5
+      std::filesystem::rename(h5tmp, h5path_h);
       const double secs = std::chrono::duration<double>(std::chrono::steady_clock::now()-t_hit0).count();
       std::cout << "#   hit "<<(h+1)<<" done (tp+sp+ylm vector + axial) ["<<secs<<" s] -> "<<h5path_h << std::endl;
     } // hits
   } // k
 
-  CUDA_CHECK(cudaFree(d_sinkvec)); CUDA_CHECK(cudaFree(d_kphi_block));  // C6f-c sink block-t buffers
-  for(int i=0; i<Comp::NSTREAMS; i++) d_MemorySets[i].deallocate();  // BlockedMat engines free their own scratch (dtor)
+  for(int i=0; i<Comp::NSTREAMS; i++) d_MemorySets[i].deallocate();
   return 0;
 }

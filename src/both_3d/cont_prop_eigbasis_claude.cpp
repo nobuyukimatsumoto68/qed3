@@ -44,6 +44,8 @@
 #include <gsl/gsl_sf_hyperg.h>
 #include <gsl/gsl_integration.h>
 
+#include <boost/math/special_functions/jacobi.hpp>   // stable xi (three-term recurrence)
+
 #include <highfive/H5File.hpp>
 
 // ---------------------------------------------------------------------------
@@ -70,16 +72,27 @@ static double xi_mn_naive(double mm, int n, double z) {
   return std::pow(1.0 - z, 0.5 * alpha) * std::pow(1.0 + z, 0.5 * beta) * P;
 }
 
-// xi_{|m|,n}(z),  mm = |m| (positive half-integer: 0.5, 1.5, ...).  STABLE everywhere on [-1,1].
+// xi_{|m|,n}(z),  mm = |m| (positive half-integer: 0.5, 1.5, ...).
 //
-// Pfaff transformation of F(-j,j;c;x), x=(1-z)/2:  with a=-j, (1-x)=(1+z)/2,
-//   F(-j,j;c;x) = ((1+z)/2)^j F(-j, c-j; c; x/(x-1)),   c-j = -n,
-// so the second sum TERMINATES at degree n (not j).  Folding the (1+z) powers into that sum,
-//   xi = (1-z)^{alpha/2} (1+z)^{(|m|+1/2)/2} 2^{-j} pref * G(z),
-//   G(z) = sum_{s=0}^{n} b_s (z-1)^s (1+z)^{n-s},   b_s = (-j)_s(-n)_s / ((c)_s s!),
-//   pref = Gamma(alpha+1+j) / (Gamma(alpha+1) j!).
-// All powers of (1 +/- z) are nonnegative => no inf x 0; finite, with xi(-1)=0, xi(1) as quoted.
+// ACTIVE version: stable Boost three-term Jacobi recurrence (verbatim form of the user's
+// dirac_inverse/integrate.cc).  mpH = |m| + 1/2 (integer).  xi = (1-z)^{(mpH-1)/2}
+// (1+z)^{-mpH/2} P^{(mpH-1,-mpH)}_{n+mpH}(z).  Robust to large (|m|,n) -- replaces the Pfaff
+// binomial sum xi_mn_pfaff below, which OVERFLOWS at large order (the undamped 2D check
+// check_S2_generic_pair_claude.cu exposed this; the 3D sum here is shielded by e^{-lambda|tau|}
+// so the swap leaves the validated results unchanged, only more robust).
 static double xi_mn(double mm, int n, double z) {
+  const int mpH = (int)std::lround(mm + 0.5);                 // |m| + 1/2
+  if (std::abs(z - 1.0) < 1.0e-14) return (mpH == 1) ? 1.0 / std::sqrt(2.0) : 0.0;
+  if (std::abs(z + 1.0) < 1.0e-14) return 0.0;
+  const double factor = std::pow(1.0 - z, 0.5 * (mpH - 1)) * std::pow(1.0 + z, -0.5 * mpH);
+  const double poly   = boost::math::jacobi(n + mpH, (double)(mpH - 1.0), (double)(-1.0 * mpH), z);
+  return factor * poly;
+}
+
+// OLD version (kept for reference / A-B): Pfaff transform of F(-j,j;c;x), x=(1-z)/2, folded to a
+// degree-n binomial sum.  Accurate at low order (matched xi_mn_naive in test 1) but the explicit
+// (z-1)^s (1+z)^{n-s} terms OVERFLOW for large (|m|,n).  Superseded by the Boost version above.
+static double xi_mn_pfaff(double mm, int n, double z) {
   const double alpha = mm - 0.5;
   const int    j     = (int)std::lround(n + mm + 0.5);
   const double c     = mm + 0.5;
