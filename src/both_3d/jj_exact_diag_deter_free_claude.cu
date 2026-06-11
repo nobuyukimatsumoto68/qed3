@@ -1,8 +1,12 @@
 // jj_exact_diag_deter_free_claude.cu
 // -----------------------------------------------------------------------------
-// FREE-FIELD, SINGLE-INSERTION exact conserved-current correlator <J(a,0) J(a,t)>, tp + sp, with
-// dense K CACHING.  NO sum over insertions (the summation in jj_kbuild_exact/jj_contract_deter was
-// the q=0 double-sum; here we want the single-link/site object).
+// FREE-FIELD exact conserved-current correlator <J(a,0) J(a,t)>, tp + sp.  TWO modes:
+//   default       : SINGLE insertion (--ins i), dense K CACHING.  (The single-link/site object; the
+//                   q=0 DOUBLE sum of jj_kbuild_exact/jj_contract_deter was wrong.)
+//   --sum         : DIAGONALLY-n-SUMMED (Eq.4.29) over ALL sites(tp)/links(sp), area-weighted
+//                   (dual_areas/link_volume) + 1/4pi, K_ov_kappa per insertion, build-use-discard
+//                   (no cache).  -> corr_deter_exactsum_L<L>.  EXPENSIVE: (n_sites+n_links)*N solves.
+//                   CHECK: G^sp/G^tp -> -(D-1) = -2 (geometric sum restores the D-1 directions).
 //
 // For ONE insertion a (tp: site `ins`; sp: link base.links[ins]; default ins=0):
 //   1. Build the DENSE K(a,0) (N x N) col-by-col: K[:,j] = op_K(a,0) e_j   (N op_K applies).
@@ -177,25 +181,29 @@ static Complex conn_shift(const std::vector<Complex>& A, int dt){
   return s;
 }
 
-struct Args{ double nu0=1.0,nu1=-1.0,mass_re=0.0,mass_im=0.0; std::string ens_dir,prop_file,out_tag; int n_t0=2,gpu=0,ins=0; };
-void PrintHelp(){ printf("jj_exact_diag_deter_free: FREE single-insertion exact <J(a,0)J(a,t)>, tp+sp, with K cache.\n"
-                         "  --ins <i>          insertion index (tp: site i; sp: link i).  default 0\n"
+struct Args{ double nu0=1.0,nu1=-1.0,mass_re=0.0,mass_im=0.0; std::string ens_dir,prop_file,out_tag; int n_t0=2,gpu=0,ins=0; bool sum=false; };
+void PrintHelp(){ printf("jj_exact_diag_deter_free: FREE exact <J(a,0)J(a,t)>, tp+sp, with K cache.\n"
+                         "  --ins <i>          single-insertion index (tp: site i; sp: link i).  default 0\n"
+                         "  --sum              DIAGONALLY-n-SUMMED (Eq.4.29): sum over ALL sites(tp)/links(sp),\n"
+                         "                     area-weighted (dual_areas/link_volume) + 1/4pi, K_ov_kappa per\n"
+                         "                     insertion.  build-use-discard (no cache).  -> corr_deter_exactsum_L<L>.\n"
+                         "                     EXPENSIVE: (n_sites+n_links)*N op_K solves (L=1 min, L=2 hours).\n"
                          "  --mass-re/--mass-im  selects the P dir + esnid\n"
                          "  --prop-file <path> read P from this exact file (e.g. cont_prop_L<L>/Dinv.0.h5)\n"
-                         "  --out-tag <tag>    corr_deter_exact1_<tag>_L<L>;  --n-t0 --gpu\n"); }
+                         "  --out-tag <tag>    corr_deter_exact{1,sum}_<tag>_L<L>;  --n-t0 --gpu\n"); }
 void ParseArgs(int argc,char**argv,Args&a){
   static struct option lo[]={{"nu0",required_argument,0,'n'},{"nu1",required_argument,0,'m'},
     {"mass-re",required_argument,0,'r'},{"mass-im",required_argument,0,'i'},{"ens-dir",required_argument,0,'e'},
     {"n-t0",required_argument,0,'T'},{"gpu",required_argument,0,'G'},{"ins",required_argument,0,'A'},
-    {"prop-file",required_argument,0,'P'},{"out-tag",required_argument,0,'O'},
+    {"prop-file",required_argument,0,'P'},{"out-tag",required_argument,0,'O'},{"sum",no_argument,0,'S'},
     {"help",no_argument,0,'h'},{0,0,0,0}};
   int opt,idx;
-  while((opt=getopt_long(argc,argv,"n:m:r:i:e:T:G:A:P:O:h",lo,&idx))!=-1){ switch(opt){
+  while((opt=getopt_long(argc,argv,"n:m:r:i:e:T:G:A:P:O:Sh",lo,&idx))!=-1){ switch(opt){
     case 'n':a.nu0=std::stod(optarg);break; case 'm':a.nu1=std::stod(optarg);break;
     case 'r':a.mass_re=std::stod(optarg);break; case 'i':a.mass_im=std::stod(optarg);break;
     case 'e':a.ens_dir=optarg;break; case 'T':a.n_t0=std::stoi(optarg);break;
     case 'G':a.gpu=std::stoi(optarg);break; case 'A':a.ins=std::stoi(optarg);break;
-    case 'P':a.prop_file=optarg;break; case 'O':a.out_tag=optarg;break;
+    case 'P':a.prop_file=optarg;break; case 'O':a.out_tag=optarg;break; case 'S':a.sum=true;break;
     case 'h':default:PrintHelp();std::exit(0);} }
 }
 
@@ -208,7 +216,7 @@ int main(int argc,char* argv[]){
   const bool free_field=a.ens_dir.empty();
   const bool parity=(a.mass_im!=0.0);
   if(!free_field){ std::cout<<"# ERROR: free-field only.\n"; return 1; }
-  std::cout<<"# EXACT single-insertion (ins="<<a.ins<<") <J(a,0)J(a,t)>, tp+sp:  N="<<N<<"  [free]\n";
+  if(!a.sum) std::cout<<"# EXACT single-insertion (ins="<<a.ins<<") <J(a,0)J(a,t)>, tp+sp:  N="<<N<<"  [free]\n";
 
   using Base=S2Simp;
   using WilsonDirac=DiracExt<Base, DiracS2Simp>;
@@ -222,7 +230,7 @@ int main(int argc,char* argv[]){
   Gauge U(base);
 
   const int n_sites=(int)base.n_sites, n_links=(int)base.n_links;
-  if(a.ins<0 || a.ins>=n_sites || a.ins>=n_links){
+  if(!a.sum && (a.ins<0 || a.ins>=n_sites || a.ins>=n_links)){
     std::cout<<"# ERROR: ins="<<a.ins<<" out of range (n_sites="<<n_sites<<", n_links="<<n_links<<")\n"; return 1; }
 
   int n_t0=a.n_t0; std::vector<int> t0s(n_t0); for(int b=0;b<n_t0;b++) t0s[b]=b*(Nt/n_t0);
@@ -232,6 +240,138 @@ int main(int argc,char* argv[]){
   // run on a cache miss.  (massless D_ov; K is mass-independent.)
   Fermion D(DW, Complex(0.0), 21);
   ConservedCurrent<Fermion,Gauge> kop(D);
+
+  // ===================== DIAGONALLY-n-SUMMED mode (--sum), Eq.(4.29) =====================
+  // G^{tp/sp}(t) = (1/4pi) sum_{n in sites/links} A_n tr[ K_ov_kappa,n(0) P K_ov_kappa,n(t) P ],
+  //   A_n = dual_areas (tp) / link_volume (sp);  1/(4pi) folded by write_corr.
+  // Per insertion: build dense K (N op_K applies) / kappa = K_ov_kappa, A = K.P, accumulate
+  //   A_n * conn_shift(A, dt).  BUILD-USE-DISCARD (no cache: all-n caching ~300 GB at L=2).
+  // EXPENSIVE: (n_sites+n_links)*N solves.  CHECK: G^sp/G^tp -> -(D-1) = -2 (geometric sum restores the
+  //   D-1 transverse directions; single-insertion was -1).  Single-insertion path below is untouched.
+  if(a.sum){
+    std::cout<<"# EXACT DIAGONAL-SUM (--sum): area-weighted Eq.(4.29), build-use-discard.  N="<<N
+             <<"  n_sites="<<n_sites<<" n_links="<<n_links<<"\n";
+    MatPoly op_K; op_K.push_back(cplx(1.0), {&kop});
+    D.update(U);
+
+    const std::string esnid="free_vmRe"+std::to_string(a.mass_re)+"vmIm"+std::to_string(a.mass_im);
+    const std::string propdir="data_"+esnid+"/prop_deter_L"+std::to_string(Comp::N_REFINE)+"/";
+    const std::string pfile=a.prop_file.empty()?propdir+"Dinv.0.h5":a.prop_file;
+    if(!std::filesystem::exists(pfile)){ std::cout<<"# no propagator "<<pfile<<"\n"; return 1; }
+    std::vector<Complex> P; { HighFive::File f(pfile,HighFive::File::ReadOnly); load_mat(f,"Dm_inv",P); }
+    std::cout<<"# loaded P "<<pfile<<"\n";
+    const std::string dname=a.out_tag.empty()?std::string("corr_deter_exactsum")
+                                             :std::string("corr_deter_exactsum_")+a.out_tag;
+    const std::string outdir="data_"+esnid+"/"+dname+"_L"+std::to_string(Comp::N_REFINE)+"/";
+    std::filesystem::create_directories(outdir);
+    const std::string h5path=outdir+"corr.0.h5";
+
+    cublasHandle_t cub; cublasCreate(&cub);
+    CuC *d_K,*d_P,*d_A;
+    CUDA_CHECK(cudaMalloc(&d_K,(size_t)N*N*sizeof(CuC)));
+    CUDA_CHECK(cudaMalloc(&d_P,(size_t)N*N*sizeof(CuC)));
+    CUDA_CHECK(cudaMalloc(&d_A,(size_t)N*N*sizeof(CuC)));
+
+    Timer timer;
+    const std::string h5tmp=h5path+".tmp";
+    auto h5p=std::make_unique<HighFive::File>(h5tmp,HighFive::File::ReadWrite|HighFive::File::Create|HighFive::File::Truncate);
+    HighFive::File& h5=*h5p;
+    h5.createDataSet("t0s",t0s); h5.createDataSet("n_t0",std::vector<int>{n_t0});
+    h5.createDataSet("nhits",std::vector<int>{1}); h5.createDataSet("summed",std::vector<int>{1});
+
+    std::vector<Complex> K((size_t)N*N), ej(N), out(N), A0;
+    const long total_cols=(long)(n_sites+n_links)*(long)N;   // total op_K solves (1 per K column)
+    long done_cols=0;
+    std::cout<<"#   total op_K solves = (n_sites+n_links)*N = "<<total_cols<<"  (build-use-discard)\n";
+
+    // Ylm tower (Eq.4.36): accumulate Sigma_{l,m} = sum_n A_n Y_lm(n) K^t_ov_kappa,n DURING the tp site
+    // loop (reuses the per-site K -- no extra solves).  l=0,1,2 -> n_lm=9 dense (l,m) channels.
+    // Memory: n_lm * N^2 complex ~ 17 GB at L=2 (L=1 trivial).
+    constexpr int L_MAX_YLM = 2;
+    std::vector<std::pair<int,int>> lm;
+    for(int l=0;l<=L_MAX_YLM;l++) for(int m=-l;m<=l;m++) lm.push_back({l,m});
+    const int n_lm=(int)lm.size();
+    std::vector<std::vector<Complex>> Sigma(n_lm);
+    for(int c=0;c<n_lm;c++) Sigma[c].assign((size_t)N*N, Complex(0,0));
+
+    for(int which=0; which<2; which++){
+      const std::string proj=(which==0)?"tp":"sp";
+      const int n_ins=(which==0)?n_sites:n_links;
+      std::vector<Complex> cdt(Nt, Complex(0,0));     // summed conn(dt) = sum_n A_n conn_n(dt)
+      Complex disc(0,0);
+      for(int ins=0; ins<n_ins; ins++){
+        double w, kappa;
+        if(which==0){ kop.set_temporal(U, 0, (Idx)ins, false);
+                      w=base.dual_areas[ins];  kappa=kop.insertion_kappa(std::pair<int,Idx>{0,(Idx)ins}); }
+        else        { kop.set_spatial (U, 0, base.links[ins], false);
+                      w=base.link_volume[ins]; kappa=kop.insertion_kappa(std::pair<int,BaseLink>{0,base.links[ins]}); }
+        // dense K_ov_kappa(ins,0) col-by-col  (each column = one op_K multishift solve)
+        for(Idx j=0;j<N;j++){
+          std::fill(ej.begin(), ej.end(), Complex(0,0)); ej[j]=Complex(1,0);
+          op_K.from_cpu<N>(out.data(), ej.data());
+          for(Idx i=0;i<N;i++) K[(size_t)i*N+j]=out[i]/kappa;
+          ++done_cols;
+          if(j%256==0) std::cout<<"#   "<<proj<<" ins "<<(ins+1)<<"/"<<n_ins<<" col "<<j<<"/"<<N
+                                <<"  ("<<(int)(100.0*done_cols/total_cols)<<"% of solves)  ["
+                                <<timer.currentSeconds()<<" s]\n";
+        }
+        if(which==0){   // Ylm: accumulate Sigma_{l,m} += A_n Y_lm(n) K^t_ov_kappa,n  (n = site ins)
+          const VE site=base.sites[ins];
+          for(int c=0;c<n_lm;c++){
+            const double wy = w * Ylm_real(lm[c].first, lm[c].second, site);
+            Complex* S=Sigma[c].data();
+            #pragma omp parallel for schedule(static)
+            for(long idx=0; idx<(long)N*N; idx++) S[idx]+=wy*K[(size_t)idx];
+          }
+        }
+        matmul_A(cub, d_K, d_P, d_A, K, P, A0);       // A0 = K_ov_kappa . P
+        disc += w*trace(A0);
+        std::vector<Complex> cn(Nt);
+        #pragma omp parallel for schedule(dynamic)
+        for(int dt=0;dt<Nt;dt++) cn[dt]=conn_shift(A0,dt);
+        for(int dt=0;dt<Nt;dt++) cdt[dt]+=w*cn[dt];
+        std::cout<<"#   "<<proj<<" ins "<<(ins+1)<<"/"<<n_ins<<" DONE  conn(dt=4)+="<<(w*cn[4]).real()
+                 <<"  ("<<(int)(100.0*done_cols/total_cols)<<"% of solves)  ["<<timer.currentSeconds()<<" s]\n";
+      }
+      // free field: time-translation invariant -> map the single conn(dt) onto each t0 origin.
+      std::vector<std::vector<Complex>> Cpp(n_t0,std::vector<Complex>(Nt,Complex(0,0)));
+      for(int b=0;b<n_t0;b++) for(int t=0;t<Nt;t++){ const int dt=((t-t0s[b])%Nt+Nt)%Nt; Cpp[b][dt]=cdt[dt]; }
+      std::vector<Complex> discvec(Nt, disc);
+      for(int b=0;b<n_t0;b++){ const std::string kp="h0/t0_"+std::to_string(b)+"/";
+        write_corr(h5,kp+proj+"/Vpp",Cpp[b],false);
+        if(!parity) write_corr(h5,kp+proj+"/Vmm",Cpp[b],true); }
+      write_vec(h5,"h0/disc/"+proj+"/J",discvec);
+      std::cout<<"#   "<<proj<<" SUM done: conn(dt=4)="<<cdt[4].real()<<"  ["<<timer.currentSeconds()<<" s]\n";
+    }
+
+    // ---- Ylm tower output (Eq.4.36) from the accumulated Sigma_{l,m}:
+    //   g_l(t) = (1/(2l+1)) sum_m tr[ Sigma_lm(0) P Sigma_lm(t) P ] = (1/(2l+1)) sum_m conn_shift(Sigma_lm . P).
+    for(int l=0; l<=L_MAX_YLM; l++){
+      std::vector<Complex> gl(Nt, Complex(0,0));
+      for(int c=0;c<n_lm;c++){
+        if(lm[c].first!=l) continue;
+        std::vector<Complex> A0lm; matmul_A(cub, d_K, d_P, d_A, Sigma[c], P, A0lm);
+        #pragma omp parallel for schedule(dynamic)
+        for(int dt=0;dt<Nt;dt++) gl[dt]+=conn_shift(A0lm,dt);
+      }
+      const double inv2lp1=1.0/(2.0*l+1.0);
+      for(int t=0;t<Nt;t++) gl[t]*=inv2lp1;
+      std::vector<std::vector<Complex>> Cyl(n_t0,std::vector<Complex>(Nt,Complex(0,0)));
+      for(int b=0;b<n_t0;b++) for(int t=0;t<Nt;t++){ const int dt=((t-t0s[b])%Nt+Nt)%Nt; Cyl[b][dt]=gl[dt]; }
+      for(int b=0;b<n_t0;b++){ const std::string kp="h0/t0_"+std::to_string(b)+"/ylm/l"+std::to_string(l)+"/";
+        write_corr(h5,kp+"Vpp",Cyl[b],false);
+        if(!parity) write_corr(h5,kp+"Vmm",Cyl[b],true); }
+      std::cout<<"#   exact ylm l="<<l<<": conn(dt=4)="<<Cyl[0][4].real()<<"  ["<<timer.currentSeconds()<<" s]\n";
+    }
+
+    h5.createDataSet("complete",std::vector<int>{1});
+    h5p.reset(); std::filesystem::rename(h5tmp,h5path);
+    std::cout<<"# wrote "<<h5path<<"\n";
+    cudaFree(d_K); cudaFree(d_P); cudaFree(d_A); cublasDestroy(cub);
+    for(int i=0;i<Comp::NSTREAMS;i++) d_MemorySets[i].deallocate();
+    return 0;
+  }
+  // ======================================================================================
 
   // ---- K cache (mass-INDEPENDENT, so a mass-free dir; per insertion) ----
   const std::string kcdir = "data_free_Kcache_L"+std::to_string(Comp::N_REFINE)+"/";

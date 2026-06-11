@@ -142,9 +142,26 @@ static void build_W_disp_t(std::vector<Ent>& en, const Kop& kop, const Gauge& U,
   for(const auto& c : coo) en.push_back({ c.i, c.j, Complex(c.v.x, c.v.y) });
 }
 
+// Ylm-weighted TEMPORAL displaced current Sigma_{l,m}(t) = sum_n A_n Y_lm(n^) W_d^t(n,t)  (Eq.4.36):
+// the temporal link current build_W_disp_t at each site, scaled by A_n Y_lm (A_n = dual_areas = w_disp_t).
+// Feeds g_l(t) = (1/(2l+1)) sum_m tr[ Sigma_lm(t0) P Sigma_lm(t) P ].  Mirrors loc's build_Sigma_ylm but
+// with the displaced temporal kernel.  Ylm_real (valence_claude.h) is the real spherical harmonic.
+template<typename Kop, typename Gauge, typename Base>
+static void build_Sigma_ylm_disp(std::vector<Ent>& en, const Kop& kop, const Gauge& U, const Base& base,
+                                 const std::vector<double>& w_disp_t, int l, int m, int t){
+  en.clear();
+  std::vector<Ent> e1;
+  for(int n=0; n<(int)base.n_sites; n++){
+    const double wy = w_disp_t[n] * Ylm_real(l, m, base.sites[n]);
+    build_W_disp_t(e1, kop, U, t, (Idx)n);
+    for(const auto& e : e1) en.push_back({ e.i, e.j, wy * e.v });
+  }
+}
+
 // Insertion-DIAGONAL current-current trace for ONE link insertion:
 //   tr[ W_d(t0) P W_d(t) P ] = sum_{(i,j,v0) in E0} sum_{(k,l,vt) in Et} v0 P_{jk} vt P_{li}.
 // W_d touches the 2 sites of the link (|E0|,|Et| = 8), so this is O(64) dense-P lookups -- no dense build.
+// (Also used for the Ylm Sigma which touches all sites: |Sigma| = n_sites * 8 entries.)
 static Complex tr_WPWP(const std::vector<Ent>& E0, const std::vector<Ent>& Et,
                        const std::vector<Complex>& P){
   const Idx N=Comp::N;
@@ -343,6 +360,31 @@ int main(int argc,char* argv[]){
     write_vec(h5,"h0/disc/tp/J",discvec_t);
     std::cout<<"#   disp(tp): disc(0)=("<<discvec_t[0].real()<<","<<discvec_t[0].imag()
              <<")  conn(dt=4)="<<Cpp_t[0][4].real()<<"  ["<<timer.currentSeconds()<<" s]\n";
+
+    // ---- Ylm tower (Eq.4.36): Y_lm-projected TEMPORAL displaced current, descendants of G_t.
+    //   g_l(t) = (1/(2l+1)) sum_m tr[ Sigma_lm(t0) P Sigma_lm(t) P ],  Sigma_lm = sum_n A_n Y_lm(n) W_d^t(n).
+    // Skipped in single-insertion (--ins) mode.  Output h0/t0_b/ylm/l{0,1,2}/Vpp.
+    if(!single){
+      constexpr int L_MAX_YLM = 2;
+      for(int l=0; l<=L_MAX_YLM; l++){
+        std::vector<std::vector<Complex>> Cyl(n_t0,std::vector<Complex>(Nt,Complex(0,0)));
+        std::vector<std::vector<Ent>> Sig0(n_t0);
+        std::vector<Ent> Sigt;
+        for(int m=-l; m<=l; m++){
+          for(int b=0;b<n_t0;b++) build_Sigma_ylm_disp(Sig0[b], kop, U, base, w_disp_t, l, m, t0s[b]);
+          for(int t=0;t<Nt;t++){
+            build_Sigma_ylm_disp(Sigt, kop, U, base, w_disp_t, l, m, t);
+            for(int b=0;b<n_t0;b++){ const int dt=((t-t0s[b])%Nt+Nt)%Nt; Cyl[b][dt] += tr_WPWP(Sig0[b], Sigt, P); }
+          }
+        }
+        const double inv2lp1 = 1.0/(2.0*l+1.0);
+        for(int b=0;b<n_t0;b++) for(int t=0;t<Nt;t++) Cyl[b][t] *= inv2lp1;
+        for(int b=0;b<n_t0;b++){ const std::string kp="h0/t0_"+std::to_string(b)+"/ylm/l"+std::to_string(l)+"/";
+          write_corr(h5,kp+"Vpp",Cyl[b],false);
+          if(!parity) write_corr(h5,kp+"Vmm",Cyl[b],true); }
+        std::cout<<"#   disp ylm l="<<l<<": conn(dt=4)="<<Cyl[0][4].real()<<"  ["<<timer.currentSeconds()<<" s]\n";
+      }
+    }
 
     h5.createDataSet("complete",std::vector<int>{1});
     h5p.reset(); std::filesystem::rename(h5tmp,h5path);
