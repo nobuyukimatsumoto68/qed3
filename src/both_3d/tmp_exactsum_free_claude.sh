@@ -31,4 +31,4 @@ for L in 2; do   # add 2 here when ready for the multi-hour L=2 run
     2>&1 | tee -a "$LOG" || { echo "RUN FAILED L=${L}"; exit 1; }
   echo "### done L=${L} ###" | tee -a "$LOG"
 done
-echo "### all done -- corr_deter_exactsum_L*; check ratio in comp_threesome_jj_claude.ipynb ###"
+echo "### all done -- corr_deter_exactsum_L*; check ratio in comp_trio_jj_claude.ipynb ###"

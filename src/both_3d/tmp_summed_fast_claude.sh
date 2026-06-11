@@ -31,4 +31,4 @@ for L in 1 2; do
     2>&1 | tee -a "$LOG" || { echo "RUN FAILED L=${L}"; exit 1; }
   echo "### done L=${L} ###" | tee -a "$LOG"
 done
-echo "### all L done -- open comp_threesome_jj_claude.ipynb (summed) for the Gs/Gt -> -2 check ###"
+echo "### all L done -- open comp_trio_jj_claude.ipynb (summed) for the Gs/Gt -> -2 check ###"

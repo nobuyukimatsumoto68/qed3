@@ -28,7 +28,7 @@ L=1,2 feasible (same op_K count as kbuild; memory one $N\times N$).
 
 Run: `tmp_exactdiag_claude.sh` (lattice prop, L=1,2).
 
-Notebook `comp_threesome_jj_claude.ipynb`: tp = loc `s3` vs exactdiag `tp`; sp = loc `s1`+`s2` vs
+Notebook `comp_trio_jj_claude.ipynb`: tp = loc `s3` vs exactdiag `tp`; sp = loc `s1`+`s2` vs
 disp `sp` vs exactdiag `sp`. Renormalize to a common point (match at one separation); the headline is
 the **sign** and shape of exact sp vs disp/loc.
 
