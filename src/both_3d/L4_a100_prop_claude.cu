@@ -303,6 +303,7 @@ int main(int argc, char* argv[]){
   CuC *W=nullptr, *d_W=nullptr, *d_VL=nullptr, *d_VR=nullptr; void *d_gwork=nullptr, *h_gwork=nullptr;
   size_t lwork_gd=0, lwork_gh=0;
   cusolverEigMode_t jobvl = CUSOLVER_EIG_MODE_NOVECTOR, jobvr = CUSOLVER_EIG_MODE_NOVECTOR;
+#ifdef WITH_GEEV   // cusolverDnXgeev needs CUDA 12.6+; only used for the optional --with-R factor (Eq. 2.5).
   if(with_R){
     W = (CuC*)malloc((size_t)n*CD);
     CUDA_CHECK(cudaMalloc(&d_W,  CD*(size_t)n));
@@ -313,6 +314,9 @@ int main(int argc, char* argv[]){
                       CUDA_C_64F, d_VR, n, CUDA_C_64F, &lwork_gd, &lwork_gh) );
     CUDA_CHECK(cudaMalloc(&d_gwork, lwork_gd));  h_gwork = malloc(lwork_gh);
   }
+#else
+  if(with_R){ throw std::runtime_error("--with-R needs cusolverDnXgeev (CUDA 12.6+); rebuild with -DWITH_GEEV"); }
+#endif
 
   // identity RHS (column-major == row-major identity), uploaded before each getrs.
   std::vector<CuC> I_h((size_t)n*n, make_cuDoubleComplex(0.0,0.0));
@@ -353,6 +357,7 @@ int main(int argc, char* argv[]){
 
     // optional R (Eq. 2.5) from the SAME dense matrix (geev destroys its input -> upload a copy)
     std::vector<Complex> lam; Complex Rval(1.0,0.0);
+#ifdef WITH_GEEV   // see note above: cusolverDnXgeev requires CUDA 12.6+
     if(with_R){
       CUDA_CHECK(cudaMemcpy(d_A, A0, CD*(size_t)n*n, H2D));
       CUDA_CHECK(cudaMemset(d_W, 0, CD*(size_t)n));
@@ -368,6 +373,7 @@ int main(int argc, char* argv[]){
       Rval = std::conj(std::exp(logR));
       std::cout << "#   R = ("<<Rval.real()<<","<<Rval.imag()<<")  |R|="<<std::abs(Rval)<<std::endl;
     }
+#endif
 
     // LU-invert the mass's operator(s): Dm = D_ov + mP ; (parity) tilde = D_ov + mP/(1-mP)
     std::cout << "#   LU-inverting Dm" << (parity?" + Dtil":"") << " ..." << std::endl;
