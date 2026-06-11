@@ -99,7 +99,8 @@ using CuC = cuDoubleComplex;
 #include "dirac_simp.h"
 #include "dirac_dual.h"
 #include "dirac_ext.h"
-#include "sparse_dirac.h"
+// #include "sparse_dirac.h"
+#include "sparse_dirac_claude.h"   // O(len) bucketing CSR build (was O(N*len)); -DCSR_VERIFY to check
 #include "matpoly_claude.h"
 #include "dirac_pf.h"
 #include "overlap_wmass_claude.h"

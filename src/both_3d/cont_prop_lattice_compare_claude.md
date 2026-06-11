@@ -92,10 +92,74 @@ small-$dt$ difference is the UV $S^2$ mode tower (continuum heavier), the large-
 antiperiodic temporal BC (lattice on a circle). Overall normalization differs (lat $\lVert P\rVert_F$
 ~4-17x smaller = the $1/\bar a_s a_t$ scale, irrelevant). NO spurious asymmetry, NO 7% mass deficit.
 
+## Output format is identical (confirmed by h5py, no rerun)
+
+`cont_prop_L1/Dinv.0.h5` vs `prop_deter_L1/Dinv.0.h5`: `Dm_inv/{real,imag}` identical shape
+($3072^2$, float64, row-major $N^2$, same index $r=N_x t+N_S\,\text{site}+\text{spin}$) and ALL scalar
+metadata identical shape+dtype+VALUE (`N`/`N_REFINE`/`Nt`/`n_sites`/`parity`/`mP`/`k`/`complete`). Only
+diff: the lattice file ALSO stores `Dov/{real,imag}` (the forward operator) which the continuum omits
+(additive, not a conflict). Format-compatible for loading; NOT drop-in for a frame-dependent
+contraction (content conventions differ: SU(2) frame, zeroed $\tau{=}0$ blocks, normalization).
+
+## Gauge-invariant same-site comparison — RESULT
+
+BOTH same-site blocks are **purely $c_3\sigma_3$** (continuum: identity/$\sigma_1$/$\sigma_2$ parts
+~1e-18 at a non-pole site; lattice: off-diag machine-zero). So $c_3=\tfrac12\mathrm{tr}(P\sigma_3)$ is
+the apples-to-apples invariant. Comparison (site 0; all sites equal):
+
+| $dt$ | $c_3^{\rm lat}$ | $c_3^{\rm cont}$ | lat/cont | $\Delta m_{\rm eff}$(cont-lat) |
+|---|---|---|---|---|
+| 1  | 1.17e-1 | 1.98e0  | 0.059 | 0.64 |
+| 8  | 5.77e-3 | 2.52e-2 | 0.229 | 0.025 |
+| 16 | 8.81e-4 | 3.53e-3 | 0.250 | 0.004 |
+| 20 | 3.84e-4 | 1.51e-3 | 0.254 | 0.004 |
+| 40 | 7.77e-6 | 2.67e-5 | 0.291 | 0.009 |
+
+Verdict: the gauge-invariant part **DIFFERS, but in a fully understood way**. The ratio is NOT constant
+(0.059->0.29) so they are not identical even up to one scale. Two parts: (i) overall normalization
+(mid-range ratio ~0.25 = lattice ~4x smaller, the irrelevant $1/\bar a_s a_t$); (ii) a shape difference
+at the ENDS only. In the **clean middle window $dt\approx12$-20 the effective masses agree to ~2%**
+($\Delta m\approx0.004$) -- i.e. they AGREE up to normalization there. Small-$dt$ deviation = UV $S^2$
+mode tower (continuum heavier); large-$dt$ deviation = antiperiodic temporal BC. No physics
+disagreement.
+
+## OFF-SITE off-diagonal validation vs lattice (frame-invariants) — RESULT (2026-06-10)
+
+The pure-2D generic-pair eigenbasis sum (`check_S2_generic_pair_claude.cu`) is numerically
+INVIABLE in double precision (off-pole full-$|m|$-tower sum has $\sim4^{|m|}$ terms that must
+cancel to $\sim0.1$; catastrophic cancellation by $|m|\sim20$, exposed once the stable Boost
+$\xi$ replaced the Pfaff one — the Pfaff "0.97" was an artifact of being wrong-but-small at high
+order). So the OFF-diagonal, OFF-site (higher-$|m|$) structure was instead validated by comparing
+the damping-protected 3D continuum all-to-all against the independent lattice all-to-all
+(`prop_deter_L<L>`), using only SU(2)-frame-INVARIANTS of each $2\times2$ off-site block
+$P(i_0\!\to\!j,t)$: the singular values $\{s_1\ge s_2\}$ (= $\lVert P\rVert_F,\ \lvert\det P\rvert$).
+Script `compare_offsite_invariants_claude.py` (reads only the 2 source rows; $2\times2$ invariants).
+
+- Both sides: same-site block pure $\sigma_3$ (off/diag $\sim10^{-16}$); off-site blocks have
+  $s_1=s_2$ (gamma-slash, $P\propto$ unitary); singular values collapse onto a function of the
+  geodesic angle $\gamma$ => ISOTROPY holds and the cont/lat SITE ORDERINGS are consistent
+  (both track the same $\gamma$ from `pts_n<L>.dat`).
+- Frame-invariants AGREE up to the single overall norm $1/(\bar a_s a_t)$:
+
+  | | L=2 ($t{=}1$) | L=4 ($t{=}1$) | L=4 ($t{=}4$) | L=4 ($t{=}8$) |
+  |---|---|---|---|---|
+  | ratio $s_1^{\rm lat}/s_1^{\rm cont}$ mean | 0.132 | 0.0614 | 0.0595 | 0.0598 |
+  | rel. spread | 8.0% | 6.5% | 2.6% | 2.6% |
+
+  Spread tightens with BOTH $L$ (8%$\to$2.6%) and $t$. Only systematic = nearest-neighbour point
+  (smallest $\gamma$): L=4 $t{=}4$ ratio 0.066 at $\gamma{=}0.25$ vs flat 0.058-0.061 for
+  $\gamma\gtrsim0.5$ — the expected short-distance UV (lattice regulated, continuum full tower),
+  same story as the same-site comparison.
+- CONCLUSION: the continuum OFF-diagonal higher-$|m|$ structure matches the independent lattice in
+  the frame-invariant sector to a few % (improving with $L$,$t$); residual is understood UV.
+  Together with (C.54)/(C.55) ($|m|{=}1/2$ angular), (C.29) (temporal-at-pole), and same-site
+  homogeneity (diagonal tower), this validates essentially every sector of the continuum formula.
+  Log: `compare_offsite_L4_claude.log`.
+
 ## Status / next
-- $a_t$ identical (0.2), $\nu_0=1$ both — no parameter mismatch.
-- Both sides homogeneous (icos symmetry intact on the correct lattice file; continuum exact).
-- Differences are physical: UV $S^2$ tower (small $dt$) + antiperiodic BC (large $dt$); masses agree
-  to few %. Compare INVARIANTS ($\lVert P\rVert_F$/det), per the SU(2) frame point.
-- **NEXT:** L=2 lattice $D_{\rm ov}^{-1}$ (`prop_deter_L2`) — UV tower fills in, gauge-invariant
-  magnitudes track closer. Use `prop_deter_L<L>`, NOT `prop_exact_L<L>` (stale).
+- $a_t$ identical (0.2), $\nu_0=1$ both — no parameter mismatch. Output FORMAT identical.
+- Both sides homogeneous + pure $c_3\sigma_3$ (icos symmetry intact on `prop_deter_L1`).
+- Gauge-invariant $c_3$ agrees to ~2% in the clean window (up to overall norm); ends differ by UV
+  tower (small $dt$) + antiperiodic BC (large $dt$). Compare INVARIANTS ($\lVert P\rVert_F$/det/$c_3$).
+- **NEXT:** L=2 lattice $D_{\rm ov}^{-1}$ (`prop_deter_L2`) — UV tower fills in, agreement window widens.
+  Use `prop_deter_L<L>`, NOT `prop_exact_L<L>` (stale). For method D, reconcile frame+norm+equal-time.

@@ -17,10 +17,12 @@ NVCCFLAGS="-arch=sm_70 -g -O3 -std=c++20 -lcublas -lcusolver -lcusparse -lgomp -
 INCLUDES='-I./includes/ -I/projectnb/qfe/nmatsum/qed3/opt/eigen -I/opt/eigen-3.4.0/ -I/mnt/hdd_barracuda/opt/highfive/include/ -I/mnt/hdd_barracuda/opt/myhdfstuff/hdf5-2.1.0/include/'
 LDFLAGS='-L/mnt/hdd_barracuda/opt/myhdfstuff/hdf5-2.1.0/lib/ -L/usr/lib/ -L/usr/local/lib/ -lhdf5 -lgsl -lgslcblas -lm'
 
-src_for_L(){ [ "$1" = 1 ] && echo jj_corr_block_t_claude.cu || echo jj_corr_block_t_L$1_claude.cu; }
+# L=4 uses the NON-blocked jj_corr (mrhs/BlockedMat scratch OOMs the 12 GB GPU at L=4); L=1,2 use the
+# faster t-blocked jj_corr_block_t (fits).
+src_for_L(){ case "$1" in 1) echo jj_corr_block_t_claude.cu;; 4) echo jj_corr_L4_claude.cu;; *) echo jj_corr_block_t_L$1_claude.cu;; esac; }
 
 for L in $LS; do
-  SRC=$(src_for_L "$L"); BIN=jj_corr_block_t_L${L}.o
+  SRC=$(src_for_L "$L"); BIN="$(basename "$SRC" .cu).o"
   echo "===== [L=$L] compile $SRC ====="
   $NVCC $NVCCFLAGS $INCLUDES $LDFLAGS "$SRC" -o "$BIN" || { echo "BUILD FAILED L=$L"; exit 1; }
   echo "===== [L=$L] run FREE stochastic jj (nhits=$NHITS, n_t0=$NT0) [$(date +%H:%M:%S)] ====="

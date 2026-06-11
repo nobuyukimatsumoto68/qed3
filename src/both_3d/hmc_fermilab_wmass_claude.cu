@@ -101,7 +101,8 @@ using CuC = cuDoubleComplex;
 #include "dirac_simp.h"
 #include "dirac_ext.h"
 
-#include "sparse_dirac.h"
+// #include "sparse_dirac.h"
+#include "sparse_dirac_claude.h"   // O(len) bucketing CSR build (was O(N*len)); -DCSR_VERIFY to check
 // #include "matpoly.h"
 #include "matpoly_claude.h"
 #define GRAD_L4   // HMC force opt L1+L2+L4 (hoist + block poles + skip do_it); force==ref ~1e-16 (~3.4x grad)

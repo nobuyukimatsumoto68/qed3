@@ -4,24 +4,23 @@
 // (jj_exact_freefield_impl_plan_claude.md, "LOCAL (ultralocal) current path".)
 //
 // Replaces the full overlap conserved current K (Eq. 3.27 = ultralocal W^{wz} + non-local resolvents)
-// by the BARE point-split vector current \hat e^a \bar\psi \sigma^a \psi -- i.e. ONLY the \hat e.\sigma
-// hopping structure, NO overlap, NO multishift, and (per the note) NO spin connection \Omega and NO
-// Wilson -r\sigma_0 term.
-//   spatial link {ix,iy}: 0.5 kappa gamma(ix,iy) i exp(i u_sp)   (pos at ix, neg at iy)
-//   temporal link n,t   : the sigma_3 part of the temporal hopping (i exp(i u_tp))
-// This is DiracExt::d_coo_format with \Omega -> 1 and the -r\sigma_0 term dropped (vector current =
-// the gamma part only).  We do NOT use ConservedCurrent::build_W (which dresses with \Omega + the
-// Wilson term).  The projection weights w_tp/w_sp are kept (geometric projector, \Omega-independent);
-// the overall scale is irrelevant for the 4.28/4.31 shape and the G_s/G_t ratio.  Sparse => feasible
-// to L=4, free AND interacting (no N x n_ins x Nt multishift).
+// by the BARE vector current \bar\psi \sigma^a \psi, with NO overlap and NO multishift.
+// The LOCAL current is a pure SITE (ultralocal) object: at dual site n the insertion is the bare
+// Pauli \sigma^a (a=1,2,3) -- NO link hop, NO \kappa, NO i, NO gauge phase, NO \Omega, NO Wilson
+// -r\sigma_0.  Both propagator legs attach at the SAME site n (on-site G((n,t0),(n,t))).  We measure
+// the three DIAGONAL channels SEPARATELY (no tp/sp projection):
+//   s3 = <\sigma_3 \sigma_3>             (the old "tp"/temporal projection; G_t, Eq. 4.31)
+//   s1 = <\sigma_1 \sigma_1>, s2 = <\sigma_2 \sigma_2>   (spatial; G_s = s1 + s2, Eq. 4.28)
+// All channels use the SITE weight w_site[n] = dual_areas[n] (no 1/\kappa^2; the bare \sigma carries
+// no \kappa to cancel).  Overall scale is irrelevant for the 4.28/4.31 shape and the G_s/G_t ratio.
 //
-// Pipeline: load P=D_m^{-1} (jj_propagator_deter) -> build the SPARSE projected current
-//   W^P(t) = sum_a w^P_a W(a,t)   (tp: sites/w_tp ; sp: links/w_sp)
-// -> A^P(t) = W^P(t).P  (sparse row-scatter: A[i,:] += v P[j,:]) -> disc=tr(A), conn=tr(A(t0)A(t)).
-// We build A(t) at EACH t explicitly (NOT a free-field cyclic time-shift of A(0)): the cyclic shift
-// breaks at the ANTIPERIODIC time boundary.  Cheap here because the bare-gamma build is O(N).
+// Pipeline: load P=D_m^{-1} (jj_propagator_deter) -> for each channel a (1,2,3) and dual site n:
+//   conn(t0,t) = sum_n w_site[n] tr[ \sigma^a(n,t0) P \sigma^a(n,t) P ]
+//   disc(t)    = sum_n w_site[n] tr[ \sigma^a(n,t) P ]
+// W(n,t) is built at EACH t explicitly (NOT a cyclic time-shift): the shift breaks at the
+// ANTIPERIODIC time boundary.  Cheap here because the bare-\sigma build is O(N).
 // AXIAL (local): the GW factor (1-D_ov) -> 1 (D_ov = O(a), dropped), so the axial local current is
-//   the same structure with no overlap dressing -- TODO (next; vector tp/sp here).
+//   the same structure with no overlap dressing -- TODO (next; vector s1/s2/s3 here).
 //
 // L COMPILE-TIME (-DN_REFINE_CLI).  CLI: --ens-dir(omit=free) --mass-re/--mass-im (P + esnid) --n-t0
 //   --ninter --gpu.   Output: data_<ESNID>/corr_deter_local_L<L>/corr.<k>.h5  (jj-style; atomic).
@@ -100,114 +99,71 @@ using CuC = cuDoubleComplex;
 #include "dirac_simp.h"
 #include "dirac_dual.h"
 #include "dirac_ext.h"
-#include "sparse_dirac.h"
+// #include "sparse_dirac.h"
+#include "sparse_dirac_claude.h"   // O(len) bucketing CSR build (was O(N*len)); -DCSR_VERIFY to check
 #include "matpoly_claude.h"
 #include "dirac_pf.h"
 #include "overlap_wmass_claude.h"
 #include "conserved_current_claude.h"
 
-using BaseLink = std::array<Idx,2>;
-using BaseFace = std::vector<Idx>;
-
-// one entry of the sparse projected current W^P: A[i,:] += v * P[j,:].
+// one sparse matrix entry of a current insertion W: contributes v to W[i,j].
 struct Ent{ Idx i,j; Complex v; };
 
-// --- bare-gamma local current entries (NO \Omega, NO -r\sigma_0) ------------------------------------
-// Spatial link {ix,iy} at timeslice t.  Mirrors DiracExt::d_coo_format(pair<int,BaseLink>) with
-// \Omega -> 1 and the Wilson -r\sigma_0 term dropped: the vector current is the gamma part only.
-template<typename WilsonDirac, typename Gauge>
-static void local_W_sp(std::vector<Ent>& en, const WilsonDirac& DW, const Gauge& U, int t, BaseLink lk){
+// LOCAL (site) current insertion: bare Pauli \sigma^a (a=1,2,3) at dual site ix, timeslice t.
+// A pure SITE object for ALL channels -- both propagator legs attach at site ix (no link hop, no
+// \kappa, no i, no gauge phase, no \Omega, no Wilson -r\sigma_0).  \sigma_1,\sigma_2 are the spatial
+// channels (G_s); \sigma_3 the temporal (G_t).  DW.sigma[a]: 1=\sigma_x, 2=\sigma_y, 3=\sigma_z.
+template<typename WilsonDirac>
+static void local_W_sigma(std::vector<Ent>& en, const WilsonDirac& DW, int a, int t, Idx ix){
   en.clear();
-  const Idx ix=lk[0], iy=lk[1];
-  const Idx il=DW.lattice.map2il.at(BaseLink{ix,iy});
-  const Idx off=(Idx)Comp::Nx*t;
-  // pos: row ix, col iy
-  const MS p = 0.5 * DW.bd.kappa[il] * DW.bd.gamma(ix,iy) * I*std::exp( I*U.sp(t,BaseLink{ix,iy}) );
-  en.push_back({off+NS*ix,   off+NS*iy,   p(0,0)});
-  en.push_back({off+NS*ix,   off+NS*iy+1, p(0,1)});
-  en.push_back({off+NS*ix+1, off+NS*iy,   p(1,0)});
-  en.push_back({off+NS*ix+1, off+NS*iy+1, p(1,1)});
-  // neg: row iy, col ix
-  const MS q = -0.5 * DW.bd.kappa[il] * DW.bd.gamma(iy,ix) * I*std::exp( I*U.sp(t,BaseLink{iy,ix}) );
-  en.push_back({off+NS*iy,   off+NS*ix,   q(0,0)});
-  en.push_back({off+NS*iy,   off+NS*ix+1, q(0,1)});
-  en.push_back({off+NS*iy+1, off+NS*ix,   q(1,0)});
-  en.push_back({off+NS*iy+1, off+NS*ix+1, q(1,1)});
+  const Idx off = (Idx)Comp::Nx*t + NS*ix;
+  const MS s = DW.sigma[a];
+  en.push_back({off,   off,   s(0,0)});
+  en.push_back({off,   off+1, s(0,1)});
+  en.push_back({off+1, off,   s(1,0)});
+  en.push_back({off+1, off+1, s(1,1)});
 }
 
-// Temporal link at dual site ix, timeslice t.  Mirrors DiracExt::d_coo_format(pair<int,Idx>) with the
-// -r\sigma_0 term dropped: the vector current is the sigma_3 part only.  (No \Omega in the temporal
-// hopping anyway.)  The wrap %N carries the t -> t+1 hop across the time boundary.
-template<typename WilsonDirac, typename Gauge>
-static void local_W_tp(std::vector<Ent>& en, const WilsonDirac& DW, const Gauge& U, int t, Idx ix){
+// Ylm-weighted TEMPORAL current Sigma_{l,m}(t) = sum_n A_n Y_lm(n^) sigma_3(n,t), as Ent entries:
+// the diagonal sigma_3 = diag(+1,-1) site block scaled by A_n Y_lm(n^).  Feeds the Eq.(4.35) tower
+// g_l(t) = (1/(2l+1)) sum_m tr[Sigma_{l,m}(t0) P Sigma_{l,m}(t) P].  Ylm_real (valence_claude.h) is the
+// real spherical harmonic (no Condon-Shortley), App. C convention; base.sites[n] is the unit VE.
+template<typename Base>
+static void build_Sigma_ylm(std::vector<Ent>& en, const Base& base, const std::vector<double>& w_site,
+                            int l, int m, int t){
   en.clear();
-  const Idx Nx=Comp::Nx, N=Comp::N; const int Nt=Comp::Nt;
-  int sign=1;
-  if(t==Nt-1) sign=-1;
-  const MS tmpP = -0.5 * sign * DW.kappa_t[ix] * ( -DW.sigma[3] ) * I*std::exp( -I*U.tp(t,ix) );
-  const MS tmpM =  0.5 * sign * DW.kappa_t[ix] * (  DW.sigma[3] ) * I*std::exp(  I*U.tp(t,ix) );
-  en.push_back({(Idx)((Nx*(t+1)+NS*ix)%N),   (Idx)(Nx*t+NS*ix),               tmpP(0,0)});
-  en.push_back({(Idx)((Nx*(t+1)+NS*ix)%N),   (Idx)(Nx*t+NS*ix+1),             tmpP(0,1)});
-  en.push_back({(Idx)((Nx*t+NS*ix + N)%N),   (Idx)((Nx*(t+1)+NS*ix)%N),       tmpM(0,0)});
-  en.push_back({(Idx)((Nx*t+NS*ix + N)%N),   (Idx)((Nx*(t+1)+NS*ix+1)%N),     tmpM(0,1)});
-  en.push_back({(Idx)((Nx*(t+1)+NS*ix+1)%N), (Idx)(Nx*t+NS*ix),               tmpP(1,0)});
-  en.push_back({(Idx)((Nx*(t+1)+NS*ix+1)%N), (Idx)(Nx*t+NS*ix+1),             tmpP(1,1)});
-  en.push_back({(Idx)((Nx*t+NS*ix+1 + N)%N), (Idx)((Nx*(t+1)+NS*ix)%N),       tmpM(1,0)});
-  en.push_back({(Idx)((Nx*t+NS*ix+1 + N)%N), (Idx)((Nx*(t+1)+NS*ix+1)%N),     tmpM(1,1)});
-}
-
-// projected current W^P(t) = sum_a w^P_a W(a,t).  tp: sum over dual sites (w_tp); sp: over links (w_sp).
-template<typename WilsonDirac, typename Gauge, typename Base>
-static void build_Wp_local(const std::string& proj, int t, const WilsonDirac& DW, const Gauge& U,
-                           const Base& base, const std::vector<double>& w_tp,
-                           const std::vector<double>& w_sp, std::vector<Ent>& Wp){
-  Wp.clear();
-  std::vector<Ent> en;
-  if(proj=="tp"){
-    for(int n=0;n<(int)base.n_sites;n++){
-      const double w=w_tp[n];
-      local_W_tp(en, DW, U, t, (Idx)n);
-      for(const auto& e : en) Wp.push_back({e.i, e.j, w*e.v});
-    }
-  } else {
-    for(int il=0;il<(int)base.n_links;il++){
-      const double w=w_sp[il];
-      local_W_sp(en, DW, U, t, base.links[il]);
-      for(const auto& e : en) Wp.push_back({e.i, e.j, w*e.v});
-    }
+  const Idx Nx=Comp::Nx;
+  for(int n=0; n<(int)base.n_sites; n++){
+    const double wy = w_site[n] * Ylm_real(l, m, base.sites[n]);
+    const Idx off = Nx*t + NS*(Idx)n;
+    en.push_back({off,   off,   Complex(+wy, 0.0)});
+    en.push_back({off+1, off+1, Complex(-wy, 0.0)});
   }
 }
 
-// A = W^P . P  (P row-major N^2):  A[i,c] += v * P[j,c].  A returned row-major (N^2), zero-init.
-static void apply_Wp(const std::vector<Ent>& Wp, const std::vector<Complex>& P, std::vector<Complex>& A){
-  const Idx N=Comp::N;
-  A.assign((size_t)N*N, Complex(0,0));
-  for(const auto& e : Wp){
-    const size_t ai=(size_t)e.i*N, pj=(size_t)e.j*N;
-    for(Idx c=0;c<N;c++) A[ai+c] += e.v * P[pj+c];
-  }
-}
-
-static Complex trace(const std::vector<Complex>& A){
+// Insertion-DIAGONAL current-current trace for ONE site insertion n:
+//   tr[ W(n,t0) P W(n,t) P ] = sum_{(i,j,v0) in E0} sum_{(k,l,vt) in Et} v0 P_{jk} vt P_{li}.
+// E0 = W(n,t0) entries, Et = W(n,t) entries, P row-major (N^2).  W is the 2x2 spin block at
+// site n (|E0|,|Et| <= 4), so this is O(16) dense-P lookups -- no N x N dense build.
+static Complex tr_WPWP(const std::vector<Ent>& E0, const std::vector<Ent>& Et,
+                       const std::vector<Complex>& P){
   const Idx N=Comp::N;
   Complex s(0,0);
-  for(Idx i=0;i<N;i++) s+=A[(size_t)i*N+i];
-  return s;
-}
-
-static Complex tr_AB(const std::vector<Complex>& A, const std::vector<Complex>& B){
-  const Idx N=Comp::N;
-  Complex s(0,0);
-  for(Idx i=0;i<N;i++) for(Idx j=0;j<N;j++) s+=A[(size_t)i*N+j]*B[(size_t)j*N+i];
+  for(const auto& e0 : E0)
+    for(const auto& et : Et)
+      s += e0.v * P[(size_t)e0.j*N + et.i] * et.v * P[(size_t)et.j*N + e0.i];
   return s;
 }
 
 static void load_mat(HighFive::File& f, const std::string& key, std::vector<Complex>& M){
-  std::vector<double> re,im;
-  f.getDataSet(key+"/real").read(re);
-  f.getDataSet(key+"/imag").read(im);
-  M.resize(re.size());
-  for(size_t i=0;i<re.size();i++) M[i]=Complex(re[i],im[i]);
+  // Lean load: scope each real/imag buffer so it frees before the next read.  Peak RAM = M (N^2
+  // complex) + ONE N^2 double buffer, not both real+imag at once -- lets the dense P fit at L=4
+  // (~41 GB instead of ~55 GB; cont_prop_L4 is 26 GB on disk).
+  size_t n=0;
+  { std::vector<double> re; f.getDataSet(key+"/real").read(re); n=re.size();
+    M.resize(n); for(size_t i=0;i<n;i++) M[i].real(re[i]); }
+  { std::vector<double> im; f.getDataSet(key+"/imag").read(im);
+    for(size_t i=0;i<n;i++) M[i].imag(im[i]); }
 }
 
 static void write_corr(HighFive::File& h5, const std::string& key, const std::vector<Complex>& C, bool conj){
@@ -227,23 +183,26 @@ static void write_vec(HighFive::File& h5, const std::string& key, const std::vec
   h5.createDataSet(key+"/imag",im);
 }
 
-struct Args{ double nu0=1.0,nu1=-1.0,mass_re=0.0,mass_im=0.0; std::string ens_dir,prop_file,out_tag; int n_t0=2,ninter=10,gpu=0; };
+struct Args{ double nu0=1.0,nu1=-1.0,mass_re=0.0,mass_im=0.0; std::string ens_dir,prop_file,out_tag; int n_t0=2,ninter=10,gpu=0,ins=-1; };
 void PrintHelp(){ printf("jj_local_deter: --mass-re --mass-im --ens-dir(omit=free) --n-t0 --ninter --nu0 --nu1 --gpu\n"
                          "  --prop-file <path>  read P from this exact file (e.g. continuum cont_prop_L<L>/Dinv.0.h5)\n"
-                         "  --out-tag <tag>     output to corr_deter_local_<tag>_L<L> (e.g. cont) instead of corr_deter_local_L<L>\n"); }
+                         "  --out-tag <tag>     output to corr_deter_local_<tag>_L<L> (e.g. cont) instead of corr_deter_local_L<L>\n"
+                         "  --ins <i>           SINGLE-insertion mode at site i (no sum, no w_site; RAW trace,\n"
+                         "                      matches jj_exact_diag_deter_free).  -> corr_deter_local1[_<tag>]_L<L>;\n"
+                         "                      Ylm tower skipped.  default -1 = full sum over sites (current behaviour).\n"); }
 void ParseArgs(int argc,char**argv,Args&a){
   static struct option lo[]={{"nu0",required_argument,0,'n'},{"nu1",required_argument,0,'m'},
     {"mass-re",required_argument,0,'r'},{"mass-im",required_argument,0,'i'},{"ens-dir",required_argument,0,'e'},
     {"n-t0",required_argument,0,'T'},{"ninter",required_argument,0,'I'},{"gpu",required_argument,0,'G'},
-    {"prop-file",required_argument,0,'P'},{"out-tag",required_argument,0,'O'},
+    {"prop-file",required_argument,0,'P'},{"out-tag",required_argument,0,'O'},{"ins",required_argument,0,'A'},
     {"help",no_argument,0,'h'},{0,0,0,0}};
   int opt,idx;
-  while((opt=getopt_long(argc,argv,"n:m:r:i:e:T:I:G:P:O:h",lo,&idx))!=-1){ switch(opt){
+  while((opt=getopt_long(argc,argv,"n:m:r:i:e:T:I:G:P:O:A:h",lo,&idx))!=-1){ switch(opt){
     case 'n':a.nu0=std::stod(optarg);break; case 'm':a.nu1=std::stod(optarg);break;
     case 'r':a.mass_re=std::stod(optarg);break; case 'i':a.mass_im=std::stod(optarg);break;
     case 'e':a.ens_dir=optarg;break; case 'T':a.n_t0=std::stoi(optarg);break;
     case 'I':a.ninter=std::stoi(optarg);break; case 'G':a.gpu=std::stoi(optarg);break;
-    case 'P':a.prop_file=optarg;break; case 'O':a.out_tag=optarg;break;
+    case 'P':a.prop_file=optarg;break; case 'O':a.out_tag=optarg;break; case 'A':a.ins=std::stoi(optarg);break;
     case 'h':default:PrintHelp();std::exit(0);} }
 }
 
@@ -268,10 +227,19 @@ int main(int argc,char* argv[]){
   WilsonDirac DW(base,0.0,r,M5,at,a.nu1);                 // supplies gamma/kappa for the bare current
   Gauge U(base);
 
-  const int n_sites=(int)base.n_sites, n_links=(int)base.n_links;
-  std::vector<double> w_tp(n_sites), w_sp(n_links);
-  for(int n=0;n<n_sites;n++){ const double kt=DW.kappa_t[n]; w_tp[n]=base.dual_areas[n]/(kt*kt); }
-  for(int il=0;il<n_links;il++){ const double ks=DW.bd.kappa[il]; w_sp[il]=base.link_volume[il]/(ks*ks); }
+  const int n_sites=(int)base.n_sites;
+  // LOCAL current is a SITE object for ALL channels => single site weight, no link weight.
+  // Bare geometric measure dual_areas[n] (no 1/\kappa^2: the bare \sigma carries no \kappa).
+  std::vector<double> w_site(n_sites);
+  for(int n=0;n<n_sites;n++){ w_site[n]=base.dual_areas[n]; }
+
+  // SINGLE-insertion mode (--ins i >= 0): one site, RAW trace (no w_site), no Ylm tower.  Mirrors
+  // jj_exact_diag_deter_free so loc1 s3/s1/s2 at site i line up with exact1 tp at the same site i.
+  const bool single=(a.ins>=0);
+  if(single && (a.ins>=n_sites)){
+    std::cout<<"# ERROR: --ins="<<a.ins<<" out of range (n_sites="<<n_sites<<")\n"; return 1; }
+  const int n_lo = single?a.ins   : 0;
+  const int n_hi = single?a.ins+1 : n_sites;
 
   int n_t0=a.n_t0; std::vector<int> t0s(n_t0); for(int b=0;b<n_t0;b++) t0s[b]=b*(Nt/n_t0);
 
@@ -281,9 +249,10 @@ int main(int argc,char* argv[]){
   const std::string tag=(free_field?std::string("free"):ens_base);
   const std::string esnid=tag+"_vmRe"+std::to_string(a.mass_re)+"vmIm"+std::to_string(a.mass_im);
   const std::string propdir="data_"+esnid+"/prop_deter_L"+std::to_string(Comp::N_REFINE)+"/";
-  // --out-tag: corr_deter_local_<tag>_L<L> (e.g. cont) instead of corr_deter_local_L<L>
-  const std::string locname=a.out_tag.empty()?std::string("corr_deter_local")
-                                             :std::string("corr_deter_local_")+a.out_tag;
+  // --out-tag: corr_deter_local_<tag>_L<L> (e.g. cont) instead of corr_deter_local_L<L>.
+  // single-insertion mode adds a "1": corr_deter_local1[_<tag>]_L<L> (parallel to corr_deter_exact1).
+  const std::string locbase=single?std::string("corr_deter_local1"):std::string("corr_deter_local");
+  const std::string locname=a.out_tag.empty()?locbase:locbase+"_"+a.out_tag;
   const std::string outdir ="data_"+esnid+"/"+locname+"_L"+std::to_string(Comp::N_REFINE)+"/";
   std::filesystem::create_directories(outdir);
 
@@ -310,24 +279,62 @@ int main(int argc,char* argv[]){
     HighFive::File& h5=*h5p;
     h5.createDataSet("t0s",t0s); h5.createDataSet("n_t0",std::vector<int>{n_t0});
     h5.createDataSet("nhits",std::vector<int>{1}); h5.createDataSet("ls",std::vector<int>{0,1,2});
+    h5.createDataSet("ins",std::vector<int>{a.ins});
 
-    for(const std::string proj : {std::string("tp"), std::string("sp")}){
+    // Three diagonal Pauli channels, each a SITE object summed over dual sites n with w_site[n]:
+    //   conn(t0,t) = sum_n w_site[n] tr[ \sigma^a(n,t0) P \sigma^a(n,t) P ]   (same site n both times)
+    //   disc(t)    = sum_n w_site[n] tr[ \sigma^a(n,t) P ]
+    // s3 = old "tp" (G_t); s1,s2 = spatial (G_s = s1 + s2).
+    for(int a=1; a<=3; a++){
+      const std::string chan = "s"+std::to_string(a);
       std::vector<std::vector<Complex>> Cpp(n_t0,std::vector<Complex>(Nt,Complex(0,0)));
       std::vector<Complex> discvec(Nt,Complex(0,0));
-      // Build the current at EACH t explicitly and form conn(t0,t)=tr(A(t0)A(t)).  No free-field
-      // cyclic time-shift: it breaks at the ANTIPERIODIC time boundary.  Cheap (bare-gamma build).
-      std::vector<Ent> Wp;
-      std::vector<std::vector<Complex>> Ab(n_t0);
-      for(int b=0;b<n_t0;b++){ build_Wp_local(proj,t0s[b],DW,U,base,w_tp,w_sp,Wp); apply_Wp(Wp,P,Ab[b]); }   // A(t0_b)
-      for(int t=0;t<Nt;t++){ std::vector<Complex> At; build_Wp_local(proj,t,DW,U,base,w_tp,w_sp,Wp); apply_Wp(Wp,P,At);   // A(t)
-        discvec[t]=trace(At);
-        for(int b=0;b<n_t0;b++){ const int dt=((t-t0s[b])%Nt+Nt)%Nt; Cpp[b][dt]=tr_AB(Ab[b],At); } }
+      std::vector<std::vector<Ent>> E0(n_t0);   // \sigma^a(n,t0_b) for the current site n
+      std::vector<Ent> Et;
+      for(int n=n_lo; n<n_hi; n++){
+        const double w = single?1.0:w_site[n];
+        for(int b=0;b<n_t0;b++) local_W_sigma(E0[b], DW, a, t0s[b], (Idx)n);
+        for(int t=0;t<Nt;t++){
+          local_W_sigma(Et, DW, a, t, (Idx)n);
+          Complex d(0,0);
+          for(const auto& e : Et) d += e.v * P[(size_t)e.j*Comp::N + e.i];   // tr[\sigma^a(n,t) P]
+          discvec[t] += w * d;
+          for(int b=0;b<n_t0;b++){ const int dt=((t-t0s[b])%Nt+Nt)%Nt; Cpp[b][dt] += w * tr_WPWP(E0[b], Et, P); }
+        }
+      }
       for(int b=0;b<n_t0;b++){ const std::string kp="h0/t0_"+std::to_string(b)+"/";
-        write_corr(h5,kp+proj+"/Vpp",Cpp[b],false);
-        if(!parity) write_corr(h5,kp+proj+"/Vmm",Cpp[b],true); }
-      write_vec(h5,"h0/disc/"+proj+"/J",discvec);
-      std::cout<<"#   "<<proj<<": disc(0)=("<<discvec[0].real()<<","<<discvec[0].imag()
+        write_corr(h5,kp+chan+"/Vpp",Cpp[b],false);
+        if(!parity) write_corr(h5,kp+chan+"/Vmm",Cpp[b],true); }
+      write_vec(h5,"h0/disc/"+chan+"/J",discvec);
+      std::cout<<"#   "<<chan<<": disc(0)=("<<discvec[0].real()<<","<<discvec[0].imag()
                <<")  conn(dt=4)="<<Cpp[0][4].real()<<"  ["<<timer.currentSeconds()<<" s]\n";
+    }
+
+    // ---- Ylm tower (Eq. 4.35): spherical-harmonic descendants of the temporal sigma_3 correlator.
+    // Diagonal-m Legendre coefficient (connected only):
+    //   g_l(t) = (1/(2l+1)) sum_{m=-l}^{l} tr[ Sigma_{l,m}(t0) P Sigma_{l,m}(t) P ]
+    // with Sigma_{l,m}(t) = sum_n A_n Y_lm(n^) sigma_3(n,t).  write_corr folds 1/(4pi) so g_l matches
+    // jj_cft_ylm_check_claude.cc / Eq.(4.35): rates (l=0->0, l=1->e^{-2t}, l=2->e^{-3t}),
+    // G22 e^{3t}/G11 e^{2t} -> 12/5 = 2.4.  Off-site pairs enter via tr_WPWP (Sigma touches all sites).
+    // The tower is intrinsically a sum over sites, so it is SKIPPED in single-insertion mode.
+    constexpr int L_MAX_YLM = 2;
+    for(int l=0; !single && l<=L_MAX_YLM; l++){
+      std::vector<std::vector<Complex>> Cyl(n_t0,std::vector<Complex>(Nt,Complex(0,0)));
+      std::vector<std::vector<Ent>> Sig0(n_t0);
+      std::vector<Ent> Sigt;
+      for(int m=-l; m<=l; m++){
+        for(int b=0;b<n_t0;b++) build_Sigma_ylm(Sig0[b], base, w_site, l, m, t0s[b]);
+        for(int t=0;t<Nt;t++){
+          build_Sigma_ylm(Sigt, base, w_site, l, m, t);
+          for(int b=0;b<n_t0;b++){ const int dt=((t-t0s[b])%Nt+Nt)%Nt; Cyl[b][dt] += tr_WPWP(Sig0[b], Sigt, P); }
+        }
+      }
+      const double inv2lp1 = 1.0/(2.0*l+1.0);
+      for(int b=0;b<n_t0;b++) for(int t=0;t<Nt;t++) Cyl[b][t] *= inv2lp1;
+      for(int b=0;b<n_t0;b++){ const std::string kp="h0/t0_"+std::to_string(b)+"/ylm/l"+std::to_string(l)+"/";
+        write_corr(h5,kp+"Vpp",Cyl[b],false);
+        if(!parity) write_corr(h5,kp+"Vmm",Cyl[b],true); }
+      std::cout<<"#   ylm l="<<l<<": conn(dt=4)="<<Cyl[0][4].real()<<"  ["<<timer.currentSeconds()<<" s]\n";
     }
     h5.createDataSet("complete",std::vector<int>{1});
     h5p.reset(); std::filesystem::rename(h5tmp,h5path);

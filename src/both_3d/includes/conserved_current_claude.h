@@ -125,6 +125,42 @@ struct ConservedCurrent : public LinOp {
     build_W(coo, U, std::pair<int,BaseLink>{s, lk});
   }
 
+  // insertion_kappa: the link coupling kappa carried by a current insertion el.  THE single place that
+  // owns the kappa lookup (kappa is the relative lattice->continuum weight, not part of W/K).  Used by
+  // build_W_ov_kappa, and by callers normalizing the assembled K to K_ov_kappa = K/kappa.
+  //   spatial el = {s, BaseLink} : kappa[link]   ;   temporal el = {t, Idx site} : kappa_t[site].
+  double insertion_kappa(const std::pair<int,BaseLink>& el) const {
+    const Idx il = D.DW.lattice.map2il.at(BaseLink{el.second[0], el.second[1]});
+    return D.DW.bd.kappa[il];
+  }
+  double insertion_kappa(const std::pair<int,Idx>& el) const {
+    return D.DW.kappa_t[el.second];
+  }
+
+  // build_W_ov_kappa: the NORMALIZED current kernel W_ov_kappa = W/kappa = C/kappa = -P U (spatial) /
+  // C^t/kappa_t (temporal).  Same d_coo_format = i*C as build_W, but the link coupling kappa is FACTORED
+  // OUT (a weight) instead of the conserved 1/lambda_M:
+  //   build_W:         (i/lambda_M)*(i*C) = -C/lambda_M   (kappa-IN; Noether kernel dD_W/dtheta; apply_k)
+  //   build_W_ov_kappa:(i*C)/(i*kappa)    =  C/kappa       (kappa-OUT; the normalized current)
+  // HOST std::vector<COOEntry> output (for dense-propagator traces; jj_disp_deter exercises this K
+  // routine); does NOT build the GPU COO<N> of build_W.  The conserved build_W above is unchanged.
+  void build_W_ov_kappa(std::vector<COOEntry>& en, const Gauge& U, const std::pair<int,BaseLink>& el) const {
+    D.DW.d_coo_format(en, U, el);                 // en = i*C for the spatial link
+    const double kappa = insertion_kappa(el);
+    for(auto& e : en) {
+      const Complex z(cuCreal(e.v), cuCimag(e.v));
+      e.v = cplx(z / (Complex(0.0, 1.0) * kappa)); // (i*C)/(i*kappa) = C/kappa = -P U
+    }
+  }
+  void build_W_ov_kappa(std::vector<COOEntry>& en, const Gauge& U, const std::pair<int,Idx>& el) const {
+    D.DW.d_coo_format(en, U, el);                 // en = i*C^t for the temporal time-link
+    const double kappa = insertion_kappa(el);
+    for(auto& e : en) {
+      const Complex z(cuCreal(e.v), cuCimag(e.v));
+      e.v = cplx(z / (Complex(0.0, 1.0) * kappa)); // (i*C^t)/(i*kappa_t) = C^t/kappa_t
+    }
+  }
+
   // apply_k: compute d_result = K(el) d_xi for link element el; eq. (3.34).
   // Works for both spatial (std::pair<int,BaseLink>) and temporal (std::pair<int,Idx>) links.
   // d_tmp1/2/3 and d_Zs[] are used as scratch; not valid after return.

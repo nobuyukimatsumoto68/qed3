@@ -115,7 +115,8 @@ using CuC = cuDoubleComplex;
 #include "dirac_dual.h"
 #include "dirac_ext.h"
 
-#include "sparse_dirac.h"
+// #include "sparse_dirac.h"
+#include "sparse_dirac_claude.h"   // O(len) bucketing CSR build (was O(N*len)); -DCSR_VERIFY to check
 // #include "matpoly.h"
 #include "matpoly_claude.h"
 
@@ -427,39 +428,33 @@ int main(int argc, char* argv[]){
       if(!std::filesystem::exists(str_lat)){ if(k==0) continue; else break; }
       U.read(str_lat);
     }
-    // ONE file per config.  Resume: skip ONLY if the "complete" sentinel (written LAST, after every
-    // dataset) is present -- an interrupted write lacks it -> recompute.  Read-only open.
-    const std::string h5path = dir_out + "corr." + std::to_string(k) + ".h5";
-    if(std::filesystem::exists(h5path)){
-      bool complete = false;
-      try { HighFive::File h5c(h5path, HighFive::File::ReadOnly); complete = h5c.exist("complete"); }
-      catch(...) {}
-      if(complete){ std::cout<<"# skip k="<<k<<" (complete)"<<std::endl; continue; }
-      std::cout<<"# k="<<k<<" exists but INCOMPLETE -> recompute"<<std::endl;
-    }
+    // ONE FILE PER HIT (so an interrupted run keeps the finished hits): corr.<k>.h<h>.h5, each atomic
+    // (.tmp + rename) with its own "complete" sentinel; data under h0/.  Resume = skip completed hits.
     D.update(U);  Dm.update(U);  Dtil.update(U);
     std::cout << "# k="<<k<<(free_field?" (free field)":"")
               << "  lambda_min/max="<<Dm.lambda_min<<"/"<<Dm.lambda_max<<std::endl;
 
-    // ATOMIC WRITE: write to "<h5path>.tmp", then rename() to the final name after the 'complete'
-    // sentinel + close.  rename(2) is atomic on POSIX, so readers / the resume check above never see a
-    // partial file; an interrupted run leaves only a stale ".tmp" (ignored by the *.h5 globs).
-    const std::string h5tmp = h5path + ".tmp";
-    auto h5p = std::make_unique<HighFive::File>(h5tmp,
-                 HighFive::File::ReadWrite|HighFive::File::Create|HighFive::File::Truncate);
-    HighFive::File& h5 = *h5p;
-    h5.createDataSet("t0s",   t0s);
-    h5.createDataSet("n_t0",  std::vector<int>{n_t0});
-    h5.createDataSet("nhits", std::vector<int>{nhits});
-    h5.createDataSet("ls",    ls);
-
     for(int h=0; h<nhits; h++){
+      eta.fill_z2_source(rng);   // advance RNG every hit (so a resumed run draws fresh sources downstream)
+      const std::string h5path_h = dir_out + "corr." + std::to_string(k) + ".h" + std::to_string(h) + ".h5";
+      if(std::filesystem::exists(h5path_h)){
+        bool c=false; try { HighFive::File f(h5path_h,HighFive::File::ReadOnly); c=f.exist("complete"); } catch(...) {}
+        if(c){ std::cout<<"# skip k="<<k<<" hit "<<h<<" (complete)"<<std::endl; continue; }
+      }
       const auto t_hit0 = std::chrono::steady_clock::now();
       auto elapsed = [&](){ return std::chrono::duration<double>(std::chrono::steady_clock::now()-t_hit0).count(); };
       std::cout << "# k="<<k<<" hit "<<(h+1)<<"/"<<nhits<<"  (n_t0="<<n_t0<<", n_sites="<<n_sites
                 << ", n_links="<<n_links<<", n_ell="<<N_ELL<<")" << std::endl;
-      eta.fill_z2_source(rng);
-      const std::string hp = "h" + std::to_string(h) + "/";   // key prefix /h{h}/
+      const std::string hp = "h0/";                  // one hit per file => always h0
+      const std::string h5tmp = h5path_h + ".tmp";
+      auto h5p = std::make_unique<HighFive::File>(h5tmp,
+                   HighFive::File::ReadWrite|HighFive::File::Create|HighFive::File::Truncate);
+      HighFive::File& h5 = *h5p;
+      h5.createDataSet("t0s",   t0s);
+      h5.createDataSet("n_t0",  std::vector<int>{n_t0});
+      h5.createDataSet("nhits", std::vector<int>{nhits});
+      h5.createDataSet("hit",   std::vector<int>{h});
+      h5.createDataSet("ls",    ls);
 
       // shared forward leg phi' = D_m^{-1} eta (op_DmH RHS-former + op_Dmsq CG); reused by ALL connected
       // projections (tp/sp/ylm) as the sink leg K(.,t)phi'.
@@ -800,14 +795,12 @@ int main(int argc, char* argv[]){
         std::cout << " done ["<<elapsed()<<" s]" << std::endl;
       }
 
+      h5.createDataSet("complete", std::vector<int>{1});   // per-hit sentinel (written LAST)
+      h5p.reset();                                          // close before the atomic rename
+      std::filesystem::rename(h5tmp, h5path_h);            // atomic publish: corr.<k>.h<h>.h5
       const double secs = std::chrono::duration<double>(std::chrono::steady_clock::now()-t_hit0).count();
-      std::cout << "#   hit "<<(h+1)<<" done (tp+sp+ylm vector + axial) ["<<secs<<" s]" << std::endl;
+      std::cout << "#   hit "<<(h+1)<<" done (tp+sp+ylm vector + axial) ["<<secs<<" s] -> "<<h5path_h << std::endl;
     } // hits
-
-    h5.createDataSet("complete", std::vector<int>{1});   // sentinel: ALL datasets present (written LAST)
-    h5p.reset();                                          // CLOSE the .tmp file before publishing
-    std::filesystem::rename(h5tmp, h5path);               // atomic publish: now visible as corr.<k>.h5
-    std::cout << "# wrote " << h5path << std::endl;
   } // k
 
   CUDA_CHECK(cudaFree(d_sinkvec)); CUDA_CHECK(cudaFree(d_kphi_block));  // C6f-c sink block-t buffers
