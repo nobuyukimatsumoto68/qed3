@@ -114,7 +114,8 @@ using CuC = cuDoubleComplex;
 // // #include "pseudofermion.h"
 // #include "dirac.h"
 
-#include "sparse_dirac.h"
+// #include "sparse_dirac.h"
+#include "sparse_dirac_claude.h"   // O(len) bucketing CSR build (was O(N*len)); -DCSR_VERIFY to check
 // #include "matpoly.h"
 #include "matpoly_claude.h"
 

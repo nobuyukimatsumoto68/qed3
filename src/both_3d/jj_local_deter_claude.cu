@@ -99,7 +99,8 @@ using CuC = cuDoubleComplex;
 #include "dirac_simp.h"
 #include "dirac_dual.h"
 #include "dirac_ext.h"
-#include "sparse_dirac.h"
+// #include "sparse_dirac.h"
+#include "sparse_dirac_claude.h"   // O(len) bucketing CSR build (was O(N*len)); -DCSR_VERIFY to check
 #include "matpoly_claude.h"
 #include "dirac_pf.h"
 #include "overlap_wmass_claude.h"
@@ -182,23 +183,26 @@ static void write_vec(HighFive::File& h5, const std::string& key, const std::vec
   h5.createDataSet(key+"/imag",im);
 }
 
-struct Args{ double nu0=1.0,nu1=-1.0,mass_re=0.0,mass_im=0.0; std::string ens_dir,prop_file,out_tag; int n_t0=2,ninter=10,gpu=0; };
+struct Args{ double nu0=1.0,nu1=-1.0,mass_re=0.0,mass_im=0.0; std::string ens_dir,prop_file,out_tag; int n_t0=2,ninter=10,gpu=0,ins=-1; };
 void PrintHelp(){ printf("jj_local_deter: --mass-re --mass-im --ens-dir(omit=free) --n-t0 --ninter --nu0 --nu1 --gpu\n"
                          "  --prop-file <path>  read P from this exact file (e.g. continuum cont_prop_L<L>/Dinv.0.h5)\n"
-                         "  --out-tag <tag>     output to corr_deter_local_<tag>_L<L> (e.g. cont) instead of corr_deter_local_L<L>\n"); }
+                         "  --out-tag <tag>     output to corr_deter_local_<tag>_L<L> (e.g. cont) instead of corr_deter_local_L<L>\n"
+                         "  --ins <i>           SINGLE-insertion mode at site i (no sum, no w_site; RAW trace,\n"
+                         "                      matches jj_exact_diag_deter_free).  -> corr_deter_local1[_<tag>]_L<L>;\n"
+                         "                      Ylm tower skipped.  default -1 = full sum over sites (current behaviour).\n"); }
 void ParseArgs(int argc,char**argv,Args&a){
   static struct option lo[]={{"nu0",required_argument,0,'n'},{"nu1",required_argument,0,'m'},
     {"mass-re",required_argument,0,'r'},{"mass-im",required_argument,0,'i'},{"ens-dir",required_argument,0,'e'},
     {"n-t0",required_argument,0,'T'},{"ninter",required_argument,0,'I'},{"gpu",required_argument,0,'G'},
-    {"prop-file",required_argument,0,'P'},{"out-tag",required_argument,0,'O'},
+    {"prop-file",required_argument,0,'P'},{"out-tag",required_argument,0,'O'},{"ins",required_argument,0,'A'},
     {"help",no_argument,0,'h'},{0,0,0,0}};
   int opt,idx;
-  while((opt=getopt_long(argc,argv,"n:m:r:i:e:T:I:G:P:O:h",lo,&idx))!=-1){ switch(opt){
+  while((opt=getopt_long(argc,argv,"n:m:r:i:e:T:I:G:P:O:A:h",lo,&idx))!=-1){ switch(opt){
     case 'n':a.nu0=std::stod(optarg);break; case 'm':a.nu1=std::stod(optarg);break;
     case 'r':a.mass_re=std::stod(optarg);break; case 'i':a.mass_im=std::stod(optarg);break;
     case 'e':a.ens_dir=optarg;break; case 'T':a.n_t0=std::stoi(optarg);break;
     case 'I':a.ninter=std::stoi(optarg);break; case 'G':a.gpu=std::stoi(optarg);break;
-    case 'P':a.prop_file=optarg;break; case 'O':a.out_tag=optarg;break;
+    case 'P':a.prop_file=optarg;break; case 'O':a.out_tag=optarg;break; case 'A':a.ins=std::stoi(optarg);break;
     case 'h':default:PrintHelp();std::exit(0);} }
 }
 
@@ -229,6 +233,14 @@ int main(int argc,char* argv[]){
   std::vector<double> w_site(n_sites);
   for(int n=0;n<n_sites;n++){ w_site[n]=base.dual_areas[n]; }
 
+  // SINGLE-insertion mode (--ins i >= 0): one site, RAW trace (no w_site), no Ylm tower.  Mirrors
+  // jj_exact_diag_deter_free so loc1 s3/s1/s2 at site i line up with exact1 tp at the same site i.
+  const bool single=(a.ins>=0);
+  if(single && (a.ins>=n_sites)){
+    std::cout<<"# ERROR: --ins="<<a.ins<<" out of range (n_sites="<<n_sites<<")\n"; return 1; }
+  const int n_lo = single?a.ins   : 0;
+  const int n_hi = single?a.ins+1 : n_sites;
+
   int n_t0=a.n_t0; std::vector<int> t0s(n_t0); for(int b=0;b<n_t0;b++) t0s[b]=b*(Nt/n_t0);
 
   std::string ens_base=a.ens_dir;
@@ -237,9 +249,10 @@ int main(int argc,char* argv[]){
   const std::string tag=(free_field?std::string("free"):ens_base);
   const std::string esnid=tag+"_vmRe"+std::to_string(a.mass_re)+"vmIm"+std::to_string(a.mass_im);
   const std::string propdir="data_"+esnid+"/prop_deter_L"+std::to_string(Comp::N_REFINE)+"/";
-  // --out-tag: corr_deter_local_<tag>_L<L> (e.g. cont) instead of corr_deter_local_L<L>
-  const std::string locname=a.out_tag.empty()?std::string("corr_deter_local")
-                                             :std::string("corr_deter_local_")+a.out_tag;
+  // --out-tag: corr_deter_local_<tag>_L<L> (e.g. cont) instead of corr_deter_local_L<L>.
+  // single-insertion mode adds a "1": corr_deter_local1[_<tag>]_L<L> (parallel to corr_deter_exact1).
+  const std::string locbase=single?std::string("corr_deter_local1"):std::string("corr_deter_local");
+  const std::string locname=a.out_tag.empty()?locbase:locbase+"_"+a.out_tag;
   const std::string outdir ="data_"+esnid+"/"+locname+"_L"+std::to_string(Comp::N_REFINE)+"/";
   std::filesystem::create_directories(outdir);
 
@@ -266,6 +279,7 @@ int main(int argc,char* argv[]){
     HighFive::File& h5=*h5p;
     h5.createDataSet("t0s",t0s); h5.createDataSet("n_t0",std::vector<int>{n_t0});
     h5.createDataSet("nhits",std::vector<int>{1}); h5.createDataSet("ls",std::vector<int>{0,1,2});
+    h5.createDataSet("ins",std::vector<int>{a.ins});
 
     // Three diagonal Pauli channels, each a SITE object summed over dual sites n with w_site[n]:
     //   conn(t0,t) = sum_n w_site[n] tr[ \sigma^a(n,t0) P \sigma^a(n,t) P ]   (same site n both times)
@@ -277,8 +291,8 @@ int main(int argc,char* argv[]){
       std::vector<Complex> discvec(Nt,Complex(0,0));
       std::vector<std::vector<Ent>> E0(n_t0);   // \sigma^a(n,t0_b) for the current site n
       std::vector<Ent> Et;
-      for(int n=0; n<n_sites; n++){
-        const double w = w_site[n];
+      for(int n=n_lo; n<n_hi; n++){
+        const double w = single?1.0:w_site[n];
         for(int b=0;b<n_t0;b++) local_W_sigma(E0[b], DW, a, t0s[b], (Idx)n);
         for(int t=0;t<Nt;t++){
           local_W_sigma(Et, DW, a, t, (Idx)n);
@@ -302,8 +316,9 @@ int main(int argc,char* argv[]){
     // with Sigma_{l,m}(t) = sum_n A_n Y_lm(n^) sigma_3(n,t).  write_corr folds 1/(4pi) so g_l matches
     // jj_cft_ylm_check_claude.cc / Eq.(4.35): rates (l=0->0, l=1->e^{-2t}, l=2->e^{-3t}),
     // G22 e^{3t}/G11 e^{2t} -> 12/5 = 2.4.  Off-site pairs enter via tr_WPWP (Sigma touches all sites).
+    // The tower is intrinsically a sum over sites, so it is SKIPPED in single-insertion mode.
     constexpr int L_MAX_YLM = 2;
-    for(int l=0; l<=L_MAX_YLM; l++){
+    for(int l=0; !single && l<=L_MAX_YLM; l++){
       std::vector<std::vector<Complex>> Cyl(n_t0,std::vector<Complex>(Nt,Complex(0,0)));
       std::vector<std::vector<Ent>> Sig0(n_t0);
       std::vector<Ent> Sigt;
