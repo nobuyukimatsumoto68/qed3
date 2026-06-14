@@ -128,51 +128,90 @@ All four use `--kmax 1160`. Union = `k = 40, 48, 56, ..., 1152` (the original
   actually rises. Stop when utilization saturates or aggregate throughput stops
   improving. Going past that only adds contention and host-thread pressure.
 
-## Sketch `sbatch` script
+## Ready-to-submit `sbatch` script
 
-Match the build flags / includes / `ENS_DIR` from `run_jj_dilute_prod_claude.sh`.
-Skeleton (fill in `P`, account, partition, time, mem to taste):
+Self-contained: compiles once (early-exit on failure), brings up a per-job MPS
+daemon, launches `P` disjoint partitions in the background, `wait`s, then tears
+MPS down. Build flags / includes / `ENS_DIR` follow `run_jj_dilute_prod_claude.sh`.
+
+> **A100 arch:** `run_jj_dilute_prod_claude.sh` builds with `-arch=sm_70`
+> (Volta). On the A100 use `-arch=sm_80` (Ampere) -- already set below. Adjust
+> the `module load` lines to the cluster's CUDA/GCC modules.
+
+Save as e.g. `run_jj_dilute_mps_claude.sbatch` and submit with
+`sbatch run_jj_dilute_mps_claude.sbatch`.
 
 ```bash
 #!/usr/bin/env bash
 #SBATCH --job-name=jjdil_mps
 #SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=16        # >= P*NSTREAMS ; tune to P
-#SBATCH --mem=64G                 # P copies of host buffers
+#SBATCH --cpus-per-task=16          # >= P*NSTREAMS ; tune to P (P=4, NSTREAMS=4 -> 16)
+#SBATCH --mem=64G                   # holds P copies of host staging buffers
 #SBATCH --time=48:00:00
+#SBATCH --output=jj_dilute_mps_%j.log
 set -u
+
 cd /mnt/barracuda22/qed3/qed3/src/both_3d || exit 1
+
+# Cluster modules (edit to match the A100 node's environment)
+module load cuda/12.8 2>/dev/null || true
+module load gcc/13.2.0 2>/dev/null || true
 
 # CUDA_VISIBLE_DEVICES is already set by SLURM to the one allotted GPU; do NOT touch it.
 
-# ---- per-job MPS daemon (concurrent SM sharing; required on EXCLUSIVE_PROCESS nodes) ----
+# ===================== build (once, early-exit on failure) =====================
+NVCC=nvcc
+NVCCFLAGS="-arch=sm_80 -g -O3 -std=c++20 -lcublas -lcusolver -lcusparse -lgomp -Xcompiler -fopenmp"
+INCLUDES='-I./includes/ -I/projectnb/qfe/nmatsum/qed3/opt/eigen -I/opt/eigen-3.4.0/ -I/mnt/hdd_barracuda/opt/highfive/include/ -I/mnt/hdd_barracuda/opt/myhdfstuff/hdf5-2.1.0/include/'
+LDFLAGS='-L/mnt/hdd_barracuda/opt/myhdfstuff/hdf5-2.1.0/lib/ -L/usr/lib/ -L/usr/local/lib/ -lhdf5 -lgsl -lgslcblas -lm'
+
+BIN=jj_corr_dilute.o
+echo "### compile jj_corr_dilute_claude.cu  [$(date +%F_%H:%M:%S)] ###"
+$NVCC $NVCCFLAGS $INCLUDES $LDFLAGS jj_corr_dilute_claude.cu -o "$BIN"
+st=$?
+if [ "$st" -ne 0 ]; then echo "### BUILD FAILED (status $st) ###"; exit 1; fi
+
+# ===================== per-job MPS daemon =====================
+# Concurrent SM sharing across the P processes; job-local pipe/log dirs so
+# concurrent jobs on a shared node do not collide. Required on EXCLUSIVE_PROCESS
+# nodes (there the daemon owns the one context and all clients funnel through it).
 export CUDA_MPS_PIPE_DIRECTORY=/tmp/mps_${SLURM_JOB_ID}
 export CUDA_MPS_LOG_DIRECTORY=/tmp/mpslog_${SLURM_JOB_ID}
 mkdir -p "$CUDA_MPS_PIPE_DIRECTORY" "$CUDA_MPS_LOG_DIRECTORY"
 nvidia-cuda-mps-control -d
 
-# ---- sweep partition: P processes over the stride-8, KMIN=40 set ----
-ENS_DIR="Nf2_gsq2.000000at0.200000nu01.000000nt128L1/"
-KMIN=40; S=8; KMAX=1160; P=4
+# ===================== sweep partition =====================
+# P disjoint partitions of the stride-S, KMIN.. set. Process p uses
+#   --stride (S*P)  --kmin (KMIN + p*S)  --kmax KMAX
+# so the union is exactly k = KMIN, KMIN+S, ..., < KMAX with no overlap.
+ENS_DIR="Nf2_gsq2.000000at0.200000nu01.000000nt128L1/"   # bare dir; holds ckpoint_lat.k
+KMIN=40
+S=8
+KMAX=1160               # exclusive
+P=4                     # processes on the one GPU (raise after checking nvidia-smi memory)
 COMMON="--ens-dir $ENS_DIR --kmax $KMAX --nhits 1 --n-t0 2 --time-dilution 2 --spin-dilution"
 
+echo "### launch P=$P processes on one A100  [$(date +%F_%H:%M:%S)] ###"
 for p in $(seq 0 $((P-1))); do
   kmin_p=$(( KMIN + p*S ))
   stride_p=$(( S*P ))
-  ./jj_corr_dilute.o $COMMON --kmin "$kmin_p" --stride "$stride_p" \
-      > jj_dilute_mps_p${p}_claude.log 2>&1 &
+  echo "  proc $p : --kmin $kmin_p --stride $stride_p  (k = $kmin_p, $((kmin_p+stride_p)), ...)"
+  ./"$BIN" $COMMON --kmin "$kmin_p" --stride "$stride_p" \
+      > "jj_dilute_mps_p${p}_claude.log" 2>&1 &
 done
 wait
+echo "### all P processes finished  [$(date +%F_%H:%M:%S)] ###"
 
-echo quit | nvidia-cuda-mps-control   # tear down the daemon
+# ===================== tear down MPS =====================
+echo quit | nvidia-cuda-mps-control
 ```
 
 Notes:
-- Build the binary once (same `nvcc` line as `run_jj_dilute_prod_claude.sh`)
-  before the parallel launch, or have the script compile first and exit on
-  failure.
-- One log per process (`jj_dilute_mps_p<p>_claude.log`) so progress is readable
-  per stream.
+- One log per process (`jj_dilute_mps_p<p>_claude.log`) so per-stream progress is
+  readable; the SLURM job log (`jj_dilute_mps_%j.log`) captures build + launch.
+- **Before scaling `P` up:** run with `P=1` once, read per-process GPU memory from
+  `nvidia-smi`, then set `P` to fit 80 GB with margin (and bump
+  `--cpus-per-task` to `>= P*NSTREAMS`).
 - No `rm` anywhere. If a `complete`-gated output file blocks a rerun, surface it
   and let the human delete it -- do not script the delete.
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# FREE-FIELD full-validation run, FLAVOR-breaking mass m_F = 0.1 (real).  GPU 0.
+# FREE-FIELD full-validation run, FLAVOR-breaking mass m_F = 0.1 (real).  GPU 1 (PACKED with the m_P job).
 # Full obs: exact-K tp/sp/disc + axial tp/sp + local s1,s2,s3 (vector) + local axial + condensates (PS/FS).
 # Master-field (n_t0=2) + SPIN x e/o-TIME dilution (--spin-dilution --time-dilution 2 => 4 patterns/hit).
 # nhits=140.  Free mode (no --ens-dir => U=1).  Compare vs the DETERMINISTIC ground truth at m=0.1 (L=1)
@@ -8,10 +8,14 @@
 # Builds to a DISTINCT binary (jj_corr_dilute_mF.o) so it does NOT clash (ETXTBSY) with the production
 # jj_corr_dilute.o or the condensate-check jj_corr_dilute_cond.o.
 # Output: data_free_vmRe0.100000vmIm0.000000/corr_dil_nt02_nhits140_s1td2/corr.0.h<h>.h5  (per hit, resumable)
-# Runtime: ~free hit (4 patterns) ~13 min -> 140 hits ~30 h.  Read back: jj_dilute_valid_mF_claude.log
+# PACKING (jj_dilute_multijob_local_handoff_claude.md): one process fills only ~50-60% of the GPU, so this
+#   m_F job + the m_P job share GPU 1 (disjoint output dirs vmRe0.1 vs vmIm0.1, distinct binaries -> safe;
+#   ~1.5x aggregate vs serial, ~1.6-1.9x if MPS is enabled on GPU 1).  Launch both in the background.
+# Runtime: ~13 min/hit solo -> ~30 h for 140; packed it runs slower per-job but frees GPU 0.
+# Read back: jj_dilute_valid_mF_claude.log
 set -u
 cd /mnt/barracuda22/qed3/qed3/src/both_3d || exit 1
-export CUDA_VISIBLE_DEVICES=0
+export CUDA_VISIBLE_DEVICES=1
 export OMP_NUM_THREADS=${OMP_NUM_THREADS:-4}
 LOG=jj_dilute_valid_mF_claude.log
 

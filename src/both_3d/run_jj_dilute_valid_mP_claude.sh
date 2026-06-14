@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# FREE-FIELD full-validation run, PARITY-breaking mass m_P = 0.1 i (imaginary).  GPU 1.
+# FREE-FIELD full-validation run, PARITY-breaking mass m_P = 0.1 i (imaginary).  GPU 1 (PACKED with m_F).
 # Full obs: exact-K tp/sp/disc + axial tp/sp + local s1,s2,s3 (vector) + local axial + condensates (PS/FS).
 # Master-field (n_t0=2) + SPIN x e/o-TIME dilution (--spin-dilution --time-dilution 2 => 4 patterns/hit).
 # nhits=140.  Free mode (no --ens-dir => U=1).  m_P uses the tilde-D dagger leg (Eq. 3.61) -> the dilute's
@@ -9,7 +9,9 @@
 # Builds to a DISTINCT binary (jj_corr_dilute_mP.o) so it does NOT clash (ETXTBSY) with the production
 # jj_corr_dilute.o or the condensate-check jj_corr_dilute_cond.o.
 # Output: data_free_vmRe0.000000vmIm0.100000/corr_dil_nt02_nhits140_s1td2/corr.0.h<h>.h5  (per hit, resumable)
-# Runtime: ~free hit (4 patterns; parity does extra tilde legs) ~20 min -> 140 hits ~45 h.
+# PACKING (jj_dilute_multijob_local_handoff_claude.md): shares GPU 1 with the m_F job (disjoint output dirs
+#   + distinct binaries -> safe; one process only fills ~50-60% of the GPU).  Launch both in the background.
+# Runtime: ~free hit (4 patterns; parity does extra tilde legs) ~20 min -> 140 hits ~45 h (slower when packed).
 # Read back: jj_dilute_valid_mP_claude.log
 set -u
 cd /mnt/barracuda22/qed3/qed3/src/both_3d || exit 1
