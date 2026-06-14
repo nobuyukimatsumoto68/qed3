@@ -173,6 +173,19 @@ struct FermionVector {
     }
   }
 
+  // TIME dilution only (NO spin dilution): time class t_s of `interval = Nt/t_block` classes, with BOTH
+  // spin components filled (independent Z2).  Used when --spin-dilution is OFF (single spin class).
+  template <typename Rng>
+  void time_dilution(Rng& rng, const int t_s, const int t_block) {
+    memset(field, 0, Comp::N*CD);
+    const int interval = Comp::Nt / t_block;
+    for(int t=t_s; t<Comp::Nt; t+=interval){
+      for(Idx ix=0; ix<Comp::N_SITES; ix++){
+        for(int i=0; i<2; i++) (*this)(t, ix, i) = rng.CZ2_site(t, ix);
+      }
+    }
+  }
+
   void accumulate_loop(std::vector<Complex>& summed_trace_per_timeslice,
                        const FermionVector& phi,
                        const int t_s, const int t_block, const int spin) const {

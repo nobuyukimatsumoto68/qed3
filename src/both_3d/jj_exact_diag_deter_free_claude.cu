@@ -154,6 +154,15 @@ static Complex trace(const std::vector<Complex>& A){
   return s;
 }
 
+// conjugate-transpose of a row-major NxN: (M^dag)_{ij} = conj(M_{ji}).  Used for the m_P "-" channel:
+// the dagger kernel K^dag = conjT(K) and tilde D_{m_P}^{-dag} = conjT(Dtil_inv) (no extra solves).
+static std::vector<Complex> conj_transpose(const std::vector<Complex>& M){
+  const Idx N=Comp::N;
+  std::vector<Complex> Md((size_t)N*N);
+  for(Idx i=0;i<N;i++) for(Idx j=0;j<N;j++) Md[(size_t)i*N+j]=std::conj(M[(size_t)j*N+i]);
+  return Md;
+}
+
 // A = K . P  (both row-major) via cuBLAS Zgemm.  (P,K) to a column-major gemm gives row-major K P.
 static void matmul_A(cublasHandle_t cub, CuC* d_K, CuC* d_P, CuC* d_A,
                      const std::vector<Complex>& K, const std::vector<Complex>& P, std::vector<Complex>& A){
@@ -446,6 +455,16 @@ int main(int argc,char* argv[]){
 
   std::vector<Complex> P; { HighFive::File f(pfile,HighFive::File::ReadOnly); load_mat(f,"Dm_inv",P); }
   std::cout<<"# loaded P "<<pfile<<"\n";
+  // m_P: the "-" channel (Eq. 3.65) uses tilde D_{m_P}^{-dag} = conjT(Dtil_inv) and K^dag = conjT(K).
+  std::vector<Complex> Ptil;
+  if(parity){
+    std::vector<Complex> Dtil;
+    { HighFive::File f(pfile,HighFive::File::ReadOnly);
+      if(!f.exist("Dtil_inv")){ std::cout<<"# parity but no Dtil_inv in "<<pfile<<" (rerun jj_propagator_deter)\n"; return 1; }
+      load_mat(f,"Dtil_inv",Dtil); }
+    Ptil = conj_transpose(Dtil);                 // tilde D_{m_P}^{-dag}
+    std::cout<<"# loaded Dtil_inv (parity, m_P) -> Ptil = tilde D^{-dag}\n";
+  }
 
   // ---- A0 = K . P  (dense) ; conn(dt) = conn_shift(A0,dt) = tr[K(a,0) P K(a,dt) P] (single insertion) ----
   cublasHandle_t cub; cublasCreate(&cub);
@@ -474,9 +493,22 @@ int main(int argc,char* argv[]){
     std::vector<Complex> discvec(Nt, disc);
     for(int b=0;b<n_t0;b++) for(int t=0;t<Nt;t++){ const int dt=((t-t0s[b])%Nt+Nt)%Nt; Cpp[b][dt]=cdt[dt]; }
     for(int b=0;b<n_t0;b++){ const std::string kp="h0/t0_"+std::to_string(b)+"/";
-      write_corr(h5,kp+proj+"/Vpp",Cpp[b],false);
-      if(!parity) write_corr(h5,kp+proj+"/Vmm",Cpp[b],true); }
+      write_corr(h5,kp+proj+"/Vpp",Cpp[b],false); }
     write_vec(h5,"h0/disc/"+proj+"/J",discvec);
+    if(!parity){   // massless / m_F: the "-" channel is the elementwise conjugate of "+"
+      for(int b=0;b<n_t0;b++) write_corr(h5,"h0/t0_"+std::to_string(b)+"/"+proj+"/Vmm",Cpp[b],true);
+    } else {       // m_P: Vmm (Eq. 3.65) = conn_shift( K^dag . tilde D^{-dag} ) ; disc_mm = tr(.)
+      std::vector<Complex> Kdag = conj_transpose(K);
+      std::vector<Complex> A_mm; matmul_A(cub, d_K, d_P, d_A, Kdag, Ptil, A_mm);
+      const Complex disc_mm = trace(A_mm);
+      std::vector<Complex> cdt_mm(Nt);
+      #pragma omp parallel for schedule(dynamic)
+      for(int dt=0;dt<Nt;dt++) cdt_mm[dt]=conn_shift(A_mm,dt);
+      std::vector<std::vector<Complex>> Cmm(n_t0,std::vector<Complex>(Nt,Complex(0,0)));
+      for(int b=0;b<n_t0;b++) for(int t=0;t<Nt;t++){ const int dt=((t-t0s[b])%Nt+Nt)%Nt; Cmm[b][dt]=cdt_mm[dt]; }
+      for(int b=0;b<n_t0;b++) write_corr(h5,"h0/t0_"+std::to_string(b)+"/"+proj+"/Vmm",Cmm[b],false);
+      write_vec(h5,"h0/disc/"+proj+"/Jmm",std::vector<Complex>(Nt,disc_mm));
+    }
     std::cout<<"#   "<<proj<<": disc(0)=("<<discvec[0].real()<<","<<discvec[0].imag()
              <<")  conn(dt=4)="<<Cpp[0][4].real()<<"  ["<<timer.currentSeconds()<<" s]\n";
   }

@@ -133,15 +133,17 @@ static void build_Sigma_ylm(std::vector<Ent>& en, const Base& base, const std::v
 }
 
 // AXIAL insertion-DIAGONAL trace for ONE insertion:
-//   tr[ W(t0) P^dag W(t) P ] = sum_{(i,j,v0)} sum_{(k,l,vt)} v0 P^dag_{jk} vt P_{li},
-//   P^dag_{jk} = conj(P_{kj}).  Only the FIRST (t0-leg) propagator is daggered vs the vector tr_WPWP.
+//   tr[ W(t0) P0^dag W(t) P ] = sum_{(i,j,v0)} sum_{(k,l,vt)} v0 P0^dag_{jk} vt P_{li},
+//   P0^dag_{jk} = conj(P0_{kj}).  The FIRST (t0-leg = backward propagator eta xi^dag) is P0 daggered; the
+//   sink-leg (forward xi eta^dag) is P.  massless/m_F: P0=P=D_m^{-1}.  m_P (Eqs. 3.60/3.61): P0=Dtil_inv
+//   -> P0^dag = tilde D_{m_P}^{-dag}, P=D_m^{-1}, and the caller multiplies by (1+m_P)^{-1} (bare current).
 static Complex tr_WPWP_axial(const std::vector<Ent>& E0, const std::vector<Ent>& Et,
-                             const std::vector<Complex>& P){
+                             const std::vector<Complex>& P0, const std::vector<Complex>& P){
   const Idx N=Comp::N;
   Complex s(0,0);
   for(const auto& e0 : E0)
     for(const auto& et : Et)
-      s += e0.v * std::conj(P[(size_t)et.i*N + e0.j]) * et.v * P[(size_t)et.j*N + e0.i];
+      s += e0.v * std::conj(P0[(size_t)et.i*N + e0.j]) * et.v * P[(size_t)et.j*N + e0.i];
   return s;
 }
 
@@ -264,6 +266,20 @@ int main(int argc,char* argv[]){
 
     std::vector<Complex> P; { HighFive::File f(pfile,HighFive::File::ReadOnly); load_mat(f,"Dm_inv",P); }
     std::cout<<"# k="<<k<<"  loaded P\n";
+    // m_P: the t0-leg (backward propagator, Eq. 3.61) is (1+m_P)^{-1} tilde D_{m_P}^{-dag}.  Load Dtil_inv
+    // -> P0 = Dtil_inv (tr_WPWP_axial daggers it to tilde D^{-dag}); the (1+m_P)^{-1} factor is applied to
+    // the conn below.  massless/m_F: P0 = P = D_m^{-1} (t0-leg = D_m^{-dag}).
+    const bool parity = (a.mass_im != 0.0);
+    std::vector<Complex> Dtil;
+    if(parity){
+      HighFive::File f(pfile,HighFive::File::ReadOnly);
+      if(!f.exist("Dtil_inv")){ std::cout<<"# parity but no Dtil_inv in "<<pfile<<" (rerun jj_propagator_deter)\n"; return 1; }
+      load_mat(f,"Dtil_inv",Dtil);
+      std::cout<<"# m_P: t0-leg uses tilde D^{-dag} (Dtil_inv) + (1+m_P)^{-1}\n";
+    }
+    const std::vector<Complex>& P0 = parity ? Dtil : P;     // t0-leg propagator (daggered inside tr_WPWP_axial)
+    const Complex inv1pmP = parity ? Complex(1.0,0.0)/(Complex(1.0,0.0)+Complex(a.mass_re,a.mass_im))
+                                   : Complex(1.0,0.0);
 
     const std::string h5tmp=h5path+".tmp";
     auto h5p=std::make_unique<HighFive::File>(h5tmp,HighFive::File::ReadWrite|HighFive::File::Create|HighFive::File::Truncate);
@@ -288,9 +304,10 @@ int main(int argc,char* argv[]){
           Complex d(0,0);
           for(const auto& e : Et) d += e.v * P[(size_t)e.j*Comp::N + e.i];   // tr[sigma^a(n,t) P]
           discvec[t] += w * d;
-          for(int b=0;b<n_t0;b++){ const int dt=((t-t0s[b])%Nt+Nt)%Nt; Cpp[b][dt] += w * tr_WPWP_axial(E0[b], Et, P); }
+          for(int b=0;b<n_t0;b++){ const int dt=((t-t0s[b])%Nt+Nt)%Nt; Cpp[b][dt] += w * tr_WPWP_axial(E0[b], Et, P0, P); }
         }
       }
+      if(parity) for(int b=0;b<n_t0;b++) for(int t=0;t<Nt;t++) Cpp[b][t] *= inv1pmP;   // m_P (1+m_P)^{-1}
       for(int b=0;b<n_t0;b++){ const std::string kp="h0/t0_"+std::to_string(b)+"/";
         write_corr_axial(h5,kp+chan+"/Apm",Cpp[b]); }
       write_vec(h5,"h0/disc/"+chan+"/J",discvec);
@@ -308,11 +325,11 @@ int main(int argc,char* argv[]){
         for(int b=0;b<n_t0;b++) build_Sigma_ylm(Sig0[b], base, w_site, l, m, t0s[b]);
         for(int t=0;t<Nt;t++){
           build_Sigma_ylm(Sigt, base, w_site, l, m, t);
-          for(int b=0;b<n_t0;b++){ const int dt=((t-t0s[b])%Nt+Nt)%Nt; Cyl[b][dt] += tr_WPWP_axial(Sig0[b], Sigt, P); }
+          for(int b=0;b<n_t0;b++){ const int dt=((t-t0s[b])%Nt+Nt)%Nt; Cyl[b][dt] += tr_WPWP_axial(Sig0[b], Sigt, P0, P); }
         }
       }
       const double inv2lp1 = 1.0/(2.0*l+1.0);
-      for(int b=0;b<n_t0;b++) for(int t=0;t<Nt;t++) Cyl[b][t] *= inv2lp1;
+      for(int b=0;b<n_t0;b++) for(int t=0;t<Nt;t++) Cyl[b][t] *= inv2lp1*inv1pmP;   // m_P: also (1+m_P)^{-1}
       for(int b=0;b<n_t0;b++){ const std::string kp="h0/t0_"+std::to_string(b)+"/ylm/l"+std::to_string(l)+"/";
         write_corr_axial(h5,kp+"Apm",Cyl[b]); }
       std::cout<<"#   ylm l="<<l<<": conn(dt=4)="<<Cyl[0][4].real()<<"  ["<<timer.currentSeconds()<<" s]\n";

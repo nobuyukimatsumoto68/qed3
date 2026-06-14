@@ -492,6 +492,17 @@ int main(int argc,char* argv[]){
 
   std::vector<Complex> P, Pdag; { HighFive::File f(pfile,HighFive::File::ReadOnly); load_mat(f,"Dm_inv",P); }
   conj_transpose(P, Pdag);
+  // m_P (Eq. 3.67): the t0-leg (B_src = K G^dag Pdag) propagator is tilde D_{m_P}^{-dag}, NOT D_m^{-dag};
+  // the sink-leg (B_snk) P = D_m^{-1} is unchanged.  (Matches the dilute parity axial: forward op_DmH,
+  // sink op_tilDmH.)  Override Pdag with conjT(Dtil_inv).
+  if(a.mass_im != 0.0){
+    std::vector<Complex> Dtil;
+    { HighFive::File f(pfile,HighFive::File::ReadOnly);
+      if(!f.exist("Dtil_inv")){ std::cout<<"# parity but no Dtil_inv in "<<pfile<<" (rerun jj_propagator_deter)\n"; return 1; }
+      load_mat(f,"Dtil_inv",Dtil); }
+    conj_transpose(Dtil, Pdag);                 // Pdag = tilde D_{m_P}^{-dag}
+    std::cout<<"# m_P: axial t0-leg uses tilde D^{-dag} (Dtil_inv)\n";
+  }
   std::cout<<"# loaded P "<<pfile<<"  (+ P^dag)\n";
 
   Timer timer;
