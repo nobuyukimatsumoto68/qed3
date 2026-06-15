@@ -635,7 +635,9 @@ int main(int argc, char* argv[]){
         for(int n=0;n<n_sites;n++){
           kblock.apply_k_dag_block_t(d_kphi_block, d_sinkvec, U, (Idx)n);  // K^dag(n,t) phimm for ALL t
           CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(kblk.data()), d_kphi_block, (size_t)N*Nt*CD, D2H));
-          for(int t=0;t<Nt;t++){ kcol(t); Ctp_mm[t] += w_tp[n]*psi_tp[n].dag(kphi); }  // superposed; absolute t
+          // disc V-- RIDES this sink (cyclicity: tr[tilde D^{-dag} K^dag] = tr[K^dag tilde D^{-dag}] =
+          //   eta^dag K^dag(n,t) phimm; phimm = tilde D^{-dag} eta is this sink leg) -> NO separate disc sweep.
+          for(int t=0;t<Nt;t++){ kcol(t); Ctp_mm[t] += w_tp[n]*psi_tp[n].dag(kphi); JtpT_til[t] += w_tp[n]*eta.dag(kphi); }  // conn V-- + disc -- (rides)
         }
         std::cout << " done ["<<elapsed()<<" s]" << std::endl;
       }
@@ -694,41 +696,35 @@ int main(int argc, char* argv[]){
           const Idx il = base.map2il.at(lk);
           kblock.apply_k_dag_block_t(d_kphi_block, d_sinkvec, U, lk);  // K^dag(lk,t) phimm for ALL t
           CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(kblk.data()), d_kphi_block, (size_t)N*Nt*CD, D2H));
-          for(int t=0;t<Nt;t++){ kcol(t); Csp_mm[t] += w_sp[il]*psi_sp[a].dag(kphi); }  // superposed; absolute t
+          for(int t=0;t<Nt;t++){ kcol(t); Csp_mm[t] += w_sp[il]*psi_sp[a].dag(kphi); JspT_til[t] += w_sp[il]*eta.dag(kphi); }  // conn V-- + disc -- (rides)
         }
         std::cout << " done ["<<elapsed()<<" s]" << std::endl;
       }
 
       // DISCONNECTED Jtp/Jsp rode the (++) sink applies above (RAW; summed over the dilution patterns).
       // WRITTEN ONCE per hit AFTER the dilution loop (below) -- writing here would collide across patterns.
-      // parity: dagger-leg tilde trace \tilde T(a,t) = (K(a,t) tilphi)^dag eta, tilphi = tilde D_{m_P}^{-1} eta.
-      // Cannot ride the connected parity sink (that applies K^dag phimm) -> own forward solve + K applies.
-      if(parity){
-        std::cout << "#   [disc --] tilde trace (tilphi solve + sink) ..." << std::flush;
-        op_tilDmH.from_cpu<N>(tmp.field, eta.field);
-        op_tilDmsq.solve<N>(tilphi.field, tmp.field, Comp::TOL_OUTER);   // tilphi = tilde D_{m_P}^{-1} eta
-        // accumulate into the HIT-SCOPE JtpT_til/JspT_til (summed over patterns); written ONCE after the loop.
-        CUDA_CHECK(cudaMemcpy(d_sinkvec, reinterpret_cast<CuC*>(tilphi.field), N*CD, H2D));
-        for(int n=0;n<n_sites;n++){
-          kblock.apply_k_block_t(d_kphi_block, d_sinkvec, U, (Idx)n);  // K(n,t) tilphi for ALL t
-          CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(kblk.data()), d_kphi_block, (size_t)N*Nt*CD, D2H));
-          for(int t=0;t<Nt;t++){
-            kcol(t);                                                  // kphi = column t = K(n,t) tilphi
-            JtpT_til[t] += w_tp[n]*kphi.dag(eta);                     // \tilde T(n,t) = (K tilphi)^dag eta
-          }
-        }
-        for(int a=0;a<n_links;a++){
-          const BaseLink lk = base.links[a];
-          const Idx il = base.map2il.at(lk);
-          kblock.apply_k_block_t(d_kphi_block, d_sinkvec, U, lk);      // K(lk,t) tilphi for ALL t
-          CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(kblk.data()), d_kphi_block, (size_t)N*Nt*CD, D2H));
-          for(int t=0;t<Nt;t++){
-            kcol(t);                                                  // kphi = column t = K(lk,t) tilphi
-            JspT_til[t] += w_sp[il]*kphi.dag(eta);
-          }
-        }
-        std::cout << " done ["<<elapsed()<<" s]" << std::endl;
-      }
+      // parity disc -- (JtpT_til/JspT_til) NOW RIDES the connected (--) sinks above (cyclicity:
+      //   tr[tilde D^{-dag} K^dag] = tr[K^dag tilde D^{-dag}] = eta^dag K^dag(n,t) phimm), so the standalone
+      //   tilphi solve + 2 K-apply sweeps below are REDUNDANT (~20% of the m_P cost) -- commented out.
+      //   OLD standalone version kept for A/B (uses the other ordering K(n,t) tilphi; same trace, more cost):
+      // if(parity){
+      //   std::cout << "#   [disc --] tilde trace (tilphi solve + sink) ..." << std::flush;
+      //   op_tilDmH.from_cpu<N>(tmp.field, eta.field);
+      //   op_tilDmsq.solve<N>(tilphi.field, tmp.field, Comp::TOL_OUTER);   // tilphi = tilde D_{m_P}^{-1} eta
+      //   CUDA_CHECK(cudaMemcpy(d_sinkvec, reinterpret_cast<CuC*>(tilphi.field), N*CD, H2D));
+      //   for(int n=0;n<n_sites;n++){
+      //     kblock.apply_k_block_t(d_kphi_block, d_sinkvec, U, (Idx)n);  // K(n,t) tilphi for ALL t
+      //     CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(kblk.data()), d_kphi_block, (size_t)N*Nt*CD, D2H));
+      //     for(int t=0;t<Nt;t++){ kcol(t); JtpT_til[t] += w_tp[n]*kphi.dag(eta); }  // (K tilphi)^dag eta
+      //   }
+      //   for(int a=0;a<n_links;a++){
+      //     const BaseLink lk = base.links[a]; const Idx il = base.map2il.at(lk);
+      //     kblock.apply_k_block_t(d_kphi_block, d_sinkvec, U, lk);      // K(lk,t) tilphi for ALL t
+      //     CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(kblk.data()), d_kphi_block, (size_t)N*Nt*CD, D2H));
+      //     for(int t=0;t<Nt;t++){ kcol(t); JspT_til[t] += w_sp[il]*kphi.dag(eta); }
+      //   }
+      //   std::cout << " done ["<<elapsed()<<" s]" << std::endl;
+      // }
 
       // ============ LOCAL (ultralocal) current s1,s2,s3 (shares phi'; local sigma-sink, no extra K solve) ==
       // SUPERPOSED localized source chi[c][n] = D_m^{-dag} ( sum_b sigma_c(n,t0_b) eta ); local sink
