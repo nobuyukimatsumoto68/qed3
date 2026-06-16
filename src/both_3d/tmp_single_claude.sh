@@ -2,14 +2,14 @@
 # Compile + run the SINGLE-INSERTION counterparts of loc and disp (--ins 0) for L=1,2,4 with the LATTICE
 # overlap propagator (reads EXISTING prop_deter_L<L>/Dinv.0.h5; no LU rebuild).  Free field.
 # L=4 loads the dense P (D_ov^-1, ~41 GB RAM via the lean load_mat); the trace itself is cheap.
-# (exact1 has no L=4 counterpart -- the dense K would need ~41k op_K applies -- so the threesome ratio
+# (exact1 has no L=4 counterpart -- the dense K would need ~41k op_K applies -- so the trio ratio
 #  at L=4 shows loc1 and disp1 only, both -> -2.)
 #
 # These mirror jj_exact_diag_deter_free (corr_deter_exact1, also ins=0): NO sum over sites/links and
 # NO summation weight (RAW trace tr[W(t0) P W(t) P]), so loc1/disp1/exact1 are apples-to-apples.
 #   loc1  (jj_local_deter --ins 0): single SITE 0, channels s1,s2,s3 -> corr_deter_local1_L<L>
 #   disp1 (jj_disp_deter  --ins 0): single LINK 0, channel sp        -> corr_deter_disp1_L<L>
-# Compare with corr_deter_exact1_L<L> (tp: site 0 ; sp: link 0) in comp_threesome_jj_claude.ipynb.
+# Compare with corr_deter_exact1_L<L> (tp: site 0 ; sp: link 0) in comp_trio_jj_claude.ipynb.
 #
 # Runs on GPU 0 (CUDA_VISIBLE_DEVICES=0; the binary calls cudaSetDevice(0) on the only visible device).
 # RERUN NOTE: corr_deter_{local1,disp1}_L*/corr.0.h5 are "complete"-gated -> the program SKIPS them if

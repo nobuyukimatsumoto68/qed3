@@ -3,7 +3,7 @@
 # L=1,2 with the LATTICE overlap propagator (reads the EXISTING prop_deter_L<L>/Dinv.0.h5).  Free field.
 # Writes data_free_vmRe0.000000vmIm0.000000/corr_deter_exactdiag_L<L>/corr.0.h5, keys h0/t0_b/{tp,sp}/Vpp.
 # Compare with loc (corr_deter_local_L*: s3=tp, s1+s2=sp) and disp (corr_deter_disp_L*: sp) in
-# comp_threesome_jj_claude.ipynb.
+# comp_trio_jj_claude.ipynb.
 #
 # COST: op_K applies = N * n_ins (== jj_kbuild_exact).  L=1 (N=3072, n_ins=42) ~ 1.3e5 solves: minutes.
 #   L=2 (N=10752, n_ins=162) ~ 1.7e6 overlap solves: HOURS -- run L=1 first; do L=2 only if patient /

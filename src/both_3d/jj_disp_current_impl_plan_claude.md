@@ -128,7 +128,7 @@ $$
 
 **Single-insertion mode (`--ins i`).** site $i$, weight $1$ (raw), matching exact1 tp (site $i$). Output
 key `h0/t0_b/tp/Vpp` (+ `h0/disc/tp/J`) alongside the existing `sp`. disp1 then supplies BOTH channels,
-so `comp_threesome_jj_1` can plot disp1's own $G_s/G_t\to-2$ and disp1$_{tp}$ vs exact1$_{tp}$ at site $i$.
+so `comp_trio_jj_1` can plot disp1's own $G_s/G_t\to-2$ and disp1$_{tp}$ vs exact1$_{tp}$ at site $i$.
 
 **Note on the ratio.** sp divides $\kappa$ (spatial link coupling), tp divides $\kappa_t$ (temporal); these
 differ, but that is the principled bare-current normalization (Eq. 3.46 removes each direction's coupling).

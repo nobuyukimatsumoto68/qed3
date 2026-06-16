@@ -115,3 +115,83 @@ The binary is L-parametrized (`-DN_REFINE_CLI`); no per-L code change. Two addit
   `ylm/l{l}`.
 - **O3 (channel).** Tower built on the temporal $\sigma_3$ (= G_t) only, per Eqs.(4.33-4.35). Confirm
   (no spatial-current ylm requested).
+
+---
+
+# Addendum (2026-06-13) — per-$m$ STOCHASTIC local ylm + $\ell\le3$ (deter + stoch, loc only)
+
+## Why
+The deterministic `jj_local_deter` ylm is ALREADY the correct per-$m$ estimator (a) (`:321-333`,
+explicit `for m`, $1/(2\ell+1)$, $\sigma_3$/s3 only). The only ylm that was wrong is the STOCHASTIC
+`jj_corr_block_t` exact-K tower, which used the collapsed outer-product weight
+$W_\ell(n)=A_n\sum_m Y_{\ell m}(n)/\kappa$ = convention (b) -> measures $(2\ell+1)g_\ell$ + spurious
+off-diagonal $m_1\neq m_2$ cross terms (orientation-dependent lattice artifact). Verified on the free
+`corr_nt02_nhits64` data: stoch/determ $\approx$ 4 at $\ell=2$, flat in $dt$ (systematic, not noise);
+$\ell=1$ biased high; $\ell=0$ noise ($g_0\to0$). `nhits=140` would NOT fix it.
+
+Decision (user, 2026-06-13): build the CORRECT per-$m$ estimator (separate $m$ solves), extend to
+$\ell\le3$, implement in BOTH deterministic and stochastic, for the BARE LOCAL current ONLY.
+**VECTOR ONLY -- NO axial** (user, 2026-06-13). Compute all three Pauli channels s1/s2/s3 so analysis
+can form the temporal tower tp $=s_3$ ($G_t$) AND the spatial tower sp $=(s_1+s_2)/2$ ($G_s$). No
+exact-K, no disp.
+
+## Estimator (per-$m$, one-end trick; matches Eq.4.36 exactly)
+Per Pauli channel $a\in\{1,2,3\}$: $\Sigma^a_{\ell m}(t)=\sum_n A_n Y_{\ell m}(\hat n)\,\sigma_a(n,t)$
+(Hermitian; $A_n=$ `dual_areas[n]`, real $Y_{\ell m}$; NO $\kappa$ for the bare local current). With
+$\phi=D_m^{-1}\eta$ (shared across all $a,\ell,m$) and per $(a,\ell,m)$ source
+$\psi^a_{\ell m}=D_m^{-\dagger}\,\Sigma^a_{\ell m}(t_0)\,\eta$:
+$$
+g^a_\ell(t)=\frac{1}{2\ell+1}\sum_{m=-\ell}^{\ell}\psi^{a\,\dagger}_{\ell m}\,\big[\Sigma^a_{\ell m}(t)\,\phi\big].
+$$
+Then tp tower $=g^3_\ell$, sp tower $=(g^1_\ell+g^2_\ell)/2$. ONE solve per $(a,\ell,m)$ (NOT per
+$\ell$): $3\times\sum_{\ell\le3}(2\ell+1)=48$ source solves/origin. Sink $\Sigma^a_{\ell m}(t)\phi$ =
+cheap $\sigma_a$-multiply + $\sum_n A_n Y_{\ell m}$ weighted site sum (no extra solve, no K-apply).
+
+Cost (VECTOR only, 3 Pauli, $\ell\le3$, $n_{t_0}=2$): $1+48\times2=97$ Dirac solves/hit; the local sink
+has no K-apply, so only these batched solves count -- ~7% of the K (conserved-current) program's
+~400 s/hit (sp+axial-sp link sinks ~336 s). (vs s3-only ~33 solves: adding s1/s2 ~3x the ylm program,
+still small absolute.)
+
+## Chunk A (deter) -- `jj_local_deter_claude.cu`
+Files: `jj_local_deter_claude.cu`
+- Generalize `build_Sigma_ylm` to take a Pauli index `a` (use `DW.sigma[a]` 2x2 block scaled by
+  $A_n Y_{\ell m}$, exactly like `local_W_sigma`); current $\sigma_3$ hardcode (`:139-140`) becomes the
+  `a==3` case. Comment the old signature/body, add the generalized one beneath (per convention).
+- Ylm tower loop: `for a in {1,2,3}` outside `for l in 0..L_MAX_YLM` (bump `L_MAX_YLM = 2` -> `3`,
+  comment old). `Ylm_real` (`std::assoc_legendre`) already valid $\forall\ell$. Output per Pauli:
+  `h0/t0_b/ylm/s{a}/l{l}/{Vpp,Vmm}` (supersedes the old s3-only `ylm/l{l}`).
+- Rerun (free L=1 ground truth) via a `tmp_*_claude.sh` (user runs; the existing `corr_deter_local_L1`
+  is `complete`-gated -> user must `rm` it first). L=2/L=4 optional later.
+
+## Chunk B (stoch) -- NEW `jj_local_ylm_stoch_claude.cu`
+Files: `jj_local_ylm_stoch_claude.cu` (new), copies source/solve/dilution/master-field scaffolding from
+`jj_corr_dilute_claude.cu` (VECTOR path only).
+- Strip to ylm-only: drop tp/sp/disc/local-s{1,2,3}/ALL axial blocks; keep $\phi'=D_m^{-1}\eta$, the
+  spin/time dilution switches (`--spin-dilution`, `--time-dilution`), master-field origins $\{0,N_t/2\}$,
+  per-hit atomic+`complete`-gated output, RNG seed-from-string.
+- Build `ylw[l][m][n] = dual_areas[n]*Ylm_real(l,m,base.sites[n])` (NO $/\kappa$), $\ell=0..3$.
+- For each Pauli `a in {1,2,3}`, each $(\ell,m)$: assemble $\Sigma^a_{\ell m}(t_0)\eta$ (timeslice-$t_0$
+  source, per-site $\sigma_a$ via `mult_sigma(a)` scaled by `ylw`), solve
+  $\psi^a_{\ell m}=D_m^{-\dagger}(\cdot)$ (mirror dilute VECTOR local solve path; $D_m^{-\dagger}$ via
+  `op_Dm`+`op_Dmsq`). Sink loop over $t$: $\Phi=\Sigma^a_{\ell m}(t)\phi'$; accumulate
+  `Gv[a,l,b][dt]+=psi.dag(Phi)`; $dt=(t-t0_b)$. Divide by $(2\ell+1)$.
+- Output: `h0/t0_b/ylm/s{a}/l{0..3}/Vpp` (+`Vmm` conj). NO axial.
+- (Optional) mrhs-batch the 48 source solves per origin via BlockedMat -> ~2-4x throughput.
+
+## Chunk C -- run script + validation notebook
+Files: `tmp_ylm_stoch_claude.sh` (new), `jj_local_ylm_validate_claude.ipynb` (new).
+- Build to a DISTINCT binary (e.g. `jj_local_ylm_stoch.o`) to avoid ETXTBSY if another run is live.
+- Free spin-only nhits=140 run, n_t0=2; output `corr_ylm_nt02_nhits140_*`.
+- Notebook: load stoch `h0/t0_b/ylm/s{a}/l{0..3}/Vpp`, jackknife over hits; form tp $=s_3$,
+  sp $=(s_1+s_2)/2$; overlay deterministic `corr_deter_local_L1` ylm (now s{1,2,3}, l=0..3). Checks:
+  tp rates $\to(2,3,4)$ for $\ell=(1,2,3)$; $g^t_2e^{3t}/g^t_1e^{2t}\to2.4$; $g_0\to0$; sp/tp $\to-1$
+  per $\ell$; stoch == determ within jk error (the per-$m$ fix makes stoch/determ $\to1$, NOT 4).
+  Honest normalization: ONE constant per estimator, raw ratios, no np.abs / per-curve sign flips.
+
+## Open questions (addendum)
+- **OA1 ($\ell=3$ CFT target).** $g_3$ rate $\to4$ ($\Delta=2$ descendant); amplitude prediction for the
+  $g_3/g_2$ ratio -- derive from `jj_cft_ylm_check` (extend to $\ell=3$) or just check the rate + that
+  stoch==determ. Default: validate rate(3)$\to$4 and stoch==determ; skip a new CFT amplitude constant
+  unless wanted.
+- **OA2 (output key).** Per-Pauli `h0/t0_b/ylm/s{a}/l{l}/{Vpp,Vmm}` (a=1,2,3); supersedes old s3-only
+  `ylm/l{l}`. Analysis forms tp=s3, sp=(s1+s2)/2 (the D-1=2 spatial average).

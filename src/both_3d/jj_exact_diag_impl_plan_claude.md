@@ -28,6 +28,22 @@ L=1,2 feasible (same op_K count as kbuild; memory one $N\times N$).
 
 Run: `tmp_exactdiag_claude.sh` (lattice prop, L=1,2).
 
-Notebook `comp_threesome_jj_claude.ipynb`: tp = loc `s3` vs exactdiag `tp`; sp = loc `s1`+`s2` vs
+Notebook `comp_trio_jj_claude.ipynb`: tp = loc `s3` vs exactdiag `tp`; sp = loc `s1`+`s2` vs
 disp `sp` vs exactdiag `sp`. Renormalize to a common point (match at one separation); the headline is
 the **sign** and shape of exact sp vs disp/loc.
+
+## Addendum (2026-06-11) — `--sum` mode: diagonally-n-summed exact (Eq.4.29)
+
+Fold a `--sum` flag into `jj_exact_diag_deter_free_claude.cu` (NOT a new file).  When set, compute the
+area-weighted INSERTION-DIAGONAL sum (Eq.4.29), free + deterministic, L=1,2:
+$$
+G^{tp}=\frac{1}{4\pi}\sum_{n\in\text{sites}} A_n\,\mathrm{tr}[K_{ov\kappa,n}(0)PK_{ov\kappa,n}(t)P],\quad
+G^{sp}=\frac{1}{4\pi}\sum_{\ell\in\text{links}} A_\ell\,\mathrm{tr}[K_{ov\kappa,\ell}(0)PK_{ov\kappa,\ell}(t)P]
+$$
+with $A_n=$`dual_areas`, $A_\ell=$`link_volume`, $K_{ov\kappa}=K/\kappa$ (`insertion_kappa`), $1/(4\pi)$ folded by
+`write_corr`.  Per insertion: build dense $K$ (N `op_K` applies) /\kappa, $A=K\cdot P$ (`matmul_A`),
+accumulate $A_n\,$`conn_shift`$(A,dt)$.  BUILD-USE-DISCARD (no cache: all-n caching is ~300 GB at L=2).
+Output `corr_deter_exactsum[_<tag>]_L<L>`, keys `h0/t0_b/{tp,sp}/{Vpp,Vmm}` + disc.  Cost = (n_sites+
+n_links)*N solves: L=1 ~min, L=2 ~hours (flagged).  CHECK: ratio $G^{sp}/G^{tp}\to-2$ (geometric sum
+restores the D-1 directions; single-insertion exact1 was -1).  Single-insertion path (default, no --sum)
+is unchanged.
