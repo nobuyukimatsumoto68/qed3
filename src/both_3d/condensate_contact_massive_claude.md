@@ -424,3 +424,33 @@ that vanish as $m\to0$. SSB is an IR effect; the UV/contact structure (and hence
    at finite $a$ by the overlap anomaly (the $S_2$/Chern-Simons term, §11), so genuine parity SSB must be
    disentangled from that lattice/anomaly piece via $a\to0$ -- the imaginary $\langle\sigma_{FS}\rangle$
    extrapolated $m_P\to0$ then $a\to0$.
+
+## 13. Literature, by channel
+The two channels have very different status; the split maps onto our results.
+
+### $\sigma_{PS}$ (parity-even, flavor-breaking $\bar\Psi\Psi$) -- the studied "chiral" channel
+THE QED3 order parameter: dynamical mass generation / flavor $U(2N_f)\to U(N_f)^2$ breaking.
+- Pisarski, Phys. Rev. D 29 (1984) 2423 -- chiral SB in QED3.
+- Appelquist, Nash, Wijewardhana, Phys. Rev. Lett. 60 (1988) 2575 -- critical $N_c\simeq32/\pi^2\approx3.24$
+  below which $\langle\bar\Psi\Psi\rangle$ condenses (conformal window above).
+- Lattice non-compact QED3 $N_f\ge2$ (Hands-Kogut-Strouthos et al.), hep-lat/0208030 -- condensate
+  $\lesssim5\times10^{-5}$ (two orders below quenched).
+- Karthik-Narayanan (overlap): arXiv:1512.02993 (PRD 93 045020), 1606.04109 (PRD 94 065026) -- NO bilinear
+  condensate at $N_f=2$ (conformal). => expect our mF plateau ABSENT.
+
+### $\sigma_{FS}$ (parity-odd, flavor-singlet) -- the parity channel, a NO-GO theorem
+Our "protected zero" $\langle\sigma_{FS}-\tfrac12 S_2\rangle=0$ (§11) IS the lattice realization of:
+- Vafa-Witten, Phys. Rev. Lett. 53 (1984) 535 -- in vector-like gauge theories (positive measure) PARITY is
+  NEVER spontaneously broken. (3D/QED3 applies; caveats hep-ph/0205346.) So the genuine parity-odd condensate
+  cannot turn on -- exactly our result.
+- The piece we DO see, $\tfrac12\langle S_2\rangle$, is the parity ANOMALY / induced Chern-Simons:
+  Redlich, PRL 52 (1984) 18 & PRD 29 (1984) 2366; Niemi-Semenoff, PRL 51 (1983) 2077. Explicit (regulator)
+  breaking, NOT spontaneous. (Matches the paper's Jacobian/CS discussion, `main.tex` parity-anomaly.)
+
+### Both together / closest framing
+- "Parity Symmetry in QED3", arXiv:1010.1244 -- Schwinger-Dyson for BOTH chiral and parity: finds "parity
+  maintained, chiral broken" = exactly our opposite-behavior split.
+- NOVEL to our paper (apparently): the TWO-SOFT-MASS basis-selection probe (real $m_F$ parity-symmetric +
+  imaginary $m_P$ flavor-symmetric) on the simplicial overlap, with the explicit GW Ward identity
+  $\langle\sigma_{FS}\rangle=\tfrac12\langle S_2\rangle$ tying the lattice anomaly to the CS term. The channel
+  PHYSICS is established (Vafa-Witten; the $N_c$/conformal-window question); the dual-probe FRAMING is ours.
