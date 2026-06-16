@@ -124,22 +124,40 @@ static void local_W_sigma(std::vector<Ent>& en, const WilsonDirac& DW, int a, in
   en.push_back({off+1, off+1, s(1,1)});
 }
 
-// Ylm-weighted TEMPORAL current Sigma_{l,m}(t) = sum_n A_n Y_lm(n^) sigma_3(n,t), as Ent entries:
-// the diagonal sigma_3 = diag(+1,-1) site block scaled by A_n Y_lm(n^).  Feeds the Eq.(4.35) tower
-// g_l(t) = (1/(2l+1)) sum_m tr[Sigma_{l,m}(t0) P Sigma_{l,m}(t) P].  Ylm_real (valence_claude.h) is the
-// real spherical harmonic (no Condon-Shortley), App. C convention; base.sites[n] is the unit VE.
-template<typename Base>
-static void build_Sigma_ylm(std::vector<Ent>& en, const Base& base, const std::vector<double>& w_site,
-                            int l, int m, int t){
+// Ylm-weighted LOCAL current Sigma^a_{l,m}(t) = sum_n A_n Y_lm(n^) sigma_a(n,t), as Ent entries:
+// the bare Pauli sigma_a (a=1,2,3) site block scaled by A_n Y_lm(n^).  Feeds the per-m Eq.(4.36) tower
+//   g^a_{l,m}(t) = tr[Sigma^a_{l,m}(t0) P Sigma^a_{l,m}(t) P]   (analysis forms (1/(2l+1)) sum_m).
+// Ylm_real (valence_claude.h) is the real spherical harmonic (no Condon-Shortley), App. C convention;
+// base.sites[n] is the unit VE.  a=3 (sigma_3=diag(+1,-1)) reproduces the old temporal-only build.
+template<typename Base, typename WilsonDirac>
+static void build_Sigma_ylm(std::vector<Ent>& en, const Base& base, const WilsonDirac& DW,
+                            const std::vector<double>& w_site, int a, int l, int m, int t){
   en.clear();
   const Idx Nx=Comp::Nx;
+  const MS s = DW.sigma[a];
   for(int n=0; n<(int)base.n_sites; n++){
     const double wy = w_site[n] * Ylm_real(l, m, base.sites[n]);
     const Idx off = Nx*t + NS*(Idx)n;
-    en.push_back({off,   off,   Complex(+wy, 0.0)});
-    en.push_back({off+1, off+1, Complex(-wy, 0.0)});
+    en.push_back({off,   off,   wy*s(0,0)});
+    en.push_back({off,   off+1, wy*s(0,1)});
+    en.push_back({off+1, off,   wy*s(1,0)});
+    en.push_back({off+1, off+1, wy*s(1,1)});
   }
 }
+
+// OLD (sigma_3 / temporal only; superseded by the Pauli-general build above):
+// template<typename Base>
+// static void build_Sigma_ylm(std::vector<Ent>& en, const Base& base, const std::vector<double>& w_site,
+//                             int l, int m, int t){
+//   en.clear();
+//   const Idx Nx=Comp::Nx;
+//   for(int n=0; n<(int)base.n_sites; n++){
+//     const double wy = w_site[n] * Ylm_real(l, m, base.sites[n]);
+//     const Idx off = Nx*t + NS*(Idx)n;
+//     en.push_back({off,   off,   Complex(+wy, 0.0)});
+//     en.push_back({off+1, off+1, Complex(-wy, 0.0)});
+//   }
+// }
 
 // Insertion-DIAGONAL current-current trace for ONE site insertion n:
 //   tr[ W(n,t0) P W(n,t) P ] = sum_{(i,j,v0) in E0} sum_{(k,l,vt) in Et} v0 P_{jk} vt P_{li}.
@@ -152,6 +170,19 @@ static Complex tr_WPWP(const std::vector<Ent>& E0, const std::vector<Ent>& Et,
   for(const auto& e0 : E0)
     for(const auto& et : Et)
       s += e0.v * P[(size_t)e0.j*N + et.i] * et.v * P[(size_t)et.j*N + e0.i];
+  return s;
+}
+
+// AXIAL variant: tr[ W(n,t0) P^dag W(n,t) P ] -- the t0-leg propagator is DAGGERED (forward D_m^{-1} on the
+// source leg; LOCAL axial of jj_corr_dilute_claude.cu, NO (1-D_ov) GW dressing).  (P^dag)[a,b]=conj(P[b,a]),
+// so the first factor P[e0.j,et.i] -> conj(P[et.i,e0.j]).  Estimates tr[Sigma_0 P^dag Sigma_t P].
+static Complex tr_WPdagWP(const std::vector<Ent>& E0, const std::vector<Ent>& Et,
+                          const std::vector<Complex>& P){
+  const Idx N=Comp::N;
+  Complex s(0,0);
+  for(const auto& e0 : E0)
+    for(const auto& et : Et)
+      s += e0.v * std::conj(P[(size_t)et.i*N + e0.j]) * et.v * P[(size_t)et.j*N + e0.i];
   return s;
 }
 
@@ -310,32 +341,59 @@ int main(int argc,char* argv[]){
                <<")  conn(dt=4)="<<Cpp[0][4].real()<<"  ["<<timer.currentSeconds()<<" s]\n";
     }
 
-    // ---- Ylm tower (Eq. 4.35): spherical-harmonic descendants of the temporal sigma_3 correlator.
-    // Diagonal-m Legendre coefficient (connected only):
-    //   g_l(t) = (1/(2l+1)) sum_{m=-l}^{l} tr[ Sigma_{l,m}(t0) P Sigma_{l,m}(t) P ]
-    // with Sigma_{l,m}(t) = sum_n A_n Y_lm(n^) sigma_3(n,t).  write_corr folds 1/(4pi) so g_l matches
-    // jj_cft_ylm_check_claude.cc / Eq.(4.35): rates (l=0->0, l=1->e^{-2t}, l=2->e^{-3t}),
-    // G22 e^{3t}/G11 e^{2t} -> 12/5 = 2.4.  Off-site pairs enter via tr_WPWP (Sigma touches all sites).
-    // The tower is intrinsically a sum over sites, so it is SKIPPED in single-insertion mode.
-    constexpr int L_MAX_YLM = 2;
-    for(int l=0; !single && l<=L_MAX_YLM; l++){
-      std::vector<std::vector<Complex>> Cyl(n_t0,std::vector<Complex>(Nt,Complex(0,0)));
-      std::vector<std::vector<Ent>> Sig0(n_t0);
-      std::vector<Ent> Sigt;
-      for(int m=-l; m<=l; m++){
-        for(int b=0;b<n_t0;b++) build_Sigma_ylm(Sig0[b], base, w_site, l, m, t0s[b]);
-        for(int t=0;t<Nt;t++){
-          build_Sigma_ylm(Sigt, base, w_site, l, m, t);
-          for(int b=0;b<n_t0;b++){ const int dt=((t-t0s[b])%Nt+Nt)%Nt; Cyl[b][dt] += tr_WPWP(Sig0[b], Sigt, P); }
+    // ---- Ylm tower (Eq. 4.36): per-m spherical-harmonic descendants, ALL 3 Pauli channels, l<=3.
+    // PER-m connected coefficient (NO 1/(2l+1), NO m-sum -- analysis does both):
+    //   g^a_{l,m}(t) = tr[ Sigma^a_{l,m}(t0) P Sigma^a_{l,m}(t) P ],  Sigma^a_{l,m}(t)=sum_n A_n Y_lm(n^) sigma_a(n,t).
+    // Analysis forms g^a_l = (1/(2l+1)) sum_m g^a_{l,m}; tp = s3 (G_t), sp = (s1+s2)/2 (G_s).  write_corr
+    // folds 1/(4pi) so g^t_l matches jj_cft_ylm_check_claude.cc / Eq.(4.35): rates (l=1->e^{-2t},
+    // l=2->e^{-3t}, l=3->e^{-4t}), G22 e^{3t}/G11 e^{2t} -> 12/5 = 2.4.  Per-m output also exposes the
+    // L=1 icosahedral anisotropy (Y_lm modes within an l are not degenerate).  SKIPPED in single mode.
+    constexpr int L_MAX_YLM = 3;
+    for(int a=1; a<=3 && !single; a++){
+      const std::string chan="s"+std::to_string(a);
+      for(int l=0; l<=L_MAX_YLM; l++){
+        for(int m=-l; m<=l; m++){
+          // Cyl = vector tr[Sigma_0 P Sigma_t P]; CylA = axial tr[Sigma_0 P^dag Sigma_t P] (one Sigma build).
+          std::vector<std::vector<Complex>> Cyl(n_t0,std::vector<Complex>(Nt,Complex(0,0)));
+          std::vector<std::vector<Complex>> CylA(n_t0,std::vector<Complex>(Nt,Complex(0,0)));
+          std::vector<std::vector<Ent>> Sig0(n_t0);
+          std::vector<Ent> Sigt;
+          for(int b=0;b<n_t0;b++) build_Sigma_ylm(Sig0[b], base, DW, w_site, a, l, m, t0s[b]);
+          for(int t=0;t<Nt;t++){
+            build_Sigma_ylm(Sigt, base, DW, w_site, a, l, m, t);
+            for(int b=0;b<n_t0;b++){ const int dt=((t-t0s[b])%Nt+Nt)%Nt;
+              Cyl [b][dt] += tr_WPWP   (Sig0[b], Sigt, P);
+              CylA[b][dt] += tr_WPdagWP(Sig0[b], Sigt, P); }
+          }
+          for(int b=0;b<n_t0;b++){
+            const std::string kp ="h0/t0_"+std::to_string(b)+"/ylm/"      +chan+"/l"+std::to_string(l)+"/m"+std::to_string(m)+"/";
+            const std::string kpA="h0/t0_"+std::to_string(b)+"/ylm_axial/"+chan+"/l"+std::to_string(l)+"/m"+std::to_string(m)+"/";
+            write_corr(h5,kp +"Vpp",Cyl [b],false);  if(!parity) write_corr(h5,kp +"Vmm",Cyl [b],true);
+            write_corr(h5,kpA+"Vpp",CylA[b],false);  if(!parity) write_corr(h5,kpA+"Vmm",CylA[b],true); }
         }
+        std::cout<<"#   ylm "<<chan<<" l="<<l<<": done ["<<timer.currentSeconds()<<" s]\n";
       }
-      const double inv2lp1 = 1.0/(2.0*l+1.0);
-      for(int b=0;b<n_t0;b++) for(int t=0;t<Nt;t++) Cyl[b][t] *= inv2lp1;
-      for(int b=0;b<n_t0;b++){ const std::string kp="h0/t0_"+std::to_string(b)+"/ylm/l"+std::to_string(l)+"/";
-        write_corr(h5,kp+"Vpp",Cyl[b],false);
-        if(!parity) write_corr(h5,kp+"Vmm",Cyl[b],true); }
-      std::cout<<"#   ylm l="<<l<<": conn(dt=4)="<<Cyl[0][4].real()<<"  ["<<timer.currentSeconds()<<" s]\n";
     }
+    // OLD (sigma_3/temporal only, m-summed with 1/(2l+1), l<=2; superseded by the per-m Pauli tower above):
+    // constexpr int L_MAX_YLM = 2;
+    // for(int l=0; !single && l<=L_MAX_YLM; l++){
+    //   std::vector<std::vector<Complex>> Cyl(n_t0,std::vector<Complex>(Nt,Complex(0,0)));
+    //   std::vector<std::vector<Ent>> Sig0(n_t0);
+    //   std::vector<Ent> Sigt;
+    //   for(int m=-l; m<=l; m++){
+    //     for(int b=0;b<n_t0;b++) build_Sigma_ylm(Sig0[b], base, w_site, l, m, t0s[b]);
+    //     for(int t=0;t<Nt;t++){
+    //       build_Sigma_ylm(Sigt, base, w_site, l, m, t);
+    //       for(int b=0;b<n_t0;b++){ const int dt=((t-t0s[b])%Nt+Nt)%Nt; Cyl[b][dt] += tr_WPWP(Sig0[b], Sigt, P); }
+    //     }
+    //   }
+    //   const double inv2lp1 = 1.0/(2.0*l+1.0);
+    //   for(int b=0;b<n_t0;b++) for(int t=0;t<Nt;t++) Cyl[b][t] *= inv2lp1;
+    //   for(int b=0;b<n_t0;b++){ const std::string kp="h0/t0_"+std::to_string(b)+"/ylm/l"+std::to_string(l)+"/";
+    //     write_corr(h5,kp+"Vpp",Cyl[b],false);
+    //     if(!parity) write_corr(h5,kp+"Vmm",Cyl[b],true); }
+    //   std::cout<<"#   ylm l="<<l<<": conn(dt=4)="<<Cyl[0][4].real()<<"  ["<<timer.currentSeconds()<<" s]\n";
+    // }
     h5.createDataSet("complete",std::vector<int>{1});
     h5p.reset(); std::filesystem::rename(h5tmp,h5path);
     std::cout<<"# wrote "<<h5path<<"\n";
