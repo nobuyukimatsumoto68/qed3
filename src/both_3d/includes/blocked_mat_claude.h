@@ -23,7 +23,9 @@
 //
 // Include AFTER gpu_header.h, sparse_matrix.h, multishift_block_kernels_claude.h, and the overlap
 // header (for the Op type). Op must expose: CSR<N> M_DW, M_DWH; double lambda_max, k, C; int size;
-// std::vector<double> cp, A; Complex mass.
+// std::vector<double> cp, A; Complex mass; and (for the measure-weighted diagonal mass m_L)
+// COO<N> M_mass (= diag(A_y/Abar), CSR after do_it()) + Complex mass_coeff (= m*mean_dual_area/mean_ell):
+// the block applies use m_L = mass_coeff*M_mass, broadcast over NSTACK via mult_coo_block(M_mass).
 
 // BlockMemPool<Idx N, int NSTACK> -- OWNS the device block scratch so multiple BlockedMat clients can
 // SHARE one preallocated pool (pass it by reference at the BlockedMat ctor; its lifetime must outlive
@@ -46,6 +48,7 @@ struct BlockMemPool {
   CuC *d_p0,*d_q,*d_r,*d_seedtmp;            // N*NSTACK : inner-solve seed/outer vectors
   CuC *d_pm,*d_Zblk,*d_Yblk;                 // N*NSTACK*npole : per-(rhs,pole) blocks (only if pole-blocks)
   CuC *d_mp,*d_mm;                           // N*NSTACK : DDH temporaries
+  CuC *d_mt=nullptr,*d_mw=nullptr;           // N*NSTACK : diagonal-mass m_L temporaries (M_mass v ; reusable); pole-block only
   CuC *d_ocg_p,*d_ocg_q,*d_ocg_r;            // N*NSTACK : outer/shift block-CG p/q/r
   CuC *d_blk_in,*d_blk_out;                  // N*NSTACK : host-block solve I/O staging
   CuC *d_alc;                                // NSTACK : per-column complex al
@@ -72,6 +75,7 @@ struct BlockMemPool {
     if(with_pole_blocks){
       CUDA_CHECK(cudaMalloc(&d_pm, Nsp*CD));   CUDA_CHECK(cudaMalloc(&d_Zblk, Nsp*CD));
       CUDA_CHECK(cudaMalloc(&d_Yblk, Nsp*CD));
+      CUDA_CHECK(cudaMalloc(&d_mt, Ns*CD));    CUDA_CHECK(cudaMalloc(&d_mw, Ns*CD));   // _claude: m_L DDH temporaries
     }
   }
   ~BlockMemPool(){
@@ -81,7 +85,8 @@ struct BlockMemPool {
     CUDA_CHECK(cudaFree(d_blk_in)); CUDA_CHECK(cudaFree(d_blk_out));
     CUDA_CHECK(cudaFree(d_alc)); CUDA_CHECK(cudaFree(d_alm)); CUDA_CHECK(cudaFree(d_zeta));
     CUDA_CHECK(cudaFree(d_betm)); CUDA_CHECK(cudaFree(d_sc)); CUDA_CHECK(cudaFree(d_sc2));
-    if(has_pole_blocks){ CUDA_CHECK(cudaFree(d_pm)); CUDA_CHECK(cudaFree(d_Zblk)); CUDA_CHECK(cudaFree(d_Yblk)); }
+    if(has_pole_blocks){ CUDA_CHECK(cudaFree(d_pm)); CUDA_CHECK(cudaFree(d_Zblk)); CUDA_CHECK(cudaFree(d_Yblk));
+      CUDA_CHECK(cudaFree(d_mt)); CUDA_CHECK(cudaFree(d_mw)); }   // _claude
   }
   BlockMemPool(const BlockMemPool&)=delete;
   BlockMemPool& operator=(const BlockMemPool&)=delete;
@@ -115,6 +120,7 @@ struct BlockedMat {
   CuC *d_p0,*d_q,*d_r,*d_seedtmp;
   CuC *d_pm,*d_Zblk,*d_Yblk;
   CuC *d_mp,*d_mm;
+  CuC *d_mt,*d_mw;                           // _claude: m_L DDH temporaries
   CuC *d_ocg_p,*d_ocg_q,*d_ocg_r;
   CuC *d_blk_in,*d_blk_out;
   CuC *d_alc;
@@ -125,6 +131,7 @@ struct BlockedMat {
     d_p0=p.d_p0; d_q=p.d_q; d_r=p.d_r; d_seedtmp=p.d_seedtmp;
     d_pm=p.d_pm; d_Zblk=p.d_Zblk; d_Yblk=p.d_Yblk;
     d_mp=p.d_mp; d_mm=p.d_mm;
+    d_mt=p.d_mt; d_mw=p.d_mw;   // _claude
     d_ocg_p=p.d_ocg_p; d_ocg_q=p.d_ocg_q; d_ocg_r=p.d_ocg_r;
     d_blk_in=p.d_blk_in; d_blk_out=p.d_blk_out; d_alc=p.d_alc;
     d_alm=p.d_alm; d_zeta=p.d_zeta; d_betm=p.d_betm; d_sc=p.d_sc; d_sc2=p.d_sc2;
@@ -339,7 +346,10 @@ struct BlockedMat {
     CUDA_CHECK(cudaMemset(d_res, 0, Ns*CD));
     axpy_uniform<N><<<g,NThreadsPerBlock>>>(d_res, cplx(1.0/D.lambda_max), d_seedtmp, d_res, NSTACK);
     axpy_uniform<N><<<g,NThreadsPerBlock>>>(d_res, cplx(D.C),    d_res, d_xi, NSTACK);       // D_ov = C*. + xi
-    axpy_uniform<N><<<g,NThreadsPerBlock>>>(d_res, cplx(D.mass), d_xi,  d_res, NSTACK);      // + m xi
+    // _claude: + m_L v (diagonal measure-weighted mass, mass_measure_factor_impl_plan_claude.md), was scalar + m v:
+    // axpy_uniform<N><<<g,NThreadsPerBlock>>>(d_res, cplx(D.mass), d_xi,  d_res, NSTACK);      // + m xi
+    mult_coo_block<CuC,N><<<g,NThreadsPerBlock>>>(d_seedtmp, d_xi, D.M_mass.d_val, D.M_mass.d_cols, D.M_mass.d_rows, NSTACK); // M_mass v
+    axpy_uniform<N><<<g,NThreadsPerBlock>>>(d_res, cplx(D.mass_coeff), d_seedtmp, d_res, NSTACK);  // + m_L v = mass_coeff (M_mass v)
     CUDA_CHECK(cudaDeviceSynchronize());
   }
   void adj(CuC* d_res, const CuC* d_xi) const {
@@ -352,19 +362,38 @@ struct BlockedMat {
     load_residues();
     block_reduce_poles<N,NSTACK><<<g,NThreadsPerBlock>>>(d_res, d_res, d_alm, d_Yblk, npole);  // d_res = Ys0 + sum A[m] Y_m
     axpy_uniform<N><<<g,NThreadsPerBlock>>>(d_res, cplx(D.C),                 d_res, d_xi, NSTACK);   // D^dag_ov
-    axpy_uniform<N><<<g,NThreadsPerBlock>>>(d_res, cplx(std::conj(D.mass)),   d_xi,  d_res, NSTACK);  // + m^* xi
+    // _claude: + m_L^dag v (complex diagonal; M_mass real => m_L^dag = conj(mass_coeff) M_mass), was scalar + m^* v:
+    // axpy_uniform<N><<<g,NThreadsPerBlock>>>(d_res, cplx(std::conj(D.mass)),   d_xi,  d_res, NSTACK);  // + m^* xi
+    mult_coo_block<CuC,N><<<g,NThreadsPerBlock>>>(d_seedtmp, d_xi, D.M_mass.d_val, D.M_mass.d_cols, D.M_mass.d_rows, NSTACK); // M_mass v
+    axpy_uniform<N><<<g,NThreadsPerBlock>>>(d_res, cplx(std::conj(D.mass_coeff)), d_seedtmp, d_res, NSTACK);  // + m_L^dag v
     CUDA_CHECK(cudaDeviceSynchronize());
   }
   void DDH(CuC* d_res, const CuC* d_xi) const {
     PoolGuard<N,NSTACK> gd(*mempool, this);
     const size_t Ns=(size_t)N*NSTACK; const int g=ng(Ns);
-    this->mult(d_mp, d_xi); CUDA_CHECK(cudaDeviceSynchronize());
-    this->adj (d_mm, d_xi); CUDA_CHECK(cudaDeviceSynchronize());
-    CUDA_CHECK(cudaMemcpy(d_res, d_mp, Ns*CD, D2D));
-    axpy_uniform<N><<<g,NThreadsPerBlock>>>(d_res, cplx(std::conj(D.mass)),   d_mp, d_res, NSTACK);
-    axpy_uniform<N><<<g,NThreadsPerBlock>>>(d_res, cplx(Complex(1.0)+D.mass), d_mm, d_res, NSTACK);
-    const double scalar = 2.0*D.mass.real() + std::norm(D.mass);
-    axpy_uniform<N><<<g,NThreadsPerBlock>>>(d_res, cplx(-scalar),             d_xi, d_res, NSTACK);
+    // _claude: diagonal m_L (M = mass_coeff*M_mass, M_mass real diag). Mirrors OverlapWMass::DHD:
+    //   D_m^dag D_m v = (1+M^*)(D+M)v + (D+M)^dag (1+M)v - (M + M^* + |M|^2) v   (GW: D^dag D = D+D^dag).
+    // STRUCTURAL: the (1+M) must be fed INTO adj (NOT applied as a scalar after), since [D^dag,M] != 0
+    // for diagonal M. d_mt = M_mass v (bare); M v = mass_coeff d_mt, M^* v = conj(mass_coeff) d_mt.
+    // OLD scalar identity (valid only for scalar m) preserved below:
+    // this->mult(d_mp, d_xi); this->adj(d_mm, d_xi);
+    // CUDA_CHECK(cudaMemcpy(d_res, d_mp, Ns*CD, D2D));
+    // axpy_uniform<N>(d_res, cplx(std::conj(D.mass)),   d_mp, d_res, NSTACK);
+    // axpy_uniform<N>(d_res, cplx(Complex(1.0)+D.mass), d_mm, d_res, NSTACK);
+    // const double scalar = 2.0*D.mass.real() + std::norm(D.mass);
+    // axpy_uniform<N>(d_res, cplx(-scalar),             d_xi, d_res, NSTACK);
+    this->mult(d_mp, d_xi); CUDA_CHECK(cudaDeviceSynchronize());                  // d_mp = (D+M) v
+    mult_coo_block<CuC,N><<<g,NThreadsPerBlock>>>(d_mt, d_xi, D.M_mass.d_val, D.M_mass.d_cols, D.M_mass.d_rows, NSTACK); // d_mt = M_mass v
+    axpy_uniform<N><<<g,NThreadsPerBlock>>>(d_mw, cplx(D.mass_coeff), d_mt, d_xi, NSTACK);   // d_mw = (1+M) v
+    this->adj(d_mm, d_mw); CUDA_CHECK(cudaDeviceSynchronize());                   // d_mm = (D+M)^dag (1+M) v
+    mult_coo_block<CuC,N><<<g,NThreadsPerBlock>>>(d_mw, d_mp, D.M_mass.d_val, D.M_mass.d_cols, D.M_mass.d_rows, NSTACK); // M_mass (D+M)v
+    CUDA_CHECK(cudaMemcpy(d_res, d_mp, Ns*CD, D2D));                              // d_res = (D+M)v
+    axpy_uniform<N><<<g,NThreadsPerBlock>>>(d_res, cplx(std::conj(D.mass_coeff)), d_mw, d_res, NSTACK);  // + M^* (D+M)v -> (1+M^*)(D+M)v
+    axpy_uniform<N><<<g,NThreadsPerBlock>>>(d_res, cplx(1.0),                     d_mm, d_res, NSTACK);   // + (D+M)^dag(1+M)v
+    axpy_uniform<N><<<g,NThreadsPerBlock>>>(d_res, cplx(-D.mass_coeff),           d_mt, d_res, NSTACK);   // - M v
+    axpy_uniform<N><<<g,NThreadsPerBlock>>>(d_res, cplx(-std::conj(D.mass_coeff)),d_mt, d_res, NSTACK);   // - M^* v
+    mult_coo_block<CuC,N><<<g,NThreadsPerBlock>>>(d_mw, d_mt, D.M_mass.d_val, D.M_mass.d_cols, D.M_mass.d_rows, NSTACK); // M_mass^2 v
+    axpy_uniform<N><<<g,NThreadsPerBlock>>>(d_res, cplx(-std::norm(D.mass_coeff)),d_mw, d_res, NSTACK);   // - |M|^2 v
     CUDA_CHECK(cudaDeviceSynchronize());
   }
 

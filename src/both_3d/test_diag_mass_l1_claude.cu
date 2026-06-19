@@ -64,8 +64,10 @@ namespace Comp{
   const double TOL_OUTER=1.0e-8;
 }
 
-const std::string dir = "/project/affine/nmatsum/qed3/geometry/data/";
-#include "/project/affine/nmatsum/qed3/geometry/geodesic.h"
+// const std::string dir = "/project/affine/nmatsum/qed3/geometry/data/";   // remote (fnal) path
+// #include "/project/affine/nmatsum/qed3/geometry/geodesic.h"
+const std::string dir = "../../geometry/data/";                              // local path
+#include "../../geometry/geodesic.h"
 
 #include "timer.h"
 #include "s2n_simp.h"
@@ -92,6 +94,7 @@ using CuC = cuDoubleComplex;
 //  command line to exercise the block grad_l4 once it too is folded.)
 #include "includes/overlap_wmass_obsolete_claude.h"   // obsolete::OverlapWMass (scalar mass)
 #include "includes/overlap_wmass_claude.h"            // OverlapWMass (diagonal m_L)
+#include "includes/blocked_mat_claude.h"              // BlockedMat: diagonal m_L block-apply consistency regression
 #include "pseudofermion_claude.h"                     // PseudoFermion: gen/update_eta/S/get_force (force-vs-FD check)
 
 // relative L2 difference ||a-b|| / max(||b||, tiny)
@@ -114,7 +117,16 @@ int main(int argc, char* argv[]){
   Base base(Comp::N_REFINE);
   const double M5 = -1.0, at = 0.2, nu0 = 1.0;
   WilsonDirac DW(base, 0.0, 1.0, M5, at, nu0);
-  Gauge U(base);                      // cold/identity gauge (mass reduction is gauge-independent)
+
+  // _claude: NONTRIVIAL gauge via the gaussian routine (gauge_ext.h:253). The L=1 operator
+  // equivalence is gauge-independent (still passes), but the force-vs-FD and obsolete-vs-production
+  // FORCE checks are only meaningful on a non-cold config (a cold gauge can hide force bugs by
+  // special cancellation). Fixed seed -> reproducible. Width kept modest so the overlap stays
+  // well-conditioned (lambda_min/lambda_max not tiny).
+  using Rng = ParallelRngExt<Base, Comp::Nt>;
+  Rng rng(base);
+  Gauge U(base);
+  U.gaussian(rng, 0.3);
   const int npole = 17;
 
   std::cout << "# L=" << Comp::N_REFINE << " check: N_SITES=" << Comp::N_SITES << " Nt=" << Comp::Nt << " N=" << N
@@ -184,6 +196,33 @@ int main(int argc, char* argv[]){
     all_ok = all_ok && ok;
   }
   else std::cout << "\n# L>1: operator obsolete-vs-production skipped (no scalar reference; see force-vs-FD)." << std::endl;
+
+  // ===== BlockedMat (NSTACK=1) vs MatPoly _ms : diagonal m_L consistency (ALL L) =====
+  // Regression for the blocked_mat_claude.h scalar-mass bug (mass_measure_audit_handoff_claude.md):
+  // at NSTACK=1 BlockedMat reproduces the single MatPoly op bit-for-bit, so once BlockedMat also
+  // applies m_L, blk.{mult,adj,DDH} must match Dnew.{mult,adj,DHD}_ms to ~1e-13. Pre-fix this FAILS
+  // (scalar mass vs diagonal m_L), even at L=1 (the ~0.4% Abar/abar_s factor).
+  {
+    std::cout << "\n# ===== BlockedMat(NSTACK=1) vs MatPoly _ms (diagonal m_L block consistency) =====" << std::endl;
+    for(const Complex m : masses){
+      OverlapWMass<WilsonDirac> Dnew(DW, m, npole);  Dnew.update(U);
+      BlockedMat<N, 1, OverlapWMass<WilsonDirac>> blk(Dnew);
+      auto b_mult = applyDev([&](CuC* o,const CuC* i){ blk.mult(o,i); });
+      auto m_mult = applyDev([&](CuC* o,const CuC* i){ Dnew.mult_deviceAsyncLaunch_ms(o,i); });
+      auto b_adj  = applyDev([&](CuC* o,const CuC* i){ blk.adj (o,i); });
+      auto m_adj  = applyDev([&](CuC* o,const CuC* i){ Dnew.adj_deviceAsyncLaunch_ms (o,i); });
+      auto b_ddh  = applyDev([&](CuC* o,const CuC* i){ blk.DDH (o,i); });
+      auto m_ddh  = applyDev([&](CuC* o,const CuC* i){ Dnew.DHD_deviceAsyncLaunch_ms (o,i); });
+      const double r_mult = reldiff(b_mult, m_mult);
+      const double r_adj  = reldiff(b_adj,  m_adj);
+      const double r_ddh  = reldiff(b_ddh,  m_ddh);
+      const double tol = 1.0e-10;
+      const bool ok = (r_mult<tol && r_adj<tol && r_ddh<tol);
+      std::cout << "#   m = " << m << " : mult = " << r_mult << "  adj = " << r_adj << "  DDH = " << r_ddh
+                << "  -> " << (ok ? "PASS" : "FAIL") << std::endl;
+      all_ok = all_ok && ok;
+    }
+  }
 
   // ===== HMC force checks (mimics hmc_fermilab_claude.cu:357-487) =====
   // (1) PRIMARY, machine precision: at L=1 m_L is uniform = c, so the diagonal-mass grad must
@@ -259,8 +298,10 @@ int main(int argc, char* argv[]){
 }
 // ---------------------------------------------------------------------------
 // Both gradient routines: the force checks call get_force -> grad_deviceAsyncLaunch,
-// which dispatches by #ifdef. Build TWICE to validate both:
-//   nvcc ... test_diag_mass_l1_claude.cu                 # default reference grad (converted)
-//   nvcc ... -DGRAD_L4 test_diag_mass_l1_claude.cu       # block grad_l4 (active; convert it first)
-// (grad_l1/l2/l4 are still scalar -- the -DGRAD_L4 build will FAIL until they are folded.)
+// which dispatches by #ifdef. All grad variants (default, l1, l2, l4) are folded to the
+// diagonal measure-weighted mass m_L -- each carries (1+m_L^*) into the force dot product
+// via M_mass and std::conj(mass_coeff). Build TWICE to exercise both dispatch paths; both
+// builds are expected to PASS:
+//   nvcc ... test_diag_mass_l1_claude.cu                 # default reference grad (folded)
+//   nvcc ... -DGRAD_L4 test_diag_mass_l1_claude.cu       # block grad_l4 (folded)
 // ---------------------------------------------------------------------------

@@ -169,6 +169,9 @@ struct OverlapWMass : public Zolotarev {
   // + device per-pole dot results. Filled in precalc_grad from the L1 buffers; consumed by grad_..._l2.
   CuC *d_Zg=nullptr, *d_Yg=nullptr, *d_XZg=nullptr, *d_XYg=nullptr, *d_CY=nullptr, *d_CZ=nullptr;
   CuC *d_dotA=nullptr, *d_dotB=nullptr;
+  // _claude (diagonal-mass force fold for grad_l2/l4): M_mass-weighted blocks + their per-pole dots.
+  // d_MA = M_mass (X Z_m) block, d_MB = M_mass (coo Z_m) block; d_dotAM/d_dotBM = the second block_dot.
+  CuC *d_MA=nullptr, *d_MB=nullptr, *d_dotAM=nullptr, *d_dotBM=nullptr;
   // L4 (skip coo.do_it()): device buffers for the raw single-link COO entries (row/col/val); the
   // per-link grad COO is tiny (few entries) so MAXENT is a generous bound.
   static constexpr int MAXENT = 256;
@@ -227,6 +230,9 @@ struct OverlapWMass : public Zolotarev {
     CUDA_CHECK(cudaMalloc(&d_CY, Ng));  CUDA_CHECK(cudaMalloc(&d_CZ, Ng));
     CUDA_CHECK(cudaMalloc(&d_dotA, (size_t)(size-1)*CD));
     CUDA_CHECK(cudaMalloc(&d_dotB, (size_t)(size-1)*CD));
+    CUDA_CHECK(cudaMalloc(&d_MA, Ng));  CUDA_CHECK(cudaMalloc(&d_MB, Ng));   // _claude: M_mass-weighted blocks
+    CUDA_CHECK(cudaMalloc(&d_dotAM, (size_t)(size-1)*CD));
+    CUDA_CHECK(cudaMalloc(&d_dotBM, (size_t)(size-1)*CD));
     CUDA_CHECK(cudaMalloc(&d_ent_i, MAXENT*sizeof(Idx)));   // L4
     CUDA_CHECK(cudaMalloc(&d_ent_j, MAXENT*sizeof(Idx)));
     CUDA_CHECK(cudaMalloc(&d_ent_v, MAXENT*CD));
@@ -254,6 +260,8 @@ struct OverlapWMass : public Zolotarev {
     CUDA_CHECK(cudaFree(d_Zg)); CUDA_CHECK(cudaFree(d_Yg)); CUDA_CHECK(cudaFree(d_XZg));   // L2
     CUDA_CHECK(cudaFree(d_XYg)); CUDA_CHECK(cudaFree(d_CY)); CUDA_CHECK(cudaFree(d_CZ));
     CUDA_CHECK(cudaFree(d_dotA)); CUDA_CHECK(cudaFree(d_dotB));
+    CUDA_CHECK(cudaFree(d_MA)); CUDA_CHECK(cudaFree(d_MB));   // _claude
+    CUDA_CHECK(cudaFree(d_dotAM)); CUDA_CHECK(cudaFree(d_dotBM));
     CUDA_CHECK(cudaFree(d_ent_i)); CUDA_CHECK(cudaFree(d_ent_j)); CUDA_CHECK(cudaFree(d_ent_v));   // L4
     if(d_mtmp) CUDA_CHECK(cudaFree(d_mtmp));   // _claude
     for(int istream=0; istream<nstreams; istream++) {
@@ -448,14 +456,12 @@ struct OverlapWMass : public Zolotarev {
 
 
   // _claude: mult/adj/DHD AND their _ms variants are now converted to the diagonal m_L.
-  // REMAINING TODO (HMC force): the grad/force routines below (precalc_grad / grad_*,
-  // ~lines 720-910) still use the SCALAR coefficient (1+m^*) =
-  // cplx(Complex(1.0)+std::conj(mass)) inside their inner products. For a diagonal M this
-  // becomes the diagonal (1+M^*) and must be folded INTO the dot product, not factored out:
-  //   real((1+m^*) <a|b>)  ->  real(<a|b> + <a| m_L b>)  (weight a vector by m_L per site).
-  // This is a genuine rewrite (decision 6 corrected: no NEW force term since dm_L/dU=0, but
-  // the mass already woven into the force becomes diagonal). Do before any HMC run.
-  // Pure inversions (valence / measurement) only call mult/adj/DHD -> already covered.
+  // HMC force ALSO converted (2026-06-19): the default grad and the block variants
+  // grad_*_l1/_l2/_l4 fold the diagonal (1+M^*) INTO the dot product (no factored-out scalar):
+  //   real((1+m^*) <a|b>)  ->  real(<a|b> + conj(mass_coeff) <a| M_mass b>)  (per-site m_L weight).
+  // No NEW force term (dm_L/dU = 0, decision 6); the mass already woven into the force is now
+  // diagonal. grad_l2/l4 reuse mult_coo_block(M_mass) (M_mass diagonal => per-site broadcast) +
+  // a second block_dot (d_dotAM/d_dotBM). Pure inversions (valence/measurement) call mult/adj/DHD.
   // ----- multi-shift variants (C3) ----------------------------------------------
   // Numerically equivalent to mult_/adj_deviceAsyncLaunch but the per-pole solveAsync
   // loop is replaced by a single multi-shift CG pass (MatPoly::solve_multishift): the
@@ -797,16 +803,27 @@ struct OverlapWMass : public Zolotarev {
       const int istream = omp_get_thread_num(); // m%nstreams;
       MatPoly X(handle[istream], stream[istream], istream);   // for dotAsync (handle/stream only; no apply)
 
+      // _claude: stream-aware M_mass apply for the diagonal-mass force fold (same as default grad):
+      //   real((1+M^*)<a|b>) = real(<a|b> + conj(mass_coeff)<a|M_mass b>).
+      MatPoly Mp(handle[istream], stream[istream], istream);
+      Mp.push_back( cplx(1.0), {&M_mass} );
+
       coo.Async( d_XYs[m], d_Ys[m], stream[istream] );         // coo Y_m  (link-dep)
-      CuC inner;
+      CuC inner, innerM;
       X.dotAsync<N>( &inner, d_XYs[m], d_XZpre[m] );           // <coo Y_m, X Z_m>  (X Z_m precomputed)
+      Mp.on_gpuAsync<N>( d_Ms[m], d_XZpre[m] );                // d_Ms[m] = M_mass (X Z_m)
+      X.dotAsync<N>( &innerM, d_XYs[m], d_Ms[m] );             // <coo Y_m, M_mass X Z_m>
       CUDA_CHECK(cudaStreamSynchronize(stream[istream]));
-      tmp2reduce[m] -= real(cplx(Complex(1.0)+std::conj(mass)) * inner);
+      { const Complex i0(cuCreal(inner),cuCimag(inner)), iM(cuCreal(innerM),cuCimag(innerM));
+        tmp2reduce[m] -= ( i0 + std::conj(mass_coeff)*iM ).real(); }
 
       coo.Async( d_XZs[m], d_Zs[m], stream[istream] );         // coo Z_m  (link-dep)
       X.dotAsync<N>( &inner, d_XYpre[m], d_XZs[m] );           // <X Y_m, coo Z_m>  (X Y_m precomputed)
+      Mp.on_gpuAsync<N>( d_Ms[m], d_XZs[m] );                  // d_Ms[m] = M_mass (coo Z_m)
+      X.dotAsync<N>( &innerM, d_XYpre[m], d_Ms[m] );           // <X Y_m, M_mass coo Z_m>
       CUDA_CHECK(cudaStreamSynchronize(stream[istream]));
-      tmp2reduce[m] -= real(cplx(Complex(1.0)+std::conj(mass)) * inner);
+      { const Complex i0(cuCreal(inner),cuCimag(inner)), iM(cuCreal(innerM),cuCimag(innerM));
+        tmp2reduce[m] -= ( i0 + std::conj(mass_coeff)*iM ).real(); }
 
       tmp2reduce[m] *= A[m];
       CUDA_CHECK(cudaStreamSynchronize(stream[istream]));
@@ -819,12 +836,13 @@ struct OverlapWMass : public Zolotarev {
     CUDA_CHECK(cudaMemcpy(d_Zs[0], d_eta, N*CD, D2D));
     for(int m=1; m<size; m++) Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_Zs[0], A[m], d_Zs[m], d_Zs[0]);
     coo( d_Ys[0], d_Zs[0] );
-    CuC inner;
-    {
-      MatPoly XH;
-      XH.dot<N>( &inner, d_eta, d_Ys[0] );
-    }
-    res += real(cplx(Complex(1.0)+std::conj(mass)) * inner);
+    CuC inner, innerM;
+    { MatPoly XH; XH.dot<N>( &inner, d_eta, d_Ys[0] ); }
+    // _claude: fold (1+M^*) into the m=0 term
+    { MatPoly Mp; Mp.push_back(cplx(1.0), {&M_mass}); Mp.on_gpu<N>(d_Ms[0], d_Ys[0]); }
+    { MatPoly XH; XH.dot<N>( &innerM, d_eta, d_Ms[0] ); }
+    { const Complex i0(cuCreal(inner),cuCimag(inner)), iM(cuCreal(innerM),cuCimag(innerM));
+      res += ( i0 + std::conj(mass_coeff)*iM ).real(); }
     res *= -2.0*C/lambda_max;
     return res;
   }
@@ -850,28 +868,42 @@ struct OverlapWMass : public Zolotarev {
     // a_m = <coo Y_m, X Z_m> = conj(CY_m) . XZg_m ;  b_m = <X Y_m, coo Z_m> = conj(XYg_m) . CZ_m
     block_dot<N><<<npole,NThreadsPerBlock>>>(d_dotA, d_CY, d_XZg, npole);
     block_dot<N><<<npole,NThreadsPerBlock>>>(d_dotB, d_XYg, d_CZ, npole);
+    // _claude: diagonal-mass fold. M_mass is a diagonal COO, so mult_coo_block(M_mass) is the
+    // per-site weight broadcast across all npole columns. a_m^M = <coo Y_m, M_mass X Z_m>,
+    // b_m^M = <X Y_m, M_mass coo Z_m>; host folds real(a_m + conj(mass_coeff) a_m^M) = real((1+m_L^*)<.|.>).
+    mult_coo_block<CuC,N><<<gblk,NThreadsPerBlock>>>(d_MA, d_XZg, M_mass.d_val, M_mass.d_cols, M_mass.d_rows, npole);
+    mult_coo_block<CuC,N><<<gblk,NThreadsPerBlock>>>(d_MB, d_CZ,  M_mass.d_val, M_mass.d_cols, M_mass.d_rows, npole);
+    block_dot<N><<<npole,NThreadsPerBlock>>>(d_dotAM, d_CY,  d_MA, npole);
+    block_dot<N><<<npole,NThreadsPerBlock>>>(d_dotBM, d_XYg, d_MB, npole);
     CUDA_CHECK(cudaDeviceSynchronize());
 
-    std::vector<CuC> hA(npole), hB(npole);
-    CUDA_CHECK(cudaMemcpy(hA.data(), d_dotA, (size_t)npole*CD, D2H));
-    CUDA_CHECK(cudaMemcpy(hB.data(), d_dotB, (size_t)npole*CD, D2H));
+    std::vector<CuC> hA(npole), hB(npole), hAM(npole), hBM(npole);
+    CUDA_CHECK(cudaMemcpy(hA.data(),  d_dotA,  (size_t)npole*CD, D2H));
+    CUDA_CHECK(cudaMemcpy(hB.data(),  d_dotB,  (size_t)npole*CD, D2H));
+    CUDA_CHECK(cudaMemcpy(hAM.data(), d_dotAM, (size_t)npole*CD, D2H));
+    CUDA_CHECK(cudaMemcpy(hBM.data(), d_dotBM, (size_t)npole*CD, D2H));
 
     double res = 0.0;
     for(int m=1; m<size; m++){
-      const Complex am(cuCreal(hA[m-1]), cuCimag(hA[m-1]));
-      const Complex bm(cuCreal(hB[m-1]), cuCimag(hB[m-1]));
-      double t = - real(cplx(Complex(1.0)+std::conj(mass)) * cplx(am))
-                 - real(cplx(Complex(1.0)+std::conj(mass)) * cplx(bm));   // -Re((1+m*)(a_m+b_m))
+      const Complex am(cuCreal(hA[m-1]),  cuCimag(hA[m-1]));
+      const Complex bm(cuCreal(hB[m-1]),  cuCimag(hB[m-1]));
+      const Complex amM(cuCreal(hAM[m-1]),cuCimag(hAM[m-1]));
+      const Complex bmM(cuCreal(hBM[m-1]),cuCimag(hBM[m-1]));
+      double t = - ( am + std::conj(mass_coeff)*amM ).real()
+                 - ( bm + std::conj(mass_coeff)*bmM ).real();   // -Re((1+m_L*)(a_m+b_m))
       res += A[m]*t;
     }
 
-    // post-loop (m=0 term): identical to grad / grad_l1
+    // post-loop (m=0 term): identical to grad / grad_l1 (with the (1+M^*) fold)
     CUDA_CHECK(cudaMemcpy(d_Zs[0], d_eta, N*CD, D2D));
     for(int m=1; m<size; m++) Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_Zs[0], A[m], d_Zs[m], d_Zs[0]);
     coo( d_Ys[0], d_Zs[0] );
-    CuC inner;
+    CuC inner, innerM;
     { MatPoly XH; XH.dot<N>( &inner, d_eta, d_Ys[0] ); }
-    res += real(cplx(Complex(1.0)+std::conj(mass)) * inner);
+    { MatPoly Mp; Mp.push_back(cplx(1.0), {&M_mass}); Mp.on_gpu<N>(d_Ms[0], d_Ys[0]); }
+    { MatPoly XH; XH.dot<N>( &innerM, d_eta, d_Ms[0] ); }
+    { const Complex i0(cuCreal(inner),cuCimag(inner)), iM(cuCreal(innerM),cuCimag(innerM));
+      res += ( i0 + std::conj(mass_coeff)*iM ).real(); }
     res *= -2.0*C/lambda_max;
     return res;
   }
@@ -902,18 +934,28 @@ struct OverlapWMass : public Zolotarev {
     link_matvec_block<N><<<gblk,NThreadsPerBlock>>>(d_CZ, d_Zg, d_ent_i, d_ent_j, d_ent_v, nent, npole);
     block_dot<N><<<npole,NThreadsPerBlock>>>(d_dotA, d_CY, d_XZg, npole);
     block_dot<N><<<npole,NThreadsPerBlock>>>(d_dotB, d_XYg, d_CZ, npole);
+    // _claude: diagonal-mass fold (same as grad_l2): M_mass-weight the X Z_m / coo Z_m blocks, second block_dot.
+    const int gblkM = (int)(( (size_t)N*npole + NThreadsPerBlock - 1 )/NThreadsPerBlock);
+    mult_coo_block<CuC,N><<<gblkM,NThreadsPerBlock>>>(d_MA, d_XZg, M_mass.d_val, M_mass.d_cols, M_mass.d_rows, npole);
+    mult_coo_block<CuC,N><<<gblkM,NThreadsPerBlock>>>(d_MB, d_CZ,  M_mass.d_val, M_mass.d_cols, M_mass.d_rows, npole);
+    block_dot<N><<<npole,NThreadsPerBlock>>>(d_dotAM, d_CY,  d_MA, npole);
+    block_dot<N><<<npole,NThreadsPerBlock>>>(d_dotBM, d_XYg, d_MB, npole);
     CUDA_CHECK(cudaDeviceSynchronize());
 
-    std::vector<CuC> hA(npole), hB(npole);
-    CUDA_CHECK(cudaMemcpy(hA.data(), d_dotA, (size_t)npole*CD, D2H));
-    CUDA_CHECK(cudaMemcpy(hB.data(), d_dotB, (size_t)npole*CD, D2H));
+    std::vector<CuC> hA(npole), hB(npole), hAM(npole), hBM(npole);
+    CUDA_CHECK(cudaMemcpy(hA.data(),  d_dotA,  (size_t)npole*CD, D2H));
+    CUDA_CHECK(cudaMemcpy(hB.data(),  d_dotB,  (size_t)npole*CD, D2H));
+    CUDA_CHECK(cudaMemcpy(hAM.data(), d_dotAM, (size_t)npole*CD, D2H));
+    CUDA_CHECK(cudaMemcpy(hBM.data(), d_dotBM, (size_t)npole*CD, D2H));
 
     double res = 0.0;
     for(int m=1; m<size; m++){
-      const Complex am(cuCreal(hA[m-1]), cuCimag(hA[m-1]));
-      const Complex bm(cuCreal(hB[m-1]), cuCimag(hB[m-1]));
-      double t = - real(cplx(Complex(1.0)+std::conj(mass)) * cplx(am))
-                 - real(cplx(Complex(1.0)+std::conj(mass)) * cplx(bm));
+      const Complex am(cuCreal(hA[m-1]),  cuCimag(hA[m-1]));
+      const Complex bm(cuCreal(hB[m-1]),  cuCimag(hB[m-1]));
+      const Complex amM(cuCreal(hAM[m-1]),cuCimag(hAM[m-1]));
+      const Complex bmM(cuCreal(hBM[m-1]),cuCimag(hBM[m-1]));
+      double t = - ( am + std::conj(mass_coeff)*amM ).real()
+                 - ( bm + std::conj(mass_coeff)*bmM ).real();
       res += A[m]*t;
     }
 
@@ -924,9 +966,12 @@ struct OverlapWMass : public Zolotarev {
     const int gent1 = (int)(( (size_t)nent + NThreadsPerBlock - 1 )/NThreadsPerBlock);
     link_matvec_block<N><<<gent1,NThreadsPerBlock>>>(d_Ys[0], d_Zs[0], d_ent_i, d_ent_j, d_ent_v, nent, 1);
     CUDA_CHECK(cudaDeviceSynchronize());
-    CuC inner;
+    CuC inner, innerM;
     { MatPoly XH; XH.dot<N>( &inner, d_eta, d_Ys[0] ); }
-    res += real(cplx(Complex(1.0)+std::conj(mass)) * inner);
+    { MatPoly Mp; Mp.push_back(cplx(1.0), {&M_mass}); Mp.on_gpu<N>(d_Ms[0], d_Ys[0]); }
+    { MatPoly XH; XH.dot<N>( &innerM, d_eta, d_Ms[0] ); }
+    { const Complex i0(cuCreal(inner),cuCimag(inner)), iM(cuCreal(innerM),cuCimag(innerM));
+      res += ( i0 + std::conj(mass_coeff)*iM ).real(); }
     res *= -2.0*C/lambda_max;
     return res;
   }

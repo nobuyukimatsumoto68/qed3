@@ -3,16 +3,24 @@
 Self-contained brief for the local environment. Full rationale/physics:
 `mass_measure_factor_impl_plan_claude.md` (same dir). Source: arXiv:2510.03085.
 
-## STATUS (2026-06-19)
+## STATUS (2026-06-19, updated -- local env, Claude)
 - **Step 1 DONE**: `includes/overlap_wmass_obsolete_claude.h` = frozen scalar reference,
   wrapped in `namespace obsolete`.
 - **Step 2 DONE (non-ms path)**: `includes/overlap_wmass_claude.h` now has complex
   diagonal `m_L`: members `M_mass`/`mass_coeff`(Complex)/`d_mtmp`; ctor builds them;
   helpers `apply_mL` / `apply_mLdag`; `mult`/`adj`/`DHD_deviceAsyncLaunch` converted.
-- **TODO (do NOT use in production until done)**: the `_ms` variants (`mult_ms` ~:474,
-  `adj_ms` ~:497, `DHD_..._ms` ~:559-563) and the **mass inner products** still use the
-  scalar `mass` — convert to `apply_mL`/`apply_mLdag` before any HMC run. The L=1 check
-  below only exercises the (converted) non-ms `mult`/`adj`/`DHD`.
+- **DONE (`_ms` path)**: `mult_deviceAsyncLaunch_ms`, `adj_deviceAsyncLaunch_ms`,
+  `DHD_deviceAsyncLaunch_ms`/`DDH_..._ms` all use `apply_mL`/`apply_mLdag` (diagonal identity).
+- **DONE (HMC force -- 2026-06-19, local Claude)**: the default `grad_deviceAsyncLaunch` AND
+  the block variants `grad_*_l1` / `_l2` / `_l4` now fold the diagonal `(1+M^*)` into the force
+  dots: `real(<a|b> + conj(mass_coeff) <a| M_mass b>)`. l2/l4 reuse `mult_coo_block(M_mass)`
+  (M_mass diagonal => per-site weight broadcast over all npole columns) + a 2nd `block_dot`
+  (new members `d_MA/d_MB/d_dotAM/d_dotBM`). The active production force `_l4` (`#define GRAD_L4`)
+  is now correct for the diagonal mass. THE HEADER IS NOW FULLY CONVERTED (no scalar `mass` left
+  in any operator/force path; `mass` is the physical m, `mass_coeff = m*mean_dual_area/mean_ell`).
+- **PENDING (build/run proof)**: compile + run `test_diag_mass_l1_claude.cu` on GPU at L=1 and L=2,
+  for BOTH the default grad and `-DGRAD_L4` (see `tmp_claude.sh`). Geometry path switched to local
+  `../../geometry/`; test now uses a NONTRIVIAL gaussian gauge (`U.gaussian(rng,0.3)`).
 - **Step 3 WRITTEN**: `test_diag_mass_l1_claude.cu` (simplicial; loops m = 0, 0.1, 0.1 i).
   Parametric in L: build `-DLREF=1|2|4`. **L=1**: operator obsolete-vs-production on BOTH
   `mult/adj/DHD` and `_ms` (~1e-13) + force obsolete-vs-production over all links (~1e-9) +
@@ -136,28 +144,52 @@ production masses $m=m_1\,\bar a_s^{(1)}/A_y^{(1)}$) and an $L=2$ sanity run.
 `stream[istream]`) into `d_Ms[m]` + an extra `dotAsync`, with `conj(mass_coeff)` folded
 host-side. No device-sync inside the omp pole loop.
 
-**TODO -- block force variants `grad_*_l1/_l2/_l4`** (`overlap_wmass_claude.h`, ~lines
-770-916). The ACTIVE production force is **`_l4`** (`#define GRAD_L4`), so this gates HMC.
-- `grad_l1`: **easy.** Same per-pole streamed structure as the default grad (just reads
-  precomputed `d_XZpre/d_XYpre`); apply the identical stream-aware `M_mass` dot fold.
-- `grad_l2` / `grad_l4`: **harder -- this is the real work.** They have NO per-pole loop:
-  the poles are a contiguous `N*npole` block (`d_XZg/d_XYg/d_CY/d_CZ`) and the dots are one
-  batched `block_dot`. To fold `(1+M^*)` you must:
-  1. write a **block diagonal-weight kernel** that multiplies the block element
-     `[m*N+i] *= (A_y/Abar)_i` (i.e. `M_mass` broadcast across all `npole` columns) -- apply
-     it to the X-applied block (`d_XZg`/`d_XYg`), into a scratch block;
-  2. run a **second `block_dot`** of `d_CY`/`d_CZ` against that weighted block -> `d_dotA_M`/`d_dotB_M`;
-  3. in the host reduce, use `real(am + conj(mass_coeff)*am_M)` (and same for `bm`).
-  Plus the post-loop m=0 term needs the same fold (as in the default grad).
-  Difficulty = the new block-diagonal kernel matching `block_dot`'s `[m*N+i]` layout +
-  two extra `npole`-length dot buffers; `_l4` also routes the link via `link_matvec_block`
-  but the M-weight still goes on the `XZg/XYg` (X-applied) blocks, not `CY/CZ`.
+**DONE -- block force variants `grad_*_l1/_l2/_l4`** (`overlap_wmass_claude.h`, 2026-06-19).
+The ACTIVE production force is **`_l4`** (`#define GRAD_L4`), so this gated HMC; now folded.
+- `grad_l1`: per-pole streamed, mirrors the default grad's stream-aware `M_mass` dot fold
+  (reads precomputed `d_XZpre/d_XYpre`; `d_Ms[m] = M_mass(.)`, 2nd `dotAsync`, host
+  `conj(mass_coeff)`).
+- `grad_l2` / `grad_l4`: NO new kernel needed -- **reuse `mult_coo_block(M_mass)`** (M_mass is a
+  diagonal COO => 1 entry/row => exactly the per-site `(A_y/Abar)_i` weight broadcast across all
+  npole columns), into scratch blocks `d_MA = M_mass(X Z_m)` / `d_MB = M_mass(coo Z_m)`; a 2nd
+  `block_dot` -> `d_dotAM/d_dotBM`; host reduce `real(am + conj(mass_coeff)*amM)` (and `bm`).
+  NOTE (corrects the earlier draft below): the M-weight goes on the **2nd dot argument** matching
+  the default grad -- term a weights `X Z_m` (`d_XZg`), term b weights `coo Z_m` (`d_CZ`); not
+  `d_CY`/`d_XYg`. m=0 post-loop folded the same way (MatPoly `M_mass` on `d_Ys[0]`).
 
 **TODO -- driver/CLI** `hmc_fermilab_wmass_L{2,4}_claude.cu`: the `mass_re/mass_im` CLI arg
 is now the **physical** m (R=1 units), not the old bare value. Recompute the production
 masses `m = m_1 * abar_s^(1)/A_y^(1)` and update the wrapper `PAIR_LIGHT/HEAVY`. Gotcha:
 `dir3` (checkpoint path) encodes `mass.real()/imag()`, so the physical-m runs land in NEW
 checkpoint dirs (new ensembles) -- the old bare-mass dirs are not reused.
+
+## Switching lattice L (incl. L=8) -- decision 2026-06-19: KEEP `GRAD_L4`
+
+The force-opt rungs (`grad` / `_l1` / `_l2` / `_l4`) are NOT a lattice-L axis -- they are
+numerically-identical perf variants, all fully L-general (loops over `size`/`npole`, `N=Comp::N`).
+Decision (NM): keep production on `#define GRAD_L4`; it works unchanged at every L (its speedup
+over the reference `grad` shrinks at large L since the kernels fill the GPU, but it is never
+slower and stays correct). Switching L touches NONE of the grad code. Knobs:
+
+1. **`N_REFINE`** -- the `constexpr int N_REFINE` in `namespace Comp` (driver ~:56). Either edit a
+   driver or copy `hmc_fermilab_wmass_L4_claude.cu` -> `..._L8_claude.cu` and set `N_REFINE=8`.
+   (The `_L2`/`_L4`/`_L8` filename suffix is just a label; the constexpr is what matters.)
+   `N_SITES=10*L^2+2`; L8 -> 642 sites, `N=NS*N_SITES*Nt=2*642*128=164352`.
+2. **Geometry data** -- files are keyed by `n=N_REFINE` in `../../geometry/data/`
+   (`alpha_n8.dat`, `links_n8.dat`, `dualtriangleareas_n8.dat`, ...). **n8 (and n16/n24) ALREADY
+   EXIST** -- no generation step for L=8.
+3. **npole** -- driver arg `Fermion D(DW, mass, npole)` (~:185). Tune to the printed `# delta` at
+   startup (target ~1e-5 or below). History: L2 npole=17 (ratio 0.149), L4 npole=13 (ratio 0.210);
+   read L8's `lambda_min/lambda_max` line and adjust (start ~13-17).
+4. **nsteps** -- finer lattice => larger force => more integrator steps for the same `|dH|`.
+   L2 used 9, L4 used 12; for L8 start ~16 and tune to `|dH|` ~ O(0.1-0.3) (100% accept early).
+5. **Memory** -- block/scratch arrays scale `proportional N` (and `N*npole`). L8 `N≈164k` => a few
+   hundred MB of device scratch; fine on TITAN V (12 GB) / A100. `_l4` `MAXENT=256` is a per-link
+   stencil bound (L-independent), so no change.
+6. **Diagonal mass** -- `M_mass`/`mass_coeff` auto-build from the L8 geometry (`volume_matrix`).
+   The **physical** `m` is the SAME number at every L (reverse-engineered once from L=1:
+   `m = m_1 * abar_s^(1)/A_y^(1)`), so pass the same `mass_re/mass_im` at L=8 -- the per-site
+   `A_y/abar_s` weighting carries all the L-dependence.
 
 ## Notes / gotchas
 - Namespace-isolate the obsolete header or the two `OverlapWMass`/`Zolotarev` definitions

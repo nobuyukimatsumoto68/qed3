@@ -1,8 +1,23 @@
 # Mass setting for $L>1$ via the site-area measure factor — write-up + implementation plan
 
 **Status (2026-06-19):** supersedes `mass_scaling_ssb_claude.md` (in the
-`project_qed3/` root, now marked OBSOLETE). Pre-implementation write-up for review.
-No code written yet. (Lives in `qed3/src/both_3d/` so it is git-tracked with the code.)
+`project_qed3/` root, now marked OBSOLETE). (Lives in `qed3/src/both_3d/` so it is
+git-tracked with the code.)
+
+**IMPLEMENTATION STATE (2026-06-19, local Claude) -- see the chunk list below for detail:**
+- DONE: operator path (`includes/overlap_wmass_claude.h`) -- `mult`/`adj`/`DHD`(+`_ms`)
+  and ALL HMC force variants (`grad` + `grad_l1`/`_l2`/`_l4`) fold the diagonal `m_L`.
+- DONE: `BlockedMat` (`includes/blocked_mat_claude.h`) `mult`/`adj`/`DDH` -- the parallel
+  mrhs operator used by JJ/condensate measurement; was the one stale scalar-mass path
+  (audit `mass_measure_audit_handoff_claude.md`), now diagonal.
+- DONE + VERIFIED (2026-06-19 rerun): `test_diag_mass_l1_claude.cu` (operator obsolete-vs-production +
+  force-vs-FD + `BlockedMat`-vs-MatPoly), nontrivial gaussian gauge; runner `tmp_claude.sh` (10 phases:
+  all 4 grad variants default/l1/l2/l4 at L=1 & L=2, default+l4 at L=4). ALL PASS, 0 errors.
+  BlockedMat(NSTACK=1) vs MatPoly `_ms` = 0.0 (bit-identical). L>1 massive force-vs-FD ~1e-4..1e-5
+  (solver-tol/eps limited; the L=1 obsolete-vs-production force = 1e-16 is the machine-precision proof).
+- TODO: driver/CLI (`hmc_fermilab_wmass_L{2,4}_claude.cu`) physical-`m` plumbing; the audit's
+  extra numerical checks (adjointness L=2, Ward identity); a separate L>2 massive HMC test `.cu`
+  (real + imag m). Action checklist: `mass_diag_l1_task_claude.md`.
 
 ## Source (mandatory citation)
 
@@ -80,6 +95,43 @@ $A_y\sim\bar a_s^2\Rightarrow A_y/\bar a_s\sim\bar a_s\to0$, so at fixed physica
 in the continuum (correct for the $\bar a_s\to0$-first protocol), and the global average
 of $m_L$ reduces to roughly the old `mean_ell` scaling — but now per-site-exact.
 
+### Geometry constants per $L$ (from `test_diag_mass_l1_claude.cu` startup print; $R=1$ units)
+
+Saved 2026-06-19 (local Claude) from the test's `# L=.. check: ... mean_dual_area=.. mean_ell=..`
+line. $\bar A=$ `mean_dual_area` $=4\pi/n_\text{sites}$ exactly (dual cells tile the sphere);
+$\bar a_s=$ `mean_ell` is triangulation-dependent (NOT analytic — read from the run).
+
+| $L$ | $n_\text{sites}$ | $\bar A$ = mean\_dual\_area = $4\pi/n_\text{sites}$ | $\bar a_s$ = mean\_ell | $\bar A/\bar a_s$ | $\bar a_s/\bar A$ |
+|---|---|---|---|---|---|
+| 1 | 12  | 1.047197551196597    | 1.107148717794090   | 0.945850845840348 | 1.0572491470487 |
+| 2 | 42  | 0.2991993003418845   | 0.5909464448075018  | 0.506305271773566 | 1.97509300366762 |
+| 4 | 162 | 0.0775701889775253   | 0.2994744726728923  | 0.259021038705536 | 3.860690255114117 |
+| 8 | 642 | 0.0195737860036747   | needs a build (not in the test) | — | — |
+
+At $L=1$ the dual cell is uniform by icosahedral symmetry, so the per-site
+$A_y^{(1)}=\bar A^{(1)}=1.047197551196597$.
+
+### CANDIDATE physical $m$ (reverse-engineered from the old $L=1$ bare $m_1$) — REMOTE AGENT TO VERIFY
+
+To reproduce the old $L=1$ physics, choose physical $m$ so the (uniform) $L=1$
+$m_L=\texttt{mass\_coeff}=m\,(\bar A/\bar a_s)^{(1)}$ equals the old bare $m_1$:
+$$
+m = m_1\,\frac{\bar a_s^{(1)}}{\bar A^{(1)}} = m_1 \times 1.0572491470487 .
+$$
+
+| old bare $m_1$ | candidate physical $m$ |
+|---|---|
+| 0.01 | 0.010572491470487 |
+| 0.05 | 0.052862457352435 |
+| 0.10 | 0.105724914704870 |
+| 0.20 | 0.211449829409740 |
+
+**These are CANDIDATES computed locally from the $L=1$ geometry above. The REMOTE AGENT must
+verify**: (i) recompute $\bar a_s^{(1)}/\bar A^{(1)}$, (ii) confirm the direction
+$m=m_1\,\bar a_s/\bar A$ (NOT $\bar A/\bar a_s$), and (iii) decide whether to reproduce the old
+$L=1$ ensembles or define $m$ fresh. The CLI `mass_re/mass_im` is now this physical $m$; `dir3`
+encodes it, so these land in NEW checkpoint dirs (see the driver/CLI TODO).
+
 ## Code grounding (what exists today)
 
 - Mass is a scalar `Complex mass` in `includes/overlap_wmass_claude.h:148`, applied as
@@ -111,16 +163,18 @@ of $m_L$ reduces to roughly the old `mean_ell` scaling — but now per-site-exac
 
 ## Ordered implementation chunks
 
-1. **Pin numbers / decisions** (resolve open questions below): exact per-site measure,
-   exact normalization, $L=1$ constants → physical $m$ values. *Files: this doc.*
-2. **Geometry plumbing**: build `m_L` (host) from `dual_areas`/`mean_ell`, upload device
-   array. *Files: `dirac_ext.h`, `overlap_wmass_claude.h`.*
-3. **Operator apply**: diagonal multiply in `mult/adj` + `_ms`. *Files: `overlap_wmass_claude.h`.*
-4. **Normal operator**: rework `:462-503` for diagonal $M$ (see Q4) + mass inner products
-   `:633-692`. *Files: `overlap_wmass_claude.h`.*
-5. **Driver/CLI**: pass physical $m$, construct `m_L`. *Files: `hmc_fermilab_wmass_L{2,4}_claude.cu`.*
-6. **Validation**: $L=1$ must reproduce the previous run bit-for-physics (uniform
-   $m_L=m_1$); spot-check free-limit spectrum / a known observable at $L=2$.
+1. **[DONE] Pin numbers / decisions**: see "Resolved decisions" below (per-site measure $A_y$,
+   normalization $m A_y/\bar a_s$, $L=1$ reverse-engineering, no extra solver cost, force unchanged).
+2. **[DONE] Geometry plumbing**: `m_L = mass_coeff * M_mass`, `M_mass = volume_matrix(1)`,
+   `mass_coeff = m * mean_dual_area/mean_ell`, built in the `OverlapWMass` ctor. *Files: `overlap_wmass_claude.h`.*
+3. **[DONE] Operator apply**: `apply_mL`/`apply_mLdag`; diagonal add in `mult`/`adj` + `_ms`. *Files: `overlap_wmass_claude.h`.*
+4. **[DONE] Normal operator + force**: `DHD`(+`_ms`) diagonal identity $(1{+}M^*)D{+}D^\dagger(1{+}M){+}|M|^2$;
+   HMC force `grad`+`grad_l1/l2/l4` fold $(1{+}M^*)$ via `M_mass`. ALSO the mrhs `BlockedMat::mult/adj/DDH`
+   (`blocked_mat_claude.h`) -- the JJ/condensate measurement operator (audit-found stale scalar). *Files: `overlap_wmass_claude.h`, `blocked_mat_claude.h`.*
+5. **[TODO] Driver/CLI**: pass physical $m$ via `mass_re/mass_im`. *Files: `hmc_fermilab_wmass_L{2,4}_claude.cu`.*
+6. **[PARTIAL] Validation**: $L=1$ operator obsolete-vs-production + force-vs-FD + BlockedMat-vs-MatPoly
+   all PASS in `test_diag_mass_l1_claude.cu` (default grad + `-DGRAD_L4`). PENDING: a separate L>2 massive
+   HMC test (real + imag m), the audit's adjointness/Ward-identity checks, and a free-limit spectrum spot-check.
 
 ## Resolved decisions (2026-06-19, NM)
 
