@@ -162,6 +162,17 @@ struct FermionVector {
       }}
   }
 
+  // single-timeslice wall at s, ONE spin component (spin dilution of the wall source).  Summing the
+  // two spin classes reconstructs the full wall (E[eta eta^dag] = P_s).  Used by the local-ylm conn
+  // stochastic estimator (jj_local_ylm_conn_stoch_claude.cu).
+  template <typename Rng>
+  void fill_z2_wall_spin(Rng& rng, const int s, const int spin) {
+    memset(field, 0, Comp::N*CD);
+    for(Idx ix=0; ix<rng.lattice.n_sites; ix++){
+      (*this)(s, ix, spin) = rng.CZ2_site( s, ix );
+    }
+  }
+
   template <typename Rng>
   void time_spin_dilution(Rng& rng, const int t_s, const int t_block, const int spin) {
     memset(field, 0, Comp::N*CD);
@@ -210,6 +221,23 @@ struct FermionVector {
         loop_t += std::conj((*this)(t, ix, spin)) * Gamma_phi(t, ix, spin);
       }
       L[t] += loop_t / static_cast<double>(Comp::N_SITES);
+    }
+  }
+
+  // RAW one-point accumulation (NO 1/N_SITES): L[t] += sum_ix conj(eta(t,ix,spin)) W(t,ix,spin) over the
+  // diluted timeslices.  Used by the local-ylm disc (jj_local_ylm_disc_stoch_claude.cu): W = A_n Y_lm
+  // sigma_a phi (the area + harmonic weight is folded into W via mult_Ylm_real), so this gives the
+  // per-m one-point loop J^a_{lm}(t) = sum_n A_n Y_lm(n^) conj(eta) (sigma_a phi).
+  void accumulate_loop_raw(std::vector<Complex>& L,
+                           const FermionVector& W,
+                           const int t_s, const int t_block, const int spin) const {
+    const int interval = Comp::Nt / t_block;
+    for(int t=t_s; t<Comp::Nt; t+=interval){
+      Complex loop_t(0.0, 0.0);
+      for(Idx ix=0; ix<Comp::N_SITES; ix++){
+        loop_t += std::conj((*this)(t, ix, spin)) * W(t, ix, spin);
+      }
+      L[t] += loop_t;
     }
   }
 

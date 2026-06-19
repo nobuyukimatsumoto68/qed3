@@ -1,197 +1,185 @@
-# Impl plan — Ylm-projected tower Eq.(4.35) in jj_local_deter (local op, cont prop, deterministic trace)
+# Impl plan — $Y_{\ell m}$ tower of the LOCAL vector current correlator (deter ground truth + stochastic conn/disc), per-$m$
 
-Add the spherical-harmonic descendant tower $G^t_{\ell\ell}(t)$ (qed3int_v2-11 Eqs. 4.33-4.35) to
-`jj_local_deter_claude.cu` (local $\sigma^a$ current, deterministic trace, continuum propagator P) and
-the comparison cells to `checkCFT_claude.ipynb`. Reference for the validated continuum tower:
-`jj_cft_ylm_check_claude.{cc,md}` (same propagator, exact Gauss-Legendre integral).
+Measure the spherical-harmonic descendant tower of the conserved-current two-point function using the
+**bare local $\sigma_a$ current** (no conserved-$K$ apply): a deterministic ground truth plus two
+stochastic production programs (connected + disconnected), all **per-$m$**, **vector only**, $\ell\le3$.
+Designed for the **interacting** ensembles (massless Nf2/4/6 gsq8); the free-field run is the validation
+*of that pipeline*.
+
+Reference (CFT tower, validated continuum): `jj_cft_ylm_check_claude.{cc,md}`. Paper: `qed3int_v2-14.pdf`
+Eqs. (4.33)-(4.36). Stochastic dilution: Foley et al, hep-lat/0505023. One-end trick: Foster-Michael
+(UKQCD), hep-lat/9810021.
 
 ## Physics / goal
 
-The Ylm tower is the spherical-harmonic decomposition of the **temporal** current correlator
-$G_t(t;\hat n_1,\hat n_2)$ (= the $\sigma_3$ / "s3" channel between arbitrary site pairs). The paper's
-diagonal projection (4.33), using isotropy + Funk-Hecke, is the single Legendre coefficient
-
+The tower is the $Y_{\ell m}$ decomposition of the temporal ($\sigma_3$ = $G_t$) and spatial
+($(\sigma_1+\sigma_2)/2$ = $G_s$) current correlators between site pairs on the sphere. Diagonal-$\ell$
+projection (Funk-Hecke + isotropy, Eq. 4.33):
 $$
-g_\ell(t) \equiv G^t_{\ell\ell}(t) = \tfrac12\int_{-1}^{1} G_t(t;x)\,P_\ell(x)\,dx,
-\qquad x=\hat n_1\!\cdot\!\hat n_2 .
+g_\ell(t)=\tfrac12\int_{-1}^{1} G(t;x)\,P_\ell(x)\,dx,\qquad x=\hat n_1\!\cdot\!\hat n_2 .
 $$
 
-Prediction (4.35), $\Delta=2$, $C_j=-1/(8\pi^2)$ (from `jj_cft_ylm_check`):
-
+CFT prediction (Eq. 4.35, $\Delta=2$, $C_j=-1/(8\pi^2)$ from `jj_cft_ylm_check`):
 $$
-G^t_{11}(t)\to \tfrac{1}{24\pi^2}e^{-2t},\qquad
-G^t_{22}(t)\to \tfrac{1}{10\pi^2}e^{-3t},\qquad
-G^t_{00}(t)\to 0 .
+g^t_1\to\tfrac{1}{24\pi^2}e^{-2t},\qquad g^t_2\to\tfrac{1}{10\pi^2}e^{-3t},\qquad g^t_0\to0 .
 $$
 
-Convention-free checks: decay rates $(2,3)$ for $\ell=(1,2)$; ratio
-$[G^t_{22}e^{3t}]/[G^t_{11}e^{2t}]\to 12/5=2.4$; $G^t_{00}/G^t_{11}\to0$.
+Convention-free checks: decay rates $(2,3,4)$ for $\ell=(1,2,3)$; ratio
+$[g^t_2 e^{3t}]/[g^t_1 e^{2t}]\to 12/5=2.4$; $g^t_0/g^t_1\to0$; $g^s_\ell/g^t_\ell\to-1$ per $\ell$.
 
-## Deterministic lattice estimator (diagonal-m, matches 4.35)
+## Estimator (per-$m$, one-end trick)
 
-Lattice quadrature of $g_\ell$ ($\int d^2n\to\sum_n A_n$, $A_n=$ `dual_areas[n]`):
-
+Per Pauli channel $a\in\{1,2,3\}$ the insertion is the on-site, area-and-harmonic-weighted current
 $$
-g_\ell(t)=\frac{1}{(4\pi)^2}\sum_{n,n'}A_n A_{n'}\,P_\ell(\hat n\!\cdot\!\hat n')\,
-          \mathrm{tr}[\sigma_3(n,t_0)\,P\,\sigma_3(n',t)\,P].
+\Sigma^a_{\ell m}(t)=\sum_n A_n\,Y_{\ell m}(\hat n)\,\sigma_a(n,t),
 $$
-
-Using the addition theorem $P_\ell(\hat n\!\cdot\!\hat n')=\frac{4\pi}{2\ell+1}\sum_{m} Y_{\ell m}(\hat n)Y_{\ell m}(\hat n')$
-(real $Y_{\ell m}$, `Ylm_real` in `valence_claude.h`), this FACTORIZES per $m$:
-
+Hermitian; $A_n=$ `dual_areas[n]`, real $Y_{\ell m}$ (`Ylm_real`, `valence_claude.h`); **no $1/\kappa$** (bare
+local current). With $\phi=D_m^{-1}\eta$ and per-channel source $\psi^a_{\ell m}=D_m^{-\dagger}\,
+\Sigma^a_{\ell m}(t_0)\,\eta$:
 $$
-g_\ell(t)=\frac{1}{4\pi}\,\frac{1}{2\ell+1}\sum_{m=-\ell}^{\ell}
-          \mathrm{tr}[\Sigma_{\ell m}(t_0)\,P\,\Sigma_{\ell m}(t)\,P],\qquad
-\Sigma_{\ell m}(t)=\sum_n A_n\,Y_{\ell m}(\hat n)\,\sigma_3(n,t).
+g^a_{\ell m}(t)=\psi^{a\,\dagger}_{\ell m}\,\big[\Sigma^a_{\ell m}(t)\,\phi\big]
+\quad(\text{stored per-}m),\qquad
+g^a_\ell(t)=\frac{1}{2\ell+1}\sum_{m=-\ell}^{\ell} g^a_{\ell m}(t)\ \ (\text{analysis}).
 $$
+tp tower $=g^3_\ell$; sp tower $=(g^1_\ell+g^2_\ell)/2$. The sink $\Sigma^a_{\ell m}(t)\phi$ is element-wise
+(on-site $\sigma_a$ + weight + contraction) — **no Dirac/$K$ apply**, that is the whole cost win over the
+conserved current.
 
-$\Sigma_{\ell m}(t)$ is a sparse matrix (the bare $\sigma_3$ site blocks of `local_W_sigma`, scaled by
-$A_n Y_{\ell m}(\hat n)$); the trace reuses `tr_WPWP` unchanged. The accumulator stored is
-$C_\ell[dt]=\frac{1}{2\ell+1}\sum_m \mathrm{tr}[\Sigma_{\ell m}(t_0)P\Sigma_{\ell m}(t)P]$; `write_corr`
-folds the remaining $1/(4\pi)$ (same as s1/s2/s3). This reproduces `jj_cft_ylm_check`'s $g_\ell$ up to
-the 12-site (L=1) quadrature error.
+## Design decisions (all 2026-06-16, user-confirmed)
 
-**Normalization choice.** This uses the diagonal-$m$ / Legendre-coefficient $g_\ell$ normalization
-(the $1/(2\ell+1)$ + addition theorem), so the output matches Eq.(4.35) directly (ratio 2.4). This is
-DIFFERENT from the stochastic `jj_corr_block_t` ylm tower, which uses the outer-product weight
-$W_\ell(n)=A_n\sum_m Y_{\ell m}(n)/\kappa$ (no $1/(2\ell+1)$, no diagonal-$m$); that convention gives
-$(2\ell+1)g_\ell$ (ratio $5/3\times2.4=4.0$) and agrees with $g_\ell$ only in the continuum (isotropic
-kernel). Open question O1 below.
+- **Single source origin** $t_0$ (default 0). No multiple $t_0$, no master-field superposition; the
+  correlator is the ordinary $G(t-t_0)$. Statistics come from configs + hits.
+- **Separate conn and disc into two programs** (B1, B2). They need different sources anyway.
+- **CONN source = single-timeslice wall** at $t_0$ (`fill_z2_wall_source`); variance-optimal (noise
+  concentrated at the origin). $E[\eta\eta^\dagger]=P_{t_0}$, and $\Sigma_{t_0}$ projects onto $t_0$ so the
+  connected trace is exact.
+- **DISC source = time+spin dilution sweep** (model `disc_claude.cu`): loop `t_s`,`spin` over
+  `eta.time_spin_dilution(t_s,t_block,spin)`, `--disc-tblock` default 8. Needed because the one-point
+  $J^a_{\ell m}(t)=\mathrm{tr}[\Sigma^a_{\ell m}(t)D_m^{-1}]$ must be defined at every $t$ (the conn wall
+  source gives $J$ only at $t_0$). A one-shot full-volume source is unbiased but has ruinous variance —
+  dilution is what makes $J(t)$ usable; `t_block` is the variance/cost knob.
+- **Store per-$m$**; do the $\frac{1}{2\ell+1}\sum_m$ in analysis. Free in compute (already per-$(a,\ell,m)$).
+  Diagnostic: at $L{=}1$ the symmetry is only icosahedral, so $Y_{\ell m}$ modes within an $\ell$ are not
+  degenerate — per-$m$ output exposes that anisotropy.
+- **$\sigma_{\rm PS}$ condensate folded into the disc program** ($a{=}0$ scalar, uniform-area,
+  spacetime-summed loop $=\mathrm{tr}[A D_m^{-1}]$); shares the disc $\phi$, **no extra solve**.
+  **$\sigma_{\rm PS}$ only — no $\sigma_{\rm FS}$.**
+- **Vector only — no axial.** Massless / $m_F$ target; **$m_P$ (tilde-$D$ backward solve) out of scope**.
+- **No block-$t$.** The local sink has no operator to amortize; the $t$-loop is $O(N_t N_{\rm sites})$
+  trivial. Cost levers: conn = mrhs over the 16 $(\ell,m)$ columns per Pauli; disc = `t_block`.
 
-## Files to modify
+## Cost (rough, $\ell\le3$ $\Rightarrow$ 16 $(\ell,m)$, 3 Pauli $\Rightarrow$ 48 channels)
 
-- `jj_local_deter_claude.cu` — add the ylm tower loop + output (chunk 1).
-- `checkCFT_claude.ipynb` — add ylm load + Eq.(4.35) comparison cells (chunk 2).
+- CONN: per pattern $1$ ($\phi=D_m^{-1}\eta$) $+48$ (source $\psi^a_{\ell m}$) $=49$ solves;
+  spin-only (2 patterns) $\approx 98$ solves/hit. mrhs batch (16 cols/Pauli) for ~3-4x.
+- DISC: $\tfrac{N_t}{t_block}\times n_\text{spin}\approx 32$ solves/hit at $t_block{=}8$; $\phi$ shared
+  across all $(a,\ell,m)$ and the condensate (only the readout weight differs). Disc is intrinsically
+  noisy (config-average-dominated); $=0$ in free.
 
-## Chunk 1 — C++ (jj_local_deter_claude.cu)
+## Chunk A — deterministic ground truth (`jj_local_deter_claude.cu`)
 
-Files: `jj_local_deter_claude.cu`
+The deterministic per-$m$ ylm is already correct (`build_Sigma_ylm`, $\sigma_3$/s3 only, $\ell\le2$). Two
+generalizations:
+- Generalize `build_Sigma_ylm` to a **Pauli index `a`** (use `DW.sigma[a]` 2x2 block scaled by
+  $A_n Y_{\ell m}$, exactly like `local_W_sigma`); the current $\sigma_3$ hardcode becomes `a==3`. Comment
+  the old signature/body, add the generalized one beneath (per convention).
+- Tower loop `for a in {1,2,3}` / `for l in 0..L_MAX_YLM` (bump `L_MAX_YLM = 2` -> `3`, comment old) /
+  `for m in -l..l`. `Ylm_real` (`std::assoc_legendre`) already valid $\forall\ell$. Store **per-$m$**
+  $g^a_{\ell m}=\mathrm{tr}[\Sigma^a_{\ell m}(t_0)P\Sigma^a_{\ell m}(t)P]$ (no $1/(2\ell+1)$, no $m$-sum).
+- Output `h0/t0_b/ylm/s{a}/l{l}/m{m}/{Vpp,Vmm}` (supersedes the old s3-only, $m$-summed `ylm/l{l}`).
+- Rerun free L=1 ground truth via a `tmp_*_claude.sh` (user runs; existing `corr_deter_local_L1` is
+  `complete`-gated -> user `rm`s it first). L=2/L=4 optional later.
 
-1. After the s1/s2/s3 channel loop, add a `// ---- Ylm tower (Eq. 4.35), temporal sigma_3 channel ----`
-   block, `constexpr int L_MAX_YLM=2` (l=0,1,2).
-2. Precompute `A_n = base.dual_areas[n]` (already `w_site[n]`) and, per (l,m,n),
-   `ylw[l][m][n] = w_site[n]*Ylm_real(l,m,base.sites[n])`.
-3. For each `l`, init `Cyl[b][dt]=0`; for each `m in [-l,l]`:
-   - build `Sig0[b]` = $\Sigma_{\ell m}(t0_b)$ and `Sigt` = $\Sigma_{\ell m}(t)$ as `Ent` lists:
-     per site n push `{off,off,+ylw}` and `{off+1,off+1,-ylw}` (= $\sigma_3$ scaled), `off=Nx*t+NS*n`.
-   - `Cyl[b][dt] += tr_WPWP(Sig0[b], Sigt, P)`.
-   - after the m-loop divide by `(2l+1)`.
-4. Output: `write_corr(h5, "h0/t0_"+b+"/ylm/l"+l+"/Vpp", Cyl[b], false)` and `/Vmm` (conj) if `!parity`.
-   Add `ls` already written ({0,1,2}); reuse it.
-5. A small file-scope helper `build_Sigma_ylm(en, w_site, sites, l, m, t)` (named static fn, no lambda)
-   keeps the loop clean.
+## Chunk B1 — stochastic CONN (`jj_local_ylm_conn_stoch_claude.cu`, new)
 
-Cost (L=1): l=0..2 (9 m), Nt=128, n_t0=2, tr_WPWP O((2 n_sites)^2)=O(576) -> ~1.3M flops. Trivial.
+Solve/output scaffolding from `jj_corr_dilute_claude.cu` (VECTOR path); wall-source + $Y_{\ell m}$/$\sigma$
+mechanics from `meson_pq_wall_v2_claude.cu` (`fill_z2_wall_source`, `mult_Ylm_real`, `mult_sigma`).
+- Conn-ylm only: no tp/sp/local-s{1,2,3}/axial/disc. Optional spin dilution (`--spin-dilution`); per-hit
+  atomic + `complete`-gated output; RNG seed-from-string. Single `--t0` (default 0).
+- `ylw[l][m][n] = dual_areas[n]*Ylm_real(l,m,base.sites[n])`, $\ell=0..3$.
+- Source $\eta$ = wall at $t_0$; $\phi=D_m^{-1}\eta$. For each `a in {1,2,3}`, each $(\ell,m)$:
+  source $\Sigma^a_{\ell m}(t_0)\eta$ (`mult_sigma(a)` + `mult_Ylm_real(l,m)` scaled by `ylw`, restricted to
+  $t_0$), solve $\psi^a_{\ell m}=D_m^{-\dagger}(\cdot)$ (`op_Dm`+`op_Dmsq`). Sink loop over $t$:
+  $\Phi=\Sigma^a_{\ell m}(t)\phi$; store **per-$m$** `Gv[a,l,m][t-t0] = psi.dag(Phi)`.
+- Output `h0/ylm/s{a}/l{0..3}/m{-l..l}/Vpp`.
+- (Optional) mrhs-batch the 48 source solves per Pauli via BlockedMat.
 
-## Chunk 2 — notebook (checkCFT_claude.ipynb)
+## Chunk B2 — stochastic DISC + $\sigma_{\rm PS}$ (`jj_local_ylm_disc_stoch_claude.cu`, new)
 
-Files: `checkCFT_claude.ipynb`
+The one-point / loop program; ylm-generalization of `saved_scripts_claude/disc_claude.cu` (its loop
+structure, `compute_disc_corr`, `--t_block`). Vector disc currents AND $\sigma_{\rm PS}$ share the same
+$\phi=D_m^{-1}\eta$ (no extra solve for the condensate).
+- `--disc-tblock` (default 8). Loop `t_s=0..Nt/t_block-1`, `spin`:
+  `eta.time_spin_dilution(t_s,t_block,spin)`; $\phi=D_m^{-1}\eta$ (per pattern, shared by all readouts).
+- DISC currents: per $(a,\ell,m)$, $a\in\{1,2,3\}$, accumulate per-$m$
+  $J^a_{\ell m}[t]\mathrel{+}=\sum_n A_n Y_{\ell m}(\hat n)\,\eta^*(t,n,\text{spin})(\sigma_a\phi)
+  (t,n,\text{spin})$ at the diluted $t$ — a `ylw`-weighted variant of `accumulate_loop_gamma`.
+  Output `h0/disc/ylm/s{a}/l{0..3}/m{-l..l}/J` (RAW per-$m$ $J(t)$, summed over patterns; analysis
+  $C_{\rm disc},\ell=\frac{1}{2\ell+1}\sum_m$ `two_point`($J^a_{\ell m}$)).
+- CONDENSATE $\sigma_{\rm PS}$: scalar ($a{=}0$, identity), uniform-area, spacetime-summed loop
+  $=\mathrm{tr}[A D_m^{-1}]$. Accumulate `etadag_xi += eta_A.dag(phi)` with `eta_A = A*eta` (mirrors the
+  dilute program's `acc_etadag_phi`), summed over patterns. $\sigma_{\rm PS}=$ `etadag_xi` $+$ its
+  conjugate (backward leg via cyclicity; valid for massless/$m_F$). Output `h0/condensate/etadag_xi`.
+  Contact subtraction (`condensate_contact_massive_claude.md` Sec 10) applied in analysis.
 
-1. `load_Vpp(corrdir, "ylm/l"+str(l))` already works (generic key).
-2. New cell: load `g0,g1,g2`; plot `g1` vs `e^{-2t}` and `g2` vs `e^{-3t}` (log scale, amplitude matched
-   at one point like the s3/sp cells), title "Eq.(4.35) tower".
-3. New cell (convention-free): effective decay rates of g1,g2 (should -> 2,3); ratio
-   `(g2*exp(3t))/(g1*exp(2t))` -> 2.4; `g0/g1` -> 0. Markdown noting the diagonal-m normalization.
+## Chunk C — run scripts + validation notebook
 
-## L=1,2,4 extension (added)
+Files: `tmp_ylm_conn_stoch_claude.sh`, `tmp_ylm_disc_stoch_claude.sh`, `jj_local_ylm_validate_claude.ipynb`
+(all new).
+- Build DISTINCT binaries (`jj_local_ylm_conn_stoch.o`, `jj_local_ylm_disc_stoch.o`) to avoid ETXTBSY.
+- Free spin-only nhits=140, single $t_0=0$; conn -> `corr_ylm_conn_*`, disc -> `corr_ylm_disc_*`.
+- CONN check: load `h0/ylm/s{a}/l{0..3}/m{m}/Vpp`, jackknife over hits; form per-$m$ then
+  $g_\ell=\frac{1}{2\ell+1}\sum_m$; tp $=s_3$, sp $=(s_1+s_2)/2$; overlay deterministic
+  `corr_deter_local_L1`. Checks: rates $\to(2,3,4)$; $g^t_2 e^{3t}/g^t_1 e^{2t}\to2.4$; $g_0\to0$;
+  sp/tp $\to-1$; **stoch == determ** within jk error (per-$m$ AND $\ell$-summed). Honest normalization
+  (one constant per estimator, raw ratios, no np.abs / per-curve sign flips).
+- DISC check: $C_{\rm disc}=$ `two_point`($J$) $\to0$ within jk error in free; physical $=-C_{\rm conn}+
+  C_{\rm disc}$ (Eq. 3.39 sign). Mirrors the disc section in the `jj_validate_*` notebooks.
+- CONDENSATE check: $\sigma_{\rm PS}\to-2$ in free after contact subtraction (cf. dense
+  `condensate_deter_free`).
 
-The binary is L-parametrized (`-DN_REFINE_CLI`); no per-L code change. Two additions:
-- `load_mat` made memory-lean (scope the real/imag buffers separately) so peak RAM = M + one N^2
-  double buffer (~41 GB at L=4) instead of M+real+imag (~55 GB) -> the 26 GB `cont_prop_L4` fits on
-  the 62 GB host. L=4 is RAM-tight; run when idle or on a larger node.
-- `tmp_claude.sh` loops L in {1,2,4}: compile `jj_local_deter_L<L>.o`, run `--prop-file
-  cont_prop_L<L>/Dinv.0.h5 --out-tag cont`. (User must `rm` the stale L=1,L=2 `corr.0.h5` first --
-  `complete` flag => skip-on-rerun.)
-- Notebook: existing L=1 plots relabeled "cont prop at L=1"; new `## L-convergence` section overlays
-  G_t, G_s (same-site -> L-independent, collapse) and the Ylm tower + ratio (off-site quadrature ->
-  converges to rates (2,3) and 2.4 as L grows). Missing-L dirs are skipped via try/except.
+## Reference files
+
+- `jj_local_deter_claude.cu` — existing per-$m$ deterministic ylm (the always-correct reference); Chunk A
+  edits this.
+- `meson_pq_wall_v2_claude.cu` — wall source + `mult_Ylm_real`/`mult_sigma` + one-solve-per-channel
+  (conn template).
+- `saved_scripts_claude/disc_claude.cu` — volume time+spin dilution loop + `accumulate_loop_gamma` +
+  `compute_disc_corr` (disc template).
+- `jj_corr_dilute_claude.cu` — solve operators (`op_Dm`/`op_Dmsq`), output/atomic/complete-gate, condensate
+  `acc_etadag_phi` (scaffolding).
+- `jj_cft_ylm_check_claude.{cc,md}` — CFT tower targets.
 
 ## Open questions
 
-- **O1 (normalization). RESOLVED = (a) diagonal-$m$ $g_\ell$** (1/(2l+1) sum_m <j_m j_m>; matches
-  Eq.4.35, ratio 2.4, reproduces `jj_cft_ylm_check`). User confirmed the structural distinction:
-  (a) = sum_m <j_m j_m>, (b) = sum_{m,m'} <j_m j_m'> (off-diag vanish for isotropic G_t).
-- **O2 (output key).** `h0/t0_b/ylm/l{l}/{Vpp,Vmm}` (chosen) vs flat `yl{l}` like s{a}. -> plan uses
-  `ylm/l{l}`.
-- **O3 (channel).** Tower built on the temporal $\sigma_3$ (= G_t) only, per Eqs.(4.33-4.35). Confirm
-  (no spatial-current ylm requested).
+- **$\ell=3$ amplitude.** Validate rate$\to4$ and stoch==determ; a new CFT amplitude constant for
+  $g_3/g_2$ is optional (extend `jj_cft_ylm_check` to $\ell=3$ only if wanted).
+- **`t_block` for disc** in the interacting run — default 8 (already tuned on Nf2 gsq8 in
+  `disc_Nf2_gsq8...tb8/`); revisit if the disc signal is too noisy.
 
----
+## Addendum (2026-06-16) — AXIAL Y_lm tower (no GW dressing)
 
-# Addendum (2026-06-13) — per-$m$ STOCHASTIC local ylm + $\ell\le3$ (deter + stoch, loc only)
+User: add an axial tower alongside the vector one, modeled on the LOCAL axial in `jj_corr_dilute_claude.cu`
+(`:778-807`) — **NOT** the exact-K connected axial (which has the $(1-D_{ov})$ GW factor). The local axial
+is the local VECTOR with the $t_0$-leg propagator swapped from backward to forward, bare $\sigma_a$ vertex:
 
-## Why
-The deterministic `jj_local_deter` ylm is ALREADY the correct per-$m$ estimator (a) (`:321-333`,
-explicit `for m`, $1/(2\ell+1)$, $\sigma_3$/s3 only). The only ylm that was wrong is the STOCHASTIC
-`jj_corr_block_t` exact-K tower, which used the collapsed outer-product weight
-$W_\ell(n)=A_n\sum_m Y_{\ell m}(n)/\kappa$ = convention (b) -> measures $(2\ell+1)g_\ell$ + spurious
-off-diagonal $m_1\neq m_2$ cross terms (orientation-dependent lattice artifact). Verified on the free
-`corr_nt02_nhits64` data: stoch/determ $\approx$ 4 at $\ell=2$, flat in $dt$ (systematic, not noise);
-$\ell=1$ biased high; $\ell=0$ noise ($g_0\to0$). `nhits=140` would NOT fix it.
+- dilute local vector source (`:743`): `op_Dm` RHS -> $\psi = D_m^{-\dagger}(\sigma_c\eta)$ (backward leg).
+- dilute local axial source (`:794`): `op_DmH` RHS -> $\psi_A = D_m^{-1}(\sigma_c\eta)$ (forward leg).
+- SAME sink $\chi=\sigma_c\phi'$, $\phi'=D_m^{-1}\eta$.  NO $(1-D_{ov})$.
 
-Decision (user, 2026-06-13): build the CORRECT per-$m$ estimator (separate $m$ solves), extend to
-$\ell\le3$, implement in BOTH deterministic and stochastic, for the BARE LOCAL current ONLY.
-**VECTOR ONLY -- NO axial** (user, 2026-06-13). Compute all three Pauli channels s1/s2/s3 so analysis
-can form the temporal tower tp $=s_3$ ($G_t$) AND the spatial tower sp $=(s_1+s_2)/2$ ($G_s$). No
-exact-K, no disp.
-
-## Estimator (per-$m$, one-end trick; matches Eq.4.36 exactly)
-Per Pauli channel $a\in\{1,2,3\}$: $\Sigma^a_{\ell m}(t)=\sum_n A_n Y_{\ell m}(\hat n)\,\sigma_a(n,t)$
-(Hermitian; $A_n=$ `dual_areas[n]`, real $Y_{\ell m}$; NO $\kappa$ for the bare local current). With
-$\phi=D_m^{-1}\eta$ (shared across all $a,\ell,m$) and per $(a,\ell,m)$ source
-$\psi^a_{\ell m}=D_m^{-\dagger}\,\Sigma^a_{\ell m}(t_0)\,\eta$:
+Ylm axial estimator (per $a,\ell,m$; same $\Sigma^a_{\ell m}$, $\phi=D_m^{-1}\eta$ as vector):
 $$
-g^a_\ell(t)=\frac{1}{2\ell+1}\sum_{m=-\ell}^{\ell}\psi^{a\,\dagger}_{\ell m}\,\big[\Sigma^a_{\ell m}(t)\,\phi\big].
+\psi^a_{\ell m,A}=D_m^{-1}\,\Sigma^a_{\ell m}(t_0)\,\eta,\qquad
+g^a_{\ell m,A}(t)=\psi^{a\,\dagger}_{\ell m,A}\,[\Sigma^a_{\ell m}(t)\,\phi]
+=\mathrm{tr}[\Sigma_0\,P^\dagger\Sigma_t\,P]\quad(P=D_m^{-1}).
 $$
-Then tp tower $=g^3_\ell$, sp tower $=(g^1_\ell+g^2_\ell)/2$. ONE solve per $(a,\ell,m)$ (NOT per
-$\ell$): $3\times\sum_{\ell\le3}(2\ell+1)=48$ source solves/origin. Sink $\Sigma^a_{\ell m}(t)\phi$ =
-cheap $\sigma_a$-multiply + $\sum_n A_n Y_{\ell m}$ weighted site sum (no extra solve, no K-apply).
+One dagger vs the vector's $\mathrm{tr}[\Sigma_0 P\Sigma_t P]$.  Determ: a `tr_WPdagWP` variant indexing
+`conj(P[et.i,e0.j])` on the first leg (no extra memory).  m_P (parity) still OUT OF SCOPE.
 
-Cost (VECTOR only, 3 Pauli, $\ell\le3$, $n_{t_0}=2$): $1+48\times2=97$ Dirac solves/hit; the local sink
-has no K-apply, so only these batched solves count -- ~7% of the K (conserved-current) program's
-~400 s/hit (sp+axial-sp link sinks ~336 s). (vs s3-only ~33 solves: adding s1/s2 ~3x the ylm program,
-still small absolute.)
-
-## Chunk A (deter) -- `jj_local_deter_claude.cu`
-Files: `jj_local_deter_claude.cu`
-- Generalize `build_Sigma_ylm` to take a Pauli index `a` (use `DW.sigma[a]` 2x2 block scaled by
-  $A_n Y_{\ell m}$, exactly like `local_W_sigma`); current $\sigma_3$ hardcode (`:139-140`) becomes the
-  `a==3` case. Comment the old signature/body, add the generalized one beneath (per convention).
-- Ylm tower loop: `for a in {1,2,3}` outside `for l in 0..L_MAX_YLM` (bump `L_MAX_YLM = 2` -> `3`,
-  comment old). `Ylm_real` (`std::assoc_legendre`) already valid $\forall\ell$. Output per Pauli:
-  `h0/t0_b/ylm/s{a}/l{l}/{Vpp,Vmm}` (supersedes the old s3-only `ylm/l{l}`).
-- Rerun (free L=1 ground truth) via a `tmp_*_claude.sh` (user runs; the existing `corr_deter_local_L1`
-  is `complete`-gated -> user must `rm` it first). L=2/L=4 optional later.
-
-## Chunk B (stoch) -- NEW `jj_local_ylm_stoch_claude.cu`
-Files: `jj_local_ylm_stoch_claude.cu` (new), copies source/solve/dilution/master-field scaffolding from
-`jj_corr_dilute_claude.cu` (VECTOR path only).
-- Strip to ylm-only: drop tp/sp/disc/local-s{1,2,3}/ALL axial blocks; keep $\phi'=D_m^{-1}\eta$, the
-  spin/time dilution switches (`--spin-dilution`, `--time-dilution`), master-field origins $\{0,N_t/2\}$,
-  per-hit atomic+`complete`-gated output, RNG seed-from-string.
-- Build `ylw[l][m][n] = dual_areas[n]*Ylm_real(l,m,base.sites[n])` (NO $/\kappa$), $\ell=0..3$.
-- For each Pauli `a in {1,2,3}`, each $(\ell,m)$: assemble $\Sigma^a_{\ell m}(t_0)\eta$ (timeslice-$t_0$
-  source, per-site $\sigma_a$ via `mult_sigma(a)` scaled by `ylw`), solve
-  $\psi^a_{\ell m}=D_m^{-\dagger}(\cdot)$ (mirror dilute VECTOR local solve path; $D_m^{-\dagger}$ via
-  `op_Dm`+`op_Dmsq`). Sink loop over $t$: $\Phi=\Sigma^a_{\ell m}(t)\phi'$; accumulate
-  `Gv[a,l,b][dt]+=psi.dag(Phi)`; $dt=(t-t0_b)$. Divide by $(2\ell+1)$.
-- Output: `h0/t0_b/ylm/s{a}/l{0..3}/Vpp` (+`Vmm` conj). NO axial.
-- (Optional) mrhs-batch the 48 source solves per origin via BlockedMat -> ~2-4x throughput.
-
-## Chunk C -- run script + validation notebook
-Files: `tmp_ylm_stoch_claude.sh` (new), `jj_local_ylm_validate_claude.ipynb` (new).
-- Build to a DISTINCT binary (e.g. `jj_local_ylm_stoch.o`) to avoid ETXTBSY if another run is live.
-- Free spin-only nhits=140 run, n_t0=2; output `corr_ylm_nt02_nhits140_*`.
-- Notebook: load stoch `h0/t0_b/ylm/s{a}/l{0..3}/Vpp`, jackknife over hits; form tp $=s_3$,
-  sp $=(s_1+s_2)/2$; overlay deterministic `corr_deter_local_L1` ylm (now s{1,2,3}, l=0..3). Checks:
-  tp rates $\to(2,3,4)$ for $\ell=(1,2,3)$; $g^t_2e^{3t}/g^t_1e^{2t}\to2.4$; $g_0\to0$; sp/tp $\to-1$
-  per $\ell$; stoch == determ within jk error (the per-$m$ fix makes stoch/determ $\to1$, NOT 4).
-  Honest normalization: ONE constant per estimator, raw ratios, no np.abs / per-curve sign flips.
-
-## Open questions (addendum)
-- **OA1 ($\ell=3$ CFT target).** $g_3$ rate $\to4$ ($\Delta=2$ descendant); amplitude prediction for the
-  $g_3/g_2$ ratio -- derive from `jj_cft_ylm_check` (extend to $\ell=3$) or just check the rate + that
-  stoch==determ. Default: validate rate(3)$\to$4 and stoch==determ; skip a new CFT amplitude constant
-  unless wanted.
-- **OA2 (output key).** Per-Pauli `h0/t0_b/ylm/s{a}/l{l}/{Vpp,Vmm}` (a=1,2,3); supersedes old s3-only
-  `ylm/l{l}`. Analysis forms tp=s3, sp=(s1+s2)/2 (the D-1=2 spatial average).
+**Implementation:**
+- `jj_local_deter_claude.cu` — add `tr_WPdagWP`; axial tower loop -> `h0/t0_b/ylm_axial/s{a}/l{l}/m{m}/{Vpp,Vmm}`.
+- `jj_local_ylm_conn_stoch_claude.cu` — per $(a,\ell,m)$ also solve $\psi_A$ (forward: `op_DmH`+`op_Dmsq`,
+  same as $\phi$) and accumulate -> `h0/ylm_axial/s{a}/l{l}/m{m}/Vpp`.  +48 source solves/pattern (~194/hit).
+- **DISC: none for axial** — the one-point $\mathrm{tr}[\sigma_c S]$ is vertex-only (= vector); the local
+  axial is connected-only in the reference.  B2 unchanged.
+- Notebook: axial tower cells (signed-log, stoch vs determ), parallel to the vector tp/s1/s2 cells.
