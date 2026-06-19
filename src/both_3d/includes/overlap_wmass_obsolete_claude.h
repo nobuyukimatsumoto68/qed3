@@ -3,6 +3,12 @@
 #include <cmath>
 #include <vector>
 
+// _claude: FROZEN scalar-mass reference (copy of overlap_wmass_claude.h before the
+// diagonal-mass refactor). Namespaced so a single test TU can include this AND the
+// production header. Do NOT edit the body -- it is the L=1 ground truth.
+// See mass_diag_l1_task_claude.md / mass_measure_factor_impl_plan_claude.md.
+namespace obsolete {
+
 
 struct Zolotarev{
   using FLOAT = double;
@@ -147,15 +153,6 @@ struct OverlapWMass : public Zolotarev {
   bool is_update;
   Complex mass;
 
-  // _claude: measure-weighted diagonal mass (mass_measure_factor_impl_plan_claude.md).
-  // `mass` is now the PHYSICAL m (R=1 units; COMPLEX allowed). m_L = mass_coeff * M_mass:
-  //   M_mass     = volume_matrix(pow=1) = diag(A_y / Abar)   (real, gauge-independent),
-  //   mass_coeff = m * Abar / abar_s = mass * mean_dual_area / mean_ell   (complex).
-  // apply_mL applies m_L; apply_mLdag applies m_L^\dagger (conj(mass_coeff)). d_mtmp = scratch.
-  COO<N> M_mass;
-  Complex mass_coeff = 0.0;
-  CuC* d_mtmp = nullptr;
-
   std::vector<cudaStream_t> stream;
   std::vector<cublasHandle_t> handle;
 
@@ -227,12 +224,6 @@ struct OverlapWMass : public Zolotarev {
     CUDA_CHECK(cudaMalloc(&d_ent_i, MAXENT*sizeof(Idx)));   // L4
     CUDA_CHECK(cudaMalloc(&d_ent_j, MAXENT*sizeof(Idx)));
     CUDA_CHECK(cudaMalloc(&d_ent_v, MAXENT*CD));
-
-    // _claude: build the measure-weighted diagonal mass once (gauge-independent).
-    DW.volume_matrix( M_mass.en, 1.0 );                                       // diag(A_y / Abar)
-    M_mass.do_it();
-    mass_coeff = mass * (DW.lattice.mean_dual_area / DW.lattice.mean_ell); // m * Abar/abar_s (complex)
-    CUDA_CHECK(cudaMalloc(&d_mtmp, N*CD));                                     // scratch for apply_mL
   }
 
   ~OverlapWMass()
@@ -251,7 +242,6 @@ struct OverlapWMass : public Zolotarev {
     CUDA_CHECK(cudaFree(d_XYg)); CUDA_CHECK(cudaFree(d_CY)); CUDA_CHECK(cudaFree(d_CZ));
     CUDA_CHECK(cudaFree(d_dotA)); CUDA_CHECK(cudaFree(d_dotB));
     CUDA_CHECK(cudaFree(d_ent_i)); CUDA_CHECK(cudaFree(d_ent_j)); CUDA_CHECK(cudaFree(d_ent_v));   // L4
-    if(d_mtmp) CUDA_CHECK(cudaFree(d_mtmp));   // _claude
     for(int istream=0; istream<nstreams; istream++) {
       CUDA_CHECK(cudaStreamSynchronize(stream[istream]));
       CUDA_CHECK(cudaStreamDestroy(stream[istream]));
@@ -362,20 +352,6 @@ struct OverlapWMass : public Zolotarev {
 
 
 
-  // _claude: d_out = m_L . d_in, m_L = mass_coeff * (A_y/Abar) (complex diagonal).
-  // M_mass is diagonal, so this is a cheap pointwise multiply (negligible vs an overlap apply).
-  void apply_mL(CuC* d_out, const CuC* d_in) const {
-    MatPoly Op_m;
-    Op_m.push_back( cplx(mass_coeff), {&M_mass} );
-    Op_m.on_gpu<N>( d_out, d_in );
-  }
-  // _claude: d_out = m_L^\dagger . d_in = conj(mass_coeff) * (A_y/Abar) . d_in.
-  void apply_mLdag(CuC* d_out, const CuC* d_in) const {
-    MatPoly Op_m;
-    Op_m.push_back( cplx(std::conj(mass_coeff)), {&M_mass} );
-    Op_m.on_gpu<N>( d_out, d_in );
-  }
-
   void mult_deviceAsyncLaunch(CuC* d_res, const CuC* d_xi) const {
     // can parallelize
 #ifdef _OPENMP
@@ -400,10 +376,7 @@ struct OverlapWMass : public Zolotarev {
     Op.on_gpu<N>( d_res, d_Zs[0] );
     Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, C, d_res, d_xi); // D_ov
     CUDA_CHECK(cudaDeviceSynchronize());
-    // _claude: + m_L v (diagonal measure-weighted mass), was scalar + m v:
-    // Taxpy_gen<CuC,CuC,N><<<NBlocks, NThreadsPerBlock>>>(d_res, cplx(mass), d_xi, d_res); // +m v
-    apply_mL(d_mtmp, d_xi);                                                                // d_mtmp = m_L v
-    Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, 1.0, d_mtmp, d_res);      // d_res += m_L v
+    Taxpy_gen<CuC,CuC,N><<<NBlocks, NThreadsPerBlock>>>(d_res, cplx(mass), d_xi, d_res); // +m v
     CUDA_CHECK(cudaDeviceSynchronize());
   }
 
@@ -435,19 +408,11 @@ struct OverlapWMass : public Zolotarev {
     for(int m=1; m<size; m++) Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, A[m], d_Ys[m], d_res);
     Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, C, d_res, d_xi); // D^dag_ov
     CUDA_CHECK(cudaDeviceSynchronize());
-    // _claude: + m_L^dag v (complex diagonal), was scalar + m^* v:
-    // Taxpy_gen<CuC,CuC,N><<<NBlocks, NThreadsPerBlock>>>(d_res, cplx(std::conj(mass)), d_xi, d_res); // +m^* v
-    apply_mLdag(d_mtmp, d_xi);                                                             // d_mtmp = m_L^dag v
-    Taxpy_gen<CuC,double,N><<<NBlocks, NThreadsPerBlock>>>(d_res, 1.0, d_mtmp, d_res);      // d_res += m_L^dag v
+    Taxpy_gen<CuC,CuC,N><<<NBlocks, NThreadsPerBlock>>>(d_res, cplx(std::conj(mass)), d_xi, d_res); // +m^* v
     CUDA_CHECK(cudaDeviceSynchronize());
   }
 
 
-  // _claude TODO (diagonal mass): the _ms variants below AND the mass inner products
-  // further down STILL use the scalar `mass` (cplx(mass)/conj(mass)/Complex(1)+mass).
-  // With `mass` reinterpreted as the PHYSICAL m, those scalar paths are WRONG and must be
-  // converted to the diagonal m_L (apply_mL) before any production/HMC use. The L=1
-  // operator equivalence check exercises only the non-ms mult/adj/DHD (already converted).
   // ----- multi-shift variants (C3) ----------------------------------------------
   // Numerically equivalent to mult_/adj_deviceAsyncLaunch but the per-pole solveAsync
   // loop is replaced by a single multi-shift CG pass (MatPoly::solve_multishift): the
@@ -500,43 +465,24 @@ struct OverlapWMass : public Zolotarev {
 
 
   void DHD_deviceAsyncLaunch( CuC* d_res, const CuC* d_xi ) const {
-    // _claude: D_m^dag D_m v = (1+M^*) mult(v) + adj((1+M)v) - (2 Re(M) + |M|^2) v,
-    //   M = m_L complex diagonal,  mult(v)=(D+M)v,  adj((1+M)v)=(D+M)^dag (1+M)v.
-    // From (D+M)^dag(D+M) = (1+M^*)D + D^dag(1+M) + |M|^2 (GW: D^dag D = D+D^dag).
-    // Reduces to the old scalar identity (1+m^*)(D+m)v+(1+m)(D+m)^dag v-(2Re m+|m|^2)v at M->m.
-    // Still 1 mult + 1 adj. OLD scalar body preserved in overlap_wmass_obsolete_claude.h.
-    CuC *d_mp, *d_mm, *d_w, *d_t;
+    // (D+m)^\dagger(D+m) v = (1+m^*)(D+m)v + (1+m)(D+m)^\dagger v - (2 Re(m)+|m|^2) v
+    CuC *d_mp, *d_mm;
     CUDA_CHECK(cudaMalloc(&d_mp, N*CD));
     CUDA_CHECK(cudaMalloc(&d_mm, N*CD));
-    CUDA_CHECK(cudaMalloc(&d_w,  N*CD));
-    CUDA_CHECK(cudaMalloc(&d_t,  N*CD));
-
-    this->mult_deviceAsyncLaunch(d_mp, d_xi);      // d_mp = (D+M) v
+    this->mult_deviceAsyncLaunch(d_mp, d_xi);   // d_mp = (D+m) v
     CUDA_CHECK(cudaDeviceSynchronize());
-
-    apply_mL(d_t, d_xi);                            // d_t = m_L v   (M v; reused below)
-    Taxpy_gen<CuC,double,N><<<NBlocks,NThreadsPerBlock>>>(d_w, 1.0, d_xi, d_t);    // d_w = v + M v = (1+M) v
+    this->adj_deviceAsyncLaunch(d_mm, d_xi);    // d_mm = (D+m)^\dagger v
     CUDA_CHECK(cudaDeviceSynchronize());
-    this->adj_deviceAsyncLaunch(d_mm, d_w);        // d_mm = (D+M)^dag (1+M) v
+    CUDA_CHECK(cudaMemcpy(d_res, d_mp, N*CD, D2D));
+    Taxpy_gen<CuC,CuC,N><<<NBlocks,NThreadsPerBlock>>>(d_res, cplx(std::conj(mass)), d_mp, d_res);
     CUDA_CHECK(cudaDeviceSynchronize());
-
-    apply_mLdag(d_w, d_mp);                         // d_w = M^* (D+M)v
-    Taxpy_gen<CuC,double,N><<<NBlocks,NThreadsPerBlock>>>(d_res, 1.0, d_mp, d_w);  // d_res = (1+M^*)(D+M)v
+    Taxpy_gen<CuC,CuC,N><<<NBlocks,NThreadsPerBlock>>>(d_res, cplx(Complex(1.0)+mass), d_mm, d_res);
     CUDA_CHECK(cudaDeviceSynchronize());
-    Taxpy_gen<CuC,double,N><<<NBlocks,NThreadsPerBlock>>>(d_res, 1.0, d_mm, d_res); // += (D+M)^dag(1+M)v
+    const double scalar = 2.0*mass.real() + std::norm(mass);
+    Taxpy_gen<CuC,double,N><<<NBlocks,NThreadsPerBlock>>>(d_res, -scalar, d_xi, d_res);
     CUDA_CHECK(cudaDeviceSynchronize());
-    // subtract (2 Re M + |M|^2) v = (M + M^* + |M|^2) v
-    Taxpy_gen<CuC,double,N><<<NBlocks,NThreadsPerBlock>>>(d_res, -1.0, d_t, d_res); // -= M v
-    CUDA_CHECK(cudaDeviceSynchronize());
-    apply_mLdag(d_w, d_xi);                         // d_w = M^* v
-    Taxpy_gen<CuC,double,N><<<NBlocks,NThreadsPerBlock>>>(d_res, -1.0, d_w, d_res); // -= M^* v
-    CUDA_CHECK(cudaDeviceSynchronize());
-    apply_mLdag(d_w, d_t);                          // d_w = M^*(M v) = |M|^2 v
-    Taxpy_gen<CuC,double,N><<<NBlocks,NThreadsPerBlock>>>(d_res, -1.0, d_w, d_res); // -= |M|^2 v
-    CUDA_CHECK(cudaDeviceSynchronize());
-
-    CUDA_CHECK(cudaFree(d_mp)); CUDA_CHECK(cudaFree(d_mm));
-    CUDA_CHECK(cudaFree(d_w));  CUDA_CHECK(cudaFree(d_t));
+    CUDA_CHECK(cudaFree(d_mp));
+    CUDA_CHECK(cudaFree(d_mm));
   }
 
   void DDH_deviceAsyncLaunch( CuC* d_res, const CuC* d_xi ) const {
@@ -1143,3 +1089,5 @@ struct OverlapWMass : public Zolotarev {
   //   res *= -2.0*C/lambda_max;
   //   return res;
   // }
+
+} // namespace obsolete  (_claude)

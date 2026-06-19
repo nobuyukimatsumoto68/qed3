@@ -3,6 +3,24 @@
 Self-contained brief for the local environment. Full rationale/physics:
 `mass_measure_factor_impl_plan_claude.md` (same dir). Source: arXiv:2510.03085.
 
+## STATUS (2026-06-19)
+- **Step 1 DONE**: `includes/overlap_wmass_obsolete_claude.h` = frozen scalar reference,
+  wrapped in `namespace obsolete`.
+- **Step 2 DONE (non-ms path)**: `includes/overlap_wmass_claude.h` now has complex
+  diagonal `m_L`: members `M_mass`/`mass_coeff`(Complex)/`d_mtmp`; ctor builds them;
+  helpers `apply_mL` / `apply_mLdag`; `mult`/`adj`/`DHD_deviceAsyncLaunch` converted.
+- **TODO (do NOT use in production until done)**: the `_ms` variants (`mult_ms` ~:474,
+  `adj_ms` ~:497, `DHD_..._ms` ~:559-563) and the **mass inner products** still use the
+  scalar `mass` — convert to `apply_mL`/`apply_mLdag` before any HMC run. The L=1 check
+  below only exercises the (converted) non-ms `mult`/`adj`/`DHD`.
+- **Step 3 WRITTEN**: `test_diag_mass_l1_claude.cu` (L=1, simplicial; loops m = 0, 0.1,
+  0.1 i; compares obsolete-scalar vs production-diagonal `mult`/`adj`/`DHD` on one random
+  vector via direct device calls; prints reldiff + PASS/FAIL, tol 1e-10).
+- **Remaining for local env**: add a Makefile.fnal target + build + run on GPU (Step 4).
+  Check first: the geometry path (`/project/affine/.../geometry/`) and that `Gauge U(base)`
+  is a valid cold gauge in your env; bump `Comp::Nt` if Nt=2 is unhappy. Adjust if the
+  obsolete-header `namespace obsolete` symbols or include order need tweaks.
+
 ## Goal
 
 Replace the scalar fermion mass $D_\text{ov}+m\,\mathbb{1}$ with the measure-weighted
