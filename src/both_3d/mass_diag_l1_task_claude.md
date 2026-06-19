@@ -13,9 +13,12 @@ Self-contained brief for the local environment. Full rationale/physics:
   `adj_ms` ~:497, `DHD_..._ms` ~:559-563) and the **mass inner products** still use the
   scalar `mass` — convert to `apply_mL`/`apply_mLdag` before any HMC run. The L=1 check
   below only exercises the (converted) non-ms `mult`/`adj`/`DHD`.
-- **Step 3 WRITTEN**: `test_diag_mass_l1_claude.cu` (L=1, simplicial; loops m = 0, 0.1,
-  0.1 i; compares obsolete-scalar vs production-diagonal `mult`/`adj`/`DHD` on one random
-  vector via direct device calls; prints reldiff + PASS/FAIL, tol 1e-10).
+- **Step 3 WRITTEN**: `test_diag_mass_l1_claude.cu` (simplicial; loops m = 0, 0.1, 0.1 i).
+  Parametric in L: build `-DLREF=1|2|4`. **L=1**: operator obsolete-vs-production on BOTH
+  `mult/adj/DHD` and `_ms` (~1e-13) + force obsolete-vs-production over all links (~1e-9) +
+  force-vs-FD. **L>1**: force-vs-FD only (no scalar reference). Both grad routines via build:
+  default (converted) vs `-DGRAD_L4` (block; convert grad_l4 first). Force check mimics
+  `hmc_fermilab_claude.cu:357-487`.
 - **Remaining for local env**: add a Makefile.fnal target + build + run on GPU (Step 4).
   Check first: the geometry path (`/project/affine/.../geometry/`) and that `Gauge U(base)`
   is a valid cold gauge in your env; bump `Comp::Nt` if Nt=2 is unhappy. Adjust if the
@@ -96,10 +99,65 @@ mirroring the hmc targets (`N_REFINE=1`). Run on a GPU. **Expected:** all three 
 differences $\sim 10^{-13}$–$10^{-14}$ (machine precision); `mass_diag_h`/`M_mass` uniform
 at $L=1$.
 
+## Step 3 (expanded scope, 2026-06-19)
+
+**(a) Operator equivalence — BOTH paths.** For each m in {0, 0.1, 0.1 i}, compare
+obsolete(scalar c) vs production(physical m) on a Gaussian source for the **non-ms**
+`mult`/`adj`/`DHD` AND the **`_ms`** `mult_ms`/`adj_ms`/`DHD_ms`. (Both must reduce to the
+scalar reference at L=1 to ~1e-13.)
+
+**(b) HMC force vs numerical derivative** (mimics the massive-operator check in
+`hmc_fermilab_claude.cu:357-487`; now in `test_diag_mass_l1_claude.cu`). The mass enters
+the force as the $(1+M^*)$ weight on the force inner products (`grad_*`), so validate directly:
+- Fix a **Gaussian pseudofermion** $\phi$ (set `d_phi` once; do NOT re-heatbath while
+  varying U, since the heatbath uses $D_m$). Action $S(U)=\phi^\dagger(D_m^\dagger D_m)^{-1}\phi$
+  = `update_eta()` then `action()`.
+- Analytic per-link force: `D.grad_deviceAsyncLaunch(link, U, d_eta)` (with `d_eta` from the
+  unperturbed U). Pick **a few links** (e.g. 3-4 spatial + 1 temporal).
+- Numerical: bump that link's gauge angle $\theta_\ell\to\theta_\ell\pm\epsilon$ (eps~1e-4),
+  recompute $S$, central difference $\partial S/\partial\theta_\ell\approx[S(+)-S(-)]/2\epsilon$.
+  Compare to the analytic grad (mind the force sign convention = $-\partial S/\partial\theta$).
+- Do this for the **production** operator (validates the diagonal grad) AND check it equals
+  the **obsolete** force at L=1. Tolerance ~1e-5..1e-6 (FD truncation-limited).
+- PREREQUISITE: the `grad_*` routines must be converted first (fold $\bar M$ into the dots;
+  the active variant is `_l4` via `#define GRAD_L4`; the `_l2`/`_l4` block-dot fold needs a
+  block $\bar M$ weight). For the FD check, simplest is the **default** `grad` (build WITHOUT
+  `GRAD_L1/2/4`) once it is converted.
+
 ## Pass criterion
 mult, adj, and $D_m^\dagger D_m$ all agree obsolete-vs-production to $\sim10^{-14}$ at $L=1$.
 On pass → proceed to the driver/CLI chunk (pass physical $m$; reverse-engineer the four
 production masses $m=m_1\,\bar a_s^{(1)}/A_y^{(1)}$) and an $L=2$ sanity run.
+
+## Remaining work & difficulties (which routine, why)
+
+**DONE:** `mult`/`adj`/`DHD` (+ `_ms`), and the **default** `grad_deviceAsyncLaunch`
+(per-pole streamed) -- folded via a stream-aware `M_mass` apply (`MatPoly Mp` bound to
+`stream[istream]`) into `d_Ms[m]` + an extra `dotAsync`, with `conj(mass_coeff)` folded
+host-side. No device-sync inside the omp pole loop.
+
+**TODO -- block force variants `grad_*_l1/_l2/_l4`** (`overlap_wmass_claude.h`, ~lines
+770-916). The ACTIVE production force is **`_l4`** (`#define GRAD_L4`), so this gates HMC.
+- `grad_l1`: **easy.** Same per-pole streamed structure as the default grad (just reads
+  precomputed `d_XZpre/d_XYpre`); apply the identical stream-aware `M_mass` dot fold.
+- `grad_l2` / `grad_l4`: **harder -- this is the real work.** They have NO per-pole loop:
+  the poles are a contiguous `N*npole` block (`d_XZg/d_XYg/d_CY/d_CZ`) and the dots are one
+  batched `block_dot`. To fold `(1+M^*)` you must:
+  1. write a **block diagonal-weight kernel** that multiplies the block element
+     `[m*N+i] *= (A_y/Abar)_i` (i.e. `M_mass` broadcast across all `npole` columns) -- apply
+     it to the X-applied block (`d_XZg`/`d_XYg`), into a scratch block;
+  2. run a **second `block_dot`** of `d_CY`/`d_CZ` against that weighted block -> `d_dotA_M`/`d_dotB_M`;
+  3. in the host reduce, use `real(am + conj(mass_coeff)*am_M)` (and same for `bm`).
+  Plus the post-loop m=0 term needs the same fold (as in the default grad).
+  Difficulty = the new block-diagonal kernel matching `block_dot`'s `[m*N+i]` layout +
+  two extra `npole`-length dot buffers; `_l4` also routes the link via `link_matvec_block`
+  but the M-weight still goes on the `XZg/XYg` (X-applied) blocks, not `CY/CZ`.
+
+**TODO -- driver/CLI** `hmc_fermilab_wmass_L{2,4}_claude.cu`: the `mass_re/mass_im` CLI arg
+is now the **physical** m (R=1 units), not the old bare value. Recompute the production
+masses `m = m_1 * abar_s^(1)/A_y^(1)` and update the wrapper `PAIR_LIGHT/HEAVY`. Gotcha:
+`dir3` (checkpoint path) encodes `mass.real()/imag()`, so the physical-m runs land in NEW
+checkpoint dirs (new ensembles) -- the old bare-mass dirs are not reused.
 
 ## Notes / gotchas
 - Namespace-isolate the obsolete header or the two `OverlapWMass`/`Zolotarev` definitions
