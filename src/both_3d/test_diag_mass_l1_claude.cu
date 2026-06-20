@@ -224,6 +224,59 @@ int main(int argc, char* argv[]){
     }
   }
 
+  // ===== adjointness: <u|D_m v> == <D_m^dag u|v>  (audit check 3; ALL L) =====
+  // D_m^dag must be the exact adjoint of D_m; a wrong/missing conj on the per-site complex mass_coeff
+  // (m_L^dag = conj(mass_coeff) M_mass) breaks it. Most sensitive at imaginary m (m=0.1i): a wrong conj
+  // there gives an O(|mass_coeff|) defect, vs the ~solver-tol (~1e-9) defect when correct. Two independent
+  // random vectors u,v; both non-ms and _ms paths. Site-varying m_L at L>1 is the real target.
+  {
+    std::cout << "\n# ===== adjointness <u|D_m v> vs <D_m^dag u|v> (m_L self-adjoint consistency) =====" << std::endl;
+    std::vector<Complex> uu(N), vv(N);
+    std::mt19937_64 ga(2024ull);
+    std::normal_distribution<double> g01(0.0,1.0);
+    for(Idx i=0;i<N;i++){ uu[i]=Complex(g01(ga),g01(ga)); vv[i]=Complex(g01(ga),g01(ga)); }
+
+    // apply a device op (void(CuC*,const CuC*)) to an arbitrary host vector -> host result
+    auto applyTo = [&](const std::vector<Complex>& in, auto applyFn){
+      CuC *d_in=nullptr, *d_out=nullptr;
+      CUDA_CHECK(cudaMalloc(&d_in,  N*sizeof(CuC)));
+      CUDA_CHECK(cudaMalloc(&d_out, N*sizeof(CuC)));
+      CUDA_CHECK(cudaMemcpy(d_in, reinterpret_cast<const CuC*>(in.data()), N*sizeof(CuC), cudaMemcpyHostToDevice));
+      applyFn(d_out, d_in);
+      CUDA_CHECK(cudaDeviceSynchronize());
+      std::vector<Complex> out(N);
+      CUDA_CHECK(cudaMemcpy(reinterpret_cast<CuC*>(out.data()), d_out, N*sizeof(CuC), cudaMemcpyDeviceToHost));
+      CUDA_CHECK(cudaFree(d_in)); CUDA_CHECK(cudaFree(d_out));
+      return out;
+    };
+    auto braket = [&](const std::vector<Complex>& a, const std::vector<Complex>& b){   // <a|b> = sum conj(a) b
+      Complex s(0.0,0.0);
+      for(Idx i=0;i<N;i++) s += std::conj(a[i])*b[i];
+      return s;
+    };
+
+    for(const Complex m : masses){
+      OverlapWMass<WilsonDirac> Dnew(DW, m, npole);  Dnew.update(U);
+      // non-ms
+      auto Dv = applyTo(vv, [&](CuC* o,const CuC* i){ Dnew.mult_deviceAsyncLaunch(o,i); });
+      auto Hu = applyTo(uu, [&](CuC* o,const CuC* i){ Dnew.adj_deviceAsyncLaunch (o,i); });
+      const Complex lhs  = braket(uu, Dv);     // <u|D_m v>
+      const Complex rhs  = braket(Hu, vv);     // <D_m^dag u|v>
+      const double rel   = std::abs(lhs-rhs)/std::max(std::abs(lhs),1.0e-300);
+      // _ms
+      auto Dvm = applyTo(vv, [&](CuC* o,const CuC* i){ Dnew.mult_deviceAsyncLaunch_ms(o,i); });
+      auto Hum = applyTo(uu, [&](CuC* o,const CuC* i){ Dnew.adj_deviceAsyncLaunch_ms (o,i); });
+      const Complex lhsm = braket(uu, Dvm);
+      const Complex rhsm = braket(Hum, vv);
+      const double relm  = std::abs(lhsm-rhsm)/std::max(std::abs(lhsm),1.0e-300);
+      const double tol = 1.0e-7;   // solver-tol limited (TOL_INNER=1e-9); a wrong conj gives O(0.1)
+      const bool ok = (rel<tol && relm<tol);
+      std::cout << "#   m = " << m << " : |<u|Dv>-<Hu|v>|/|.| = " << rel << " (non-ms)  " << relm << " (_ms)"
+                << "  -> " << (ok ? "PASS" : "FAIL") << std::endl;
+      all_ok = all_ok && ok;
+    }
+  }
+
   // ===== HMC force checks (mimics hmc_fermilab_claude.cu:357-487) =====
   // (1) PRIMARY, machine precision: at L=1 m_L is uniform = c, so the diagonal-mass grad must
   //     equal the obsolete SCALAR grad on the same fixed phi -> compare force over ALL links.

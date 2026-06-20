@@ -90,15 +90,26 @@ STATUS (2026-06-19, local Claude): checks 1/2/4 are now IN `test_diag_mass_l1_cl
    on the same random vector; expect ~1e-13 (pre-fix DIFFERS by the `mass_coeff/mass` factor).
 2. **[DONE -- equivalent]** the NSTACK=1 op-equality (1) is the operator half; the solve round-trip
    is implied (both legs now share `m_L`). A dedicated block-solve round-trip can be added if wanted.
-3. **[TODO]** adj/mult adjointness at $L=2$ (site-varying weights): $\langle u|D_m v\rangle
-   =\langle D_m^\dagger u|v\rangle$ via `mult` vs `adj` (catches wrong/missing conj on `mass_coeff`).
-   Cheap to add to the test (two random vectors, one `mult` + one `adj` + two dots).
+3. **[DONE + VERIFIED]** adj/mult adjointness (all L incl. site-varying $L>1$): $\langle u|D_m v\rangle
+   =\langle D_m^\dagger u|v\rangle$ via `mult` vs `adj`, both non-ms and `_ms`, in
+   `test_diag_mass_l1_claude.cu`. Two independent random vectors; tol 1e-7. RESULT (2026-06-19 run):
+   ~3.7e-10 (L=1), ~6.9e-11 (L=2), real AND imaginary m, all PASS -- the m=0.1i rows at ~1e-10
+   (vs O(0.1) for a wrong conj) confirm `conj(mass_coeff)` is correct.
 4. **[DONE]** `test_diag_mass_l1_claude.cu` compares `BlockedMat` against the diagonal production at L=1/L=2.
-5. **[TODO]** Ward identity / current conservation on a massive $L=2$ config (needs a JJ measurement run;
-   defer to the JJ-rerun stage -- now that BlockedMat is fixed it should be SATISFIED, not broken).
+5. **[WRITTEN, pending run]** Ward / current conservation -- OPERATOR-LEVEL (NM choice 2026-06-19), in the
+   standalone `test_ward_diag_mass_claude.cu` (ported from `saved_scripts_claude/check_conserved_current_claude.cu`,
+   Overlap->OverlapWMass + mass loop {0,0.1,0.1i}). Two checks per m:
+   (A) gauge-commutator `[D_m,Theta]xi = sum_l dtheta_l K^l xi` (K = `apply_k`, mass-independent;
+   `[Theta,m_L]=0` => must hold for any m; tests that the mass in mult/adj is gauge-covariant), rel < 1e-6;
+   (B) current conservation `sum_{z~w} tr(K^{wz} D_m^{-1}) = 0` using the MASSIVE propagator D_m^{-1}
+   (analytic basis loop at L=1/Nt4 = deterministic gate < 1e-6; stochastic Z2xZ2 at L=2). The vector
+   Ward identity is unbroken by the (vector-singlet) mass, so this should hold with D_m^{-1}. Runner
+   `tmp_ward_claude.sh` (GPU=1, alongside the HMC test on GPU=0). PENDING: NM runs it; Claude reads the log.
+   NOTE: ConservedCurrent already works with the massive op in production (`jj_corr_dilute_claude.cu:298`).
 
 ## Follow-on test work (requested 2026-06-19)
-- **Adjointness + (optionally) round-trip** added to `test_diag_mass_l1_claude.cu` (checks 3/2-dedicated).
+- **Adjointness** (check 3): DONE -- in `test_diag_mass_l1_claude.cu`. (Dedicated block-solve round-trip
+  still optional; the NSTACK=1 op-equality already covers the operator half.)
 - **Separate L>2 massive HMC test `.cu`** (real + imag m), modeled on the existing `hmc_*` massive
   drivers/scripts -- full dH/reversibility/force-vs-FD on a thermalized-ish config at L=2 (and L=4 if cheap).
 - **Driver/CLI** physical-`m` plumbing in `hmc_fermilab_wmass_L{2,4}_claude.cu` (see task doc).
