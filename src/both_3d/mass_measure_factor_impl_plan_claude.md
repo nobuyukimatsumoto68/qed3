@@ -111,26 +111,46 @@ $\bar a_s=$ `mean_ell` is triangulation-dependent (NOT analytic — read from th
 At $L=1$ the dual cell is uniform by icosahedral symmetry, so the per-site
 $A_y^{(1)}=\bar A^{(1)}=1.047197551196597$.
 
-### CANDIDATE physical $m$ (reverse-engineered from the old $L=1$ bare $m_1$) — REMOTE AGENT TO VERIFY
+### Production physical $m$ (reverse-engineered from the old $L=1$ bare $m_1$) — VERIFIED & SET (2026-06-19)
 
-To reproduce the old $L=1$ physics, choose physical $m$ so the (uniform) $L=1$
-$m_L=\texttt{mass\_coeff}=m\,(\bar A/\bar a_s)^{(1)}$ equals the old bare $m_1$:
+Chosen so the (uniform) $L=1$ diagonal $m_L=\texttt{mass\_coeff}=m\,(\bar A/\bar a_s)^{(1)}$
+equals the old bare $m_1$ (reproduces the old $L=1$ operator, extends correctly to $L>1$):
 $$
-m = m_1\,\frac{\bar a_s^{(1)}}{\bar A^{(1)}} = m_1 \times 1.0572491470487 .
+m = m_1\,\frac{\bar a_s^{(1)}}{\bar A^{(1)}} = m_1\,\frac{\text{mean\_ell}^{(1)}}{\text{mean\_dual\_area}^{(1)}}
+  = m_1 \times 1.0572491470487 .
 $$
+Direction CONFIRMED: $m=m_1\,\bar a_s/\bar A$ (mean\_ell $>$ mean\_dual\_area at $L=1$, so $m>m_1$).
+Round-trip CONFIRMED: $m\cdot(\bar A/\bar a_s)^{(1)} = m_1$ exactly (independent recompute, 2026-06-19).
+**These same physical $m$ are used at EVERY $L$** (the per-site factor $A_y/\bar a_s$ supplies all
+the $L$-dependence).
 
-| old bare $m_1$ | candidate physical $m$ |
+| old bare $m_1$ | **physical $m$ (HMC `mass_re`, all $L$)** |
 |---|---|
-| 0.01 | 0.010572491470487 |
-| 0.05 | 0.052862457352435 |
-| 0.10 | 0.105724914704870 |
-| 0.20 | 0.211449829409740 |
+| 0.01 | **0.0105724914705** |
+| 0.05 | **0.0528624573524** |
+| 0.10 | **0.1057249147049** |
+| 0.20 | **0.2114498294097** |
 
-**These are CANDIDATES computed locally from the $L=1$ geometry above. The REMOTE AGENT must
-verify**: (i) recompute $\bar a_s^{(1)}/\bar A^{(1)}$, (ii) confirm the direction
-$m=m_1\,\bar a_s/\bar A$ (NOT $\bar A/\bar a_s$), and (iii) decide whether to reproduce the old
-$L=1$ ensembles or define $m$ fresh. The CLI `mass_re/mass_im` is now this physical $m$; `dir3`
-encodes it, so these land in NEW checkpoint dirs (see the driver/CLI TODO).
+**SET in both wrappers** (`/lustre2/{affine,qed3}/run_wrapper_nf_fermilab_mps_claude.sh`),
+now IDENTICAL: `PAIR_LIGHT=([A]=0.0105724914705 [B]=0.0528624573524)`,
+`PAIR_HEAVY=([A]=0.2114498294097 [B]=0.1057249147049)` (A = light+heaviest, B = mid pair).
+Drivers `hmc_fermilab_wmass_L{2,4}_claude.cu`: CLI `mass_re` = physical $m$ (the operator builds
+$m_L$); added a `# mass_coeff = m*mean_dual_area/mean_ell` startup print (the uniform-measure
+equivalent, $==$ old bare at $L=1$). `dir3` encodes the physical $m$ -> NEW checkpoint dirs.
+LAUNCH GATE: rebuild the production binaries + finish the remaining checks before relaunching.
+
+**Cleanup before a RERUN -- RUN BY THE USER, not Claude** (`rm` is the user's to execute; Claude
+only lists/proposes). If a prior (buggy) diagonal run wrote configs into the retuned-mass dirs,
+remove them so the rerun cold-starts (the old BARE-mass dirs are NOT matched, so untouched):
+```
+# USER runs this. Removes ckpoint_{lat,rng} from the 4 physical-mass dirs at L2 and L4.
+for m in 0.010572 0.052862 0.105725 0.211450; do
+  rm -f /lustre2/affine/Nf2_*mRe${m}*nt128L2/ckpoint_lat.* /lustre2/affine/Nf2_*mRe${m}*nt128L2/ckpoint_rng.* \
+        /lustre2/qed3/Nf2_*mRe${m}*nt128L4/ckpoint_lat.*   /lustre2/qed3/Nf2_*mRe${m}*nt128L4/ckpoint_rng.*
+done
+```
+Then rerun the same wrapper (`run_wrapper_nf_fermilab_mps_claude.sh <NCHAIN>`) in each dir.
+(Done once on 2026-06-19 for the first buggy launch; binaries debugged + rebuilt 23:00/23:01.)
 
 ## Code grounding (what exists today)
 

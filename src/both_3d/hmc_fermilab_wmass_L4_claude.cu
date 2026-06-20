@@ -124,8 +124,8 @@ int main(int argc, char* argv[]){
       printf("  gsq      Wilson coupling squared (default: 8.0)\n");
       printf("  Nf       number of fermion flavors (default: 2)\n");
       printf("  nu0      mass parameter (default: 1.0)\n");
-      printf("  mass_re  real part of additive mass (default: 0.0)\n");
-      printf("  mass_im  imaginary part of additive mass (default: 0.0)\n");
+      printf("  mass_re  real part of PHYSICAL mass m, R=1 units (diagonal m_L = m*A_y/abar_s built internally) (default: 0.0)\n");
+      printf("  mass_im  imaginary part of physical mass m (default: 0.0)\n");
       printf("  max_sec  wall-time budget in seconds, 0 = unlimited (default: 0.0)\n");
       return 0;
     }
@@ -144,7 +144,7 @@ int main(int argc, char* argv[]){
   double max_sec = 0.0;   // wall-time budget [s] (0 = unlimited); stop before a traj that would overrun (set 2026-06-16)
   if(argc>6) max_sec = atof(argv[6]);
   Complex mass = Complex(mass_re, mass_im);
-  std::cout << "# gsq = " << gsq << " Nf = " << Nf << " nu0 = " << nu0 << " mass = " << mass << std::endl;
+  std::cout << "# gsq = " << gsq << " Nf = " << Nf << " nu0 = " << nu0 << " physical_m = " << mass << " (R=1 units; diagonal m_L = m*A_y/abar_s)" << std::endl;
   std::cout << "# max_sec = " << max_sec << " (wall-time budget; 0 = unlimited)" << std::endl;
   Timer wall_timer;   // elapsed since program start (includes structure build); drives the graceful wall-time stop
 
@@ -166,6 +166,8 @@ int main(int argc, char* argv[]){
 
   Base base(Comp::N_REFINE);
   std::cout << "# lattice set. " << std::endl;
+  std::cout << "# mass_coeff = physical_m * mean_dual_area/mean_ell = " << mass*base.mean_dual_area/base.mean_ell
+            << "  (uniform-measure equivalent; at L=1 equals the old bare mass)" << std::endl;
 
   // ----------------------
 
@@ -240,7 +242,8 @@ int main(int argc, char* argv[]){
 
 
   Force pi( base );
-  const double tmax = 1.9;
+  // const double tmax = 1.9;
+  const double tmax = 1.0;   // 2026-06-20: shortened trajectory tmax 1.9 -> 1.0
   int nsteps;
   // 2026-06-02 15:03: bumped +3 (Nf=2: 4->7, Nf=4,6: 5->8) to reduce discretization error after Nf=4,6 runs stuck at 100% rejection
   // 2026-06-04 10:42: bumped to 2x the original (Nf=2: 4->8, Nf=4,6: 5->10) to reduce discretization error after Nf=4,6 runs stuck at 100% rejection
@@ -248,10 +251,21 @@ int main(int argc, char* argv[]){
   // else if(Nf==4) nsteps = 14;
   // else if(Nf==6) nsteps = 14;
   // else nsteps = 14;
-  if(Nf==2) nsteps = 12;        // benchmark: nsteps=8 gave |dH|~1.5 (under-resolved); restore L4 original 12 (set 2026-06-16)
-  else if(Nf==4) nsteps = 10;
-  else if(Nf==6) nsteps = 10;
-  else nsteps = 10;
+  // if(Nf==2) nsteps = 12;      // benchmark: nsteps=8 gave |dH|~1.5 (under-resolved); restore L4 original 12 (set 2026-06-16)
+  // else if(Nf==4) nsteps = 10;
+  // else if(Nf==6) nsteps = 10;
+  // else nsteps = 10;
+  // 2026-06-20: UNIFY nsteps across Nf to the Nf=2 value (L4: 12). Nf=4/6 were at 10 and showed
+  // |dH|~1-1.9 at L4 (under-resolved vs Nf=2's ~0.7); 12 brings them to the Nf=2 integrator resolution.
+  // if(Nf==2) nsteps = 12;
+  // else if(Nf==4) nsteps = 12;
+  // else if(Nf==6) nsteps = 12;
+  // else nsteps = 12;
+  // 2026-06-20: tmax 1.9 -> 1.0, nsteps L4 -> 6 (all Nf)
+  if(Nf==2) nsteps = 6;
+  else if(Nf==4) nsteps = 6;
+  else if(Nf==6) nsteps = 6;
+  else nsteps = 6;
   std::cout << "# tmax = " << tmax << std::endl
             << "# nsteps = " << nsteps << std::endl;
 

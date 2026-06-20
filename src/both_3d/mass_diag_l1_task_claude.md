@@ -157,11 +157,14 @@ The ACTIVE production force is **`_l4`** (`#define GRAD_L4`), so this gated HMC;
   the default grad -- term a weights `X Z_m` (`d_XZg`), term b weights `coo Z_m` (`d_CZ`); not
   `d_CY`/`d_XYg`. m=0 post-loop folded the same way (MatPoly `M_mass` on `d_Ys[0]`).
 
-**TODO -- driver/CLI** `hmc_fermilab_wmass_L{2,4}_claude.cu`: the `mass_re/mass_im` CLI arg
-is now the **physical** m (R=1 units), not the old bare value. Recompute the production
-masses `m = m_1 * abar_s^(1)/A_y^(1)` and update the wrapper `PAIR_LIGHT/HEAVY`. Gotcha:
-`dir3` (checkpoint path) encodes `mass.real()/imag()`, so the physical-m runs land in NEW
-checkpoint dirs (new ensembles) -- the old bare-mass dirs are not reused.
+**DONE -- driver/CLI + masses (2026-06-19):** `mass_re` is now the PHYSICAL m (the operator
+builds m_L); drivers print a `# mass_coeff = m*mean_dual_area/mean_ell` sanity line. Production
+masses `m = m_1 * mean_ell^(1)/mean_dual_area^(1) = m_1 * 1.0572491470487`, SAME at every L:
+**{0.0105724914705, 0.0528624573524, 0.1057249147049, 0.2114498294097}** (from old bare
+{0.01,0.05,0.10,0.20}). Both wrappers now carry IDENTICAL `PAIR_LIGHT=([A]=0.0105724914705
+[B]=0.0528624573524) PAIR_HEAVY=([A]=0.2114498294097 [B]=0.1057249147049)`. Gotcha: `dir3`
+encodes `mass.real()` = physical m -> NEW checkpoint dirs (old bare-mass dirs not reused).
+LAUNCH GATE: rebuild production binaries with the diagonal-mass header + finish remaining checks.
 
 ## Switching lattice L (incl. L=8) -- decision 2026-06-19: KEEP `GRAD_L4`
 
