@@ -53,11 +53,13 @@ namespace Comp{
   constexpr int NPARALLEL_GAUGE=16;
   constexpr int NPARALLEL_SORT=16;
 
-  constexpr int N_REFINE=4;
+  constexpr int N_REFINE=8;
   constexpr int NS=2;
 
   // constexpr int Nt=96; // @@@
-  constexpr int Nt=128; // @@@
+  constexpr int Nt=128; // @@@ L8: keep Nt=128 (NM 2026-06-22). With at=0.1 the temporal box Nt*at=12.8
+                        // is HALF of L1/L2/L4's 25.6 -- spatial-continuum target only, not a temporal LCP.
+  // constexpr int Nt=256; // would keep box 25.6 but doubles cost+rng -- not used
   // constexpr int Nt=16;
 
   constexpr Idx N_SITES=10*N_REFINE*N_REFINE+2;
@@ -173,7 +175,8 @@ int main(int argc, char* argv[]){
 
   const double r = 1.0;
   const double M5 = -1.0;
-  const double at = 0.2;
+  // const double at = 0.2;   // L1/L2/L4 value -- FAILS L8 admissibility (mean_ell/at=0.75 < 4/3)
+  const double at = 0.1;   // L8: at <= (3/4)*mean_ell ~ 0.113 for admissibility; 0.1 -> mean_ell/at=1.50 (= L4 margin)
   assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
   WilsonDirac DW(base, 0.0, 1.0, M5, at, nu0);
 
@@ -184,7 +187,7 @@ int main(int argc, char* argv[]){
 
   // ---------------------
 
-  Fermion D(DW, mass, 13);   // npole=13 (set 2026-06-16, was 21): kernel ratio lambda_min/lambda_max=0.210 well inside the k_=0.01 Zolotarev window. projected delta ~9e-5 (log-linear fit -0.357 dec/pole off n=21 @ 1.2e-7) -- ~order of the chiral-breaking artifact; confirm printed "# delta" at startup
+  Fermion D(DW, mass, 13);   // L8 npole=13 (set 2026-06-21): NOT extrapolated down from L4's 13 -- shrinking at 0.2->0.1 worsens kernel conditioning, so hold at 13 (don't lower). CONFIRM printed "# delta" / "# min max ratio" at startup; bump to 15 (ODD) if delta >~ 1e-4 or ratio outside Zolotarev window
   std::cout << "# Dov set; M5 = " << M5 << std::endl;
   D.update(U);
   std::cout << "# min max ratio: "
@@ -213,10 +216,13 @@ int main(int argc, char* argv[]){
   const int k_ckpoint=1;
 
   // const int k_ckpoint_rng=100;
-  const int k_ckpoint_rng=1;   // L=4: keep rng every conf (set 2026-06-17 after dup-chain incident; was 100 = rolling-latest, blocked clean rollback)
+  const int k_ckpoint_rng=2;   // L=8: keep rng every 2 confs (lat still every conf; rollback granular to 2).
+                               // rng ~2.1 GB/file (Nt=128, 4x L4 sites): ~40 rng kept/stream. Nf=2,
+                               // UNPACKED (1 mass/GPU), 4 masses SPLIT 2+2 across affine/qed3 -> ~169 GB
+                               // per account (2 streams x ~40 x 2.1 GB), well under both quotas.
   // const int kmax=1200;
   // const int kmax=200;   // L=4 max conf (set 2026-06-16; was 300)
-  const int kmax=80;   // L=4 max conf (set 2026-06-21)
+  const int kmax=80;   // L=8 max conf to begin with (set 2026-06-21; loop k<kmax so last config 79)
 
   int k_tmp=0;
   {
@@ -275,10 +281,17 @@ int main(int argc, char* argv[]){
   // else nsteps = 7;
   // 2026-06-21: nsteps L4 7 -> 8 (all Nf) -- mRe0.052862 blew up AGAIN at nsteps=7 (k=23->24
   // transition reproducibly accepts dH<0 -> stuck); finer integrator + roll back to k=22
-  if(Nf==2) nsteps = 8;
-  else if(Nf==4) nsteps = 8;
-  else if(Nf==6) nsteps = 8;
-  else nsteps = 8;
+  // if(Nf==2) nsteps = 8;
+  // else if(Nf==4) nsteps = 8;
+  // else if(Nf==6) nsteps = 8;
+  // else nsteps = 8;
+  // 2026-06-21: L8 nsteps = 16 (all Nf), extrapolated from L2=5 / L4=8 (tmax=1.0). dt=0.0625,
+  // ~2x finer than L4 -- conservative since L8 blow-ups are very expensive to recover. Adjust
+  // down if first-traj |dH| is small.
+  if(Nf==2) nsteps = 16;
+  else if(Nf==4) nsteps = 16;
+  else if(Nf==6) nsteps = 16;
+  else nsteps = 16;
   std::cout << "# tmax = " << tmax << std::endl
             << "# nsteps = " << nsteps << std::endl;
 

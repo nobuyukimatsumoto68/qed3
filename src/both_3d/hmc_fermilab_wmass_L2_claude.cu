@@ -215,7 +215,8 @@ int main(int argc, char* argv[]){
   // const int k_ckpoint_rng=100;
   const int k_ckpoint_rng=5;   // L=2: keep rng every 5 conf (set 2026-06-17 after dup-chain incident; was 100 = rolling-latest, blocked clean rollback)
   // const int kmax=1200;
-  const int kmax=600;   // L=2 max conf (set 2026-06-15)
+  // const int kmax=600;   // L=2 max conf (set 2026-06-15)
+  const int kmax=120;   // L=2 max conf (set 2026-06-21)
 
   int k_tmp=0;
   {
