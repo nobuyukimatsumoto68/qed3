@@ -62,7 +62,7 @@ namespace Comp{
   constexpr int NPARALLEL_GAUGE=1; // 12
   constexpr int NPARALLEL_SORT=1; // 12
 
-  constexpr int N_REFINE=4; // L=4 massless SEA run (copy of hmc_claude.cu)
+  constexpr int N_REFINE=8; // L=8 massless SEA run (numbers mimic hmc_fermilab_wmass_L8_claude.cu)
   constexpr int NS=2;
 
   // constexpr int Nt=96; // @@@
@@ -199,7 +199,7 @@ int main(int argc, char* argv[]){
   // const double c = 1.0;
   // double at = 0.05; // base.mean_ell * 0.125 * ratio;
   // const double T = 24;
-  const double at = 0.2; // T/Comp::Nt;
+  const double at = 0.1; // 0.2 fails L8 admissibility (mean_ell/at=0.75 < 4/3); 0.1 -> 1.50 margin (mimic fermilab L8)
   assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
   WilsonDirac DW(base, 0.0, 1.0, M5, at, nu0);
 
@@ -216,7 +216,8 @@ int main(int argc, char* argv[]){
 #ifdef IS_OVERLAP
   const Complex mass = Complex(0.0, 0.0); // massless
   // Fermion D(DW, 11); // 21                         // _ms: OverlapWMass ctor below
-  Fermion D(DW, mass, 11);      // n=11 (5 poles) -- reverted per request (hmc_claude.cu ONLY; jj keeps n=21)
+  // Fermion D(DW, mass, 11);   // L1/L2/L4 value
+  Fermion D(DW, mass, 13);      // L8 npole=13 (mimic fermilab L8): hold at 13, at 0.1 worsens kernel conditioning; bump to 15 (ODD) if startup "# delta" >~ 1e-4
   // Fermion D(DW, mass, 21);   // n=21 (10 poles): unified pole count (multishift-validated, freeze-safe)
   std::cout << "# Dov set; M5 = " << M5 << std::endl;
   D.update(U);
@@ -257,8 +258,8 @@ int main(int argc, char* argv[]){
   std::filesystem::create_directory(dir3);
   // const int k_ckpoint=1;
   const int k_ckpoint=1;
-  const int k_ckpoint_rng=1000; // 10; // keep checkpoint every this many trajectories (matches fermilab codes)
-  const int kmax=4e3; // @@@@
+  const int k_ckpoint_rng=2; // 10; // L8: keep rng every 2 confs (mimic fermilab L8; rng files large)
+  const int kmax=80; // 4e3; // L8 max conf to begin with (mimic fermilab L8; loop k<kmax -> last conf 79)
   // const int kmax=2;
 
   int k_tmp=0;
@@ -286,17 +287,16 @@ int main(int argc, char* argv[]){
 
 
   Force pi( base );
-  const double tmax = 1.0; // 1.9; // 0.1 -- reduced for L>1 integrator stability (Nf2 step was 0.2375 -> stuck)
+  const double tmax = 1.0; // 1.9; // mimic fermilab L8 (dt = tmax/nsteps = 1.0/16 = 0.0625)
   int nsteps;
   // 2026-06-02 15:03: bumped +3 (Nf=2: 4->7, Nf=4,6: 5->8) to reduce discretization error after Nf=4,6 runs stuck at 100% rejection
   // 2026-06-04 10:42: bumped to 2x the original (Nf=2: 4->8, Nf=4,6: 5->10) to reduce discretization error after Nf=4,6 runs stuck at 100% rejection
-  // 2026-06-20: L=4 fixed nsteps=6 (tmax=1.0 -> step 0.1667) per request; old Nf-conditional below
+  // 2026-06-22: L=8 fixed nsteps=16 (tmax=1.0 -> dt=0.0625) per request; mimic fermilab L8; old below
   // if(Nf==2) nsteps = 8;
   // else if(Nf==4) nsteps = 10;
   // else if(Nf==6) nsteps = 10;
   // else nsteps = 10;
-  // nsteps = 6;
-  nsteps = 8; // 2026-06-23: match hmc_fermilab_wmass_L4_claude.cu (tmax=1.0 -> step 0.125)
+  nsteps = 16;
   std::cout << "# tmax = " << tmax << std::endl
             << "# nsteps = " << nsteps << std::endl;
 
