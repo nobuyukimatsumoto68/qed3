@@ -257,7 +257,7 @@ int main(int argc, char* argv[]){
   std::filesystem::create_directory(dir3);
   // const int k_ckpoint=1;
   const int k_ckpoint=1;
-  const int k_ckpoint_rng=1000; // 10; // keep checkpoint every this many trajectories (matches fermilab codes)
+  const int k_ckpoint_rng=5; // 1000; // L=2: keep rng every 5 conf (match hmc_fermilab_wmass_L2; 1000=rolling-latest blocked clean rollback)
   const int kmax=4e3; // @@@@
   // const int kmax=2;
 
@@ -295,7 +295,12 @@ int main(int argc, char* argv[]){
   // else if(Nf==4) nsteps = 10;
   // else if(Nf==6) nsteps = 10;
   // else nsteps = 10;
-  nsteps = 5;
+  // nsteps = 5;
+  // nsteps = 6; // 2026-06-23: 5->6 (step 0.167); L2/Nf4 stable here, but L2/Nf6 froze at 6
+  // 2026-06-23: Nf-dependent for L2 -- Nf6 needs a finer step (massless heavy-sea exceptional-config freeze)
+  // if(Nf==6) nsteps = 8; // step 0.125 -- L2/Nf6 still froze (k=291, dH=-543)
+  if(Nf==6) nsteps = 12; // 2026-06-25: 8->12 (step 0.083) -- L2/Nf6 froze again at nsteps=8
+  else nsteps = 6;       // Nf=4 stable at step 0.167
   std::cout << "# tmax = " << tmax << std::endl
             << "# nsteps = " << nsteps << std::endl;
 

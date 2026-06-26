@@ -257,7 +257,7 @@ int main(int argc, char* argv[]){
   std::filesystem::create_directory(dir3);
   // const int k_ckpoint=1;
   const int k_ckpoint=1;
-  const int k_ckpoint_rng=1000; // 10; // keep checkpoint every this many trajectories (matches fermilab codes)
+  const int k_ckpoint_rng=1; // 1000; // L=4: keep rng every conf (match hmc_fermilab_wmass_L4; 1000=rolling-latest blocked clean rollback)
   const int kmax=4e3; // @@@@
   // const int kmax=2;
 

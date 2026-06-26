@@ -61,7 +61,11 @@ namespace Comp{
   constexpr int NPARALLEL_GAUGE=NPARALLEL_DUPDATE;
   constexpr int NPARALLEL_SORT=NPARALLEL_DUPDATE;
 
-  constexpr int N_REFINE=1;
+  // constexpr int N_REFINE=1;   // L1 default; now compile-time via -DN_REFINE_CLI
+#ifndef N_REFINE_CLI
+#define N_REFINE_CLI 1
+#endif
+  constexpr int N_REFINE=N_REFINE_CLI;
   constexpr int NS=2;
   constexpr int Nt=128;
 
