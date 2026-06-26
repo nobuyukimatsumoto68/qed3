@@ -265,10 +265,15 @@ int main(int argc, char* argv[]){
   // else if(Nf==6) nsteps = 9;
   // else nsteps = 9;
   // 2026-06-20: tmax 1.9 -> 1.0, nsteps L2 -> 5 (all Nf)
-  if(Nf==2) nsteps = 5;
-  else if(Nf==4) nsteps = 5;
-  else if(Nf==6) nsteps = 5;
-  else nsteps = 5;
+  // if(Nf==2) nsteps = 5;
+  // else if(Nf==4) nsteps = 5;
+  // else if(Nf==6) nsteps = 5;
+  // else nsteps = 5;
+  // 2026-06-23: nsteps L2 5 -> 6 (all Nf), tmax=1.0 -> dt=1/6; finer integration
+  if(Nf==2) nsteps = 6;
+  else if(Nf==4) nsteps = 6;
+  else if(Nf==6) nsteps = 6;
+  else nsteps = 6;
   std::cout << "# tmax = " << tmax << std::endl
             << "# nsteps = " << nsteps << std::endl;
 

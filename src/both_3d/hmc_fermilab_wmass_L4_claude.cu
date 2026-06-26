@@ -184,7 +184,20 @@ int main(int argc, char* argv[]){
 
   // ---------------------
 
-  Fermion D(DW, mass, 13);   // npole=13 (set 2026-06-16, was 21): kernel ratio lambda_min/lambda_max=0.210 well inside the k_=0.01 Zolotarev window. projected delta ~9e-5 (log-linear fit -0.357 dec/pole off n=21 @ 1.2e-7) -- ~order of the chiral-breaking artifact; confirm printed "# delta" at startup
+  // 2026-06-16: npole=13 (was 21), default window k_=0.01.
+  // Fermion D(DW, mass, 13);
+  // 2026-06-26 (per NM): FIXED Zolotarev window k_=0.001 (10x wider than 0.01) + n 13 -> 21, to
+  // cure the recurring L4 force spikes from Wilson zero-crossings -- a near-zero eigenvalue of
+  // D_W^dag D_W dipping below the window -> degraded sign function (delta ~1.2e-2 vs design ~9e-5)
+  // -> huge REJECTED dH (1812/6320/246...). The wider fixed window covers ~10x deeper dips; n=21
+  // keeps delta small there (CONFIRM printed "# delta" < ~1e-4 at startup; if a dip still escapes,
+  // the "# WARNING: eval below Zolotarev window" line fires -> lower k further). The old adaptive
+  // re-fit in OverlapWMass::update() is REMOVED, so k is now truly FIXED for the run (reversible).
+  // Source: A.D.Kennedy hep-lat/0402038. Takes effect on restart from these checkpoints:
+  //   Nf2  k=119 (all 4 masses; DONE / at cap)
+  //   Nf4  mRe0.010572 k=53  mRe0.052862 k=42  mRe0.105725 k=45  mRe0.211450 k=54
+  //   Nf6  mRe0.010572 k=31  mRe0.052862 k=25  mRe0.105725 k=25  mRe0.211450 k=29
+  Fermion D(DW, mass, 21, 0.001);
   std::cout << "# Dov set; M5 = " << M5 << std::endl;
   D.update(U);
   std::cout << "# min max ratio: "
@@ -192,6 +205,7 @@ int main(int argc, char* argv[]){
             << D.lambda_max << " "
             << D.lambda_min/D.lambda_max << std::endl;
   std::cout << "# delta = " << D.Delta() << std::endl;
+  std::cout << "# Zolotarev window k = " << D.k << " (fixed for the run)" << std::endl;
 
   // -----------------------------------------------------------
 
@@ -279,7 +293,10 @@ int main(int argc, char* argv[]){
   // transition reproducibly accepts dH<0 -> stuck); finer integrator + roll back to k=22
   if(Nf==2) nsteps = 8;
   else if(Nf==4) nsteps = 8;
-  else if(Nf==6) nsteps = 8;
+  // 2026-06-25: Nf6 bumped 8 -> 10 after a |dH|=1812 (REJECTED) spike on L4 pairA heavy
+  // mRe0.211450 (k=27->28 transition); finer integrator to suppress the near-singular force.
+  // else if(Nf==6) nsteps = 8;
+  else if(Nf==6) nsteps = 10;
   else nsteps = 8;
   std::cout << "# tmax = " << tmax << std::endl
             << "# nsteps = " << nsteps << std::endl;
@@ -314,7 +331,9 @@ int main(int argc, char* argv[]){
     last_traj_sec = timer.currentSeconds();
     std::cout << "# HMC : " << last_traj_sec << " sec" << std::endl;
 
-    if(k%20==0) D.is_update = false;
+    // 2026-06-26: window is now reset-from-config + frozen at startup (above) -> this periodic
+    // freeze is redundant. Left commented for reference.
+    // if(k%20==0) D.is_update = false;
     if(k%100==0){
       std::cout << "# k = " << k << std::endl;
     }

@@ -290,13 +290,23 @@ struct OverlapWMass : public Zolotarev {
   void update( const Gauge& U ) {
     d_DW.update( U );
     compute_lambda_max();
-    double safe = 0.1;
-    if( lambda_min/lambda_max < 0.1*this->k){
-      if(is_update) Zolotarev::update(0.1*lambda_min/lambda_max);
+    // 2026-06-26 (per NM): adaptive Zolotarev re-fit REMOVED -- it was confusing and a latent
+    // reversibility hole (update() is called per MD step, so the old `if(is_update) Zolotarev::
+    // update(...)` could re-fit the window k MID-TRAJECTORY). The window k is now FIXED at
+    // construction (L4: k=0.001, n=21; L2: k=0.01, n=17) and never changes during a run. Keep only
+    // a PASSIVE warning when an eigenvalue falls below the fixed window edge k*lambda_max (the
+    // spike predictor) -- do NOT mutate k. `is_update` is now vestigial.
 #ifdef InfoDelta
-      std::clog << "# Smaller Delta Detected : " << Delta() << std::endl;
+    if( lambda_min/lambda_max < this->k )
+      std::clog << "# WARNING: eval below Zolotarev window: ratio = "
+                << lambda_min/lambda_max << "  k = " << this->k << std::endl;
 #endif
-    }
+    // -- old adaptive block (commented per convention) --
+    // double safe = 0.1;
+    // if( lambda_min/lambda_max < 0.1*this->k){
+    //   if(is_update) Zolotarev::update(0.1*lambda_min/lambda_max);
+    //   std::clog << "# Smaller Delta Detected : " << Delta() << std::endl;
+    // }
     is_precalc = false;
   }
 
