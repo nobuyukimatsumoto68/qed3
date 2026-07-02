@@ -7,7 +7,7 @@
 #   ensemble     directory basename (contains ckpoint_lat.<k>)
 #   loc          configs present LOCALLY now? (Y/N)
 #   origin       where the HMC was generated: FNAL | local  (FNAL = listed in fermilab_dirs.txt)
-#   kmin kmax    first/last config index on the jj-corr grid  (TBD for remote-only until synced)
+#   kmin kmax    first/last config index on the jj-corr grid  (provisional; re-derived at jj-compute time, Q2)
 #   intv         jj-corr sampling stride (L1=8, L2/L4=4)
 #   ncfg         number of configs on the jj-corr grid (kmin : intv : kmax)
 #   src_ncfg     total ckpoint_lat configs present (LOCAL count for loc=Y; REMOTE on-disk count for loc=N, filled 2026-07-02)
@@ -21,13 +21,13 @@
 #
 # ensemble                                                           loc origin  kmin  kmax intv  ncfg src_ncfg  existing_jj
   Nf2_gsq1.000000at0.200000nu01.000000nt128L1                          Y   local    40   312    8    35      319  -
-  Nf2_gsq12.000000at0.200000nu01.000000mRe0.010572mIm0.000000nt128L2   N   FNAL     1     5    4     2        5  ?
-  Nf2_gsq12.000000at0.200000nu01.000000mRe0.052862mIm0.000000nt128L2   N   FNAL     1     5    4     2        5  ?
-  Nf2_gsq12.000000at0.200000nu01.000000mRe0.105725mIm0.000000nt128L2   N   FNAL     1     5    4     2        5  ?
-  Nf2_gsq12.000000at0.200000nu01.000000mRe0.211450mIm0.000000nt128L2   N   FNAL     1     5    4     2        5  ?
-  Nf2_gsq12.000000at0.200000nu01.000000mRe0.422900mIm0.000000nt128L2   N   FNAL     1     1    4     1        4  ?
-  Nf2_gsq12.000000at0.200000nu01.000000mRe0.845799mIm0.000000nt128L2   N   FNAL     1     1    4     1        4  ?
-  Nf2_gsq12.000000at0.200000nu01.000000mRe1.268699mIm0.000000nt128L2   N   FNAL     1     1    4     1        4  ?
+  Nf2_gsq12.000000at0.200000nu01.000000mRe0.010572mIm0.000000nt128L2   N   FNAL     1     5    4     2        7  ?
+  Nf2_gsq12.000000at0.200000nu01.000000mRe0.052862mIm0.000000nt128L2   N   FNAL     1     5    4     2        7  ?
+  Nf2_gsq12.000000at0.200000nu01.000000mRe0.105725mIm0.000000nt128L2   N   FNAL     1     5    4     2        7  ?
+  Nf2_gsq12.000000at0.200000nu01.000000mRe0.211450mIm0.000000nt128L2   N   FNAL     1     5    4     2        7  ?
+  Nf2_gsq12.000000at0.200000nu01.000000mRe0.422900mIm0.000000nt128L2   N   FNAL     1     5    4     2        5  ?
+  Nf2_gsq12.000000at0.200000nu01.000000mRe0.845799mIm0.000000nt128L2   N   FNAL     1     5    4     2        5  ?
+  Nf2_gsq12.000000at0.200000nu01.000000mRe1.268699mIm0.000000nt128L2   N   FNAL     1     5    4     2        5  ?
   Nf2_gsq12.000000at0.200000nu01.000000nt128L1                         Y   local    40   208    8    22      212  -
   Nf2_gsq2.000000at0.200000nu01.000000nt128L1                          Y   local    40  4440    8   551     4440  dil:68
   Nf2_gsq2.400000at0.200000nu01.000000nt128L1                          Y   local    40  1416    8   173     1418  -
@@ -66,19 +66,19 @@
   Nf2_gsq8.000000at0.200000nu01.000000mRe0.845799mIm0.000000nt128L4    N   FNAL    40    60    4     6       61  ?
   Nf2_gsq8.000000at0.200000nu01.000000mRe1.268699mIm0.000000nt128L1    N   FNAL    40   312    8    35      319  ?
   Nf2_gsq8.000000at0.200000nu01.000000mRe1.268699mIm0.000000nt128L2    N   FNAL    40   316    4    70      319  ?
-  Nf2_gsq8.000000at0.200000nu01.000000mRe1.268699mIm0.000000nt128L4    N   FNAL    40    64    4     7       66  ?
+  Nf2_gsq8.000000at0.200000nu01.000000mRe1.268699mIm0.000000nt128L4    N   FNAL    40    64    4     7       67  ?
   Nf2_gsq8.000000at0.200000nu01.000000nt128L1                          Y   local    40  3424    8   424     3426  ylm:140
   Nf2_gsq8.000000at0.200000nu01.000000nt128L2                          Y   local    40  1600    4   391     1601  ylm:140
   Nf2_gsq8.000000at0.200000nu01.000000nt128L4                          Y   local    40   168    4    33      168  -
   Nf2_gsq8.000000at0.200000nu01.500000nt128L1                          Y   local    40   992    8   120      999  -
   Nf4_gsq1.000000at0.200000nu01.000000nt128L1                          Y   local    40   312    8    35      319  -
-  Nf4_gsq12.000000at0.200000nu01.000000mRe0.010572mIm0.000000nt128L2   N   FNAL     1     1    4     1        2  ?
-  Nf4_gsq12.000000at0.200000nu01.000000mRe0.052862mIm0.000000nt128L2   N   FNAL     1     1    4     1        3  ?
-  Nf4_gsq12.000000at0.200000nu01.000000mRe0.105725mIm0.000000nt128L2   N   FNAL     1     1    4     1        3  ?
-  Nf4_gsq12.000000at0.200000nu01.000000mRe0.211450mIm0.000000nt128L2   N   FNAL     1     1    4     1        2  ?
-  Nf4_gsq12.000000at0.200000nu01.000000mRe0.422900mIm0.000000nt128L2   N   FNAL     1     1    4     1        2  ?
-  Nf4_gsq12.000000at0.200000nu01.000000mRe0.845799mIm0.000000nt128L2   N   FNAL     1     1    4     1        2  ?
-  Nf4_gsq12.000000at0.200000nu01.000000mRe1.268699mIm0.000000nt128L2   N   FNAL     1     1    4     1        2  ?
+  Nf4_gsq12.000000at0.200000nu01.000000mRe0.010572mIm0.000000nt128L2   N   FNAL     1     1    4     1        3  ?
+  Nf4_gsq12.000000at0.200000nu01.000000mRe0.052862mIm0.000000nt128L2   N   FNAL     1     1    4     1        4  ?
+  Nf4_gsq12.000000at0.200000nu01.000000mRe0.105725mIm0.000000nt128L2   N   FNAL     1     1    4     1        4  ?
+  Nf4_gsq12.000000at0.200000nu01.000000mRe0.211450mIm0.000000nt128L2   N   FNAL     1     1    4     1        3  ?
+  Nf4_gsq12.000000at0.200000nu01.000000mRe0.422900mIm0.000000nt128L2   N   FNAL     1     1    4     1        3  ?
+  Nf4_gsq12.000000at0.200000nu01.000000mRe0.845799mIm0.000000nt128L2   N   FNAL     1     1    4     1        3  ?
+  Nf4_gsq12.000000at0.200000nu01.000000mRe1.268699mIm0.000000nt128L2   N   FNAL     1     1    4     1        3  ?
   Nf4_gsq12.000000at0.200000nu01.000000nt128L1                         Y   local    40   120    8    11      121  -
   Nf4_gsq2.000000at0.200000nu01.000000nt128L1                          Y   local    40  5896    8   733     5899  -
   Nf4_gsq2.200000at0.200000nu01.000000nt128L1                          Y   local    40  2088    8   257     2092  -
@@ -112,13 +112,13 @@
   Nf4_gsq8.000000at0.200000nu01.000000nt128L2                          Y   local    40   516    4   120      518  ylm:120
   Nf4_gsq8.000000at0.200000nu01.000000nt128L4                          Y   local    40   188    4    38      190  -
   Nf6_gsq1.000000at0.200000nu01.000000nt128L1                          Y   local    40   312    8    35      319  -
-  Nf6_gsq12.000000at0.200000nu01.000000mRe0.010572mIm0.000000nt128L2   N   FNAL     1     1    4     1        2  ?
-  Nf6_gsq12.000000at0.200000nu01.000000mRe0.052862mIm0.000000nt128L2   N   FNAL     1     1    4     1        2  ?
-  Nf6_gsq12.000000at0.200000nu01.000000mRe0.105725mIm0.000000nt128L2   N   FNAL     1     1    4     1        2  ?
-  Nf6_gsq12.000000at0.200000nu01.000000mRe0.211450mIm0.000000nt128L2   N   FNAL     1     1    4     1        2  ?
-  Nf6_gsq12.000000at0.200000nu01.000000mRe0.422900mIm0.000000nt128L2   N   FNAL     1     1    4     1        2  ?
-  Nf6_gsq12.000000at0.200000nu01.000000mRe0.845799mIm0.000000nt128L2   N   FNAL     1     1    4     1        2  ?
-  Nf6_gsq12.000000at0.200000nu01.000000mRe1.268699mIm0.000000nt128L2   N   FNAL     1     1    4     1        2  ?
+  Nf6_gsq12.000000at0.200000nu01.000000mRe0.010572mIm0.000000nt128L2   N   FNAL     1     1    4     1        3  ?
+  Nf6_gsq12.000000at0.200000nu01.000000mRe0.052862mIm0.000000nt128L2   N   FNAL     1     1    4     1        3  ?
+  Nf6_gsq12.000000at0.200000nu01.000000mRe0.105725mIm0.000000nt128L2   N   FNAL     1     1    4     1        3  ?
+  Nf6_gsq12.000000at0.200000nu01.000000mRe0.211450mIm0.000000nt128L2   N   FNAL     1     1    4     1        3  ?
+  Nf6_gsq12.000000at0.200000nu01.000000mRe0.422900mIm0.000000nt128L2   N   FNAL     1     1    4     1        3  ?
+  Nf6_gsq12.000000at0.200000nu01.000000mRe0.845799mIm0.000000nt128L2   N   FNAL     1     1    4     1        3  ?
+  Nf6_gsq12.000000at0.200000nu01.000000mRe1.268699mIm0.000000nt128L2   N   FNAL     1     1    4     1        3  ?
   Nf6_gsq12.000000at0.200000nu01.000000nt128L1                         Y   local    40    80    8     6       85  -
   Nf6_gsq2.000000at0.200000nu01.000000nt128L1                          Y   local    40  5536    8   688     5538  -
   Nf6_gsq2.400000at0.200000nu01.000000nt128L1                          Y   local    40  1264    8   154     1264  -

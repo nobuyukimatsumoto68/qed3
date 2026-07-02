@@ -187,3 +187,24 @@ Q3 (resolved): the stochastic jj programs `assert(!parity)`, but the `mIm!=0` (p
 **out of jj scope** (NM 2026-07-02), so the $\tilde D$ backward leg is **not needed**. Output-dir naming
 is the `.cu`'s own `data_<ESNID>/corr_ylm_{conn,disc}_.../` with `ESNID=<ens_basename>_vmRe<m>vmIm<m>`
 (`jj_local_ylm_{conn,disc}_stoch_claude.cu:270`) — REMOTE follows it verbatim (Q4).
+
+---
+
+<!-- REMOTE-STATUS-AUTO:BEGIN -->
+## REMOTE status (auto-updated 2026-07-02 by check-ensembles sync)
+
+Ensemble inventory on disk (excl L8; = `fermilab_dirs.txt`, 102 paths):
+
+| category | dirs | ncfg range |
+|---|---|---|
+| L1 reference | 24 | 1191-1643 |
+| L2 (gsq8) | 24 | 4-319 |
+| L4 (gsq8) | 24 | 2-119 |
+| heavy | 9 | 58-319 |
+| gsq12 | 21 | 3-7 |
+
+**jj corr computed on REMOTE: NONE** (ensemble-generation only; no `data_*/corr_*` on `/lustre2`).
+
+Last sync: `fermilab_dirs.txt` +0 new dir(s); `fermilab_ncfg_claude.txt` regenerated; `jj_ensembles_claude.txt` 0 loc=N row(s) refreshed, +0 new row(s).
+_This block is overwritten each sync; the Log (Section 6) is for manual milestone entries._
+<!-- REMOTE-STATUS-AUTO:END -->
