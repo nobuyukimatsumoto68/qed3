@@ -53,7 +53,7 @@ namespace Comp{
   constexpr int NPARALLEL_GAUGE=16;
   constexpr int NPARALLEL_SORT=16;
 
-  constexpr int N_REFINE=4;
+  constexpr int N_REFINE=2;
   constexpr int NS=2;
 
   // constexpr int Nt=96; // @@@
@@ -184,20 +184,12 @@ int main(int argc, char* argv[]){
 
   // ---------------------
 
-  // 2026-06-16: npole=13 (was 21), default window k_=0.01.
-  // Fermion D(DW, mass, 13);
-  // 2026-06-26 (per NM): FIXED Zolotarev window k_=0.001 (10x wider than 0.01) + n 13 -> 21, to
-  // cure the recurring L4 force spikes from Wilson zero-crossings -- a near-zero eigenvalue of
-  // D_W^dag D_W dipping below the window -> degraded sign function (delta ~1.2e-2 vs design ~9e-5)
-  // -> huge REJECTED dH (1812/6320/246...). The wider fixed window covers ~10x deeper dips; n=21
-  // keeps delta small there (CONFIRM printed "# delta" < ~1e-4 at startup; if a dip still escapes,
-  // the "# WARNING: eval below Zolotarev window" line fires -> lower k further). The old adaptive
-  // re-fit in OverlapWMass::update() is REMOVED, so k is now truly FIXED for the run (reversible).
-  // Source: A.D.Kennedy hep-lat/0402038. Takes effect on restart from these checkpoints:
-  //   Nf2  k=119 (all 4 masses; DONE / at cap)
-  //   Nf4  mRe0.010572 k=53  mRe0.052862 k=42  mRe0.105725 k=45  mRe0.211450 k=54
-  //   Nf6  mRe0.010572 k=31  mRe0.052862 k=25  mRe0.105725 k=25  mRe0.211450 k=29
-  Fermion D(DW, mass, 21, 0.001);
+  // gsq=12 study (created 2026-07-02): override to the safe WIDE Zolotarev window n=21/k=0.001.
+  // Stronger coupling -> rougher gauge fields -> lower Wilson kernel low-modes; the wide fixed
+  // window guards sign(H_W) against the zero-crossing spikes seen at L=4 (A.D.Kennedy hep-lat/0402038).
+  // Original campaign L2 value (n=17, k_=0.01 default) preserved below, commented, per convention.
+  // Fermion D(DW, mass, 17);   // npole=17 (set 2026-06-16, was 21): kernel ratio lambda_min/lambda_max=0.149 sits well inside the k_=0.01 Zolotarev window, so 17 poles suffice. projected delta ~3e-6 (log-linear fit -0.357 dec/pole off n=21 @ 1.2e-7); confirm printed "# delta" at startup
+  Fermion D(DW, mass, 21, 0.001);   // n=21, k=0.001 (gsq=12 wide-window override)
   std::cout << "# Dov set; M5 = " << M5 << std::endl;
   D.update(U);
   std::cout << "# min max ratio: "
@@ -205,7 +197,6 @@ int main(int argc, char* argv[]){
             << D.lambda_max << " "
             << D.lambda_min/D.lambda_max << std::endl;
   std::cout << "# delta = " << D.Delta() << std::endl;
-  std::cout << "# Zolotarev window k = " << D.k << " (fixed for the run)" << std::endl;
 
   // -----------------------------------------------------------
 
@@ -227,12 +218,12 @@ int main(int argc, char* argv[]){
   const int k_ckpoint=1;
 
   // const int k_ckpoint_rng=100;
-  const int k_ckpoint_rng=1;   // L=4: keep rng every conf (set 2026-06-17 after dup-chain incident; was 100 = rolling-latest, blocked clean rollback)
+  const int k_ckpoint_rng=5;   // L=2: keep rng every 5 conf (set 2026-06-17 after dup-chain incident; was 100 = rolling-latest, blocked clean rollback)
   // const int kmax=1200;
-  // const int kmax=200;   // L=4 max conf (set 2026-06-16; was 300)
-  // const int kmax=80;   // L=4 max conf (set 2026-06-21)
-  // const int kmax=200;   // L=4 max conf (raised 80 -> 200 on 2026-06-23 to resume pairA/pairB)
-  const int kmax=120;   // L=4 max conf (recapped 200 -> 120 on 2026-06-23; realistic target vs alloc)
+  // const int kmax=600;   // L=2 max conf (set 2026-06-15)
+  // const int kmax=120;   // L=2 max conf (set 2026-06-21)
+  // const int kmax=420;   // L=2 max conf bumped 120 -> 420 (set 2026-06-22; L2 reached 119 cap)
+  const int kmax=320;   // L=2 max conf (recapped 420 -> 320 on 2026-06-23; realistic target vs alloc)
 
   int k_tmp=0;
   {
@@ -264,40 +255,30 @@ int main(int argc, char* argv[]){
   int nsteps;
   // 2026-06-02 15:03: bumped +3 (Nf=2: 4->7, Nf=4,6: 5->8) to reduce discretization error after Nf=4,6 runs stuck at 100% rejection
   // 2026-06-04 10:42: bumped to 2x the original (Nf=2: 4->8, Nf=4,6: 5->10) to reduce discretization error after Nf=4,6 runs stuck at 100% rejection
-  // if(Nf==2) nsteps = 12;     // L4 originals (more steps for finer lattice)
-  // else if(Nf==4) nsteps = 14;
-  // else if(Nf==6) nsteps = 14;
-  // else nsteps = 14;
-  // if(Nf==2) nsteps = 12;      // benchmark: nsteps=8 gave |dH|~1.5 (under-resolved); restore L4 original 12 (set 2026-06-16)
-  // else if(Nf==4) nsteps = 10;
-  // else if(Nf==6) nsteps = 10;
-  // else nsteps = 10;
-  // 2026-06-20: UNIFY nsteps across Nf to the Nf=2 value (L4: 12). Nf=4/6 were at 10 and showed
-  // |dH|~1-1.9 at L4 (under-resolved vs Nf=2's ~0.7); 12 brings them to the Nf=2 integrator resolution.
-  // if(Nf==2) nsteps = 12;
+  // if(Nf==2) nsteps = 10;     // L2 originals (more steps for finer lattice)
   // else if(Nf==4) nsteps = 12;
   // else if(Nf==6) nsteps = 12;
   // else nsteps = 12;
-  // 2026-06-20: tmax 1.9 -> 1.0, nsteps L4 -> 6 (all Nf)
-  // if(Nf==2) nsteps = 6;
-  // else if(Nf==4) nsteps = 6;
-  // else if(Nf==6) nsteps = 6;
-  // else nsteps = 6;
-  // 2026-06-21: nsteps L4 6 -> 7 (all Nf) -- finer integrator after a dH=-683 blow-up
-  // (accepted) stuck the Nf2 pairB mRe0.052862 stream at nsteps=6
-  // if(Nf==2) nsteps = 7;
-  // else if(Nf==4) nsteps = 7;
-  // else if(Nf==6) nsteps = 7;
-  // else nsteps = 7;
-  // 2026-06-21: nsteps L4 7 -> 8 (all Nf) -- mRe0.052862 blew up AGAIN at nsteps=7 (k=23->24
-  // transition reproducibly accepts dH<0 -> stuck); finer integrator + roll back to k=22
-  // 2026-06-25: Nf6 bumped 8 -> 10 after a |dH|=1812 (REJECTED) spike on L4 pairA heavy
-  // mRe0.211450 (k=27->28 transition); finer integrator to suppress the near-singular force.
-  // (2026-06-26: considered dropping L4 nsteps post-Zolotarev-fix but NM kept the previous values.)
-  if(Nf==2) nsteps = 8;
-  else if(Nf==4) nsteps = 8;
-  else if(Nf==6) nsteps = 10;
-  else nsteps = 8;
+  // if(Nf==2) nsteps = 9;       // benchmark: |dH|~0.2 at nsteps=8 (100% accept); 9 for margin (set 2026-06-16)
+  // else if(Nf==4) nsteps = 10;
+  // else if(Nf==6) nsteps = 10;
+  // else nsteps = 10;
+  // 2026-06-20: UNIFY nsteps across Nf to the Nf=2 value (L2: 9). Same integrator resolution
+  // for all flavors; Nf=4/6 were at 10. Acceptance already ~100% at L2 so 9 is safe.
+  // if(Nf==2) nsteps = 9;
+  // else if(Nf==4) nsteps = 9;
+  // else if(Nf==6) nsteps = 9;
+  // else nsteps = 9;
+  // 2026-06-20: tmax 1.9 -> 1.0, nsteps L2 -> 5 (all Nf)
+  // if(Nf==2) nsteps = 5;
+  // else if(Nf==4) nsteps = 5;
+  // else if(Nf==6) nsteps = 5;
+  // else nsteps = 5;
+  // 2026-06-23: nsteps L2 5 -> 6 (all Nf), tmax=1.0 -> dt=1/6; finer integration
+  if(Nf==2) nsteps = 6;
+  else if(Nf==4) nsteps = 6;
+  else if(Nf==6) nsteps = 6;
+  else nsteps = 6;
   std::cout << "# tmax = " << tmax << std::endl
             << "# nsteps = " << nsteps << std::endl;
 
@@ -331,9 +312,7 @@ int main(int argc, char* argv[]){
     last_traj_sec = timer.currentSeconds();
     std::cout << "# HMC : " << last_traj_sec << " sec" << std::endl;
 
-    // 2026-06-26: window is now reset-from-config + frozen at startup (above) -> this periodic
-    // freeze is redundant. Left commented for reference.
-    // if(k%20==0) D.is_update = false;
+    if(k%20==0) D.is_update = false;
     if(k%100==0){
       std::cout << "# k = " << k << std::endl;
     }

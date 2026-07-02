@@ -46,14 +46,20 @@ namespace Comp{
   constexpr bool is_compact=false;
 
   // overlap only (no IS_DUAL)
-  constexpr int NPARALLEL_DUPDATE=1;   // was 4 (set 2026-06-16); -> NPARALLEL=NSTREAMS=1 via deps below: single CUDA stream for MPS packing (2 clients/GPU)
+  // 2026-06-26 HEAVY-MASS L=1,2,4 STUDY -- copy of hmc_fermilab_wmass_claude.cu (the L=1 driver).
+  // Nf=2, gsq=8.0, physical m = {0.4228996588195, 0.845799317639, 1.2686989764584}
+  // (effective_L1 = 0.4/0.8/1.2), kmax=320, affine account, 3-client MPS packing.
+  // Plan: heavy_mass_L124_impl_plan_claude.md.
+  // NPARALLEL_DUPDATE 4 -> 1: single CUDA stream/client for clean 3-client MPS packing (like L2/L4).
+  // constexpr int NPARALLEL_DUPDATE=4;
+  constexpr int NPARALLEL_DUPDATE=1;
   constexpr int NPARALLEL=NPARALLEL_DUPDATE;
   constexpr int NSTREAMS=NPARALLEL_DUPDATE;
 
   constexpr int NPARALLEL_GAUGE=16;
   constexpr int NPARALLEL_SORT=16;
 
-  constexpr int N_REFINE=4;
+  constexpr int N_REFINE=1;
   constexpr int NS=2;
 
   // constexpr int Nt=96; // @@@
@@ -120,13 +126,12 @@ int main(int argc, char* argv[]){
 
   for (int i = 1; i < argc; i++) {
     if (std::string(argv[i]) == "-h") {
-      printf("Usage: ./a.out [gsq] [Nf] [nu0] [mass_re] [mass_im] [max_sec]\n");
+      printf("Usage: ./a.out [gsq] [Nf] [nu0] [mass_re] [mass_im]\n");
       printf("  gsq      Wilson coupling squared (default: 8.0)\n");
       printf("  Nf       number of fermion flavors (default: 2)\n");
       printf("  nu0      mass parameter (default: 1.0)\n");
-      printf("  mass_re  real part of PHYSICAL mass m, R=1 units (diagonal m_L = m*A_y/abar_s built internally) (default: 0.0)\n");
-      printf("  mass_im  imaginary part of physical mass m (default: 0.0)\n");
-      printf("  max_sec  wall-time budget in seconds, 0 = unlimited (default: 0.0)\n");
+      printf("  mass_re  real part of additive mass (default: 0.0)\n");
+      printf("  mass_im  imaginary part of additive mass (default: 0.0)\n");
       return 0;
     }
   }
@@ -141,12 +146,8 @@ int main(int argc, char* argv[]){
   if(argc>4) mass_re = atof(argv[4]);
   double mass_im = 0.0;
   if(argc>5) mass_im = atof(argv[5]);
-  double max_sec = 0.0;   // wall-time budget [s] (0 = unlimited); stop before a traj that would overrun (set 2026-06-16)
-  if(argc>6) max_sec = atof(argv[6]);
   Complex mass = Complex(mass_re, mass_im);
-  std::cout << "# gsq = " << gsq << " Nf = " << Nf << " nu0 = " << nu0 << " physical_m = " << mass << " (R=1 units; diagonal m_L = m*A_y/abar_s)" << std::endl;
-  std::cout << "# max_sec = " << max_sec << " (wall-time budget; 0 = unlimited)" << std::endl;
-  Timer wall_timer;   // elapsed since program start (includes structure build); drives the graceful wall-time stop
+  std::cout << "# gsq = " << gsq << " Nf = " << Nf << " nu0 = " << nu0 << " mass = " << mass << std::endl;
 
 
   for(int i=0; i<Comp::NSTREAMS; i++) d_MemorySets[i].allocate();
@@ -166,8 +167,6 @@ int main(int argc, char* argv[]){
 
   Base base(Comp::N_REFINE);
   std::cout << "# lattice set. " << std::endl;
-  std::cout << "# mass_coeff = physical_m * mean_dual_area/mean_ell = " << mass*base.mean_dual_area/base.mean_ell
-            << "  (uniform-measure equivalent; at L=1 equals the old bare mass)" << std::endl;
 
   // ----------------------
 
@@ -184,20 +183,7 @@ int main(int argc, char* argv[]){
 
   // ---------------------
 
-  // 2026-06-16: npole=13 (was 21), default window k_=0.01.
-  // Fermion D(DW, mass, 13);
-  // 2026-06-26 (per NM): FIXED Zolotarev window k_=0.001 (10x wider than 0.01) + n 13 -> 21, to
-  // cure the recurring L4 force spikes from Wilson zero-crossings -- a near-zero eigenvalue of
-  // D_W^dag D_W dipping below the window -> degraded sign function (delta ~1.2e-2 vs design ~9e-5)
-  // -> huge REJECTED dH (1812/6320/246...). The wider fixed window covers ~10x deeper dips; n=21
-  // keeps delta small there (CONFIRM printed "# delta" < ~1e-4 at startup; if a dip still escapes,
-  // the "# WARNING: eval below Zolotarev window" line fires -> lower k further). The old adaptive
-  // re-fit in OverlapWMass::update() is REMOVED, so k is now truly FIXED for the run (reversible).
-  // Source: A.D.Kennedy hep-lat/0402038. Takes effect on restart from these checkpoints:
-  //   Nf2  k=119 (all 4 masses; DONE / at cap)
-  //   Nf4  mRe0.010572 k=53  mRe0.052862 k=42  mRe0.105725 k=45  mRe0.211450 k=54
-  //   Nf6  mRe0.010572 k=31  mRe0.052862 k=25  mRe0.105725 k=25  mRe0.211450 k=29
-  Fermion D(DW, mass, 21, 0.001);
+  Fermion D(DW, mass, 21);
   std::cout << "# Dov set; M5 = " << M5 << std::endl;
   D.update(U);
   std::cout << "# min max ratio: "
@@ -205,7 +191,10 @@ int main(int argc, char* argv[]){
             << D.lambda_max << " "
             << D.lambda_min/D.lambda_max << std::endl;
   std::cout << "# delta = " << D.Delta() << std::endl;
-  std::cout << "# Zolotarev window k = " << D.k << " (fixed for the run)" << std::endl;
+  // 2026-06-26 heavy study: print the effective (action) mass = physical_m * mean_dual_area/mean_ell.
+  // At L=1 this is the anchor -> should read 0.4 / 0.8 / 1.2 for the three physical masses.
+  std::cout << "# mass_coeff = physical_m * mean_dual_area/mean_ell = "
+            << mass*base.mean_dual_area/base.mean_ell << std::endl;
 
   // -----------------------------------------------------------
 
@@ -226,13 +215,10 @@ int main(int argc, char* argv[]){
   std::filesystem::create_directory(dir3);
   const int k_ckpoint=1;
 
-  // const int k_ckpoint_rng=100;
-  const int k_ckpoint_rng=1;   // L=4: keep rng every conf (set 2026-06-17 after dup-chain incident; was 100 = rolling-latest, blocked clean rollback)
+  const int k_ckpoint_rng=100;
+  // 2026-06-26 heavy study: kmax 1200 -> 320.
   // const int kmax=1200;
-  // const int kmax=200;   // L=4 max conf (set 2026-06-16; was 300)
-  // const int kmax=80;   // L=4 max conf (set 2026-06-21)
-  // const int kmax=200;   // L=4 max conf (raised 80 -> 200 on 2026-06-23 to resume pairA/pairB)
-  const int kmax=120;   // L=4 max conf (recapped 200 -> 120 on 2026-06-23; realistic target vs alloc)
+  const int kmax=320;
 
   int k_tmp=0;
   {
@@ -259,45 +245,14 @@ int main(int argc, char* argv[]){
 
 
   Force pi( base );
-  // const double tmax = 1.9;
-  const double tmax = 1.0;   // 2026-06-20: shortened trajectory tmax 1.9 -> 1.0
+  const double tmax = 1.9;
   int nsteps;
   // 2026-06-02 15:03: bumped +3 (Nf=2: 4->7, Nf=4,6: 5->8) to reduce discretization error after Nf=4,6 runs stuck at 100% rejection
   // 2026-06-04 10:42: bumped to 2x the original (Nf=2: 4->8, Nf=4,6: 5->10) to reduce discretization error after Nf=4,6 runs stuck at 100% rejection
-  // if(Nf==2) nsteps = 12;     // L4 originals (more steps for finer lattice)
-  // else if(Nf==4) nsteps = 14;
-  // else if(Nf==6) nsteps = 14;
-  // else nsteps = 14;
-  // if(Nf==2) nsteps = 12;      // benchmark: nsteps=8 gave |dH|~1.5 (under-resolved); restore L4 original 12 (set 2026-06-16)
-  // else if(Nf==4) nsteps = 10;
-  // else if(Nf==6) nsteps = 10;
-  // else nsteps = 10;
-  // 2026-06-20: UNIFY nsteps across Nf to the Nf=2 value (L4: 12). Nf=4/6 were at 10 and showed
-  // |dH|~1-1.9 at L4 (under-resolved vs Nf=2's ~0.7); 12 brings them to the Nf=2 integrator resolution.
-  // if(Nf==2) nsteps = 12;
-  // else if(Nf==4) nsteps = 12;
-  // else if(Nf==6) nsteps = 12;
-  // else nsteps = 12;
-  // 2026-06-20: tmax 1.9 -> 1.0, nsteps L4 -> 6 (all Nf)
-  // if(Nf==2) nsteps = 6;
-  // else if(Nf==4) nsteps = 6;
-  // else if(Nf==6) nsteps = 6;
-  // else nsteps = 6;
-  // 2026-06-21: nsteps L4 6 -> 7 (all Nf) -- finer integrator after a dH=-683 blow-up
-  // (accepted) stuck the Nf2 pairB mRe0.052862 stream at nsteps=6
-  // if(Nf==2) nsteps = 7;
-  // else if(Nf==4) nsteps = 7;
-  // else if(Nf==6) nsteps = 7;
-  // else nsteps = 7;
-  // 2026-06-21: nsteps L4 7 -> 8 (all Nf) -- mRe0.052862 blew up AGAIN at nsteps=7 (k=23->24
-  // transition reproducibly accepts dH<0 -> stuck); finer integrator + roll back to k=22
-  // 2026-06-25: Nf6 bumped 8 -> 10 after a |dH|=1812 (REJECTED) spike on L4 pairA heavy
-  // mRe0.211450 (k=27->28 transition); finer integrator to suppress the near-singular force.
-  // (2026-06-26: considered dropping L4 nsteps post-Zolotarev-fix but NM kept the previous values.)
   if(Nf==2) nsteps = 8;
-  else if(Nf==4) nsteps = 8;
+  else if(Nf==4) nsteps = 10;
   else if(Nf==6) nsteps = 10;
-  else nsteps = 8;
+  else nsteps = 10;
   std::cout << "# tmax = " << tmax << std::endl
             << "# nsteps = " << nsteps << std::endl;
 
@@ -309,31 +264,16 @@ int main(int argc, char* argv[]){
   bool is_accept;
 
   double r_mean;
-  double last_traj_sec = 0.0;   // wall time of the previous trajectory (drives the budget estimate)
   for(int k=k_tmp+1; k<kmax; k++){
-    // graceful wall-time stop: never START a trajectory we cannot finish (+checkpoint) within max_sec.
-    // The 1.3x margin covers per-traj variance; the first traj always runs (last_traj_sec==0).
-    if(max_sec > 0.0 && last_traj_sec > 0.0){
-      const double elapsed = wall_timer.currentSeconds();
-      const double est = 1.3*last_traj_sec;
-      if(elapsed + est > max_sec){
-        std::cout << "# wall budget reached: stopping before traj " << k
-                  << " (elapsed " << elapsed << "s + est " << est << "s > budget " << max_sec << "s)" << std::endl;
-        break;
-      }
-    }
     Timer timer;
     hmc.run( rate, dH, is_accept);
     std::cout << "# dH : " << dH
               << " is_accept : " << is_accept
               << " rate : " << rate << std::endl;
     r_mean += rate;
-    last_traj_sec = timer.currentSeconds();
-    std::cout << "# HMC : " << last_traj_sec << " sec" << std::endl;
+    std::cout << "# HMC : " << timer.currentSeconds() << " sec" << std::endl;
 
-    // 2026-06-26: window is now reset-from-config + frozen at startup (above) -> this periodic
-    // freeze is redundant. Left commented for reference.
-    // if(k%20==0) D.is_update = false;
+    if(k%20==0) D.is_update = false;
     if(k%100==0){
       std::cout << "# k = " << k << std::endl;
     }

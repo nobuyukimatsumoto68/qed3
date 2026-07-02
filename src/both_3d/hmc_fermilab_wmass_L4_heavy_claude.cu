@@ -232,7 +232,11 @@ int main(int argc, char* argv[]){
   // const int kmax=200;   // L=4 max conf (set 2026-06-16; was 300)
   // const int kmax=80;   // L=4 max conf (set 2026-06-21)
   // const int kmax=200;   // L=4 max conf (raised 80 -> 200 on 2026-06-23 to resume pairA/pairB)
-  const int kmax=120;   // L=4 max conf (recapped 200 -> 120 on 2026-06-23; realistic target vs alloc)
+  // const int kmax=120;   // L=4 max conf (recapped 200 -> 120 on 2026-06-23; realistic target vs alloc)
+  // 2026-06-26 HEAVY-MASS L=1,2,4 STUDY -- copy of hmc_fermilab_wmass_L4_claude.cu. kmax 120 -> 320.
+  // SEPARATE binary so the production L4 campaign binary stays capped at 120 (its live light-mass
+  // chains must NOT extend). Inherits n=21/k=0.001/nsteps(Nf2)=8. Plan: heavy_mass_L124_impl_plan_claude.md.
+  const int kmax=320;
 
   int k_tmp=0;
   {
