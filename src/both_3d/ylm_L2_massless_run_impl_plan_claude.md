@@ -72,3 +72,25 @@ Reference thread: memory `project-ylm-tower` (L1 massless production + massive R
 - GPU/MPS layout: DECIDED (user) -- ALL on GPU 0 (dev=1 not used). Run Nf=2,4 simultaneously on GPU 0
   (2 procs/GPU under MPS, fits the 12 GB TITAN V); Nf=6 run later via
   `bash run_ylm_prod_L2_claude.sh 6`. Script now takes the Nf list as positional args (default "2 4").
+
+## MASSIVE L2 sweep + massless Nf6 (added 2026-06-27)
+- Nf2/4 massless L2 DONE (conn+disc 140/120). Massless Nf6 still pending.
+- Massive L2 ensembles transferred from Fermilab (`nmatsum@lq.fnal.gov:/home/nmatsum/affine`, lat-only,
+  no rng -- `rsync_pull_massive_L2_claude.sh`): mIm=0 (m_F, unitary, valence=sea).
+- **MASS RESCALING ISSUE (user-flagged)**: the 8 masses/Nf are TWO geometric families {m,5m,10m,20m}
+  differing by ~1.98 (the rescale factor). Only ONE is correctly rescaled.
+  - **Family B = CORRECT** (more configs ~286-319 / more recent mtime): dir tags mRe{0.010572, 0.052862,
+    0.105725, 0.211450}; EXACT sea masses {0.0105724914705, 0.0528624573524, 0.1057249147049, 0.2114498294097}.
+  - **Family A = WRONG** (nconf 4-151, older): mRe{0.005338, 0.026688, 0.053375, 0.106750}. DROPPED from
+    both rsync + driver.
+  - Dir names are %f-rounded; pass the EXACT mass to --mass-re (output still tags vmRe0.010572 via 6-dec
+    to_string). 12 massive ensembles kept (Nf{2,4,6} x 4 Family-B masses).
+- Driver `run_ylm_prod_L2_massive_claude.sh`: loops massless Nf6 + 12 Family-B massive (ENS entries =
+  "dir|exact-mass"); conn+disc each; valence mass = exact sea mass (massless Nf6 = no --mass-re). PACKING
+  = 2 jobs at a time on GPU0 under MPS (wait -n pool). DISC --disc-tblock 2. Config sampling AUTO-DETECTED
+  per ensemble (the program
+  breaks at first missing config, so the grid must hit existing files): base = spacing of first two
+  ckpoint_lat ; kmin = first k >= KMIN_TRAJ(=40) ; stride = SAMP(=4)*base ; kmax = last+1. Output
+  auto-tags data_<ens>_vmRe<m>vmIm0/. Per-config atomic .h5 + resume-skip. Programs assert(!parity) ->
+  only real m_F OK (all mIm=0 here, fine). PENDING: run after transfer; confirm KMIN_TRAJ/SAMP per the
+  actual transferred chain lengths.

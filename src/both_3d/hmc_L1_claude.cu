@@ -62,7 +62,7 @@ namespace Comp{
   constexpr int NPARALLEL_GAUGE=1; // 12
   constexpr int NPARALLEL_SORT=1; // 12
 
-  constexpr int N_REFINE=4; // L=4 massless SEA run (copy of hmc_claude.cu)
+  constexpr int N_REFINE=1;
   constexpr int NS=2;
 
   // constexpr int Nt=96; // @@@
@@ -215,10 +215,9 @@ int main(int argc, char* argv[]){
   // HERE
 #ifdef IS_OVERLAP
   const Complex mass = Complex(0.0, 0.0); // massless
-  // Fermion D(DW, mass, 11);   // n=11 -- froze on massless L4? (low modes dip below default window k=0.01)
-  // 2026-06-26: match hmc_fermilab_wmass_L4_claude.cu Zolotarev fix -- npole 21 + FIXED wider window
-  // k=0.001 (10x wider than 0.01) so D_W^dag D_W dips don't degrade the sign fn; adaptive re-fit removed
-  // in includes/overlap_wmass_claude.h (window now fixed/reversible). CONFIRM "# delta" < ~1e-4 at startup.
+  // Fermion D(DW, 11); // 21                         // _ms: OverlapWMass ctor below
+  // Fermion D(DW, mass, 11);   // n=11 original L1
+  // 2026-06-29: L1 gsq scan -- match the L4 Zolotarev fix (npole 21 + FIXED window k=0.001)
   Fermion D(DW, mass, 21, 0.001);
   std::cout << "# Dov set; M5 = " << M5 << std::endl;
   D.update(U);
@@ -260,8 +259,8 @@ int main(int argc, char* argv[]){
   std::filesystem::create_directory(dir3);
   // const int k_ckpoint=1;
   const int k_ckpoint=1;
-  const int k_ckpoint_rng=1; // 1000; // L=4: keep rng every conf (match hmc_fermilab_wmass_L4; 1000=rolling-latest blocked clean rollback)
-  const int kmax=4e3; // @@@@
+  const int k_ckpoint_rng=10; // keep checkpoint every this many trajectories
+  const int kmax=320; // 4e3; // L1 gsq scan cap (set 2026-06-29)
   // const int kmax=2;
 
   int k_tmp=0;
@@ -289,20 +288,15 @@ int main(int argc, char* argv[]){
 
 
   Force pi( base );
-  const double tmax = 1.0; // 1.9; // 0.1 -- reduced for L>1 integrator stability (Nf2 step was 0.2375 -> stuck)
+  const double tmax = 1.9; // 0.1
   int nsteps;
   // 2026-06-02 15:03: bumped +3 (Nf=2: 4->7, Nf=4,6: 5->8) to reduce discretization error after Nf=4,6 runs stuck at 100% rejection
   // 2026-06-04 10:42: bumped to 2x the original (Nf=2: 4->8, Nf=4,6: 5->10) to reduce discretization error after Nf=4,6 runs stuck at 100% rejection
-  // 2026-06-20: L=4 fixed nsteps=6 (tmax=1.0 -> step 0.1667) per request; old Nf-conditional below
-  // if(Nf==2) nsteps = 8;
-  // else if(Nf==4) nsteps = 10;
-  // else if(Nf==6) nsteps = 10;
-  // else nsteps = 10;
-  // nsteps = 6;
-  // nsteps = 8; // 2026-06-23: match fermilab L4 (step 0.125, all Nf)
-  // 2026-06-26: match fermilab L4 -- Nf6=10, else 8
-  if(Nf==6) nsteps = 10;
-  else nsteps = 8;
+  // if(Nf==2) nsteps = 8; // step 0.2375 -- L1/Nf2 gsq=1.0 froze at k=113
+  if(Nf==2) nsteps = 10;   // 2026-06-29: 8->10 (step 0.19) -- match clean Nf4/Nf6
+  else if(Nf==4) nsteps = 10;
+  else if(Nf==6) nsteps = 10;
+  else nsteps = 10;
   std::cout << "# tmax = " << tmax << std::endl
             << "# nsteps = " << nsteps << std::endl;
 
