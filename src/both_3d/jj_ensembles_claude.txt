@@ -7,7 +7,7 @@
 #   ensemble     directory basename (contains ckpoint_lat.<k>)
 #   loc          configs present LOCALLY now? (Y/N)
 #   origin       where the HMC was generated: FNAL | local  (FNAL = listed in fermilab_dirs.txt)
-#   kmin kmax    first/last config index on the jj-corr grid  (provisional; re-derived at jj-compute time, Q2)
+#   kmin kmax    first/last config index on the jj-corr grid  (loc=N rows filled from fermilab_ncfg_claude.txt)
 #   intv         jj-corr sampling stride (L1=8, L2/L4=4)
 #   ncfg         number of configs on the jj-corr grid (kmin : intv : kmax)
 #   src_ncfg     total ckpoint_lat configs present (LOCAL count for loc=Y; REMOTE on-disk count for loc=N, filled 2026-07-02)

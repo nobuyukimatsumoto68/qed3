@@ -35,9 +35,11 @@ Use both machines to produce JJ current-correlator data:
 | **`fermilab_dirs.txt`** | **CANONICAL shared config-dir list** — one absolute remote path per ensemble. Source of truth for which ensembles exist / are to be synced. Both agents append to it. Kept PURE (one path/line, no columns/comments) so rsync `--files-from` / `while read` consumers do not choke. |
 | `fermilab_ncfg_claude.txt` | **REMOTE-generated companion to `fermilab_dirs.txt`**: `ncfg<TAB>path` per ensemble = latest `ckpoint_lat.<k>` index. Storage is contiguous (`kmin=1`, stride 1), so `ncfg = kmax`. Resolves the `TBD` ranges. Regenerate on REMOTE after new configs land. |
 | `jj_ensembles_claude.txt` | Status view **derived from** `fermilab_dirs.txt` + local scan: per-ensemble `loc`, `origin`, jj-corr grid (kmin/kmax/intv/ncfg), and existing jj coverage. |
-| `rsync_fermilab_dirs_claude.sh` | Pulls every dir listed in `fermilab_dirs.txt` (resumable, no `--delete`). |
+| `rsync_fermilab_dirs_claude.sh` | Pulls every dir listed in `fermilab_dirs.txt`, WHOLE dir (resumable, no `--delete`). |
+| `rsync_pull_configs_claude.sh` | **Config puller** driven by `fermilab_dirs.txt`: `ckpoint_lat.*` only (add `--with-rng` for rng), flat by basename, resumable. Optional path FILTER arg, e.g. `... heavy` = the 9 jj-first ensembles. LOCAL runs it (needs ssh auth). |
 | `rsync_pull_massive_L2_claude.sh` | Pull L2 massive Family-B lat-only from `~/affine`. |
 | `rsync_pull_L4_claude.sh` | Pull L4 corr + propagator from A100 host. |
+| `jj_remote_handoff_claude.md` | **REMOTE run guide** — compilation -> job submission for the jj (ylm conn+disc) calc: prereqs, A100 `sm_80` build (per-L binary), CLI flags, SLURM driver skeleton. |
 | `jj_sync_blackboard_claude.md` | **This file.** |
 
 `origin` in the manifest = where the configs were **generated**: `FNAL` (i.e. the ensemble is listed
@@ -166,6 +168,17 @@ LOCAL re-derives `jj_ensembles_claude.txt` from it; REMOTE re-runs the ncfg scan
   **Q5:** NM commits after each reply and we iterate to convergence; REMOTE tracks `develop`.
   **Convergence:** all of Section 4's asks answered + Q1-Q5 resolved; remaining is execution -- start jj
   on the ready ensembles (heavy L1/L2 @319 first) once NM pins/commits the HEAD to build.
+- **2026-07-02 LOCAL:** Added `rsync_pull_configs_claude.sh` -- lat-only config puller driven by
+  `fermilab_dirs.txt` (flat by basename, resumable, no `--delete`; `--with-rng` opt; optional path
+  FILTER). Verified: 102 basenames unique (flat dest safe), syntax clean, `heavy` filter -> the 9
+  jj-first ensembles. LOCAL runs it (ssh auth); pulls new/grown `ckpoint_lat.*` idempotently.
+- **2026-07-02 LOCAL:** Wrote `jj_remote_handoff_claude.md` for REMOTE -- full compile->submit guide
+  for the jj (ylm conn+disc) calc: build per-L binary (A100 **sm_80**, `-DN_REFINE_CLI=<L>`), CWD must
+  be `src/both_3d` (geometry hardcoded `../../geometry/data/`), CLI flags (`--ens-dir` = ABS /lustre2
+  path, `--mass-re` = EXACT sea mass, conn `--t0 0 --spin-dilution` / disc `--disc-tblock 2`), output
+  `data_<ens>_vmRe<m>vmIm0/...` in CWD, config-grid auto-detect, and a SLURM driver skeleton (header
+  from `run_nf_fermilab_affine_claude.sh`). One TODO left for REMOTE: map each `%f`-rounded `mRe` dir
+  tag -> exact full-precision sea mass. REMOTE: sanity-run one config, then fan out; report back here.
 
 ---
 
