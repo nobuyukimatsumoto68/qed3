@@ -179,6 +179,12 @@ LOCAL re-derives `jj_ensembles_claude.txt` from it; REMOTE re-runs the ncfg scan
   `data_<ens>_vmRe<m>vmIm0/...` in CWD, config-grid auto-detect, and a SLURM driver skeleton (header
   from `run_nf_fermilab_affine_claude.sh`). One TODO left for REMOTE: map each `%f`-rounded `mRe` dir
   tag -> exact full-precision sea mass. REMOTE: sanity-run one config, then fan out; report back here.
+- **2026-07-03 LOCAL:** Refreshed `src_ncfg`/`kmax`/`ncfg` for the 6 growing local L1 gsq-scan rows in
+  `jj_ensembles_claude.txt` (all `origin=local`, npole=21/window0.001 massless SEA, kmax cap 320):
+  gsq4 Nf2 166->252 / Nf4 89->135 / Nf6 61->93; gsq12 Nf2 212->319(DONE) / Nf4 121->260 / Nf6 85->184.
+  gsq1 L1 (Nf2/4/6 all 320, DONE) and gsq8 L2/L4 rows were already current. gsq=4.0 STOPPED to free a
+  GPU (partial, resume-safe); gsq=12.0 Nf4/Nf6 still running. NOTE: massless gsq=12.0 exists at **L1 only**
+  -- no L2/L4 gsq12 (L2/L4 massless is gsq8 only). MPS 3/GPU measured ~2.2x aggregate (keep packing).
 
 ---
 

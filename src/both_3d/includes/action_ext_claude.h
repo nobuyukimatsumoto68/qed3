@@ -1,0 +1,374 @@
+#pragma once
+
+// action_ext_claude.h
+//
+// Copy of action_ext.h (U1WilsonExt) with two ADDED members that measure the
+// gauge action density F_{\mu\nu}^2 = magnetic B^2 + electric E^2, Y_{lm}-projected,
+// for the F^2 scalar-glueball driver glue_f2_claude.cu. The original action_ext.h
+// is left untouched; only glue_f2_claude.cu includes this _claude copy.
+//
+// The local action density per timeslice is exactly the integrand of operator()
+// (non-compact branch): 0.5 beta_s theta_sp^2 (spatial/magnetic) summed over faces,
+// plus 0.5 beta_t theta_tmp^2 (temporal/electric) summed over links, with the
+// SIMULATED couplings beta_s, beta_t from set_beta().
+// Ref: N. Matsumoto et al., qed3_v2-6.pdf, Sec. IV, Eqs. (IV.24)-(IV.35).
+
+
+template<class Base>
+struct U1WilsonExt {
+  using Link = std::array<int,2>; // <int,int>;
+  using Face = std::vector<int>;
+  using Action=U1WilsonExt;
+
+  Base& base;
+  const double gsq, at;
+  std::vector<double> beta_t;
+  std::vector<double> beta_s;
+
+  U1WilsonExt() = delete;
+  U1WilsonExt(const U1WilsonExt&) = delete;
+
+  U1WilsonExt(const double gsq_,
+              const double at_,
+              Base& base_)
+    : base(base_)
+    , gsq(gsq_)
+    , at(at_)
+    , beta_t(base.n_links)
+    , beta_s(base.n_faces)
+  {
+    set_beta();
+  }
+
+  Action & operator=(const Action&) = delete;
+
+  template <typename Gauge>
+  double operator()( const Gauge& U ) const {
+    // const auto& base = U.lattice;
+
+    std::vector<double> tmp(U.Nt, 0.0);
+    // spatial
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE) // collapse(2)
+#endif
+    for(int s=0; s<U.Nt; s++){
+      //for(const Face& face : base.faces) {
+      for(Idx i=0; i<base.faces.size(); i++) {
+        const Face& face = base.faces[i];
+        // Idx i=std::distance( base.faces[0],  );
+        // int i=0;
+        // const double factor = base.mean_vol/base.vols[i];
+        // const double factor = base.mean_vol/base.vols[i];
+        if constexpr(U.is_compact) tmp[s] += beta_s[i] * ( 1.0 - std::cos( U.plaquette_angle(s, face) ) );
+        else tmp[s] += 0.5*beta_s[i] * std::pow( U.plaquette_angle(s, face), 2 );
+        // i++;
+      }
+    }
+
+    // // temporal
+    // if(U.Nt!=1){
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE)
+#endif
+    for(int s=0; s<U.Nt ; s++){
+      for(const Link& link : base.links) {
+        const Idx il = base.map2il.at(link);
+        // const double factor = std::pow(base.mean_ell/base.ell[il], 2) * base.link_volume[il]/base.mean_link_volume;
+        if constexpr(U.is_compact) tmp[s] += beta_t[il] * (1.0 - std::cos( U.plaquette_angle(s, link) ) );
+        else tmp[s] += 0.5*beta_t[il] * std::pow( U.plaquette_angle(s, link), 2 );
+        // else tmp[s] += 0.5*beta_t* factor *std::pow( U.plaquette_angle(s, link), 2 );
+
+        // tmp[s] += 0.5*beta/at * base.link_volume[il]/std::pow(base.ell[il],2) *std::pow( U.plaquette_angle(s, link), 2 );
+      }
+    }
+    //}
+
+    double res = 0.0;
+    for(int s=0; s<U.Nt; s++){
+      res += tmp[s];
+    }
+
+    return res;
+  }
+
+
+  // ================= ADDED for glue_f2_claude.cu =================
+  // Magnetic B^2 = F_{12}^2 action density on timeslice s, Y_{lm}-projected.
+  // Integrand 0.5 beta_s theta_sp^2 (same as operator() spatial term, non-compact),
+  // weighted by Y_{lm} at the face centroid (base.dual_sites), matching the position
+  // convention of GaugeExt::plaquette_angle_avg_Ylm_real. /faces.size() keeps the
+  // same overall scale convention as the linear F_{12} operators.
+  // Ref: qed3_v2-6.pdf Eqs. (IV.24)-(IV.35).
+  template<typename Gauge>
+  double density_Ylm_spatial(const Gauge& U, const int s, const int ell, const int em) const {
+    double avg = 0.0;
+    for(Idx i=0; i<base.faces.size(); i++) {
+      const Face& face = base.faces[i];
+      const VE r = base.dual_sites[i];
+      const double theta = U.plaquette_angle(s, face);
+      avg += 0.5 * beta_s[i] * theta * theta * Ylm_real( ell, em, r );
+    }
+    avg /= base.faces.size();
+    return avg;
+  }
+
+  // Electric E^2 = F_{0i}^2 action density on timeslice s, Y_{lm}-projected.
+  // Integrand 0.5 beta_t theta_tmp^2 (same as operator() temporal term, non-compact),
+  // summed over links (each once, unlike the face-loop plaquette_angle_avg_temporal_Ylm_real
+  // which double-counts shared links) so that the l=0 channel reproduces the true
+  // electric action density. Y_{lm} evaluated at the link midpoint, normalized to the
+  // unit sphere. Same /faces.size() scale as the magnetic channel, so that
+  // B^2_{00} + E^2_{00} is proportional to the total local action density.
+  // Ref: qed3_v2-6.pdf Eqs. (IV.24)-(IV.35).
+  template<typename Gauge>
+  double density_Ylm_temporal(const Gauge& U, const int s, const int ell, const int em) const {
+    double avg = 0.0;
+    for(const Link& link : base.links) {
+      const Idx il = base.map2il.at(link);
+      VE r = base.sites[link[0]] + base.sites[link[1]];
+      r /= r.norm();
+      const double theta = U.plaquette_angle(s, link);
+      avg += 0.5 * beta_t[il] * theta * theta * Ylm_real( ell, em, r );
+    }
+    avg /= base.faces.size();
+    return avg;
+  }
+  // ================= end ADDED =================
+
+
+  template<typename Gauge>
+  void coo_format( std::vector<Idx>& is,
+                   std::vector<Idx>& js,
+                   std::vector<Complex>& vs,
+		   const Gauge& U ) const {
+    const Idx Nx = Comp::Nx;
+    const int Nt = Comp::Nt;
+
+    is.clear();
+    js.clear();
+    vs.clear();
+
+    // spatial
+    Idx counter=0;
+    for(int s=0; s<Nt; s++){
+      for(Idx ib=0; ib<base.faces.size(); ib++) {
+        const Face& face = base.faces[ib];
+
+        // tmp[s] += 0.5*beta_s[i] * std::pow( U.plaquette_angle(s, face), 2 );
+        for(Idx i=0; i<face.size(); i++) {
+          for(Idx j=0; j<face.size(); j++) {
+            const Idx ix = face[i];
+            const Idx iy = face[(i+1)%face.size()];
+            const Idx jx = face[j];
+            const Idx jy = face[(j+1)%face.size()];
+            const Link li{ix,iy};
+            const Link lj{jx,jy};
+
+            is.push_back( U.idx_sp(s, li) );
+            js.push_back( U.idx_sp(s, lj) );
+            vs.push_back( base.map2sign.at(li) * base.map2sign.at(lj) * beta_s[ib] );
+            counter++;
+          }}
+      } // faces
+    } // s
+
+
+    for(int s=0; s<Nt; s++){
+      for(const Link& link : base.links) {
+        const Idx il = base.map2il.at(link);
+
+        {
+          is.push_back( U.idx_sp(s, il) );
+          js.push_back( U.idx_sp(s, il) );
+          vs.push_back( beta_t[il] );
+          counter++;
+
+          is.push_back( U.idx_sp(s, il) );
+          js.push_back( U.idx_tp(s, link[1]) );
+          vs.push_back( beta_t[il] );
+          counter++;
+
+          is.push_back( U.idx_sp(s, il) );
+          js.push_back( U.idx_sp(s+1, link) );
+          vs.push_back( -beta_t[il] );
+          counter++;
+
+          is.push_back( U.idx_sp(s, il) );
+          js.push_back( U.idx_tp(s, link[0]) );
+          vs.push_back( -beta_t[il] );
+          counter++;
+        }
+
+        {
+          is.push_back( U.idx_tp(s, link[1]) );
+          js.push_back( U.idx_sp(s, il) );
+          vs.push_back( beta_t[il] );
+          counter++;
+
+          is.push_back( U.idx_tp(s, link[1]) );
+          js.push_back( U.idx_tp(s, link[1]) );
+          vs.push_back( beta_t[il] );
+          counter++;
+
+          is.push_back( U.idx_tp(s, link[1]) );
+          js.push_back( U.idx_sp(s+1, link) );
+          vs.push_back( -beta_t[il] );
+          counter++;
+
+          is.push_back( U.idx_tp(s, link[1]) );
+          js.push_back( U.idx_tp(s, link[0]) );
+          vs.push_back( -beta_t[il] );
+          counter++;
+        }
+
+        {
+          is.push_back( U.idx_sp(s+1, link) );
+          js.push_back( U.idx_sp(s, il) );
+          vs.push_back( -beta_t[il] );
+          counter++;
+
+          is.push_back( U.idx_sp(s+1, link) );
+          js.push_back( U.idx_tp(s, link[1]) );
+          vs.push_back( -beta_t[il] );
+          counter++;
+
+          is.push_back( U.idx_sp(s+1, link) );
+          js.push_back( U.idx_sp(s+1, link) );
+          vs.push_back( beta_t[il] );
+          counter++;
+
+          is.push_back( U.idx_sp(s+1, link) );
+          js.push_back( U.idx_tp(s, link[0]) );
+          vs.push_back( beta_t[il] );
+          counter++;
+        }
+
+        {
+          is.push_back( U.idx_tp(s, link[0]) );
+          js.push_back( U.idx_sp(s, il) );
+          vs.push_back( -beta_t[il] );
+          counter++;
+
+          is.push_back( U.idx_tp(s, link[0]) );
+          js.push_back( U.idx_tp(s, link[1]) );
+          vs.push_back( -beta_t[il] );
+          counter++;
+
+          is.push_back( U.idx_tp(s, link[0]) );
+          js.push_back( U.idx_sp(s+1, link) );
+          vs.push_back( beta_t[il] );
+          counter++;
+
+          is.push_back( U.idx_tp(s, link[0]) );
+          js.push_back( U.idx_tp(s, link[0]) );
+          vs.push_back( beta_t[il] );
+          counter++;
+        }
+      }
+    }
+  }
+
+
+  template <typename Force, typename Gauge>
+  void get_force( Force& pi, const Gauge& U ) const {
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE)
+#endif
+    for(Idx i=0; i<pi.spatial.size(); i++) for(Idx j=0; j<pi.spatial[i].size(); j++) pi.spatial[i][j] = 0.0;
+
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE)
+#endif
+    for(Idx i=0; i<pi.temporal.size(); i++) for(Idx j=0; j<pi.temporal[i].size(); j++) pi.temporal[i][j] = 0.0;
+
+    // spatial
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE) // collapse(2)
+#endif
+    for(int s=0; s<U.Nt; s++){
+      for(int i_face=0; i_face<base.n_faces; i_face++){
+        const Face& face = base.faces[i_face];
+        double grad;
+
+        if constexpr(U.is_compact) grad = beta_s[i_face] * std::sin( U.plaquette_angle(s, face) );
+        else grad = beta_s[i_face] * U.plaquette_angle(s, face);
+
+        for(int i=0; i<face.size(); i++) {
+          const Idx ix = face[i];
+          const Idx iy = face[(i+1)%face.size()];
+          const Link ell{ix, iy};
+          const Idx il = base.map2il.at(ell);
+          pi.sp( s, il ) += grad * base.map2sign.at(ell);
+        }
+      }
+    }
+
+    // temporal
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE)
+#endif
+    for(int s=0; s<U.Nt; s++){
+      for(const Link& link : base.links) {
+        const Idx il = base.map2il.at(link);
+        double grad, grad2;
+
+        if constexpr(U.is_compact) {
+          grad  = beta_t[il] * std::sin( U.plaquette_angle(s, link) );
+          grad2 = beta_t[il] * std::sin( U.plaquette_angle(s-1, link) );
+        }
+        else {
+          grad  = beta_t[il] * U.plaquette_angle(s, link);
+          grad2 = beta_t[il] * U.plaquette_angle(s-1, link);
+        }
+
+        pi.sp( s, base.map2il.at(link) ) += grad;
+        pi.tp( s, link[1] ) += grad;
+        pi.sp( s, base.map2il.at(link) ) -= grad2;
+        pi.tp( s, link[0] ) -= grad;
+      }
+    }
+  }
+
+
+  template <typename Force, typename Gauge>
+  void get_spatial( Force& pi, const Gauge& U ) const {
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE)
+#endif
+    for(Idx i=0; i<pi.spatial.size(); i++) for(Idx j=0; j<pi.spatial[i].size(); j++) pi.spatial[i][j] = 0.0;
+
+    // spatial
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(Comp::NPARALLEL_GAUGE) // collapse(2)
+#endif
+    for(int s=0; s<U.Nt; s++){
+      for(int i_face=0; i_face<base.n_faces; i_face++){
+        const Face& face = base.faces[i_face];
+        double grad;
+        if constexpr(U.is_compact) grad = beta_s[i_face] * std::sin( U.plaquette_angle(s, face) );
+        else grad = beta_s[i_face] * U.plaquette_angle(s, face);
+
+        for(int i=0; i<face.size(); i++) {
+          const Idx ix = face[i];
+          const Idx iy = face[(i+1)%face.size()];
+          const Link ell{ix, iy};
+          const Idx il = base.map2il.at(ell);
+          pi.sp( s, il ) += grad * base.map2sign.at(ell);
+        }
+      }
+    }
+  }
+
+
+  void set_beta(){
+    if(std::abs(gsq)>1.0e-15){
+      for(Idx i=0; i<base.faces.size(); i++) {
+        beta_s[i] = at/base.vols[i] / gsq;
+      }
+      for(Idx il=0; il<base.n_links; il++) {
+        beta_t[il] = 2.0/at * base.link_volume[il]/std::pow(base.ell[il],2) / gsq;
+      }
+    }
+  }
+
+};
