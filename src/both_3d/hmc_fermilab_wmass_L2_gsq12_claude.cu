@@ -275,10 +275,17 @@ int main(int argc, char* argv[]){
   // else if(Nf==6) nsteps = 5;
   // else nsteps = 5;
   // 2026-06-23: nsteps L2 5 -> 6 (all Nf), tmax=1.0 -> dt=1/6; finer integration
-  if(Nf==2) nsteps = 6;
-  else if(Nf==4) nsteps = 6;
-  else if(Nf==6) nsteps = 6;
-  else nsteps = 6;
+  // if(Nf==2) nsteps = 6;
+  // else if(Nf==4) nsteps = 6;
+  // else if(Nf==6) nsteps = 6;
+  // else nsteps = 6;
+  // 2026-07-03: gsq12 nsteps 6 -> 8 (all Nf). At g^2=12 (stronger coupling -> rougher fields ->
+  // larger fermion force) nsteps=6 gave dH~36 all-rejected on a hard Nf6 heavy mRe0.4229 config
+  // (NOT a Zolotarev-window issue: n=21/k=0.001 already, delta=1.5e-5, no "eval below" warning).
+  if(Nf==2) nsteps = 8;
+  else if(Nf==4) nsteps = 8;
+  else if(Nf==6) nsteps = 8;
+  else nsteps = 8;
   std::cout << "# tmax = " << tmax << std::endl
             << "# nsteps = " << nsteps << std::endl;
 
