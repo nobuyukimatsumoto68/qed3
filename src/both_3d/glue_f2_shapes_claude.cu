@@ -161,6 +161,9 @@ using CuC = cuDoubleComplex;
 
 #include "flow.h"
 
+#include "icos_orbits_claude.h"    // native Ih orbit table on the lattice
+#include "wilson_shapes_claude.h"  // generic shape (triangle/rectangle) orbit operators
+
 
 int main(int argc, char* argv[]){
   std::cout << std::scientific << std::setprecision(15);
@@ -230,12 +233,12 @@ int main(int argc, char* argv[]){
     dir3="gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
     // "_f2" suffix so the action-density output does not clobber the _msm (linear F_{12}) data;
     // dir3 input ckpoints are shared, unchanged.
-    dir4="data_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"_f2/";
+    dir4="data_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";  // shared data_ dir (same as mesonic correlators)
     std::cout << "dir3 = " << dir3 << std::endl;
   }
   else{
     dir3="Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
-    dir4="data_Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"_f2/";
+    dir4="data_Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";  // shared data_ dir (same as mesonic correlators)
   }
   std::filesystem::create_directory(dir4);
 
@@ -247,47 +250,63 @@ int main(int argc, char* argv[]){
 
   int k_tmp=0;
   {
-    for(k_tmp=k_ckpoint; k_tmp<=kmax; k_tmp+=k_ckpoint ){
+    // scan from kmin in steps of `stride` so non-contiguously-numbered ensembles are detected
+    // (e.g. the free gauge set numbered 10,20,30,...). Previously scanned 1,2,3,... and stopped at
+    // the first gap -> k_tmp=0 whenever ckpoint_lat.1 was absent (silently measured nothing).
+    for(k_tmp=kmin; k_tmp<=kmax; k_tmp+=stride ){
       const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k_tmp);
       const bool bool_lat = std::filesystem::exists(str_lat);
       if(!bool_lat) break;
     }
-    k_tmp -= k_ckpoint;
+    k_tmp -= stride;
   }
   if(k_tmp > kmax_run) k_tmp = kmax_run; // cap for smoke test / flow tuning
 
-  // ---- multi-smearing variational basis via cumulative Wilson flow ----
-  // Same B^2/E^2 Y_lm channels measured at N_FLOW cumulative flow times
-  //   {1*FLOW_INCR, 2*FLOW_INCR, ..., N_FLOW*FLOW_INCR}.
-  // Cumulative: the running Uflow is advanced by FLOW_INCR each checkpoint
-  // (FLOW_NSTEP integrator steps), never restarted from U. Flow is spatial-only
-  // (Flow::get_spatial), so temporal links are untouched -> this is the flowed-spatial
-  // action density. Gradient-flow analog of multi-level APE/HYP smearing.
-  // Ref: Morningstar & Peardon, PRD 60 (1999) 034509.
-  // TUNE (trial and error): N_FLOW, FLOW_INCR. Signal lives at t=1--4 (a_t=0.2).
-  constexpr int N_FLOW = 3;
-  constexpr double FLOW_INCR = 1.0;
+  // ---- single Wilson-flow smearing (matches non-_claude glue2.cu: tmax=1.0, 100 steps) ----
+  constexpr double FLOW_TMAX = 1.0;
   constexpr int FLOW_NSTEP = 100;
+  Flow flow(&SW, FLOW_TMAX, FLOW_NSTEP);
 
-  // Two action-density channels: ch 0 = magnetic B^2, ch 1 = electric E^2.
-  constexpr int NCH = 2;
+  // ---- shape operator basis: icosahedral orbits of spatial Wilson-loop shapes ----
+  // SQUARED (F^2 / 0++) operators; full Y_lm tower ell=0..3 (l=0 KEPT = scalar signal).
+  IcosOrbits<Base> orb( base );
+  WilsonShapes<Base> shp( base, orb );
+  using Inst = typename WilsonShapes<Base>::Instance;
+  std::vector<std::vector<Inst>> orbits;
+  {
+    // five shape types: triangle + {rect, twisted rect, figure-8, twisted figure-8}
+    // TWISTED shapes REMOVED: the twist Phi0-Phi1 is a flux DIFFERENCE that cancels the leading
+    // (smooth) F_12 mode, so its GEVP ground is a spurious sub-sqrt(2) short-distance lattice
+    // artifact (free L=1: eigenvector ~90% twisted, ground 1.05 vs true sqrt2). Keep triangle +
+    // untwisted rect + figure-8 (Phi0+Phi1). For F^2 the squared operator sees theta^2 so the twist
+    // sign is less critical, but we drop them for a consistent basis with the linear F_12.
+    std::vector<std::vector<Inst>> all[4] = {
+      shp.orbits_from( shp.triangles() ),
+      shp.orbits_from( shp.rectangles() ),
+      // shp.orbits_from( shp.twisted_rectangles() ),   // removed (twisted artifact)
+      shp.orbits_from( shp.figure8s() ),
+      // shp.orbits_from( shp.twisted_figure8s() ),      // removed (twisted artifact)
+      shp.orbits_from( shp.three_triangles() ),         // NEW: central triangle + 2 edge-neighbors
+    };
+    for(int is=0; is<4; is++) for(auto& o : all[is]) orbits.push_back(std::move(o));
+  }
+  const int n_orbits = (int)orbits.size();
+  const bool SQUARED = true;
 
-  // (ell, em) channel list; must match the analysis opset in glue_f2_claude.ipynb.
   const std::vector<std::array<int,2>> lm_set = {
     {0,0},
     {1,-1},{1,0},{1,1},
     {2,-2},{2,-1},{2,0},{2,1},{2,2},
-    {3,-3},{3,-2},{3,-1},{3,0},{3,1},{3,2},{3,3},
+    // {3,-3},{3,-2},{3,-1},{3,0},{3,1},{3,2},{3,3},   // l=3 DROPPED for production (disk): 0++ is l=0
   };
   const int n_lm = lm_set.size();
-  const int nops = N_FLOW * NCH * n_lm; // op = iflow*(NCH*n_lm) + ich*n_lm + ilm
-
-  Flow flow(&SW, FLOW_INCR, FLOW_NSTEP);
+  const int nops = n_orbits * n_lm; // op = iorbit*n_lm + ilm
+  std::cout << "# n_orbits = " << n_orbits << " n_lm = " << n_lm << " nops = " << nops << std::endl;
 
   // serial over configs k; parallelism is ensemble-level (one process per Nf).
   for(int k=kmin; k<=k_tmp; k+=stride ){
     // resume-safe: skip configs already fully measured (h5 with "complete" flag)
-    const std::string h5path = dir4+"F_corr."+std::to_string(k)+".h5";
+    const std::string h5path = dir4+"glue_f2_shapes."+std::to_string(k)+".h5"; // distinct prefix in shared dir
     {
       bool done=false;
       if(std::filesystem::exists(h5path)){
@@ -300,29 +319,30 @@ int main(int argc, char* argv[]){
     U.read( str_lat );
 
     Gauge Uflow = U;
+    flow(Uflow);   // single flow (measure on the flowed field)
 
-    // measure the B^2/E^2 Y_lm channels at N_FLOW cumulative flow times.
-    // obs[op][t], op = iflow*(NCH*n_lm) + ich*n_lm + ilm; flow(Uflow) advances Uflow in place.
+    // obs[op][t], op = iorbit*n_lm + ilm ; squared shape operators (F^2 / 0++)
     std::vector<std::vector<double>> obs( nops, std::vector<double>(Comp::Nt, 0.0) );
-    for(int iflow=0; iflow<N_FLOW; iflow++){
-      flow(Uflow);
-
+    for(int iorbit=0; iorbit<n_orbits; iorbit++){
       for(int ilm=0; ilm<n_lm; ilm++){
         const int ell = lm_set[ilm][0];
         const int em  = lm_set[ilm][1];
-        const int op_b = iflow*(NCH*n_lm) + 0*n_lm + ilm; // magnetic B^2
-        const int op_e = iflow*(NCH*n_lm) + 1*n_lm + ilm; // electric E^2
-
+        const int op  = iorbit*n_lm + ilm;
         for(int t=0; t<Comp::Nt; t++){
-          obs[op_b][t] = SW.density_Ylm_spatial(  Uflow, t, ell, em );
-          obs[op_e][t] = SW.density_Ylm_temporal( Uflow, t, ell, em );
+          obs[op][t] = shp.op( Uflow, t, orbits[iorbit], ell, em, SQUARED );
         }
       }
     }
 
     // correlator matrix C(dt)[i][j] = (1/Nt) sum_t obs[i][t] obs[j][t+dt], and one-point <O_i>.
-    std::vector<std::vector<double>> Fcorr( Comp::Nt, std::vector<double>(nops*nops, 0.0) );
-    for(int dt=0; dt<Comp::Nt; dt++){
+    // Only the small-separation window dt = 0..TMAX_CORR is stored: the GEVP uses dt up to tcut(~5),
+    // and the backward fold slice is recovered LOSSLESSLY from the transpose of a stored forward
+    // slice via the periodicity identity  C_ij(Nt-d) = C_ji(d)  (see glue_gevp_analysis_claude.cu
+    // fold). This cuts both the correlator cost (Nt^2 -> Nt*TMAX) and the h5 size (~Nt/TMAX).
+    constexpr int TMAX_CORR = 16;
+    const int nsep = std::min(TMAX_CORR + 1, Comp::Nt); // stored separations dt = 0..nsep-1
+    std::vector<std::vector<double>> Fcorr( nsep, std::vector<double>(nops*nops, 0.0) );
+    for(int dt=0; dt<nsep; dt++){
       Eigen::MatrixXd cdt_avg = Eigen::MatrixXd::Zero( nops, nops );
       for(int t=0; t<Comp::Nt; t++) {
         for(int i=0; i<nops; i++){
@@ -347,6 +367,7 @@ int main(int argc, char* argv[]){
     HighFive::File h5( h5path, HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Truncate );
     h5.createDataSet( "F_corr", Fcorr );
     h5.createDataSet( "F", F1 );
+    h5.createDataSet( "n_lm", std::vector<int>{n_lm} );  // (l,m) count so the analysis auto-adapts to the l-tower
     h5.createDataSet( "complete", std::vector<int>{1} );
   } // end for k
 

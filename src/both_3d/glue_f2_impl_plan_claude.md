@@ -113,6 +113,21 @@ Files: `tmp_claude.sh`, `glue_f2_smoke_claude.log`.
 - Chunk 4 handoff: `tmp_glue_f2_claude.sh` (build + smoke run, tees to `glue_f2_smoke_claude.log`).
   User runs: `bash tmp_glue_f2_claude.sh` (default L=1 Nf2 gsq8, 5 configs).
 
+## Session 2 update (2026-07-04) — production + HDF5 + C++ GEVP
+
+- Scope grew to BOTH operators on massless L1 gsq8 Nf2/4/6, `kmin=100 stride=1` (all configs).
+- `glue2_msm_claude.cu` (linear F_12): `ell=0` DROPPED (monopole flux, not a glueball) -> n_lm=15, nops=45.
+- Both drivers: added `kmin/stride/kmax_run` CLI args; REMOVED the k-loop OMP pragma (parallelism is
+  ensemble-level, one process per Nf); OUTPUT switched to per-config **HDF5** `F_corr.<k>.h5`
+  (datasets `F_corr` Nt x nops^2, `F` nops, `complete` flag; resume via complete-flag + `filesystem::exists`).
+- Analysis is C++ (user chose over notebook): `glue_gevp_analysis_claude.cu` — host g++ + Eigen + HighFive,
+  streams h5 + per-bin jackknife, faithful glue_ylms3 GEVP (fold/vacuum_sub/zero_noise/t0-metric),
+  `inv_sqrt_sym(rtol)` regularization fixes the NaN from the singular 96-op metric. Writes gnuplot `.dat`.
+- Handoffs: `run_glue_massless_L1_claude.sh` (measurement, USER runs), `glue_gevp_run_claude.sh` (analysis).
+- h5 build flags: `-I/mnt/hdd_barracuda/opt/highfive/include/ -I.../hdf5-2.1.0/include/ -L.../hdf5-2.1.0/lib/ -lhdf5`.
+- STATUS: user re-running Step 1 measurement to h5. Then Step 2 analysis -> masses. Perf: text 83GB/ens
+  (~17 min I/O) -> h5 (~5 min). Larger-L improvement = next WIP.
+
 ## Next (pending)
 
 1. User runs `tmp_glue_f2_claude.sh`; confirm build + `F_corr`/`F` output, VEV-subtracted effective mass

@@ -305,11 +305,39 @@ int main(int argc, char* argv[]){
   const int k_hi      = free_field ? 1 : kmax;
 
   for(int k = k_lo; k < k_hi; k += k_ckpoint){
+    std::string str_lat;
     if(!free_field){
-      const std::string str_lat = ens_dir + "ckpoint_lat." + std::to_string(k);
+      str_lat = ens_dir + "ckpoint_lat." + std::to_string(k);
       if(!std::filesystem::exists(str_lat)){ if(k==0) continue; else break; }
-      U.read(str_lat);
     }
+    // CHEAP pre-skip (BEFORE any construction): skip the whole config if every hit is already done -- only
+    // the output .h5 is needed, NOT U.read or the overlap Dm.update/D.update (the expensive lambda_min/max).
+    {
+      bool all_done = true;
+      for(int h=0; h<nhits; h++){
+        const std::string h5p = dir_out + "corr." + std::to_string(k) + ".h" + std::to_string(h) + ".h5";
+        bool done_h = false;
+        if(std::filesystem::exists(h5p)){
+          try {
+            HighFive::File f(h5p, HighFive::File::ReadOnly);
+            // non-throwing s0 check (getDataSet throws + HDF5 spams stderr when absent): navigate groups.
+            if(is_scalar_only){
+              if(f.exist("h0")){
+                auto g0 = f.getGroup("h0");
+                if(g0.exist("disc")){
+                  auto gd = g0.getGroup("disc");
+                  if(gd.exist("ylm")) done_h = gd.getGroup("ylm").exist("s0");
+                }
+              }
+            }
+            else { done_h = f.exist("complete"); }
+          } catch(...) {}
+        }
+        if(!done_h){ all_done = false; break; }
+      }
+      if(all_done){ std::cout<<"# skip k="<<k<<" (all "<<nhits<<" hits done; no U.read/update)"<<std::endl; continue; }
+    }
+    if(!free_field) U.read(str_lat);
     Dm.update(U);
     D.update(U);
     std::cout << "# k="<<k<<(free_field?" (free field)":"")
@@ -325,7 +353,14 @@ int main(int argc, char* argv[]){
         try {
           HighFive::File f(h5path_h, HighFive::File::ReadOnly);
           has_complete = f.exist("complete");
-          try { f.getDataSet("h0/disc/ylm/s0/l0/m0/J/real"); has_s0 = true; } catch(...) { has_s0 = false; }
+          // non-throwing s0 check (avoid getDataSet throw + HDF5 stderr spam when absent).
+          if(f.exist("h0")){
+            auto g0 = f.getGroup("h0");
+            if(g0.exist("disc")){
+              auto gd = g0.getGroup("disc");
+              if(gd.exist("ylm")) has_s0 = gd.getGroup("ylm").exist("s0");
+            }
+          }
         } catch(...) {}
         if(is_scalar_only){
           if(has_s0){ std::cout<<"# skip k="<<k<<" hit "<<h<<" (s0 loop present)"<<std::endl; continue; }
