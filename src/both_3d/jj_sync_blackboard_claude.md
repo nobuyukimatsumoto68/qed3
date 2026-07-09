@@ -210,20 +210,21 @@ is the `.cu`'s own `data_<ESNID>/corr_ylm_{conn,disc}_.../` with `ESNID=<ens_bas
 ---
 
 <!-- REMOTE-STATUS-AUTO:BEGIN -->
-## REMOTE status (auto-updated 2026-07-02 by check-ensembles sync)
+## REMOTE status (auto-updated 2026-07-09 by check-ensembles sync)
 
-Ensemble inventory on disk (excl L8; = `fermilab_dirs.txt`, 102 paths):
+Ensemble inventory on disk (excl L8; = `fermilab_dirs.txt`, 114 paths):
 
 | category | dirs | ncfg range |
 |---|---|---|
 | L1 reference | 24 | 1191-1643 |
 | L2 (gsq8) | 24 | 4-319 |
 | L4 (gsq8) | 24 | 2-119 |
-| heavy | 9 | 58-319 |
-| gsq12 | 21 | 3-7 |
+| heavy | 9 | 103-319 |
+| gsq12 | 21 | 19-68 |
+| massless | 12 | 21-325 |
 
 **jj corr computed on REMOTE: NONE** (ensemble-generation only; no `data_*/corr_*` on `/lustre2`).
 
-Last sync: `fermilab_dirs.txt` +0 new dir(s); `fermilab_ncfg_claude.txt` regenerated; `jj_ensembles_claude.txt` 0 loc=N row(s) refreshed, +0 new row(s).
+Last sync: `fermilab_dirs.txt` +12 new dir(s); `fermilab_ncfg_claude.txt` regenerated; `jj_ensembles_claude.txt` 28 loc=N row(s) refreshed, +12 new row(s).
 _This block is overwritten each sync; the Log (Section 6) is for manual milestone entries._
 <!-- REMOTE-STATUS-AUTO:END -->
