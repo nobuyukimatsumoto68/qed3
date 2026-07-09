@@ -326,11 +326,31 @@ int main(int argc, char* argv[]){
   const int k_hi      = free_field ? 1 : kmax;
 
   for(int k = k_lo; k < k_hi; k += k_ckpoint){
+    std::string str_lat;
     if(!free_field){
-      const std::string str_lat = ens_dir + "ckpoint_lat." + std::to_string(k);
+      str_lat = ens_dir + "ckpoint_lat." + std::to_string(k);
       if(!std::filesystem::exists(str_lat)){ if(k==0) continue; else break; }
-      U.read(str_lat);
     }
+    // CHEAP pre-skip (BEFORE any construction): if every hit for this k is already done, skip the whole
+    // config -- only the output .h5 is needed, NOT U.read or the overlap Dm.update/D.update (whose
+    // lambda_min/max computation is the expensive part).  Big win on resume/catch-up over many done configs.
+    {
+      bool all_done = true;
+      for(int h=0; h<nhits; h++){
+        const std::string h5p = dir_out + "corr." + std::to_string(k) + ".h" + std::to_string(h) + ".h5";
+        bool done_h = false;
+        if(std::filesystem::exists(h5p)){
+          try {
+            HighFive::File f(h5p, HighFive::File::ReadOnly);
+            if(is_scalar_only){ if(f.exist("h0")) done_h = f.getGroup("h0").exist("scalar"); }
+            else              { done_h = f.exist("complete"); }
+          } catch(...) {}
+        }
+        if(!done_h){ all_done = false; break; }
+      }
+      if(all_done){ std::cout<<"# skip k="<<k<<" (all "<<nhits<<" hits done; no U.read/update)"<<std::endl; continue; }
+    }
+    if(!free_field) U.read(str_lat);
     Dm.update(U);
     D.update(U);
     std::cout << "# k="<<k<<(free_field?" (free field)":"")

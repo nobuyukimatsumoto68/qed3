@@ -185,6 +185,29 @@ LOCAL re-derives `jj_ensembles_claude.txt` from it; REMOTE re-runs the ncfg scan
   gsq1 L1 (Nf2/4/6 all 320, DONE) and gsq8 L2/L4 rows were already current. gsq=4.0 STOPPED to free a
   GPU (partial, resume-safe); gsq=12.0 Nf4/Nf6 still running. NOTE: massless gsq=12.0 exists at **L1 only**
   -- no L2/L4 gsq12 (L2/L4 massless is gsq8 only). MPS 3/GPU measured ~2.2x aggregate (keep packing).
+- **2026-07-04 LOCAL (/check-configs):** gsq=12.0 Nf4 FINISHED (src 260->319, DONE @320); Nf6 grew
+  184->296 (still running, healthy 100% acc). Refreshed both rows. Now only ONE hmc stream live:
+  L1 gsq12 Nf6 (k=296/320). L1 gsq scan status: gsq1 DONE, gsq4 STOPPED (partial), gsq12 Nf2/Nf4 DONE
+  / Nf6 finishing. All other local rows unchanged.
+- **2026-07-04 LOCAL (/check-configs):** gsq=12.0 Nf6 FINISHED clean (src 296->319, DONE @320,
+  r_mean printed). **NO hmc streams live now** -- L1 gsq scan generation complete except gsq=4.0
+  which is STOPPED/partial (Nf2 252/Nf4 135/Nf6 93, resume-safe). Both GPUs now free of hmc
+  (GPU0 still running the non-hmc ylm-scalar/glue_f2 work from another session).
+- **2026-07-04 LOCAL (/check-configs):** RESUMED gsq=4.0 on GPU1, 2 jobs/GPU MPS, grouped
+  slot1={Nf2->Nf4 sequential}, slot2={Nf6} (run_L1_gsq4_resume_claude.sh). Nf2 FINISHED (252->319 DONE),
+  slot1 advanced to Nf4 (135->163, running); Nf6 93->138 running. All healthy (100% acc, 0 warn).
+  Refreshed the 3 gsq4 rows. gsq=4.0 remaining: Nf4 + Nf6 to 320.
+- **2026-07-04 LOCAL (/check-configs):** gsq=4.0 progressing clean (Nf4 163->234, Nf6 138->187, both
+  100% acc 0 warn). Refreshed both rows. Remaining: Nf4 ~86 traj + Nf6 ~133 traj to 320.
+- **2026-07-06 LOCAL:** **rng-checkpoint disk cleanup.** Thinned `ckpoint_rng.*` (~35 MB each; the real
+  disk hog vs 43 KB `ckpoint_lat.*`). Policy: keep the LATEST rng (resume point) + one every ~100 for
+  local sea streams (`origin=local`, non-mRe/mIm), and every 1000 + last for the 4 non-manifest
+  pure-glue dirs (`gsq{2,8,12}...ntXL1`, cheap to regenerate). EXCLUDED: FNAL `mRe/mIm` pulled sets
+  (already sparse) and the two LIVE gsq=4.0 L1 streams (`hmc_L1_claude.o 4.0 {2,6} 1.0` were RUNNING --
+  correcting the stale "NO hmc streams live" note above: gsq=4.0 Nf2/Nf6 L1 had been restarted).
+  Delete list = `rng_delete_list_claude.txt` (59673 files, all `ckpoint_rng.*`); user ran the `rm`.
+  Result: rng on disk **2.18 TB -> 314 GB (~1.87 TB freed)**; ALL `ckpoint_lat.*` intact, every stream
+  still resume-safe (latest rng preserved).
 
 ---
 

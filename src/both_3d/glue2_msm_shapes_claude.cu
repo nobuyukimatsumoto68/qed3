@@ -60,7 +60,12 @@ namespace Comp{
   constexpr int NPARALLEL_GAUGE=1; // 12
   constexpr int NPARALLEL_SORT=1; // 12
 
+  // Refinement level L is a compile-time flag: -DN_REFINE_CLI=2 (or 4) for L=2,4.
+#ifdef N_REFINE_CLI
+  constexpr int N_REFINE=N_REFINE_CLI;
+#else
   constexpr int N_REFINE=1;
+#endif
   constexpr int NS=2;
 
   // constexpr int Nt=24;
@@ -140,6 +145,9 @@ using CuC = cuDoubleComplex;
 #include "overlap.h"
 
 #include "flow.h"
+
+#include "icos_orbits_claude.h"    // native Ih orbit table on the lattice
+#include "wilson_shapes_claude.h"  // generic shape (triangle/rectangle) orbit operators
 
 
 // TODO: Cusparse for SparseMatrix::act_gpu, probably defining handle in matpoly.h
@@ -240,12 +248,12 @@ int main(int argc, char* argv[]){
     dir3="gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
     // dir4 gets a "_msm" suffix so the N_FLOW*n_lm operator output does not clobber
     // the 16-op data of glue2_claude.cu (dir3 input ckpoints are shared, unchanged).
-    dir4="data_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"_msm/";
+    dir4="data_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";  // shared data_ dir (same as mesonic correlators)
     std::cout << "dir3 = " << dir3 << std::endl;
   }
   else{
     dir3="Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";
-    dir4="data_Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"_msm/";
+    dir4="data_Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)+"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+"/";  // shared data_ dir (same as mesonic correlators)
   }
   std::filesystem::create_directory(dir4);
 
@@ -258,50 +266,78 @@ int main(int argc, char* argv[]){
 
   int k_tmp=0;
   {
-    for(k_tmp=k_ckpoint; k_tmp<=kmax; k_tmp+=k_ckpoint ){
+    // find the highest available config, scanning from kmin in steps of `stride` so ensembles that
+    // are NOT numbered contiguously from 1 are detected (e.g. the free gauge set numbered 10,20,30,...).
+    // (Previously scanned 1,2,3,... in steps of k_ckpoint=1 and stopped at the first gap -> k_tmp=0
+    //  whenever ckpoint_lat.1 was absent, which silently measured nothing.)
+    for(k_tmp=kmin; k_tmp<=kmax; k_tmp+=stride ){
       const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k_tmp);
       const bool bool_lat = std::filesystem::exists(str_lat);
       if(!bool_lat) break;
     }
-    k_tmp -= k_ckpoint;
+    k_tmp -= stride;
   }
 
   // std::cout << "# kinit = " << kinit << " k_tmp = " << k_tmp << std::endl;
 
-  // ---- item 7: multi-smearing variational basis via cumulative Wilson flow ----
-  // Same Ylm channels measured at N_FLOW cumulative flow times
-  //   {1*FLOW_INCR, 2*FLOW_INCR, ..., N_FLOW*FLOW_INCR}.
-  // Cumulative: the running Uflow is advanced by FLOW_INCR each checkpoint
-  // (FLOW_NSTEP integrator steps), never restarted from U. Gradient-flow analog
-  // of multi-level APE/HYP smearing. Ref: Morningstar & Peardon, PRD 60 (1999) 034509.
-  constexpr int N_FLOW = 3;
-  constexpr double FLOW_INCR = 1.0;
+  // ---- single Wilson-flow smearing (matches non-_claude glue2.cu: tmax=1.0, 100 steps) ----
+  constexpr double FLOW_TMAX = 1.0;
   constexpr int FLOW_NSTEP = 100;
+  Flow flow(&SW, FLOW_TMAX, FLOW_NSTEP);
 
-  // (ell, em) channel list; must match the analysis opset in glue_ylms3_claude.ipynb.
-  // ell=0 DROPPED (_claude): for the LINEAR F_12 (magnetic field, pseudoscalar) the l=0
-  // spatial average is the total flux through S^2 = monopole/topological charge, NOT a
-  // propagating glueball operator. (For the QUADRATIC F^2 density l=0 IS the scalar
-  // signal and is kept -- see glue_f2_claude.cu.) n_lm now 15, nops = N_FLOW*15 = 45.
+  // ---- shape operator basis: icosahedral orbits of spatial Wilson-loop shapes ----
+  // LINEAR (F_12) operators; Y_lm tower ell=0..3. l=0 = orbit-summed total flux = monopole/
+  // topological mode (~constant within a topological sector); it is NOT a propagating glueball,
+  // but with vacuum subtraction C_ij -= <O_i><O_j> in the GEVP analysis its constant part is
+  // removed, so it is re-included as an extra variational operator (near-singular directions are
+  // rtol-pruned in inv_sqrt_sym). Analysis must be run with drop_l0=0 to keep these columns.
+  // {0,0} MUST come first so the analysis (l=0..3, op%n_lm=ilm) indexing matches.
+  IcosOrbits<Base> orb( base );
+  WilsonShapes<Base> shp( base, orb );
+  // -DNO_FACE_SIGN: measure the RAW-orientation operator (matches glue_ylms3's plaquette_angle_avg_Ylm_real),
+  // written to a DISTINCT prefix so it does not clobber the production (face-sign) h5.
+#ifdef NO_FACE_SIGN
+  shp.use_face_sign = false;
+  const std::string H5PREFIX = "glue_msm_shapes_nofs";
+#else
+  const std::string H5PREFIX = "glue_msm_shapes";
+#endif
+  using Inst = typename WilsonShapes<Base>::Instance;
+  std::vector<std::vector<Inst>> orbits;
+  {
+    // five shape types: triangle + {rect, twisted rect, figure-8, twisted figure-8}
+    // TWISTED shapes REMOVED: the twist Phi0-Phi1 is a flux DIFFERENCE that cancels the leading
+    // (smooth) F_12 mode, so its GEVP ground is a spurious sub-sqrt(2) short-distance lattice
+    // artifact (free L=1: eigenvector ~90% twisted, ground 1.05 vs true sqrt2). Keep triangle +
+    // untwisted rect + figure-8 (Phi0+Phi1), which reproduce the free-limit sqrt(2) cleanly.
+    std::vector<std::vector<Inst>> all[4] = {
+      shp.orbits_from( shp.triangles() ),
+      shp.orbits_from( shp.rectangles() ),
+      // shp.orbits_from( shp.twisted_rectangles() ),   // removed (twisted artifact)
+      shp.orbits_from( shp.figure8s() ),
+      // shp.orbits_from( shp.twisted_figure8s() ),      // removed (twisted artifact)
+      shp.orbits_from( shp.three_triangles() ),         // NEW: central triangle + 2 edge-neighbors
+    };
+    for(int is=0; is<4; is++) for(auto& o : all[is]) orbits.push_back(std::move(o));
+  }
+  const int n_orbits = (int)orbits.size();
+  const bool SQUARED = false;
+
   const std::vector<std::array<int,2>> lm_set = {
-    // {0,0},
+    {0,0},
     {1,-1},{1,0},{1,1},
     {2,-2},{2,-1},{2,0},{2,1},{2,2},
-    {3,-3},{3,-2},{3,-1},{3,0},{3,1},{3,2},{3,3},
+    // {3,-3},{3,-2},{3,-1},{3,0},{3,1},{3,2},{3,3},   // l=3 DROPPED for production (disk): F ground is l=1, first excited l=2
   };
   const int n_lm = lm_set.size();
-  const int nops = N_FLOW * n_lm; // operator index op = iflow*n_lm + ilm
-
-  // #ifdef IS_FLOW
-  // Flow flow(&SW, 1.5, 100);
-  Flow flow(&SW, FLOW_INCR, FLOW_NSTEP);
-  // #endif
+  const int nops = n_orbits * n_lm; // op = iorbit*n_lm + ilm
+  std::cout << "# n_orbits = " << n_orbits << " n_lm = " << n_lm << " nops = " << nops << std::endl;
 
   if(k_tmp > kmax_run) k_tmp = kmax_run;
   // serial over configs k; parallelism is ensemble-level (one process per Nf).
   for(int k=kmin; k<=k_tmp; k+=stride ){
     // resume-safe: skip configs already fully measured (h5 with "complete" flag)
-    const std::string h5path = dir4+"F_corr."+std::to_string(k)+".h5";
+    const std::string h5path = dir4+H5PREFIX+"."+std::to_string(k)+".h5"; // distinct prefix in shared dir
     {
       bool done=false;
       if(std::filesystem::exists(h5path)){
@@ -313,23 +349,18 @@ int main(int argc, char* argv[]){
     const std::string str_lat=dir3+"ckpoint_lat."+std::to_string(k);
     U.read( str_lat );
 
-// #ifdef IS_FLOW
     Gauge Uflow = U;
-// #endif
+    flow(Uflow);   // single flow (measure on the flowed field)
 
-    // item 7: measure the n_lm Ylm channels at N_FLOW cumulative flow times.
-    // obs[op][t], op = iflow*n_lm + ilm; flow(Uflow) advances Uflow in place.
+    // obs[op][t], op = iorbit*n_lm + ilm ; linear shape operators (F_12)
     std::vector<std::vector<double>> obs( nops, std::vector<double>(Comp::Nt, 0.0) );
-    for(int iflow=0; iflow<N_FLOW; iflow++){
-      flow(Uflow);
-
+    for(int iorbit=0; iorbit<n_orbits; iorbit++){
       for(int ilm=0; ilm<n_lm; ilm++){
         const int ell = lm_set[ilm][0];
         const int em  = lm_set[ilm][1];
-        const int op  = iflow*n_lm + ilm;
-
+        const int op  = iorbit*n_lm + ilm;
         for(int t=0; t<Comp::Nt; t++){
-          obs[op][t] = Uflow.plaquette_angle_avg_Ylm_real(t, ell, em);
+          obs[op][t] = shp.op( Uflow, t, orbits[iorbit], ell, em, SQUARED );
         }
       }
     }
@@ -376,8 +407,14 @@ int main(int argc, char* argv[]){
     //  the obs[][] flow-checkpoint loop above; pristine version in glue2_claude.cu)
 
     // correlator matrix C(dt)[i][j] = (1/Nt) sum_t obs[i][t] obs[j][t+dt], and one-point <O_i>.
-    std::vector<std::vector<double>> Fcorr( Comp::Nt, std::vector<double>(nops*nops, 0.0) );
-    for(int dt=0; dt<Comp::Nt; dt++){
+    // Only the small-separation window dt = 0..TMAX_CORR is stored: the GEVP uses dt up to tcut(~5),
+    // and the backward fold slice is recovered LOSSLESSLY from the transpose of a stored forward
+    // slice via the periodicity identity  C_ij(Nt-d) = C_ji(d)  (see glue_gevp_analysis_claude.cu
+    // fold). This cuts both the correlator cost (Nt^2 -> Nt*TMAX) and the h5 size (~Nt/TMAX).
+    constexpr int TMAX_CORR = 16;
+    const int nsep = std::min(TMAX_CORR + 1, Comp::Nt); // stored separations dt = 0..nsep-1
+    std::vector<std::vector<double>> Fcorr( nsep, std::vector<double>(nops*nops, 0.0) );
+    for(int dt=0; dt<nsep; dt++){
       Eigen::MatrixXd cdt_avg = Eigen::MatrixXd::Zero( nops, nops );
       for(int t=0; t<Comp::Nt; t++) {
         for(int i=0; i<nops; i++){
@@ -402,6 +439,7 @@ int main(int argc, char* argv[]){
     HighFive::File h5( h5path, HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Truncate );
     h5.createDataSet( "F_corr", Fcorr );
     h5.createDataSet( "F", F1 );
+    h5.createDataSet( "n_lm", std::vector<int>{n_lm} );  // (l,m) count so the analysis auto-adapts to the l-tower
     h5.createDataSet( "complete", std::vector<int>{1} );
   } // end for k
 
