@@ -35,13 +35,22 @@ then
 fi
 echo "remaining matching pids: $(pgrep -u "$USER" -f "$PAT" | tr '\n' ' ')(none if blank)"
 
-# ---- 2. MPS sanity check (daemon must be up for the 2-procs/GPU packing) ----
+# ---- 2. ensure the CUDA MPS daemon is up (co-resident procs SM-share, not time-slice).
+# ---- Clients must start AFTER the daemon; abort if it can't come up.
 if pgrep -f nvidia-cuda-mps-control >/dev/null
 then
-  echo "MPS daemon: running"
+  echo "MPS daemon: already running"
 else
-  echo "WARNING: MPS daemon NOT running -- start it first:  nvidia-cuda-mps-control -d"
+  echo "MPS daemon not up -- starting nvidia-cuda-mps-control -d"
+  nvidia-cuda-mps-control -d
+  for i in 1 2 3 4 5
+  do
+    pgrep -f nvidia-cuda-mps-control >/dev/null && break
+    sleep 1
+  done
 fi
+pgrep -f nvidia-cuda-mps-control >/dev/null \
+  || { echo "ERROR: MPS daemon failed to start -- aborting (would run un-packed)"; exit 1; }
 
 # ---- 3. rebuild (make detects the edited sources) + relaunch via wrapper -----
 # run_nf_L2L4_massless_claude.sh rebuilds hmc_L{2,4}_claude.o and launches the

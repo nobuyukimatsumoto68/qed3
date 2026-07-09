@@ -179,6 +179,29 @@ struct WilsonShapes {
     return v;
   }
 
+  // four-triangle STAR shape: a CENTRAL face f0 plus ALL 3 of its edge-neighbors (so f0 shares each
+  // of its 3 links with one neighbor). w=(+,+,+,+) -> total oriented flux through the 4-triangle patch.
+  // r_ins = centroid of the central triangle. On a closed simplicial sphere every face has exactly 3
+  // edge-neighbors; at L=1 this is ONE Ih orbit, at higher L several inequivalent placements (orbits).
+  std::vector<Instance> four_triangles() const {
+    std::vector<std::vector<Idx>> fnbr(base.n_faces);
+    for(Idx il=0; il<base.n_links; il++){
+      fnbr[ base.dual_links[il][0] ].push_back( base.dual_links[il][1] );
+      fnbr[ base.dual_links[il][1] ].push_back( base.dual_links[il][0] );
+    }
+    std::vector<Instance> v;
+    for(Idx f0=0; f0<base.n_faces; f0++){
+      const std::vector<Idx>& nb = fnbr[f0];
+      if(nb.size() != 3) continue;                 // interior triangle with all 3 edge-neighbors
+      Instance in;
+      in.faces = { f0, nb[0], nb[1], nb[2] };
+      in.w = { +1, +1, +1, +1 };
+      in.r_ins = base.dual_sites[f0];              // centroid of the central triangle
+      v.push_back(in);
+    }
+    return v;
+  }
+
   // --- generic holonomy / operator ---
   template<typename Gauge>
   double holonomy(const Gauge& U, const int s, const Instance& in) const {

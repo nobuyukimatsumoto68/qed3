@@ -199,6 +199,11 @@ LOCAL re-derives `jj_ensembles_claude.txt` from it; REMOTE re-runs the ncfg scan
   Refreshed the 3 gsq4 rows. gsq=4.0 remaining: Nf4 + Nf6 to 320.
 - **2026-07-04 LOCAL (/check-configs):** gsq=4.0 progressing clean (Nf4 163->234, Nf6 138->187, both
   100% acc 0 warn). Refreshed both rows. Remaining: Nf4 ~86 traj + Nf6 ~133 traj to 320.
+- **2026-07-04 LOCAL (/check-configs):** gsq=4.0 DONE (Nf4 & Nf6 both @319; whole gsq4 L1 complete).
+  gsq=16.0 ADDED + auto-launched (queued behind gsq4 on GPU1; grouping {Nf2->Nf4}+{Nf6}, kmax320,
+  npole21). Running: gsq16 Nf2 k99 + Nf6 k40 (Nf4 pending in slot1), both healthy 100% acc 0 warn.
+  MPS confirmed UP (server 6490 both GPUs; gsq16 are clients). Filled gsq16 Nf2/Nf6 rows (placeholders
+  -> live); gsq16 Nf4 still 0 (not started). L1 gsq scan now covers gsq in {1,2,4,12,16}.
 - **2026-07-06 LOCAL:** **rng-checkpoint disk cleanup.** Thinned `ckpoint_rng.*` (~35 MB each; the real
   disk hog vs 43 KB `ckpoint_lat.*`). Policy: keep the LATEST rng (resume point) + one every ~100 for
   local sea streams (`origin=local`, non-mRe/mIm), and every 1000 + last for the 4 non-manifest
@@ -208,6 +213,53 @@ LOCAL re-derives `jj_ensembles_claude.txt` from it; REMOTE re-runs the ncfg scan
   Delete list = `rng_delete_list_claude.txt` (59673 files, all `ckpoint_rng.*`); user ran the `rm`.
   Result: rng on disk **2.18 TB -> 314 GB (~1.87 TB freed)**; ALL `ckpoint_lat.*` intact, every stream
   still resume-safe (latest rng preserved).
+- **2026-07-09 LOCAL:** **Nf-block HMC (action-inversion speedup) — REMOTE TODO for the FNAL ensembles.**
+  New unified driver `hmc_Nfblocked_claude.cu` (+ headers `pseudofermion_Nfblocked_claude.h`,
+  `integrator_Nfblocked_claude.h`, `hmc_Nfblocked_claude.h`) packs the **Nf/2 pseudo-fermion ACTION
+  inversions** (heat-bath `gen`, `update_eta`, `S`) into ONE mrhs block CG via `BlockedMat`
+  (`blocked_mat_claude.h`) instead of the serial per-flavor loop — targets the **Nf=6 HMC bottleneck**.
+  The **force stays serial** (deferred). Full detail: `hmc_pf_block_parallelize_impl_plan_claude.md`.
+  - **What LOCAL owns:** drivers/headers + validation harness `run_Nfblock_validate_claude.sh`
+    (serial-vs-block dH ~1e-6 + timing at L1/L4 Nf6 via a `-DSERIAL_REF` build of the same source).
+    LOCAL keeps L1 (+ Nf=2 everywhere on MPS). The 4 new files (1 `.cu` + 3 `.h` in `includes/`) need
+    to reach REMOTE via the usual code sync (git/rsync) before REMOTE builds — filenames listed above.
+  - **What REMOTE should do (FNAL generation):** build + deploy the block binaries to **replace the
+    serial `hmc_fermilab_wmass_{,_L2,_L4}` drivers for Nf=4 and Nf=6** on the L2/L4 (+heavy, +gsq12)
+    ensembles. **Nf=2 stays serial + MPS** (NSTACK=1, block is a no-op there).
+  - **Build knobs** (compile-time; one binary per (L,Nf) — `NSTACK=Nf/2` is a template param):
+    `-DLREFINE={2,4} -DNFPF={4,6}` and the FNAL geometry paths
+    `-DGEODESIC_H='"/project/affine/nmatsum/qed3/geometry/geodesic.h"'`
+    `-DGEOM_DATA='"/project/affine/nmatsum/qed3/geometry/data/"'`, plus per-campaign
+    `-DKMAX=<cap> -DKRNG=<keep-stride>`. So 4 binaries: (L2,L4) x (Nf4,Nf6).
+  - **DO NOT set `-DDIR_NO_MASS`** on FNAL — the default keeps the `mRe/mIm` dir convention, so output
+    dirs **byte-match the existing FNAL ensembles and AUTO-RESUME** them (this is the whole point).
+  - **Physics is pinned to the current standard** (baked into the source): Zolotarev **n=21, k=0.001**;
+    tmax/nsteps L-keyed **L2,L4 -> tmax=1.0, nsteps=8** (L1 -> 1.9/10); `nsteps_inner=100`. These
+    UPGRADE the stale massive-L2 (was n=17/nsteps=6) — intended (agreed w/ NM 2026-07-09).
+  - **REMOTE cross-check before committing:** on a COPY of one existing FNAL config, run 1 trajectory
+    with the serial `hmc_fermilab_wmass_*` binary AND the block binary from the SAME `ckpoint_lat`+rng;
+    the block `dH` must match serial to ~1e-6 (drop-in check). Block-CG shared-stop only over-converges.
+  - **Memory:** block scratch ~ `(16*N*NSTACK + 3*N*NSTACK*npole)*16` B; worst L4/Nf6/npole20 ~145 MiB
+    — trivial. The binary prints `# Nf-block: ... scratch est/used/free` at startup.
+  - **MPS note (REVISED 2026-07-09):** the block does NOT saturate the GPU -- LOCAL L4/Nf6 block-force
+    util fluctuates **55-90%** (only `G`/graphics jobs sharing GPU1). HMC has latency-bound idle between
+    kernels (grad's per-link cudaDeviceSynchronize+D2H+host-reduce = thousands of host syncs/traj; CG
+    scalar phases) that the block can't fill but MPS can. So **block + MPS COMPOSE** (block cuts
+    per-process work; MPS backfills the idle) -- MPS is still worth it even at L4. REMOTE: expect
+    block+MPS on the A100s (a beefier GPU may idle even more -> MPS helps more); benchmark to set the
+    per-GPU client count. Future perf: batching grad's per-link work to kill the host syncs would raise
+    single-process util and shift the block/MPS balance.
+    LOCAL 2-client MPS benchmark (TITAN V, gsq8 massless, gain=2*Tsolo/Tpacked): L1_Nf2 1.60x,
+    L1_Nf6-block 1.42x, L4_Nf2 1.67x, **L4_Nf6-block 1.26x** -- MPS worth it for ALL; gain shrinks as
+    per-proc work grows (block Nf6 = highest util = lowest gain). So on FNAL default to **2 clients/GPU +
+    block force**; benchmark 2-vs-3 on the A100s.
+  - **FORCE BLOCK VALIDATED (2026-07-09):** the force is now also blocked (`-DBLOCK_FORCE`,
+    `overlap_force_Nfblock_claude.h`). Block-vs-serial first-traj dH = 1.16e-10 (L4/Nf6) / 1.5e-9 (L1);
+    **force block = 2.51x at L4/Nf6** (serial-force 2754.5 -> block-force 1096.9 s/traj) -- the real Nf=6
+    win (L1 ~1x: force is a minority there). So REMOTE builds the L2/L4 Nf4/6 binaries **WITH
+    `-DBLOCK_FORCE`** (block action + force), fermilab geometry, no `-DDIR_NO_MASS` (auto-resume). Force
+    pool ~231 MiB at L4/Nf6 (npole=10). Massive (Family-B) force path INCLUDED. Plan:
+    `hmc_force_Nfblock_impl_plan_claude.md`.
 
 ---
 

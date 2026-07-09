@@ -38,8 +38,22 @@ echo "Nf=2 remaining: $(pgrep -u "$USER" -f "$NF2_PAT" | tr '\n' ' ')(none if bl
 echo "Nf=4 still running (should be 2): $(pgrep -u "$USER" -f "hmc_L[24]_claude.o ${GSQ} 4 ${NU0}" | tr '\n' ' ')"
 
 # ---- 2. MPS sanity (two procs co-resident per GPU) ------------------------
-pgrep -f nvidia-cuda-mps-control >/dev/null && echo "MPS daemon: running" \
-  || echo "WARNING: MPS daemon NOT running -- start it:  nvidia-cuda-mps-control -d"
+# ---- ensure the CUDA MPS daemon is up BEFORE launching (co-resident procs SM-share,
+# ---- not time-slice). Clients must start AFTER the daemon.
+if pgrep -f nvidia-cuda-mps-control >/dev/null
+then
+  echo "MPS daemon: already running"
+else
+  echo "MPS daemon not up -- starting nvidia-cuda-mps-control -d"
+  nvidia-cuda-mps-control -d
+  for i in 1 2 3 4 5
+  do
+    pgrep -f nvidia-cuda-mps-control >/dev/null && break
+    sleep 1
+  done
+fi
+pgrep -f nvidia-cuda-mps-control >/dev/null \
+  || { echo "ERROR: MPS daemon failed to start -- aborting (would run un-packed)"; exit 1; }
 
 # ---- 3. build (up to date if unchanged) -----------------------------------
 echo "===== build hmc_L2/L4  [$(date +%F_%H:%M:%S)] ====="

@@ -281,8 +281,8 @@ int main(int argc, char* argv[]){
   // std::cout << "# kinit = " << kinit << " k_tmp = " << k_tmp << std::endl;
 
   // ---- single Wilson-flow smearing (matches non-_claude glue2.cu: tmax=1.0, 100 steps) ----
-  constexpr double FLOW_TMAX = 1.0;
-  constexpr int FLOW_NSTEP = 100;
+  constexpr double FLOW_TMAX = 2.0;   // bumped 1.0 -> 2.0
+  constexpr int FLOW_NSTEP = 200;     // keep dt=0.01 (100 -> 200)
   Flow flow(&SW, FLOW_TMAX, FLOW_NSTEP);
 
   // ---- shape operator basis: icosahedral orbits of spatial Wilson-loop shapes ----
@@ -310,24 +310,25 @@ int main(int argc, char* argv[]){
     // (smooth) F_12 mode, so its GEVP ground is a spurious sub-sqrt(2) short-distance lattice
     // artifact (free L=1: eigenvector ~90% twisted, ground 1.05 vs true sqrt2). Keep triangle +
     // untwisted rect + figure-8 (Phi0+Phi1), which reproduce the free-limit sqrt(2) cleanly.
-    std::vector<std::vector<Inst>> all[4] = {
+    std::vector<std::vector<Inst>> all[5] = {
       shp.orbits_from( shp.triangles() ),
       shp.orbits_from( shp.rectangles() ),
       // shp.orbits_from( shp.twisted_rectangles() ),   // removed (twisted artifact)
       shp.orbits_from( shp.figure8s() ),
       // shp.orbits_from( shp.twisted_figure8s() ),      // removed (twisted artifact)
-      shp.orbits_from( shp.three_triangles() ),         // NEW: central triangle + 2 edge-neighbors
+      shp.orbits_from( shp.three_triangles() ),         // central triangle + 2 edge-neighbors
+      shp.orbits_from( shp.four_triangles() ),          // NEW: 4-triangle STAR (central + all 3 edge-nbrs)
     };
-    for(int is=0; is<4; is++) for(auto& o : all[is]) orbits.push_back(std::move(o));
+    for(int is=0; is<5; is++) for(auto& o : all[is]) orbits.push_back(std::move(o));
   }
   const int n_orbits = (int)orbits.size();
   const bool SQUARED = false;
 
+  // F: physical channel is l=1 (F ground) + l=2 (first excited). l=0 (total oriented flux ~ 0 by
+  // Gauss/closed-surface) DROPPED for disk. The exact (l,m) list is written to h5 (ell/em datasets).
   const std::vector<std::array<int,2>> lm_set = {
-    {0,0},
     {1,-1},{1,0},{1,1},
     {2,-2},{2,-1},{2,0},{2,1},{2,2},
-    // {3,-3},{3,-2},{3,-1},{3,0},{3,1},{3,2},{3,3},   // l=3 DROPPED for production (disk): F ground is l=1, first excited l=2
   };
   const int n_lm = lm_set.size();
   const int nops = n_orbits * n_lm; // op = iorbit*n_lm + ilm
@@ -413,20 +414,25 @@ int main(int argc, char* argv[]){
     // fold). This cuts both the correlator cost (Nt^2 -> Nt*TMAX) and the h5 size (~Nt/TMAX).
     constexpr int TMAX_CORR = 16;
     const int nsep = std::min(TMAX_CORR + 1, Comp::Nt); // stored separations dt = 0..nsep-1
-    std::vector<std::vector<double>> Fcorr( nsep, std::vector<double>(nops*nops, 0.0) );
+    // Store ONLY the symmetry-allowed per-(l,m) blocks: for each ilm channel, the n_orbits x n_orbits
+    // SHAPE correlator C(a*n_lm+ilm, b*n_lm+ilm). Cross-(l,m) entries vanish by rotational symmetry
+    // (the analysis zero_noise) so they are neither computed nor stored -> ~n_lm x smaller + faster.
+    // Layout: blk[dt][ilm*nob*nob + a*nob + b]. The analysis re-expands to the block-diagonal matrix.
+    const int nob = n_orbits;
+    std::vector<std::vector<double>> Fcorr( nsep, std::vector<double>(n_lm*nob*nob, 0.0) );
     for(int dt=0; dt<nsep; dt++){
-      Eigen::MatrixXd cdt_avg = Eigen::MatrixXd::Zero( nops, nops );
       for(int t=0; t<Comp::Nt; t++) {
-        for(int i=0; i<nops; i++){
-          for(int j=0; j<nops; j++){
-            cdt_avg(i,j) += obs[i][t] * obs[j][(t+dt)%Comp::Nt];
+        const int tj = (t+dt)%Comp::Nt;
+        for(int ilm=0; ilm<n_lm; ilm++){
+          for(int a=0; a<nob; a++){
+            const double oa = obs[a*n_lm+ilm][t];
+            for(int b=0; b<nob; b++){
+              Fcorr[dt][ilm*nob*nob + a*nob + b] += oa * obs[b*n_lm+ilm][tj];
+            }
           }
         }
       }
-      for(int i=0; i<nops; i++){
-        for(int j=0; j<nops; j++){
-          Fcorr[dt][i*nops+j] = cdt_avg(i,j) / Comp::Nt; // F_corr and F share the <..> scale for vacuum subtraction
-        }}
+      for(double& x : Fcorr[dt]) x /= Comp::Nt; // F_corr and F share the <..> scale for vacuum subtraction
     }
 
     std::vector<double> F1( nops, 0.0 );
@@ -435,11 +441,18 @@ int main(int argc, char* argv[]){
     }
     for(int i=0; i<nops; i++) F1[i] /= Comp::Nt;
 
-    // write per-config HDF5 (F_corr: Nt x nops^2, F: nops); "complete" flag written LAST
+    // write per-config HDF5 (F_corr_blk: nsep x n_lm*n_orbits^2 block-diagonal, F: nops); "complete" LAST
     HighFive::File h5( h5path, HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Truncate );
-    h5.createDataSet( "F_corr", Fcorr );
+    h5.createDataSet( "F_corr_blk", Fcorr );  // per-(l,m) shape blocks (symmetry-allowed only)
     h5.createDataSet( "F", F1 );
     h5.createDataSet( "n_lm", std::vector<int>{n_lm} );  // (l,m) count so the analysis auto-adapts to the l-tower
+    h5.createDataSet( "n_orbits", std::vector<int>{n_orbits} );  // shapes/orbit count -> nops = n_orbits*n_lm
+    // explicit channel labels: ell[ilm], em[ilm] (op = iorbit*n_lm + ilm) so the analysis reads the
+    // EXACT (l,m) list -- required now that l is non-contiguous (F saves l=1,2, no l=0).
+    std::vector<int> ell_v( n_lm ), em_v( n_lm );
+    for(int i=0; i<n_lm; i++){ ell_v[i] = lm_set[i][0]; em_v[i] = lm_set[i][1]; }
+    h5.createDataSet( "ell", ell_v );
+    h5.createDataSet( "em", em_v );
     h5.createDataSet( "complete", std::vector<int>{1} );
   } // end for k
 

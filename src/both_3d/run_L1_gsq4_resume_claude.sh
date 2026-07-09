@@ -18,8 +18,23 @@ GSQ=4.0
 NU0=1.0
 GPU=1
 
-pgrep -f nvidia-cuda-mps-control >/dev/null && echo "MPS daemon: running" \
-  || echo "WARNING: MPS daemon NOT running -- start it:  nvidia-cuda-mps-control -d"
+# ---- ensure the CUDA MPS daemon is up BEFORE launching (so the co-resident procs
+# ---- actually SM-share instead of time-slicing). Clients must start AFTER the daemon.
+if pgrep -f nvidia-cuda-mps-control >/dev/null
+then
+  echo "MPS daemon: already running"
+else
+  echo "MPS daemon not up -- starting nvidia-cuda-mps-control -d"
+  nvidia-cuda-mps-control -d
+  for i in 1 2 3 4 5
+  do
+    pgrep -f nvidia-cuda-mps-control >/dev/null && break
+    sleep 1
+  done
+fi
+pgrep -f nvidia-cuda-mps-control >/dev/null \
+  || { echo "ERROR: MPS daemon failed to start -- aborting (would run un-packed)"; exit 1; }
+echo "MPS server pipe: $(ls -d /tmp/nvidia-mps 2>/dev/null || echo default-not-yet-created)"
 
 echo "===== build hmc_L1_claude.o  [$(date +%F_%H:%M:%S)] ====="
 make hmc_L1_claude.o 2>&1 | tee build_hmc_L1_claude.log

@@ -11,9 +11,11 @@
 # L2 step 4), so we hit EXACTLY the jj-processed configs.  Resume-safe: the driver skips a config whose scalar
 # keys already exist, so re-running continues where it left off.
 #
-# PACKING: CUDA MPS must be up (`nvidia-cuda-mps-control -d`).  Default = 2 jobs on GPU 0.  Workers split the
-# ensemble list round-robin (worker w takes ensembles with index % NWORKERS == w).  Each worker logs to
-# ylm_scalar_catchup_w<w>_claude.log ; build+orchestration -> ylm_scalar_catchup_claude.log .
+# PACKING: this script now AUTO-STARTS CUDA MPS (and aborts if it can't) -- REQUIRED for packing, else two
+# procs on one GPU serialize via context-switch (the ~8x slowdown we hit was a DEAD MPS daemon, not a packing
+# pathology; with MPS up, 2/GPU gives ~2x aggregate).  Default = 2 jobs on GPU 0 (WGPU="0 0").  Workers split
+# the ensemble list by cost-weighted LPT.  Each worker logs to ylm_scalar_catchup_w<w>_claude.log ;
+# build+orchestration -> ylm_scalar_catchup_claude.log .
 #
 # Env: GPUS="0" (space-sep list), JOBS_PER_GPU=2, FILTER=all|L1|L2, PHASE=both|conn|disc.
 set -u
@@ -38,6 +40,18 @@ WGPU_STR="${WG[*]}"
 LOG=ylm_scalar_catchup_claude.log
 : > "$LOG"
 exec > >(tee -a "$LOG") 2>&1
+
+# ---- ensure CUDA MPS is up BEFORE launching workers (else 2-packing serializes via context-switch = the
+#      ~8x slowdown we hit; a dead MPS daemon, NOT a packing pathology).  Mirrors the HMC run scripts. ----
+if pgrep -f nvidia-cuda-mps-control >/dev/null; then
+  echo "### MPS daemon: already running ###"
+else
+  echo "### MPS daemon not up -- starting nvidia-cuda-mps-control -d ###"
+  nvidia-cuda-mps-control -d
+  for i in 1 2 3 4 5; do pgrep -f nvidia-cuda-mps-control >/dev/null && break; sleep 1; done
+fi
+pgrep -f nvidia-cuda-mps-control >/dev/null \
+  || { echo "### ERROR: MPS daemon failed to start -- aborting (would run un-packed/serialized) ###"; exit 1; }
 
 NVCC=nvcc
 INCLUDES='-I./includes/ -I/projectnb/qfe/nmatsum/qed3/opt/eigen -I/opt/eigen-3.4.0/ -I/mnt/hdd_barracuda/opt/highfive/include/ -I/mnt/hdd_barracuda/opt/myhdfstuff/hdf5-2.1.0/include/'

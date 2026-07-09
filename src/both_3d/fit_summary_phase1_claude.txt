@@ -1,0 +1,30 @@
+ensemble               |               F l=1 (24pt) |                  F^2 0++
+Nf2 g8.000 L1      |      1.329(0.015) X2/d=0.8 |    3.069(0.093) X2/d=1.8
+Nf4 g8.000 L1      |      1.347(0.012) X2/d=1.0 |    3.100(0.092) X2/d=3.3
+Nf6 g8.000 L1      |      1.349(0.015) X2/d=0.9 |    3.057(0.091) X2/d=3.3
+Nf2 g8.000 L2      |      1.292(0.027) X2/d=1.8 |        nan(nan) X2/d=nan
+Nf4 g8.000 L2      |            singular(nb=10) |        nan(nan) X2/d=nan
+Nf6 g8.000 L2      |             singular(nb=5) |           singular(nb=5)
+Nf2 g1.000 L1      |             singular(nb=6) |    2.728(0.260) X2/d=2.4
+Nf2 g2.000 L1      |      1.336(0.008) X2/d=4.2 |    2.891(0.050) X2/d=1.4
+Nf2 g2.400 L1      |     1.150(0.004) X2/d=20.8 |    2.829(0.105) X2/d=0.1
+Nf2 g4.000 L1      |             singular(nb=6) |   3.283(0.183) X2/d=21.7
+Nf2 g12.00 L1      |             singular(nb=6) |   2.111(0.139) X2/d=11.1
+Nf4 g1.000 L1      |             singular(nb=6) |    2.877(0.204) X2/d=1.8
+Nf4 g2.000 L1      |      1.390(0.007) X2/d=4.3 |    3.029(0.044) X2/d=0.4
+Nf4 g4.000 L1      |             singular(nb=3) |           singular(nb=3)
+Nf4 g12.00 L1      |             singular(nb=6) |   2.502(0.167) X2/d=23.2
+Nf6 g1.000 L1      |             singular(nb=6) |    3.509(0.202) X2/d=0.7
+Nf6 g2.000 L1      |      1.438(0.008) X2/d=5.7 |    3.012(0.051) X2/d=0.8
+Nf6 g2.400 L1      |            singular(nb=25) |    3.131(0.111) X2/d=0.2
+Nf6 g4.000 L1      |             singular(nb=3) |           singular(nb=3)
+Nf6 g12.00 L1      |             singular(nb=6) |        nan(nan) X2/d=nan
+wrote trend_F_Nf2_L1_claude.dat
+wrote trend_F_Nf4_L1_claude.dat
+wrote trend_F_Nf6_L1_claude.dat
+wrote trend_F_Nf2_L2_claude.dat
+wrote trend_F2_Nf2_L1_claude.dat
+wrote trend_F2_Nf4_L1_claude.dat
+wrote trend_F2_Nf6_L1_claude.dat
+wrote trend_F2_Nf2_L2_claude.dat
+wrote trend_F2_Nf4_L2_claude.dat

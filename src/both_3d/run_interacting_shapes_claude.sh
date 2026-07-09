@@ -2,31 +2,33 @@
 set -u
 
 # ============================================================================
-# INTERACTING re-measurement of the shape-basis glueball correlators (F linear +
-# F^2 = 0++) with the PRODUCTION 4-shape basis {triangle, rect, figure-8, three-
-# triangle}, face_sign ON, ell=0..2 (n_lm=9, nops=36), TMAX_CORR=16.
+# INTERACTING re-measurement (PHASE 2) of the shape-basis glueball correlators.
+# 5-shape basis {triangle, rect, figure-8, three-triangle, four-triangle STAR},
+# face_sign ON, FLOW_TMAX=2 (nstep 200), TMAX_CORR=16. Reduced l-towers for disk:
+# F saves ell=1,2 (n_lm=8); F^2 saves ell=0,1 (n_lm=4). Only the symmetry-allowed
+# per-(l,m) SHAPE blocks are stored (F_corr_blk), with ell/em/n_orbits datasets.
 #
-# Full sweep = 26 ensembles (nu0=1.0, Nt=128, stride=1):
+# Sweep = 21 ensembles (nu0=1.0, Nt=128, stride=1), gsq2.2/2.4/2.5 EXCLUDED:
 #   gsq8 x {L1,L2,L4} x Nf{2,4,6}                                     (9)
-#   L1 gsq scan: Nf2 {1,2,2.4,2.5,4,12} Nf4 {1,2,2.2,2.5,4,12} Nf6 {1,2,2.4,4,12}  (17)
+#   L1 gsq scan: Nf{2,4,6} x {1,2,4,12}                              (12)
 #
 # L (N_REFINE) is a COMPILE-TIME flag -> six binaries (F/F^2 x L1/L2/L4).
 # Runtime args per driver: gsq Nf nu0 kmax kmin stride.  Output h5 -> data_<cfgdir>/.
 #
 # ------------------------------------------------------------------------------
 # PREREQUISITE (run YOURSELF -- no rm is ever placed in a script):
-#   the existing glue_{msm,f2}_shapes.*.h5 in these data_ dirs are the OLD mixed
-#   basis (5-shape, ell=0..3, tmax=10) and the resume-skip keys on the "complete"
-#   flag, so they MUST be removed first or nothing new is measured. Remove ONLY the
-#   two production prefixes (leave glue_msm_shapes_nofs.* alone):
+#   the existing glue_{msm,f2}_shapes.*.h5 are PHASE-1 (4-shape, flow1, full F_corr)
+#   and the resume-skip keys on the "complete" flag, so they MUST be removed first or
+#   nothing new is measured. Remove ONLY the two production prefixes (leave
+#   glue_msm_shapes_nofs.* alone):
 #
 #     while read cd; do
 #       dd="data_$cd"
 #       rm -f "$dd"/glue_msm_shapes.[0-9]*.h5 "$dd"/glue_f2_shapes.[0-9]*.h5
 #     done < interacting_ens_list_claude.txt
 #
-#   The python3 preflight below ABORTS if any stale old-basis h5 (missing the
-#   n_lm attribute) is still present, so a forgotten rm cannot silently no-op.
+#   The python3 preflight below ABORTS if any stale phase-1 h5 (lacking the
+#   F_corr_blk dataset) is still present, so a forgotten rm cannot silently no-op.
 # ------------------------------------------------------------------------------
 # Reference: free-limit anchors F ell=1 -> sqrt(2)=1.41421 (L=1 det 1.33242);
 #            F^2 0++ -> two-photon 2sqrt(2)=2.828 (see run_free_validation_claude.sh).
@@ -64,12 +66,7 @@ ENS=(
   "4 8.000000 1"  # 3557
   "2 8.000000 1"  # 3426
   "6 8.000000 1"  # 3163
-  "2 2.500000 1"  # 2723
-  "4 2.200000 1"  # 2092
   "2 8.000000 2"  # 1601
-  "2 2.400000 1"  # 1418
-  "6 2.400000 1"  # 1264
-  "4 2.500000 1"  # 1099
   "4 8.000000 2"  # 518
   "2 1.000000 1"  # 319
   "2 12.000000 1" # 319
@@ -109,14 +106,14 @@ python3 - "$NU0STR" <<'PY' 2>&1 | tee -a "$LOG"
 import sys, glob, os
 import h5py
 nu0 = sys.argv[1]
-# rebuild cfgdirs from the same table the shell uses
+# rebuild cfgdirs from the same table the shell uses (phase-2: gsq2.2, 2.5 excluded)
 table = [
   (2,"8.000000",1),(4,"8.000000",1),(6,"8.000000",1),
   (2,"8.000000",2),(4,"8.000000",2),(6,"8.000000",2),
   (2,"8.000000",4),(4,"8.000000",4),(6,"8.000000",4),
-  (2,"1.000000",1),(2,"2.000000",1),(2,"2.400000",1),(2,"2.500000",1),(2,"4.000000",1),(2,"12.000000",1),
-  (4,"1.000000",1),(4,"2.000000",1),(4,"2.200000",1),(4,"2.500000",1),(4,"4.000000",1),(4,"12.000000",1),
-  (6,"1.000000",1),(6,"2.000000",1),(6,"2.400000",1),(6,"4.000000",1),(6,"12.000000",1),
+  (2,"1.000000",1),(2,"2.000000",1),(2,"4.000000",1),(2,"12.000000",1),
+  (4,"1.000000",1),(4,"2.000000",1),(4,"4.000000",1),(4,"12.000000",1),
+  (6,"1.000000",1),(6,"2.000000",1),(6,"4.000000",1),(6,"12.000000",1),
 ]
 stale = []
 for nf,g,L in table:
@@ -127,11 +124,12 @@ for nf,g,L in table:
             continue
         try:
             with h5py.File(fs[0],"r") as h:
-                has_nlm = ("n_lm" in h) or ("n_lm" in h.attrs)
+                # phase-2 h5 store the per-(l,m) block dataset F_corr_blk; phase-1 (4-shape full F_corr) lack it
+                is_phase2 = ("F_corr_blk" in h)
         except Exception as ex:
-            has_nlm = False
-        if not has_nlm:
-            stale.append(f"{dd}/{pref}.*.h5  (sample {os.path.basename(fs[0])} lacks n_lm; {len(fs)} files)")
+            is_phase2 = False
+        if not is_phase2:
+            stale.append(f"{dd}/{pref}.*.h5  (sample {os.path.basename(fs[0])} lacks F_corr_blk = phase-1; {len(fs)} files)")
 if stale:
     print("PREFLIGHT ABORT: stale OLD-basis h5 still present. Remove these first (run yourself):")
     for s in stale:
