@@ -68,6 +68,14 @@ static constexpr Complex I = Complex(0.0, 1.0);
 #ifndef KRNG
 #define KRNG 5
 #endif
+// L2/L4 leapfrog step count. Committed DEFAULT stays 8; override via -DNSTEPS (same -D idiom
+// as KMAX/KRNG/NPGAUGE -> no committed source diff, no FNAL merge conflict). Local L2/L4 gsq8
+// builds pass -DNSTEPS=10 (finer step: escapes the rare near-zero-mode integrator trap that
+// froze L2/Nf4 at k=541 with nsteps=8, and changes the resumed trajectory so the same rng
+// does not reproduce the freeze). L1 keeps its own nsteps=10 in the LREFINE==1 branch below.
+#ifndef NSTEPS
+#define NSTEPS 8
+#endif
 
 // #define IsVerbose
 // #define IsVerbose2
@@ -83,8 +91,18 @@ namespace Comp{
   constexpr int NPARALLEL=NPARALLEL_DUPDATE;
   constexpr int NSTREAMS=NPARALLEL_DUPDATE;
 
-  constexpr int NPARALLEL_GAUGE=16;
-  constexpr int NPARALLEL_SORT=16;
+  // Host-thread fan-out (gauge update / sort). Committed DEFAULT stays 16 (FNAL/A100);
+  // override per-box via -DNPGAUGE / -DNPSORT (local TITAN V builds pass =1 so MPS-packed
+  // procs don't oversubscribe the CPU). Same -D idiom as KMAX/KRNG/LREFINE -> no source
+  // diff to commit, no merge conflict with the REMOTE build.
+#ifndef NPGAUGE
+#define NPGAUGE 16
+#endif
+#ifndef NPSORT
+#define NPSORT 16
+#endif
+  constexpr int NPARALLEL_GAUGE=NPGAUGE;
+  constexpr int NPARALLEL_SORT=NPSORT;
 
   constexpr int N_REFINE=LREFINE;
   constexpr int NS=2;
@@ -317,7 +335,7 @@ int main(int argc, char* argv[]){
   const int nsteps = 10;
 #else
   const double tmax = 1.0;
-  const int nsteps = 8;
+  const int nsteps = NSTEPS;   // committed default 8; local L2/L4 build passes -DNSTEPS=10
 #endif
   std::cout << "# tmax = " << tmax << std::endl
             << "# nsteps = " << nsteps << std::endl;

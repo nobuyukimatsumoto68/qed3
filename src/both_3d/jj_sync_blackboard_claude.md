@@ -260,6 +260,14 @@ LOCAL re-derives `jj_ensembles_claude.txt` from it; REMOTE re-runs the ncfg scan
     `-DBLOCK_FORCE`** (block action + force), fermilab geometry, no `-DDIR_NO_MASS` (auto-resume). Force
     pool ~231 MiB at L4/Nf6 (npole=10). Massive (Family-B) force path INCLUDED. Plan:
     `hmc_force_Nfblock_impl_plan_claude.md`.
+- **2026-07-09 LOCAL (/check-configs):** Manifest heavily REORGED (145->107 rows): removed nu0!=1.0,
+  Im(mass)!=0, L8, Family-A masses (from list only); `src_ncfg` col MOVED after `origin`; SORT now
+  gsq<mass-INDEX<Nf<L (per-L mass rank; Family-B aligns across L). /check-configs skill re-synced to
+  the new layout. **LOCAL NF-BLOCK EXTENSION LAUNCHED** (`run_L2L4_gsq8_extend_nfblock_claude.sh`):
+  massless gsq8 L2->kmax2000 / L4->kmax600, BOTH GPUs 2/GPU MPS (GPU0=L4{Nf6||Nf4->Nf2},
+  GPU1=L2{Nf6||Nf4->Nf2}); Nf4/6 block-force, Nf2 NSTACK=1, NPGAUGE=NPSORT=1. Live+healthy: L2/Nf4
+  518->521, L2/Nf6 289->292 (~210s/traj, 100% acc 0 warn); L4/Nf4@190, L4/Nf6@68 (1st traj running);
+  Nf2 queued. Also refreshed stale gsq16 L1 rows -> 319 (finished during a mid-run crash; checkpoints intact).
 
 ---
 

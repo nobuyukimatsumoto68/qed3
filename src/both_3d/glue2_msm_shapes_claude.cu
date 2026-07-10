@@ -304,24 +304,27 @@ int main(int argc, char* argv[]){
 #endif
   using Inst = typename WilsonShapes<Base>::Instance;
   std::vector<std::vector<Inst>> orbits;
+  std::array<int,7> shape_sizes{};   // # icosahedral orbits per shape type (for consolidation)
   {
-    // five shape types: triangle + {rect, twisted rect, figure-8, twisted figure-8}
-    // TWISTED shapes REMOVED: the twist Phi0-Phi1 is a flux DIFFERENCE that cancels the leading
-    // (smooth) F_12 mode, so its GEVP ground is a spurious sub-sqrt(2) short-distance lattice
-    // artifact (free L=1: eigenvector ~90% twisted, ground 1.05 vs true sqrt2). Keep triangle +
-    // untwisted rect + figure-8 (Phi0+Phi1), which reproduce the free-limit sqrt(2) cleanly.
-    std::vector<std::vector<Inst>> all[5] = {
+    // 7 shape types (TWISTED shapes removed -- spurious sub-sqrt(2) artifact). Order fixed:
+    // triangle, rect, fig8, three-tri, star, trio (star-center), five-six (site contour).
+    std::vector<std::vector<Inst>> all[7] = {
       shp.orbits_from( shp.triangles() ),
       shp.orbits_from( shp.rectangles() ),
-      // shp.orbits_from( shp.twisted_rectangles() ),   // removed (twisted artifact)
       shp.orbits_from( shp.figure8s() ),
-      // shp.orbits_from( shp.twisted_figure8s() ),      // removed (twisted artifact)
       shp.orbits_from( shp.three_triangles() ),         // central triangle + 2 edge-neighbors
-      shp.orbits_from( shp.four_triangles() ),          // NEW: 4-triangle STAR (central + all 3 edge-nbrs)
+      shp.orbits_from( shp.four_triangles() ),          // 4-triangle STAR (central + all 3 edge-nbrs)
+      shp.orbits_from( shp.trios() ),                   // NEW: star minus center (3 edge-neighbors)
+      shp.orbits_from( shp.site_contours() ),           // NEW: five-six contour around each site
     };
-    for(int is=0; is<5; is++) for(auto& o : all[is]) orbits.push_back(std::move(o));
+    for(int is=0; is<7; is++) shape_sizes[is] = (int)all[is].size();
+    for(int is=0; is<7; is++) for(auto& o : all[is]) orbits.push_back(std::move(o));
   }
-  const int n_orbits = (int)orbits.size();
+  // CONSOLIDATE the raw icosahedral orbits into ONE operator per shape (equal weight per orbit): the
+  // stored/analyzed basis is the 7 shape types at EVERY L (validated ~lossless for the GEVP ground;
+  // F_corr_blk = n_lm*n_shapes^2). Raw orbits are computed then summed by shape.
+  const int n_orbits_raw = (int)orbits.size();   // 7 (L1), grows with L
+  const int n_shapes = 7;
   const bool SQUARED = false;
 
   // F: physical channel is l=1 (F ground) + l=2 (first excited). l=0 (total oriented flux ~ 0 by
@@ -331,8 +334,9 @@ int main(int argc, char* argv[]){
     {2,-2},{2,-1},{2,0},{2,1},{2,2},
   };
   const int n_lm = lm_set.size();
-  const int nops = n_orbits * n_lm; // op = iorbit*n_lm + ilm
-  std::cout << "# n_orbits = " << n_orbits << " n_lm = " << n_lm << " nops = " << nops << std::endl;
+  const int nops = n_shapes * n_lm;        // consolidated 5-shape ops: op = ishape*n_lm + ilm
+  const int nops_raw = n_orbits_raw * n_lm; // raw per-orbit ops (computed, then summed by shape)
+  std::cout << "# n_shapes = " << n_shapes << " n_lm = " << n_lm << " nops = " << nops << std::endl;
 
   if(k_tmp > kmax_run) k_tmp = kmax_run;
   // serial over configs k; parallelism is ensemble-level (one process per Nf).
@@ -353,16 +357,28 @@ int main(int argc, char* argv[]){
     Gauge Uflow = U;
     flow(Uflow);   // single flow (measure on the flowed field)
 
-    // obs[op][t], op = iorbit*n_lm + ilm ; linear shape operators (F_12)
-    std::vector<std::vector<double>> obs( nops, std::vector<double>(Comp::Nt, 0.0) );
-    for(int iorbit=0; iorbit<n_orbits; iorbit++){
+    // obs_raw[op][t] per RAW orbit (op = iorbit*n_lm + ilm), then CONSOLIDATE (equal weight per orbit)
+    // into obs[ishape*n_lm + ilm][t] = sum over the shape's orbits. Linear shape operators (F_12).
+    std::vector<std::vector<double>> obs_raw( nops_raw, std::vector<double>(Comp::Nt, 0.0) );
+    for(int iorbit=0; iorbit<n_orbits_raw; iorbit++){
       for(int ilm=0; ilm<n_lm; ilm++){
         const int ell = lm_set[ilm][0];
         const int em  = lm_set[ilm][1];
         const int op  = iorbit*n_lm + ilm;
         for(int t=0; t<Comp::Nt; t++){
-          obs[op][t] = shp.op( Uflow, t, orbits[iorbit], ell, em, SQUARED );
+          obs_raw[op][t] = shp.op( Uflow, t, orbits[iorbit], ell, em, SQUARED );
         }
+      }
+    }
+    std::vector<std::vector<double>> obs( nops, std::vector<double>(Comp::Nt, 0.0) );
+    for(int ilm=0; ilm<n_lm; ilm++){
+      int o0=0;
+      for(int is=0; is<n_shapes; is++){
+        for(int oo=0; oo<shape_sizes[is]; oo++){
+          const int orbit = o0+oo;
+          for(int t=0; t<Comp::Nt; t++) obs[is*n_lm+ilm][t] += obs_raw[orbit*n_lm+ilm][t];
+        }
+        o0 += shape_sizes[is];
       }
     }
 
@@ -414,11 +430,11 @@ int main(int argc, char* argv[]){
     // fold). This cuts both the correlator cost (Nt^2 -> Nt*TMAX) and the h5 size (~Nt/TMAX).
     constexpr int TMAX_CORR = 16;
     const int nsep = std::min(TMAX_CORR + 1, Comp::Nt); // stored separations dt = 0..nsep-1
-    // Store ONLY the symmetry-allowed per-(l,m) blocks: for each ilm channel, the n_orbits x n_orbits
+    // Store ONLY the symmetry-allowed per-(l,m) blocks: for each ilm channel, the n_shapes x n_shapes
     // SHAPE correlator C(a*n_lm+ilm, b*n_lm+ilm). Cross-(l,m) entries vanish by rotational symmetry
     // (the analysis zero_noise) so they are neither computed nor stored -> ~n_lm x smaller + faster.
     // Layout: blk[dt][ilm*nob*nob + a*nob + b]. The analysis re-expands to the block-diagonal matrix.
-    const int nob = n_orbits;
+    const int nob = n_shapes;
     std::vector<std::vector<double>> Fcorr( nsep, std::vector<double>(n_lm*nob*nob, 0.0) );
     for(int dt=0; dt<nsep; dt++){
       for(int t=0; t<Comp::Nt; t++) {
@@ -441,12 +457,12 @@ int main(int argc, char* argv[]){
     }
     for(int i=0; i<nops; i++) F1[i] /= Comp::Nt;
 
-    // write per-config HDF5 (F_corr_blk: nsep x n_lm*n_orbits^2 block-diagonal, F: nops); "complete" LAST
+    // write per-config HDF5 (F_corr_blk: nsep x n_lm*n_shapes^2 block-diagonal, F: nops); "complete" LAST
     HighFive::File h5( h5path, HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Truncate );
     h5.createDataSet( "F_corr_blk", Fcorr );  // per-(l,m) shape blocks (symmetry-allowed only)
     h5.createDataSet( "F", F1 );
     h5.createDataSet( "n_lm", std::vector<int>{n_lm} );  // (l,m) count so the analysis auto-adapts to the l-tower
-    h5.createDataSet( "n_orbits", std::vector<int>{n_orbits} );  // shapes/orbit count -> nops = n_orbits*n_lm
+    h5.createDataSet( "n_shapes", std::vector<int>{n_shapes} );  // shapes/orbit count -> nops = n_shapes*n_lm
     // explicit channel labels: ell[ilm], em[ilm] (op = iorbit*n_lm + ilm) so the analysis reads the
     // EXACT (l,m) list -- required now that l is non-contiguous (F saves l=1,2, no l=0).
     std::vector<int> ell_v( n_lm ), em_v( n_lm );

@@ -2,11 +2,9 @@
 set -u
 
 # ============================================================================
-# INTERACTING re-measurement (PHASE 2) of the shape-basis glueball correlators.
-# 5-shape basis {triangle, rect, figure-8, three-triangle, four-triangle STAR},
-# face_sign ON, FLOW_TMAX=2 (nstep 200), TMAX_CORR=16. Reduced l-towers for disk:
-# F saves ell=1,2 (n_lm=8); F^2 saves ell=0,1 (n_lm=4). Only the symmetry-allowed
-# per-(l,m) SHAPE blocks are stored (F_corr_blk), with ell/em/n_orbits datasets.
+# 7-SHAPE re-measurement: consolidated basis {triangle,rect,fig8,three-tri,star,trio,five-six} summed
+# by shape (equal weight per orbit) -> n_shapes=7 per (l,m); F_corr_blk = n_lm*49. face_sign ON,
+# FLOW_TMAX=2 (nstep 200), TMAX_CORR=16. F saves ell=1,2 (n_lm=8); F^2 saves ell=0,1 (n_lm=4).
 #
 # Sweep = 21 ensembles (nu0=1.0, Nt=128, stride=1), gsq2.2/2.4/2.5 EXCLUDED:
 #   gsq8 x {L1,L2,L4} x Nf{2,4,6}                                     (9)
@@ -17,18 +15,16 @@ set -u
 #
 # ------------------------------------------------------------------------------
 # PREREQUISITE (run YOURSELF -- no rm is ever placed in a script):
-#   the existing glue_{msm,f2}_shapes.*.h5 are PHASE-1 (4-shape, flow1, full F_corr)
-#   and the resume-skip keys on the "complete" flag, so they MUST be removed first or
-#   nothing new is measured. Remove ONLY the two production prefixes (leave
-#   glue_msm_shapes_nofs.* alone):
+#   the existing glue_{msm,f2}_shapes.*.h5 are the 5-shape basis (n_shapes=5) and the resume-skip
+#   keys on the "complete" flag, so they MUST be removed first or nothing new is measured. Remove
+#   ONLY the two production prefixes (leave glue_msm_shapes_nofs.* alone):
 #
 #     while read cd; do
 #       dd="data_$cd"
 #       rm -f "$dd"/glue_msm_shapes.[0-9]*.h5 "$dd"/glue_f2_shapes.[0-9]*.h5
 #     done < interacting_ens_list_claude.txt
 #
-#   The python3 preflight below ABORTS if any stale phase-1 h5 (lacking the
-#   F_corr_blk dataset) is still present, so a forgotten rm cannot silently no-op.
+#   The python3 preflight below ABORTS if any stale h5 with n_shapes != 7 is still present.
 # ------------------------------------------------------------------------------
 # Reference: free-limit anchors F ell=1 -> sqrt(2)=1.41421 (L=1 det 1.33242);
 #            F^2 0++ -> two-photon 2sqrt(2)=2.828 (see run_free_validation_claude.sh).
@@ -124,14 +120,16 @@ for nf,g,L in table:
             continue
         try:
             with h5py.File(fs[0],"r") as h:
-                # phase-2 h5 store the per-(l,m) block dataset F_corr_blk; phase-1 (4-shape full F_corr) lack it
-                is_phase2 = ("F_corr_blk" in h)
+                # 7-shape h5 have n_shapes==7 (key "n_shapes"; legacy "n_orbits"). Anything else = stale.
+                if "n_shapes" in h:   nsh = int(h["n_shapes"][0])
+                elif "n_orbits" in h: nsh = int(h["n_orbits"][0])
+                else:                 nsh = -1
         except Exception as ex:
-            is_phase2 = False
-        if not is_phase2:
-            stale.append(f"{dd}/{pref}.*.h5  (sample {os.path.basename(fs[0])} lacks F_corr_blk = phase-1; {len(fs)} files)")
+            nsh = -1
+        if nsh != 7:
+            stale.append(f"{dd}/{pref}.*.h5  (sample {os.path.basename(fs[0])} n_shapes={nsh} != 7; {len(fs)} files)")
 if stale:
-    print("PREFLIGHT ABORT: stale OLD-basis h5 still present. Remove these first (run yourself):")
+    print("PREFLIGHT ABORT: stale non-7-shape h5 still present. Remove these first (run yourself):")
     for s in stale:
         print("   ", s)
     sys.exit(3)

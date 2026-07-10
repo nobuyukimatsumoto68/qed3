@@ -25,7 +25,7 @@ export OMP_NUM_THREADS="${OMP_NUM_THREADS:-4}"
 GPUS="${GPUS:-0}"
 JOBS_PER_GPU="${JOBS_PER_GPU:-2}"
 FILTER="${FILTER:-all}"
-PHASE="${PHASE:-both}"
+PHASE="${PHASE:-conn}"   # scalar disc vanishes by symmetry (flavor-symm, parity-even vacuum) -> conn only; PHASE=both|disc to re-enable
 # WGPU = explicit GPU id per worker (space-sep), e.g. "0 0 1" = 2 workers on GPU0 + 1 on GPU1.
 # If unset, expand GPUS x JOBS_PER_GPU (each GPU repeated JOBS_PER_GPU times).
 if [ -n "${WGPU:-}" ]; then

@@ -37,6 +37,9 @@ NHITS="${NHITS:-1}"
 # DISC_TB MUST match the existing disc dir (corr_ylm_disc_tb<TB>_nhits<H>) for scalaronly APPEND to land in
 # the right file.  The existing ylm production disc data is tb2 -> default 2.  (together mode: any tb is fine.)
 DISC_TB="${DISC_TB:-2}"
+# Scalar disc is NOT run by default: sigma_PS/sigma_FS carry quantum numbers the vacuum (flavor-symmetric,
+# parity-even) does not, so the disconnected (vacuum-loop) piece vanishes.  Set RUN_DISC=1 to re-enable.
+RUN_DISC="${RUN_DISC:-0}"
 
 NVCC=nvcc
 NVCCFLAGS="-arch=sm_70 -g -O3 -std=c++20 -DN_REFINE_CLI=${NREF} -lcublas -lcusolver -lcusparse -lgomp -Xcompiler -fopenmp"
@@ -76,9 +79,13 @@ run_conn 6 1 &
 wait
 echo "### PHASE 1 (conn) done  [$(date +%F_%H:%M:%S)] ###"
 
-echo "### PHASE 2: DISC  [$(date +%F_%H:%M:%S)] ###"
-run_disc 2 0 &
-run_disc 4 1 &
-run_disc 6 1 &
-wait
+if [ "$RUN_DISC" = "1" ]; then
+  echo "### PHASE 2: DISC  [$(date +%F_%H:%M:%S)] ###"
+  run_disc 2 0 &
+  run_disc 4 1 &
+  run_disc 6 1 &
+  wait
+else
+  echo "### PHASE 2: DISC SKIPPED (RUN_DISC=0; sigma disc vanishes by symmetry)  [$(date +%F_%H:%M:%S)] ###"
+fi
 echo "### ALL scalar ylm ($MODE) done  [$(date +%F_%H:%M:%S)] ###"

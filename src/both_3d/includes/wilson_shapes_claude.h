@@ -202,6 +202,48 @@ struct WilsonShapes {
     return v;
   }
 
+  // TRIO shape: the STAR without its middle triangle -- the 3 edge-neighbors of a central face f0
+  // (f0 itself dropped), w=(+,+,+), still centered on f0 (r_ins = dual_sites[f0]). = star - center.
+  std::vector<Instance> trios() const {
+    std::vector<std::vector<Idx>> fnbr(base.n_faces);
+    for(Idx il=0; il<base.n_links; il++){
+      fnbr[ base.dual_links[il][0] ].push_back( base.dual_links[il][1] );
+      fnbr[ base.dual_links[il][1] ].push_back( base.dual_links[il][0] );
+    }
+    std::vector<Instance> v;
+    for(Idx f0=0; f0<base.n_faces; f0++){
+      const std::vector<Idx>& nb = fnbr[f0];
+      if(nb.size() != 3) continue;
+      Instance in;
+      in.faces = { nb[0], nb[1], nb[2] };          // 3 edge-neighbors only (central f0 removed)
+      in.w = { +1, +1, +1 };
+      in.r_ins = base.dual_sites[f0];              // still centered on the removed central face
+      v.push_back(in);
+    }
+    return v;
+  }
+
+  // FIVE-SIX shape: the contour around each SITE -- the 5 or 6 faces meeting at vertex s (5 at the 12
+  // icosahedron vertices, 6 elsewhere), w=+1 each -> total oriented flux through the pentagon/hexagon
+  // patch. r_ins = site position. Pentagons and hexagons fall in different Ih orbits (consolidated).
+  std::vector<Instance> site_contours() const {
+    std::vector<std::vector<Idx>> site_faces(base.n_sites);
+    for(Idx f=0; f<base.n_faces; f++){
+      for(const Idx s : base.faces[f]) site_faces[s].push_back(f);
+    }
+    std::vector<Instance> v;
+    for(Idx s=0; s<base.n_sites; s++){
+      const std::vector<Idx>& fs = site_faces[s];
+      if(fs.empty()) continue;
+      Instance in;
+      in.faces.assign(fs.begin(), fs.end());
+      in.w.assign((int)fs.size(), +1);
+      in.r_ins = base.sites[s];                    // site position (unit)
+      v.push_back(in);
+    }
+    return v;
+  }
+
   // --- generic holonomy / operator ---
   template<typename Gauge>
   double holonomy(const Gauge& U, const int s, const Instance& in) const {
