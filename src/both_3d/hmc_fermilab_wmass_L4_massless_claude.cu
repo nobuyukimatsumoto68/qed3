@@ -233,7 +233,8 @@ int main(int argc, char* argv[]){
   // const int kmax=80;   // L=4 max conf (set 2026-06-21)
   // const int kmax=200;   // L=4 max conf (raised 80 -> 200 on 2026-06-23 to resume pairA/pairB)
   // const int kmax=120;   // L=4 max conf (recapped 200 -> 120 on 2026-06-23; realistic target vs alloc)
-  const int kmax=320;   // 2026-07-03 MASSLESS strong-coupling study (gsq=12,16): L=4 cap 320 (NM)
+  // const int kmax=320;   // 2026-07-03 MASSLESS strong-coupling study (gsq=12,16): L=4 cap 320 (NM)
+  const int kmax=600;   // 2026-07-10 MASSLESS study L=4 cap bumped 320 -> 600 (NM)
 
   int k_tmp=0;
   {
