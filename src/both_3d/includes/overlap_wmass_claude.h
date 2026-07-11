@@ -775,6 +775,60 @@ struct OverlapWMass : public Zolotarev {
     CUDA_CHECK(cudaDeviceSynchronize());
   }
 
+  // _claude (Hasenbusch C1, hasenbusch_massless_impl_plan_claude.md): BILINEAR / external-bra force
+  // precompute. The Hasenbusch ratio-frame cross term is Term B = 2 Re<phi | K | eta>, K = dD_ov/dU
+  // (conserved current). grad computes -2(C/lambda_max) Re<bra|K|ket> for INDEPENDENT bra/ket (the
+  // massive path already uses bra=(1+m_L)eta != ket=eta, grad_diag_mass_force_bug_claude.md Sec 5').
+  // Here the bra is the RAW external vector d_bra (= phi), the ket is d_ket (= eta_i); NO (1+m_L) fold
+  // (Term B carries a bare bra). Then call grad_deviceAsyncLaunch(link, U, d_ket) as usual: it uses
+  // d_eta_bra (=d_bra) and Z_m (from d_ket) -> returns -2(C/lambda_max) Re<phi|K|eta_i>. Sign/overall
+  // factor of the ratio-frame assembly are fixed in the PseudoFermion manager + the L=1 FD gate.
+  // NB reuses the same d_Ys/d_Zs/d_XZpre/... scratch as precalc_grad_ms, so ONE precalc per (bra,ket).
+  template<typename Gauge>
+  void precalc_grad_bilinear_deviceAsyncLaunch_ms( const Gauge& U, const CuC* d_bra, const CuC* d_ket ) {
+    {
+      MatPoly XH;
+      XH.push_back ( cplx(1.0/(lambda_max)), {&M_DWH} );
+      XH.on_gpu<N>(d_Ys[0], d_bra);                  // d_Ys[0] = (1/lambda_max) D_W^dag (bra=phi)
+    }
+
+    MatPoly Aseed;
+    Aseed.push_back ( cplx(1.0/(lambda_max*lambda_max)), {&M_DW, &M_DWH} );
+    std::vector<double> sigma(size-1);
+    for(int m=1; m<size; m++) sigma[m-1] = -k*k/cp[m];
+
+    Aseed.solve_multishift<N>( d_Zblock, d_ket,   sigma.data(), size-1, Comp::TOL_INNER ); // Z_m = R_m (ket=eta_i)
+    for(int m=1; m<size; m++) CUDA_CHECK(cudaMemcpy(d_Zs[m], d_Zblock + (size_t)(m-1)*N, N*CD, D2D));
+
+    Aseed.solve_multishift<N>( d_Yblock, d_Ys[0], sigma.data(), size-1, Comp::TOL_INNER ); // Y_m = R_m (X^dag bra)
+    for(int m=1; m<size; m++) CUDA_CHECK(cudaMemcpy(d_Ys[m], d_Yblock + (size_t)(m-1)*N, N*CD, D2D));
+
+    // BARE external bra: d_eta_bra = d_bra (NO (1+m_L) fold; Term B contracts the raw phi against K).
+    CUDA_CHECK(cudaMemcpy(d_eta_bra, d_bra, N*CD, D2D));
+
+    // L1: link-independent X Z_m / X Y_m precompute (as in precalc_grad_ms).
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(nstreams)
+#endif
+    for(int m=1; m<size; m++) {
+      const int istream = omp_get_thread_num();
+      MatPoly X(handle[istream], stream[istream], istream);
+      X.push_back ( cplx(1.0/(lambda_max)), {&M_DW} );
+      X.on_gpuAsync<N>( d_XZpre[m], d_Zs[m] );
+      X.on_gpuAsync<N>( d_XYpre[m], d_Ys[m] );
+      CUDA_CHECK(cudaStreamSynchronize(stream[istream]));
+    }
+    // L2: gather contiguous blocks for grad_..._l2/l4.
+    for(int m=1; m<size; m++){
+      CUDA_CHECK(cudaMemcpy(d_Zg  + (size_t)(m-1)*N, d_Zs[m],    N*CD, D2D));
+      CUDA_CHECK(cudaMemcpy(d_Yg  + (size_t)(m-1)*N, d_Ys[m],    N*CD, D2D));
+      CUDA_CHECK(cudaMemcpy(d_XZg + (size_t)(m-1)*N, d_XZpre[m], N*CD, D2D));
+      CUDA_CHECK(cudaMemcpy(d_XYg + (size_t)(m-1)*N, d_XYpre[m], N*CD, D2D));
+    }
+    is_precalc = true;
+    CUDA_CHECK(cudaDeviceSynchronize());
+  }
+
   template<typename Link, typename Gauge>
   double grad_deviceAsyncLaunch( const Link& link, const Gauge& U, const CuC* d_eta ) const {
 #ifdef GRAD_L4
