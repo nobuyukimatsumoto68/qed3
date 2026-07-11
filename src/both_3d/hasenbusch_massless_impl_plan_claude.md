@@ -1,5 +1,53 @@
 # Hasenbusch mass preconditioning for the massless overlap HMC
 
+## HANDOFF STATUS (2026-07-11) -- READ FIRST (for the LOCAL agent)
+
+REMOTE (fnal) agent has finished **C1 code**; validation + C2 onward are open. This doc is the single
+source of truth. Chunk order: **C1 (done, unvalidated) -> C2+C2b -> C3 -> C4 -> C5 -> C6(deferred)**.
+
+**What is DONE (C1 code, on disk in `src/both_3d/`):**
+- `includes/overlap_wmass_claude.h` -- NEW method `precalc_grad_bilinear_deviceAsyncLaunch_ms(U,
+  d_bra, d_ket)` (just after `precalc_grad_deviceAsyncLaunch_ms`, ~line 778). Feeds an EXTERNAL bra
+  (bare, no $(1{+}m_L)$ fold) + ket into the validated pole/COO path so `grad_deviceAsyncLaunch(link,
+  U, d_ket)` returns Term B $=-2(C/\lambda_\text{max})\Re\langle\phi|K|\eta\rangle$. Nothing else in
+  this file changed; existing force paths untouched.
+- `test_hasenbusch_bilinear_l1_claude.cu` -- L=1 force-vs-FD gate: random $\phi\neq\eta$, analytic
+  (`precalc_grad_bilinear` + `Force::compute`) vs central-diff of $S_B=2\Re\langle\phi|D_\text{ov}|
+  \eta\rangle$ ($\phi,\eta$ FROZEN); plus a $\phi{=}\eta$ cross-check vs the standard massless force.
+- `tmp_hb_bilinear_claude.sh` -- fnal sbatch handoff (affine, was qos=test -> NM set qos=normal, 20
+  min) building via the `Makefile.fnal` nvcc line, tees `test_hasenbusch_bilinear_l1_claude.log`.
+
+**IMMEDIATE NEXT (C1 gate -- do this first, LOCALLY):** build+run
+`test_hasenbusch_bilinear_l1_claude.cu` (it already uses the LOCAL geometry paths `../../geometry/`
++ `../../geometry/data/`, default reference grad, no `-DGRAD_L1/2/4`). Expect: `phi==eta` cross-check
+`~1e-9` (the real correctness gate on the plumbing) and the bra$\neq$ket rows `|grad-fd| ~1e-5`.
+- If the bra$\neq$ket rows match: the overload gives $2\Re\langle\phi|K|\eta\rangle$ for a GENERIC bra
+  (the key unknown -- the massive path only ever used bra $=(1{+}m_L)\eta$). Proceed to C2.
+- If `grad \approx -fd` or off by a constant: NOT a kernel bug -- it just pins the SIGN/FACTOR the C2
+  manager uses to sum Term A + Term B. Record the observed sign/factor and carry it into C2.
+- If `phi==eta` cross-check FAILS (`\gg 1e-9`): real plumbing bug in the overload -- debug that first
+  (most likely the bra-side `d_Ys[0]=X^\dagger\!\cdot`bra / `d_eta_bra` wiring, or a Z/Y block reuse).
+
+**Then C2 (the substance):** NEW `includes/pseudofermion_hasenbusch_claude.h` -- a `HasenbuschPF`
+manager holding the mass ladder $\{0.1,0.4\}$ (configurable vector), one $(\phi_i,\eta_i)$ per frame,
+per-frame heatbath/action/force, forces SUMMED into the EXISTING 2-level `MinimumNorm2(Block)` outer
+fermion kick (NO integrator rewrite -- Grid-canonical: all frames on the outer timescale, gauge
+inner). Per frame: Term A $=$ `precalc_grad(D_i,\eta_i)` + `grad` (validated production path); Term B
+$=$ `precalc_grad_bilinear(U,\phi_i,\eta_i)` + `grad`, with the sign/factor from the C1 gate. Wire
+through `both/hmc.h` (`H()`, reject-restore loop over frames). See the "Per-frame pseudofermion" and
+"C2" sections below for the exact heatbath ($\phi_i=D_{i+1}^{-\dagger}D_i^\dagger\xi_i$, check
+$S_i=\xi_i^\dagger\xi_i$ at gen) and validation (reversibility, $dH\sim\tau^2$, split-vs-single-PF).
+
+**Key settled decisions (do NOT re-litigate):** measure-weighted mass per frame (NOT scalar shift);
+2-level integrator FIRST (3-level split = deferred C6, light OUTER $\varepsilon{\approx}1/4$ / heavy
+inner $/12$ / gauge $/100$); ladder $\{0.1,0.4\}$; NO $|dH|$ guard; massless study only, serial Nf2
+first then Nf4/6 block. Sources: Hasenbusch `hep-lat/0107019`; ordering per Torsiello/Fleming/Jin/
+Osborn PoS LATTICE2024 052 + Grid `Test_hmc_Mobius2p1f.cc` (fermions outer/coarse, gauge inner/fine).
+
+**Local vs fnal:** the test + C2 code use LOCAL relative geometry paths; build with the local
+nvcc/Makefile as for `test_diag_mass_l1_claude.cu`. `tmp_hb_bilinear_claude.sh` is fnal-only (ignore
+locally). The overload/manager headers are shared source (no path assumptions inside them).
+
 ## Goal / physics
 
 The massless ($m=0$) strong-coupling study (Nf6 at gsq16/L2 and gsq12/L4) keeps hitting
