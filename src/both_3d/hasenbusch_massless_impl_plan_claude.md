@@ -2,8 +2,22 @@
 
 ## HANDOFF STATUS (2026-07-11) -- READ FIRST (for the LOCAL agent)
 
+> **!! REDO PENDING (2026-07-11): a SERIOUS BUG was found in the code -- NM will redo everything.**
+> Do NOT build further on the C1 artifacts below until the bug + redo scope are pinned down. The C1
+> code (the `precalc_grad_bilinear` overload, the L=1 test) and possibly the underlying operator/force
+> may be invalidated. The Hasenbusch DESIGN in this doc (measure-weighted frames, 2-level integrator,
+> ladder, ordering, sources) is likely still valid and worth keeping; the CODE is suspect. (Bug
+> specifics: TBD -- NM to supply; record them here when known.)
+
 REMOTE (fnal) agent has finished **C1 code**; validation + C2 onward are open. This doc is the single
 source of truth. Chunk order: **C1 (done, unvalidated) -> C2+C2b -> C3 -> C4 -> C5 -> C6(deferred)**.
+
+**Allocation (2026-07-11):** **qed3 is DEAD** (0 hrs -- omitted from `lquota`; normal-qos jobs won't
+accrue -> effectively opportunistic-only). **affine ALIVE but tiny: ~2 kcore-hrs GPU** (`lq2_gpu`,
+qos `normal,test,opp`), 0 used. Fairshare unchanged (~0.54 both). => the quick C1 gate runs fine on
+affine (`~0.005` kcore-hr); the massless PRODUCTION campaign is NOT fundable on fnal until allocation
+is restored. Fallback for anything bigger: **`--qos=opp`** (opportunistic, zero-allocation,
+preemptible) works on BOTH affine and qed3. (`tmp_hb_bilinear_claude.sh` is affine, qos=normal.)
 
 **What is DONE (C1 code, on disk in `src/both_3d/`):**
 - `includes/overlap_wmass_claude.h` -- NEW method `precalc_grad_bilinear_deviceAsyncLaunch_ms(U,
