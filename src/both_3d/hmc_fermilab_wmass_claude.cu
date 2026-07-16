@@ -53,7 +53,10 @@ namespace Comp{
   constexpr int NPARALLEL_GAUGE=16;
   constexpr int NPARALLEL_SORT=16;
 
-  constexpr int N_REFINE=1;
+#ifndef LREF
+#define LREF 1
+#endif
+  constexpr int N_REFINE=LREF;   // _claude: L-generic (build -DLREF=1/2/4); unifies wmass + massless, all L
   constexpr int NS=2;
 
   // constexpr int Nt=96; // @@@
@@ -107,6 +110,7 @@ using CuC = cuDoubleComplex;
 #include "matpoly_claude.h"
 #define GRAD_L4   // HMC force opt L1+L2+L4 (hoist + block poles + skip do_it); force==ref ~1e-16 (~3.4x grad)
 #include "includes/overlap_wmass_claude.h"
+#include "frozen_window_claude.h"
 // #include "pseudofermion.h"            // C4b -> multishift copy below
 #include "pseudofermion_claude.h"
 
@@ -177,7 +181,12 @@ int main(int argc, char* argv[]){
 
   // ---------------------
 
+  // FIXED FROZEN per-L Zolotarev window (frozen_window_claude.h). The window lives on D_W (gauge only),
+  // so it is MASS-INDEPENDENT -> the same window serves massless (mass=0) and massive (mass!=0) runs.
   Fermion D(DW, mass, 21);
+  double lmin_frozen, lmax_frozen;
+  frozen_window( Comp::N_REFINE, lmin_frozen, lmax_frozen );
+  D.set_lambda( lmin_frozen, lmax_frozen );
   std::cout << "# Dov set; M5 = " << M5 << std::endl;
   D.update(U);
   std::cout << "# min max ratio: "

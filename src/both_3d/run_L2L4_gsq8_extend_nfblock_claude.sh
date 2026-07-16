@@ -1,6 +1,6 @@
 #!/bin/bash
 # Extend the LOCAL massless gsq8 SEA ensembles with the faster Nf-block HMC code.
-#   L2 -> kmax 2000  (Nf2 k1601, Nf4 k518, Nf6 k289)
+#   L2 -> kmax 1200  (Nf2 k1601 already DONE, Nf4 k~540, Nf6 k~292)
 #   L4 -> kmax 600   (Nf2 k168,  Nf4 k190, Nf6 k68)
 # BOTH GPUs, 2 procs/GPU under MPS:
 #   GPU0 = L4 : slot {Nf6}  ||  slot {Nf4 -> Nf2}
@@ -59,9 +59,9 @@ build () {
   test -f "$out" || { echo "BUILD FAILED: $out"; exit 1; }
 }
 
-build 2 6 2000 "-DBLOCK_FORCE"
-build 2 4 2000 "-DBLOCK_FORCE"
-build 2 2 2000 ""
+build 2 6 1200 "-DBLOCK_FORCE"
+build 2 4 1200 "-DBLOCK_FORCE"
+build 2 2 1200 ""
 build 4 6 600  "-DBLOCK_FORCE"
 build 4 4 600  "-DBLOCK_FORCE"
 build 4 2 600  ""

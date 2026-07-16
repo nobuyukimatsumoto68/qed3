@@ -144,7 +144,8 @@ using CuC = cuDoubleComplex;
 #include "dirac_pf.h"
 #include "overlap.h"
 
-#include "flow.h"
+// #include "flow.h"
+#include "flow_claude.h"   // adds -DFLOW_FULL switch (full 3D flow via get_force vs spatial-only)
 
 #include "icos_orbits_claude.h"    // native Ih orbit table on the lattice
 #include "wilson_shapes_claude.h"  // generic shape (triangle/rectangle) orbit operators
@@ -299,6 +300,8 @@ int main(int argc, char* argv[]){
 #ifdef NO_FACE_SIGN
   shp.use_face_sign = false;
   const std::string H5PREFIX = "glue_msm_shapes_nofs";
+#elif defined(FLOW_FULL)
+  const std::string H5PREFIX = "glue_msm_shapes_fullflow";   // full 3D flow variant
 #else
   const std::string H5PREFIX = "glue_msm_shapes";
 #endif
