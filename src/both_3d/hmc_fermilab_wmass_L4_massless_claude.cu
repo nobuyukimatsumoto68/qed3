@@ -107,6 +107,7 @@ using CuC = cuDoubleComplex;
 #include "matpoly_claude.h"
 #define GRAD_L4   // HMC force opt L1+L2+L4 (hoist + block poles + skip do_it); force==ref ~1e-16 (~3.4x grad)
 #include "includes/overlap_wmass_claude.h"
+#include "frozen_window_claude.h"
 // #include "pseudofermion.h"            // C4b -> multishift copy below
 #include "pseudofermion_claude.h"
 
@@ -197,7 +198,10 @@ int main(int argc, char* argv[]){
   //   Nf2  k=119 (all 4 masses; DONE / at cap)
   //   Nf4  mRe0.010572 k=53  mRe0.052862 k=42  mRe0.105725 k=45  mRe0.211450 k=54
   //   Nf6  mRe0.010572 k=31  mRe0.052862 k=25  mRe0.105725 k=25  mRe0.211450 k=29
-  Fermion D(DW, mass, 21, 0.001);
+  Fermion D(DW, mass, 21, 0.001);   // n=21; 0.001 placeholder, overridden by the frozen window below
+  double lmin_frozen, lmax_frozen;
+  frozen_window( Comp::N_REFINE, lmin_frozen, lmax_frozen );   // fixed per-L window (frozen_window_claude.h)
+  D.set_lambda( lmin_frozen, lmax_frozen );
   std::cout << "# Dov set; M5 = " << M5 << std::endl;
   D.update(U);
   std::cout << "# min max ratio: "

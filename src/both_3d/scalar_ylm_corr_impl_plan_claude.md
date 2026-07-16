@@ -1,5 +1,45 @@
 # Impl plan -- scalar-density $Y_{\ell m}$ correlators $\sigma_{FS},\sigma_{PS}$ (connected + disc reconstruction)
 
+## 2026-07-13 -- separate CONDENSATE driver ($\langle\sigma_{PS}\rangle,\langle\sigma_{FS}\rangle$, e/o + spin dilution)
+
+**Goal.** A standalone driver for the scalar CONDENSATES (the $a=0$, $\ell=0$, spacetime-summed one-point densities
+$\langle\sigma\rangle$ = SSB order parameters), split OUT of the (dropped) ylm disc driver. See
+`condensate_contact_massive_claude.md` and [[project-condensate-order-param]]. Dilution = ONLY even/odd
+timeslice + spin (nothing finer), per user 2026-07-13.
+
+**Operator defs (current, unchanged).** $\sigma_{PS}=\eta^\dagger\xi+\xi^\dagger\eta$ (naive; the GW-symmetrized PS was
+NOT adopted), $\sigma_{FS}=\eta^\dagger\xi-\xi^\dagger(1-D_\text{ov}^\dagger)\eta$ (furnished). Massless / real $m_F$; $m_P$ out of scope.
+
+**Estimator (area-weighted, spacetime-summed; $\eta$ = volume $Z_2$, $\langle\eta\eta^\dagger\rangle=1$).** TWO solves per
+pattern -- a FORWARD leg $\phi=D_m^{-1}\eta$ (PS) and a BACKWARD leg $\bar\psi=D_m^{-\dagger}\eta$ (FS); the FS term carries
+$(1-D_\text{ov}^\dagger)$ on the backward leg, so it is NOT reusable from $\phi$:
+$$
+B_1 = \operatorname{tr}[A\,D_m^{-1}] \ \leftarrow\ \sum_d (A\eta)^\dagger\phi,\qquad B_2 = \operatorname{tr}[A\,(1-D_\text{ov}^\dagger)D_m^{-\dagger}] \ \leftarrow\ \sum_d (A\eta)^\dagger w,\ \ w=(1-D_\text{ov}^\dagger)\bar\psi,\quad A_n=\text{dual\_areas}.
+$$
+Then (per `condensate_contact_massive_claude.md` Eq (301,303)):
+$$
+\langle\sigma_{PS}\rangle = \texttt{etadag\_xi}+\overline{\texttt{etadag\_xi}} = 2\,\mathrm{Re}\,\texttt{etadag\_xi},\qquad \langle\sigma_{FS}\rangle = \texttt{etadag\_xi} - \texttt{xidag\_1mDdag\_eta}.
+$$
+Store the raw loops `etadag_xi` $=-\sum B_1$ and `xidag_1mDdag_eta` $=-\sum B_2$ (loop sign, note's naming);
+analysis applies csub/contact per `condensate_contact_massive_claude.md` (PS contact $+2$; FS contact $(m_F-2)V_\text{st}$).
+**FS-ordering (2026-07-13, user "nice catch"):** the FS term MUST be $(1-D_\text{ov}^\dagger)D_m^{-\dagger}$, NOT the forward
+$(1-D_\text{ov})D_m^{-1}$ (an earlier draft); they coincide only at L1 (uniform dual_areas/$m_L$), differ at L2/L4 by
+operator ordering. Cost = 2 legs $\times$ 4 patterns = 8 CG solves/config. h5 skip-gate now keys on `xidag_1mDdag_eta`
+so old-driver files (only `etadag_1mD`) auto-recompute on rerun (no `rm`).
+
+**Dilution = e/o + spin (4 patterns/hit).** `time_spin_dilution(rng, t_s, t_block=Nt/2, spin)` -> `interval=2`
+-> $t_s{=}0$ even $\{0,2,4,\dots\}$, $t_s{=}1$ odd $\{1,3,5,\dots\}$; $\times$ spin $\in\{0,1\}$. Sum all 4 -> unbiased full trace.
+4 CG solves/config/hit (vs 128 for the ylm disc). No ylm, no vector $J^a$.
+
+**Files.**
+- NEW `jj_scalar_condensate_eo_stoch_claude.cu` (structure from `jj_local_ylm_scalar_disc_stoch_claude.cu`, stripped to
+  the two scalar accumulators + e/o dilution). Output `data_<esn>/corr_condensate_eo_nhits<h>/corr.<k>.h0.h5` with
+  `h0/condensate/{etadag_xi, etadag_1mD}` (complex scalars). Per-hit atomic + "complete"-gated; fresh files (no append).
+- analysis: notebook cell/script forms $\sigma_{PS},\sigma_{FS}$ (later chunk).
+- build/run handoff script (later chunk).
+
+**Chunks.** (1) condensate driver + e/o estimator + write. (2) analysis. (3) build handoff.
+
 Add the spherical-harmonic tower of the SCALAR-density two-point functions $\langle\sigma_{PS}\sigma_{PS}\rangle$
 and $\langle\sigma_{FS}\sigma_{FS}\rangle$, using the SAME $Y_{\ell m}$ machinery as the local vector/axial
 current tower. Copy the existing production ylm driver and gate the scalar-only mode with `--IsScalarOnly`.

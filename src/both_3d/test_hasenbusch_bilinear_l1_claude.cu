@@ -3,18 +3,21 @@
 // hasenbusch_massless_impl_plan_claude.md). The ratio-frame cross term is
 //   Term B = 2 Re <phi | K | eta>,   K = dD_ov/dU  (conserved current, mass-independent),
 // and OverlapWMass::precalc_grad_bilinear_deviceAsyncLaunch_ms(U, phi, eta) + the usual
-// grad_deviceAsyncLaunch(link, U, eta) must reproduce it. We check it against the CENTRAL
+// grad_deviceAsyncLaunch(link, U, eta) must reproduce it. grad returns the FORCE = -dS_B/dU
+// (grad_deviceAsyncLaunch ends with *= -2C/lambda_max), so we check it against MINUS the CENTRAL
 // finite difference of the scalar S_B(U) = 2 Re <phi | D_ov(U) | eta> with phi, eta FIXED
 // (NOT re-solved: unlike a pseudo-fermion action there is no stationarity, so both the
-// analytic and the FD keep phi, eta frozen). Via the GW relation D_ov^dag D_ov = D_ov +
-// D_ov^dag the standard massless PF force is 2 Re <eta|K|eta>, i.e. the phi==eta special
+// analytic and the FD keep phi, eta frozen). i.e. the correct relation is grad == -fd
+// (|grad+fd| ~ FD floor). This pins the sign for the C2 Term A + Term B force sum: both are
+// forces = -dS/dU and are ADDED directly. Via the GW relation D_ov^dag D_ov = D_ov +
+// D_ov^dag the standard massless PF force is -2 Re <eta|K|eta>, i.e. the phi==eta special
 // case of this test -- also checked as a sanity cross-reference.
 //
 // The KEY thing this gates: grad computes 2 Re <bra|K|ket> for a GENERIC bra (the massive
 // path only ever used bra = (1+m_L)eta). If the two pole terms are not a clean z + z* for
 // arbitrary bra, this FD FAILS and Term B would need an explicit bra<->ket symmetrization.
 //
-// Build (default reference grad; NO GRAD_L1/2/4): see tmp_claude.sh. Pass: |grad - fd| ~1e-5.
+// Build (default reference grad; NO GRAD_L1/2/4): see tmp_hb_bilinear_local_claude.sh. Pass: |grad + fd| ~1e-5.
 
 #include <typeinfo>
 #include <iostream>
@@ -166,14 +169,17 @@ int main(int argc, char* argv[]){
   auto fd_tp = [&](Idx ix){ Gauge UP(U); UP.tp(s,ix)+=eps; double sp=S_B(UP);
                             Gauge UM(U); UM.tp(s,ix)-=eps; double sm=S_B(UM); return (sp-sm)/(2.0*eps); };
 
-  std::cout << "\n# ===== Term B: analytic grad vs central-FD of 2Re<phi|D_ov|eta> (bra != ket) =====" << std::endl;
+  // grad returns the FORCE = -dS_B/dU (grad_deviceAsyncLaunch ends with *= -2C/lambda_max), while the
+  // central-FD returns +dS_B/dU. So the CORRECT relation is grad == -fd (checked as |grad+fd| ~ FD
+  // truncation floor ~1e-5). This pins the sign for the C2 manager: Term B force is ADDED directly.
+  std::cout << "\n# ===== Term B: analytic grad (force=-dS/dU) vs central-FD +dS/dU of 2Re<phi|D_ov|eta> (bra != ket) =====" << std::endl;
   bool ok = true;
-  for(Idx il : test_sp){ double an=fB.sp(s,il), fd=fd_sp(il); double d=std::abs(an-fd);
+  for(Idx il : test_sp){ double an=fB.sp(s,il), fd=fd_sp(il); double d=std::abs(an+fd);
     ok = ok && (d<1.0e-5);
-    std::cout << "#   sp " << il << ": grad=" << an << " fd=" << fd << " |d|=" << d << std::endl; }
-  for(Idx ix : test_tp){ double an=fB.tp(s,ix), fd=fd_tp(ix); double d=std::abs(an-fd);
+    std::cout << "#   sp " << il << ": grad=" << an << " fd=" << fd << " |grad+fd|=" << d << std::endl; }
+  for(Idx ix : test_tp){ double an=fB.tp(s,ix), fd=fd_tp(ix); double d=std::abs(an+fd);
     ok = ok && (d<1.0e-5);
-    std::cout << "#   tp " << ix << ": grad=" << an << " fd=" << fd << " |d|=" << d << std::endl; }
+    std::cout << "#   tp " << ix << ": grad=" << an << " fd=" << fd << " |grad+fd|=" << d << std::endl; }
   D.update(U);   // restore
 
   // --- sanity cross-check: phi == eta must reproduce the standard massless PF force ---

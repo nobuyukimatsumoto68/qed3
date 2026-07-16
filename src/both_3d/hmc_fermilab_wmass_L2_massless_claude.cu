@@ -107,6 +107,7 @@ using CuC = cuDoubleComplex;
 #include "matpoly_claude.h"
 #define GRAD_L4   // HMC force opt L1+L2+L4 (hoist + block poles + skip do_it); force==ref ~1e-16 (~3.4x grad)
 #include "includes/overlap_wmass_claude.h"
+#include "frozen_window_claude.h"
 // #include "pseudofermion.h"            // C4b -> multishift copy below
 #include "pseudofermion_claude.h"
 
@@ -189,7 +190,10 @@ int main(int argc, char* argv[]){
   // window guards sign(H_W) against the zero-crossing spikes seen at L=4 (A.D.Kennedy hep-lat/0402038).
   // Original campaign L2 value (n=17, k_=0.01 default) preserved below, commented, per convention.
   // Fermion D(DW, mass, 17);   // npole=17 (set 2026-06-16, was 21): kernel ratio lambda_min/lambda_max=0.149 sits well inside the k_=0.01 Zolotarev window, so 17 poles suffice. projected delta ~3e-6 (log-linear fit -0.357 dec/pole off n=21 @ 1.2e-7); confirm printed "# delta" at startup
-  Fermion D(DW, mass, 21, 0.001);   // n=21, k=0.001 (gsq=12 wide-window override)
+  Fermion D(DW, mass, 21, 0.001);   // n=21; 0.001 placeholder, overridden by the frozen window below
+  double lmin_frozen, lmax_frozen;
+  frozen_window( Comp::N_REFINE, lmin_frozen, lmax_frozen );   // fixed per-L window (frozen_window_claude.h)
+  D.set_lambda( lmin_frozen, lmax_frozen );
   std::cout << "# Dov set; M5 = " << M5 << std::endl;
   D.update(U);
   std::cout << "# min max ratio: "

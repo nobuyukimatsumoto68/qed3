@@ -159,7 +159,8 @@ using CuC = cuDoubleComplex;
 #include "dirac_pf.h"
 #include "overlap.h"
 
-#include "flow.h"
+// #include "flow.h"
+#include "flow_claude.h"   // adds -DFLOW_FULL switch (full 3D flow via get_force vs spatial-only)
 
 #include "icos_orbits_claude.h"    // native Ih orbit table on the lattice
 #include "wilson_shapes_claude.h"  // generic shape (triangle/rectangle) orbit operators
@@ -309,7 +310,12 @@ int main(int argc, char* argv[]){
   // serial over configs k; parallelism is ensemble-level (one process per Nf).
   for(int k=kmin; k<=k_tmp; k+=stride ){
     // resume-safe: skip configs already fully measured (h5 with "complete" flag)
+    // const std::string h5path = dir4+"glue_f2_shapes."+std::to_string(k)+".h5"; // distinct prefix in shared dir
+#ifdef FLOW_FULL
+    const std::string h5path = dir4+"glue_f2_shapes_fullflow."+std::to_string(k)+".h5"; // full 3D flow variant
+#else
     const std::string h5path = dir4+"glue_f2_shapes."+std::to_string(k)+".h5"; // distinct prefix in shared dir
+#endif
     {
       bool done=false;
       if(std::filesystem::exists(h5path)){

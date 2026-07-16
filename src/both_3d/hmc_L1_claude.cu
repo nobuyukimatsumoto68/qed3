@@ -127,6 +127,7 @@ using CuC = cuDoubleComplex;
 // #include "overlap.h"                    // _ms: OverlapWMass copy below
 #define GRAD_L4   // HMC force opt L1+L2+L4 (hoist X Z_m/X Y_m + block poles + skip do_it); force==ref ~1e-16 (test PASS, ~3.4x grad)
 #include "overlap_wmass_claude.h"
+#include "frozen_window_claude.h"
 // #include "pseudofermion.h"              // _ms: multishift copy below
 #include "pseudofermion_claude.h"
 
@@ -218,7 +219,11 @@ int main(int argc, char* argv[]){
   // Fermion D(DW, 11); // 21                         // _ms: OverlapWMass ctor below
   // Fermion D(DW, mass, 11);   // n=11 original L1
   // 2026-06-29: L1 gsq scan -- match the L4 Zolotarev fix (npole 21 + FIXED window k=0.001)
-  Fermion D(DW, mass, 21, 0.001);
+  // 2026-07-13: window now the FIXED FROZEN per-L value (frozen_window_claude.h), applied via set_lambda.
+  Fermion D(DW, mass, 21, 0.001);   // 0.001 placeholder, overridden by the frozen window below
+  double lmin_frozen, lmax_frozen;
+  frozen_window( Comp::N_REFINE, lmin_frozen, lmax_frozen );
+  D.set_lambda( lmin_frozen, lmax_frozen );
   std::cout << "# Dov set; M5 = " << M5 << std::endl;
   D.update(U);
   std::cout << "# min max ratio: "

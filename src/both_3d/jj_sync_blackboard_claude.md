@@ -213,6 +213,12 @@ LOCAL re-derives `jj_ensembles_claude.txt` from it; REMOTE re-runs the ncfg scan
   Delete list = `rng_delete_list_claude.txt` (59673 files, all `ckpoint_rng.*`); user ran the `rm`.
   Result: rng on disk **2.18 TB -> 314 GB (~1.87 TB freed)**; ALL `ckpoint_lat.*` intact, every stream
   still resume-safe (latest rng preserved).
+- **2026-07-06 LOCAL (followup):** decided rng checkpoints no longer needed at all -> **deleted ALL
+  remaining `ckpoint_rng.*`** (no live HMC at the time; gsq=4.0 Nf2/Nf6 L1 had finished, Nf6_gsq4
+  lat@319). List `rng_delete_all_claude.txt` (`find -name ckpoint_rng.*`, 10721 files, 344.5 GB);
+  user ran `xargs ... rm`. Now **0 rng on disk**; all `ckpoint_lat.*` intact. Streams no longer
+  resume reproducibly (fresh RNG seed on any restart) -- accepted. `rng_delete_list_claude.txt`
+  (partial-thinning list) superseded.
 - **2026-07-09 LOCAL:** **Nf-block HMC (action-inversion speedup) — REMOTE TODO for the FNAL ensembles.**
   New unified driver `hmc_Nfblocked_claude.cu` (+ headers `pseudofermion_Nfblocked_claude.h`,
   `integrator_Nfblocked_claude.h`, `hmc_Nfblocked_claude.h`) packs the **Nf/2 pseudo-fermion ACTION
@@ -268,6 +274,17 @@ LOCAL re-derives `jj_ensembles_claude.txt` from it; REMOTE re-runs the ncfg scan
   GPU1=L2{Nf6||Nf4->Nf2}); Nf4/6 block-force, Nf2 NSTACK=1, NPGAUGE=NPSORT=1. Live+healthy: L2/Nf4
   518->521, L2/Nf6 289->292 (~210s/traj, 100% acc 0 warn); L4/Nf4@190, L4/Nf6@68 (1st traj running);
   Nf2 queued. Also refreshed stale gsq16 L1 rows -> 319 (finished during a mid-run crash; checkpoints intact).
+- **2026-07-13 LOCAL (/check-configs):** (1) **FNAL configs PULLED locally** (rsync 2026-07-11): the
+  12 strong-coupling MASSLESS ensembles gsq12 & gsq16, L2 & L4, Nf2/4/6 (FNAL `mRe0.000000mIm0.000000`
+  naming). Manifest rows FLIPPED loc N->Y (origin kept FNAL), src_ncfg refreshed to on-disk counts +
+  jj-grid recomputed to LOCAL convention (kmin40/intv4): gsq12 L2 Nf2 741/Nf4 794/Nf6 706, gsq12 L4
+  Nf2 114/Nf4 174/Nf6 130; gsq16 L2 Nf2 747/Nf4 800/Nf6 711, gsq16 L4 Nf2 216/Nf4 224/Nf6 169.
+  loc=Y now 65 (was 53). (2) **Local nfblock extension had STOPPED ~42h prior** (2026-07-11 ~18:00,
+  clean mid-run, likely reboot/manual): L2/Nf6 292->713, L2/Nf4 545->920 (of 1200); L4/Nf6 68->83,
+  L4/Nf4 190->206 (of 600) -- rows refreshed. L4 was crawling ~2h/traj (two heavy L4 packed on one
+  12GB TITAN V). Left STOPPED per user; NOT resumed. (3) nsteps for L2/L4 bumped 8->10 earlier this
+  session (`-DNSTEPS` guard; committed default 8) after the L2/Nf4 k=541 near-zero-mode freeze -- that
+  stream escaped cleanly (fresh nsteps=10 configs).
 
 ---
 
