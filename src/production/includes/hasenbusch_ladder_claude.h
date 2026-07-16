@@ -46,11 +46,19 @@ inline std::vector<int> hasenbusch_steps( const int L ){
   return {};
 }
 
-// trajectory length tau (= s_tot). L1 -> 1.0, L2 -> 1.0 (both per NM, to be safe); L4 -> 1.2 (tuning).
+// trajectory length tau (= s_tot). L1 -> 1.0, L2 -> 1.0; L4 -> 0.8 (SHIP 2026-07-16, paired with gauge MG100).
 inline double hasenbusch_tau( const int L ){
   if( L==1 ) return 1.0;
   if( L==2 ) return 1.0;
-  return 1.2;   // L4
+  return 0.8;   // L4
+}
+
+// gauge substeps MG per innermost(heaviest)-frame MD step. L1/L2 -> 20; L4 -> 100 (SHIP 2026-07-16: the gauge
+// force dominates -- a very fine gauge substep controls dH cheaply (no CG per gauge step), safe incl. Nf=6).
+inline int hasenbusch_mg( const int L ){
+  if( L==1 ) return 20;
+  if( L==2 ) return 20;
+  return 100;   // L4
 }
 
 // _claude (two-operator split-pole HMC, two_operator_force_impl_plan_claude.md): the FORCE overlap

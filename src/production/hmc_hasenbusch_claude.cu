@@ -257,7 +257,7 @@ int main(int argc, char* argv[]){
     base_mult[l] = base_steps[l] / base_steps[l-1];
   }
   const int MDsteps = base_steps[0];
-  const int MG = 20;   // gauge substeps per heaviest-frame step (matches the tuning)
+  const int MG = hasenbusch_mg( Comp::N_REFINE );   // gauge substeps per heaviest-frame step (per-L; L4 -> 100)
   std::cout << "# tmax = " << tmax << "  steps {";
   for(size_t i=0;i<base_steps.size();i++) std::cout << base_steps[i] << (i+1<base_steps.size()?",":"");
   std::cout << "}  MDsteps = " << MDsteps << "  gauge x" << MG << std::endl;

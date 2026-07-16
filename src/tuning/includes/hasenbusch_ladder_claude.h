@@ -25,9 +25,11 @@
 // _claude(TUNING sandbox, NM 2026-07-15): STARTING params for the CORRECTED (weaker) gsq range
 //   L1 gsq{0.5,1.0,1.5}, L2 gsq{1.0,2.0,3.0}, L4 gsq{2.0,4.0,6.0}, massless. Zolotarev windows +
 //   n_action/n_force UNCHANGED (previously frozen). Tune ladder/steps/tau below from dH/acceptance.
-//   L1: {0.0, 1.0}      steps {2,2}       tau 1.2
-//   L2: {0.0, 1.0}      steps {3,3}       tau 1.2
-//   L4: {0.0, 0.4, 1.0} steps {4,4,4}     tau 1.2
+//   L1: {0.0, 1.0}      steps {2,2}   tau 1.0  MG 20
+//   L2: {0.0, 1.0}      steps {3,3}   tau 1.0  MG 20
+//   L4: {0.0, 0.4, 1.0} steps {4,4,4} tau 0.8  MG 100  (SHIP 2026-07-16: 3-frame; the gauge force dominates
+//       so a very fine gauge substep MG100 + short tau0.8 give the safety margin, incl. Nf=6. Cheap: gauge
+//       substeps have no CG. 5-frame/4-frame ladder experiments were a cost regression, discarded.)
 inline std::vector<std::complex<double>> hasenbusch_ladder( const int L ){
   using C = std::complex<double>;
   if( L==1 ) return { C(0.0,0.0), C(1.0,0.0) };
@@ -46,11 +48,20 @@ inline std::vector<int> hasenbusch_steps( const int L ){
   return {};
 }
 
-// trajectory length tau (= s_tot). L1 -> 1.0, L2 -> 1.0 (both per NM, to be safe); L4 -> 1.2 (tuning).
+// trajectory length tau (= s_tot). L1 -> 1.0, L2 -> 1.0, L4 -> 0.8 (SHIP 2026-07-16: shorter tau for the
+// stiff L4, paired with the fine gauge MG100).
 inline double hasenbusch_tau( const int L ){
   if( L==1 ) return 1.0;
   if( L==2 ) return 1.0;
-  return 1.2;   // L4
+  return 0.8;   // L4
+}
+
+// gauge substeps MG per innermost(heaviest)-frame MD step. L1/L2 -> 20; L4 -> 100 (SHIP 2026-07-16: the gauge
+// force dominates -- a very fine gauge substep controls dH cheaply (no CG per gauge step), safe incl. Nf=6).
+inline int hasenbusch_mg( const int L ){
+  if( L==1 ) return 20;
+  if( L==2 ) return 20;
+  return 100;   // L4
 }
 
 // _claude (two-operator split-pole HMC, two_operator_force_impl_plan_claude.md): the FORCE overlap

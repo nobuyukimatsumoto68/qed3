@@ -1,15 +1,16 @@
 #!/bin/bash
 # _claude: MASSIVE Nf2 overlap production (params_massive_claude.md). Reuses the massless-tuned HMC
 # parameters AS-IS (no retuning, per NM) -- frame 0 = physical mass via argv; ladder/steps/tau unchanged
-# (includes/hasenbusch_ladder_claude.h). Physical masses m in {0.1,0.2,0.3,0.4}, R=1 units.
+# (includes/hasenbusch_ladder_claude.h) via the "c += rescaled mass" shift (aux coeffs += resc =
+# m*Abar/abar_s -> additive inter-frame gaps preserved). Physical masses m in {0.1,0.5,1.0,1.5}, R=1 units.
 #
 #   L1 gsq1.5 (KMAX 120)   L2 gsq3.0 (KMAX 80)   L4 gsq6.0 (KMAX 60)   -- largest corrected gsq per L
-#   3 L x 4 m = 12 ensembles.  mass_coeff = m*Abar/abar_s clears the Hasenbusch first rung for all (verified).
+#   3 L x 4 m = 12 ensembles.  The c+=resc shift keeps the split VALID for ANY mass (no rung constraint).
 #
 # Driver = the Nf-PACKED production driver hmc_hasenbusch_block_claude.cu (-DNF=2 -> NSTACK=1 no-op block,
 # bit-identical to serial at Nf2). L4 built with -DMIXED_FORCE (force-only mixed precision, ~1.35x, exact by
 # Metropolis). MPS packing (2/GPU): L1+L2 (cheap) each on a slot; L4 (expensive) split across both GPUs.
-#   gpu0 = {L1 all m}  || {L4 m=0.1,0.2}      gpu1 = {L2 all m}  || {L4 m=0.3,0.4}
+#   gpu0 = {L1 all m}  || {L4 m=0.1,0.5}      gpu1 = {L2 all m}  || {L4 m=1.0,1.5}
 #
 # Output dir (auto, AUTO-RESUMES): Nf2_gsq<g>at0.200000nu01.000000mRe<m>mIm0.000000nt128L<L>_hb1.000000/
 # per-traj "# dH : .. is_accept : .. rate : .." in the tee'd logs. KMAX = target sample size (incl.
@@ -25,7 +26,7 @@ source ../../env.sh
 NF=2
 NU0=1.0
 KRNG=1                       # FULL checkpointing (keep every ckpoint_rng)
-MASSES="0.1 0.2 0.3 0.4"     # physical masses (R=1)
+MASSES="0.1 0.5 1.0 1.5"     # physical masses (R=1)
 KMAX_L1=120
 KMAX_L2=80
 KMAX_L4=60
@@ -77,12 +78,12 @@ run_masses () {   # gpu L gsq mass... : run the listed masses sequentially on on
   for m in "$@"; do run_one $gpu $L "$gsq" "$m"; done
 }
 
-echo "===== launch (MPS 2/GPU): gpu0={L1 || L4 m0.1,0.2}, gpu1={L2 || L4 m0.3,0.4}  [$(date +%F_%H:%M:%S)] ====="
+echo "===== launch (MPS 2/GPU): gpu0={L1 || L4 m0.1,0.5}, gpu1={L2 || L4 m1.0,1.5}  [$(date +%F_%H:%M:%S)] ====="
 
 run_masses 0 1 1.5 $MASSES    &   # gpu0 slot A: L1 gsq1.5, all masses
-run_masses 0 4 6.0 0.1 0.2    &   # gpu0 slot B: L4 gsq6.0, m=0.1,0.2
+run_masses 0 4 6.0 0.1 0.5    &   # gpu0 slot B: L4 gsq6.0, m=0.1,0.5
 run_masses 1 2 3.0 $MASSES    &   # gpu1 slot A: L2 gsq3.0, all masses
-run_masses 1 4 6.0 0.3 0.4    &   # gpu1 slot B: L4 gsq6.0, m=0.3,0.4
+run_masses 1 4 6.0 1.0 1.5    &   # gpu1 slot B: L4 gsq6.0, m=1.0,1.5
 
 wait
 echo "===== massive runs finished  [$(date +%F_%H:%M:%S)] ====="

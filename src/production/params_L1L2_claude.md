@@ -2,14 +2,16 @@
 
 Massless overlap-fermion QED3 HMC on the simplicial sphere S2 x time. The earlier gsq8-era ensembles
 were too strong; these are the CORRECTED (weaker) couplings, with HMC params tuned locally (`src/tuning/`).
-**L=1 and L=2 are ready to generate. L=4 is still being tuned locally -- do NOT run L4 from these yet.**
+**L=1, L=2, and L=4 are all ready to generate.** (L4 shipped 2026-07-16 with ladder {0,0.4,1.0} steps {4,4,4}
+tau 0.8 gauge MG100 -- the gauge force dominates so a fine gauge substep + short tau give the margin; use
+-DMIXED_FORCE for L4. gsq {2.0,4.0,6.0}.)
 
 ## Physics / lattice (all L)
 - Discretization: overlap fermion (Zolotarev rational sign approx), Wilson kernel `DiracExt<S2Simp>`, M5 = -1.0.
 - Nf: HMC params were tuned at Nf2, but production will also run Nf > 2 (Nf = 4, 6). Use the Nf-packed
   block driver (below) for all Nf; it is bit-identical to the serial driver at Nf2. Massless: physical mass = 0.
 - Nt = 128, at = 0.2, nu0 = 1.0. Sites = 10 L^2 + 2, links = 30 L^2.
-- Integrator: `MinimumNorm2ML` (multi-timescale Omelyan), gauge sub-steps MG = 20.
+- Integrator: `MinimumNorm2ML` (multi-timescale Omelyan), gauge sub-steps MG = 20 (L1/L2), 100 (L4) via `hasenbusch_mg(L)`.
 - Two-operator split-pole force: ACTION op D (accurate, heatbath + accept/reject) vs FORCE op Df (cruder,
   MD force only) -- exact by Metropolis.
 

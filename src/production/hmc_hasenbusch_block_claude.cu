@@ -144,12 +144,10 @@ int main(int argc, char* argv[]){
   // COEFFICIENTS (hasenbusch_ladder). L-generic: build -DLREF=1/2/4 -> aux {0.4} / {0.1,0.4} / {0.02,0.4}.
   // (For a massive target, m*Abar/abar_s must stay below the first auxiliary coefficient for the split.)
   std::vector<Complex> masses = hasenbusch_ladder( Comp::N_REFINE );
-  masses[0] = mass;   // frame 0: physical target (was 0 = massless); auxiliaries unchanged
+  masses[0] = mass;   // frame 0: physical target (0 = massless); auxiliaries SHIFTED by resc below (after base)
 
-  std::string aux_str;
-  for(size_t i=1; i<masses.size(); i++) aux_str += (i>1?",":"") + std::to_string(masses[i].real());
   std::cout << "# gsq = " << gsq << " Nf = " << Nf << " nu0 = " << nu0 << " mass = " << mass
-            << " (Hasenbusch L=" << Comp::N_REFINE << "; frame0=physical m, aux coeffs {" << aux_str << "})" << std::endl;
+            << " (Hasenbusch L=" << Comp::N_REFINE << "; frame0=physical m, aux ladder = c_i + rescaled mass)" << std::endl;
   std::cout << "# max_sec = " << max_sec << " (wall-time budget; 0 = unlimited)" << std::endl;
   Timer wall_timer;
 
@@ -172,6 +170,21 @@ int main(int argc, char* argv[]){
 
   Base base(Comp::N_REFINE);
   std::cout << "# lattice set. " << std::endl;
+
+  // _claude (MASSIVE Hasenbusch, c += rescaled mass): shift the AUXILIARY coefficients UP by the physical
+  // rescaled mass resc = m*Abar/abar_s = mass*mean_dual_area/mean_ell (the mass_coeff of the physical mass).
+  // -> ladder in coeff space = {resc, c_1+resc, ...}, so the INTER-FRAME gaps (c_i, tuned massless) are
+  // PRESERVED for any physical mass; no retuning + no degeneracy at heavy m. Frame 0 stays physical
+  // (set_mass rescales internally). m=0 -> resc=0 -> massless ladder unchanged. Force-validated L1 (all
+  // masses {0.1,0.5,1.0,1.5}, grad-vs-FD ~1e-8): test_hasenbusch_force_massive_l1_claude.cu.
+  const Complex resc = mass * (base.mean_dual_area / base.mean_ell);
+  for(size_t i=1; i<masses.size(); i++) masses[i] += resc;
+  {
+    std::string aux_str;
+    for(size_t i=1; i<masses.size(); i++) aux_str += (i>1?",":"") + std::to_string(masses[i].real());
+    std::cout << "# Hasenbusch ladder (resc = " << resc.real() << "): frame0 = phys m = " << mass.real()
+              << ", aux coeffs {" << aux_str << "}" << std::endl;
+  }
 
   const double r = 1.0;
   const double M5 = -1.0;
@@ -277,7 +290,7 @@ int main(int argc, char* argv[]){
     base_mult[l] = base_steps[l] / base_steps[l-1];
   }
   const int MDsteps = base_steps[0];
-  const int MG = 20;   // gauge substeps per heaviest-frame step (matches the tuning)
+  const int MG = hasenbusch_mg( Comp::N_REFINE );   // gauge substeps per heaviest-frame step (per-L; L4 -> 100)
   std::cout << "# tmax = " << tmax << "  steps {";
   for(size_t i=0;i<base_steps.size();i++) std::cout << base_steps[i] << (i+1<base_steps.size()?",":"");
   std::cout << "}  MDsteps = " << MDsteps << "  gauge x" << MG << std::endl;

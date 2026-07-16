@@ -221,9 +221,16 @@ int main(int argc, char* argv[]){
   std::string hbtag = "_hb";
   for(size_t i=1; i<masses.size(); i++) hbtag += (i>1?"-":"") + std::to_string(masses[i].real());
   std::string dir3;
-  dir3="Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)
-      +"mRe"+std::to_string(mass.real())+"mIm"+std::to_string(mass.imag())
-      +"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+hbtag+"/";
+  // _claude: OUTDIR env overrides the output dir (for isolated tuning tests -- e.g. MG40 4-traj on a fresh
+  // seeded dir, so the MG40 trajectories do NOT append to the existing production chains). Trailing '/'.
+  const char* outdir_env = std::getenv("OUTDIR");
+  if( outdir_env != nullptr ){
+    dir3 = std::string(outdir_env);
+  } else {
+    dir3="Nf"+std::to_string(Nf)+"_gsq"+std::to_string(gsq)+"at"+std::to_string(at)+"nu0"+std::to_string(nu0)
+        +"mRe"+std::to_string(mass.real())+"mIm"+std::to_string(mass.imag())
+        +"nt"+std::to_string(Comp::Nt)+"L"+std::to_string(Comp::N_REFINE)+hbtag+"/";
+  }
   std::filesystem::create_directory(dir3);
   const int k_ckpoint=1;
 #ifndef KRNG
@@ -269,7 +276,7 @@ int main(int argc, char* argv[]){
     base_mult[l] = base_steps[l] / base_steps[l-1];
   }
   const int MDsteps = base_steps[0];
-  const int MG = 20;   // gauge substeps per heaviest-frame step (matches the tuning)
+  const int MG = hasenbusch_mg( Comp::N_REFINE );   // gauge substeps per heaviest-frame step (per-L; L4 -> 40)
   std::cout << "# tmax = " << tmax << "  steps {";
   for(size_t i=0;i<base_steps.size();i++) std::cout << base_steps[i] << (i+1<base_steps.size()?",":"");
   std::cout << "}  MDsteps = " << MDsteps << "  gauge x" << MG << std::endl;
