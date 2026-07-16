@@ -132,6 +132,14 @@ gate that the summed force is the true action gradient), (3) a few HMCHasenbusch
 acceptance). NEXT = build+run this HMC gate; on pass -> production Nf2 massless driver (clone
 hmc_fermilab_wmass_L{2,4}_massless pattern, swap HasenbuschPF/MinimumNorm2Hasenbusch/HMCHasenbusch +
 ladder), then the blowup-rate collapse study (C3).
+>>>>>>> f09d67fcdaa20fe51ea94687ec214c92fdc2cd89
+
+**Allocation (2026-07-11):** **qed3 is DEAD** (0 hrs -- omitted from `lquota`; normal-qos jobs won't
+accrue -> effectively opportunistic-only). **affine ALIVE but tiny: ~2 kcore-hrs GPU** (`lq2_gpu`,
+qos `normal,test,opp`), 0 used. Fairshare unchanged (~0.54 both). => the quick C1 gate runs fine on
+affine (`~0.005` kcore-hr); the massless PRODUCTION campaign is NOT fundable on fnal until allocation
+is restored. Fallback for anything bigger: **`--qos=opp`** (opportunistic, zero-allocation,
+preemptible) works on BOTH affine and qed3. (`tmp_hb_bilinear_claude.sh` is affine, qos=normal.)
 
 **What is DONE (C1 code, on disk in `src/both_3d/`):**
 - `includes/overlap_wmass_claude.h` -- NEW method `precalc_grad_bilinear_deviceAsyncLaunch_ms(U,
