@@ -39,13 +39,15 @@ mvbin() { echo "$BINDIR/hmc_fermilab_redo_massive_L$1_claude.o"; }         # $1=
 # output dir3) -> two procs writing one checkpoint dir -> corruption. Indices here MUST match the originally
 # submitted hmc_redo_p<idx> job names. 26 streams / 13 slots.
 declare -A CA CB
-# massless L1 gsq{0.5,1.0,1.5} x Nf{2,4,6}
-CA[0]="ml 1 2 0.5 0.0";  CB[0]="ml 1 2 1.0 0.0"
-CA[1]="ml 1 2 1.5 0.0";  CB[1]="ml 1 4 0.5 0.0"
-CA[2]="ml 1 4 1.0 0.0";  CB[2]="ml 1 4 1.5 0.0"
-CA[3]="ml 1 6 0.5 0.0";  CB[3]="ml 1 6 1.0 0.0"
-CA[4]="ml 1 6 1.5 0.0";  CB[4]="ml 2 2 1.0 0.0"
-# massless L2 gsq{1.0,2.0,3.0} x Nf{2,4,6}
+# massless L1 gsq{0.5,1.0,1.5} x Nf{2,4,6} + L2 Nf2 gsq1.0 -- slots 0-4 CLOSED 2026-07-16 (both streams each
+# at target: L1 1999/2000, L2 Nf2 gsq1.0 1199/1200). Commented out (NOT deleted) so re-apply skips them and
+# the p5-p8 indices stay put:
+# CA[0]="ml 1 2 0.5 0.0";  CB[0]="ml 1 2 1.0 0.0"
+# CA[1]="ml 1 2 1.5 0.0";  CB[1]="ml 1 4 0.5 0.0"
+# CA[2]="ml 1 4 1.0 0.0";  CB[2]="ml 1 4 1.5 0.0"
+# CA[3]="ml 1 6 0.5 0.0";  CB[3]="ml 1 6 1.0 0.0"
+# CA[4]="ml 1 6 1.5 0.0";  CB[4]="ml 2 2 1.0 0.0"
+# massless L2 (remaining) -- slots 5-8 still RUNNING (L2 Nf2 g2/g3, Nf4 g1/2/3, Nf6 g1/2/3); the ONLY active slots
 CA[5]="ml 2 2 2.0 0.0";  CB[5]="ml 2 2 3.0 0.0"
 CA[6]="ml 2 4 1.0 0.0";  CB[6]="ml 2 4 2.0 0.0"
 CA[7]="ml 2 4 3.0 0.0";  CB[7]="ml 2 6 1.0 0.0"
