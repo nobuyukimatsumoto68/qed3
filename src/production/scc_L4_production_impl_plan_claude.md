@@ -115,13 +115,35 @@ nvcc -arch=sm_70 -O3 -std=c++20 -lcublas -lcusolver -lcusparse -lgomp -Xcompiler
 ```
 (Exact module include/lib env-var names to be confirmed against `module show` on SCC.)
 
-## OPEN QUESTIONS (for NM -- blocking scope)
-1. **Which L4 ensembles?**
-   - (a) MASSLESS L4 gsq {2.0, 4.0, 6.0} (`params_L1L2_claude.md`), or
-   - (b) MASSIVE L4 gsq6.0, masses {0.1, 0.5, 1.0, 1.5} (`params_massive_claude.md`), or both.
-   - Which **Nf** (2 / 4 / 6)? (`-DNF` is compile-time and must equal the runtime Nf arg.)
-   - Target trajectories / `-DKMAX` per ensemble (massless L4 target 400; massive L4 target 60).
-2. **How many GPUs** will the SCC job have (`-l gpus=N`), so I can lay out the 2-stream-per-GPU packing?
-3. **Launcher style**: interactive `nohup` + manual MPS (like `run_massive_claude.sh`), or an SGE `qsub`
-   batch script (like `run_nf.sh`) that starts MPS on the assigned GPU node?
-4. Confirm **`-DMIXED_FORCE`** stays on for L4 SCC production.
+## OPEN QUESTIONS -- ALL RESOLVED (see CURRENT STATE at top). Kept for history:
+1. Ensembles: BOTH sets, Nf=2 only (Nf4/6 dropped). Targets massless 400 / massive 60.
+2. GPUs: no fixed count -- one GPU per pair-chain (7 ensembles -> 4 chains), 2 MPS streams/GPU.
+3. Launcher: SGE qsub (batch `run_L4_scc_claude.sh` + wrapper `run_wrapper_L4_scc_claude.sh`).
+4. `-DMIXED_FORCE`: yes, stays on.
+
+## UPDATE 2026-07-17 -- RUN IS LIVE + healthy (chronological log of what happened)
+- **Geometry blocker (fixed).** First launches crashed at startup with `std::out_of_range: map::at` inside
+  `D.update`. Root cause: the spin-connection files `omega_n4.dat` + `alpha_n4.dat` (read by
+  `dirac_simp.h::SpinStructureSimp`) were MISSING at run time -- `pts/links/nns/faces/duals` alone are NOT
+  enough. NM generated them; verified complete (omega 480 lines, alpha 960 = both link orientations, 0
+  missing). NOT a compile-flag issue (SCC flags == local: `-g -O3 -std=c++20 -lcublas -lcusolver -lcusparse
+  -lgomp -Xcompiler -fopenmp`). => **geometry gen for L must emit `omega_n<R>.dat` + `alpha_n<R>.dat`.**
+- **Compile flags:** stay plain (NM decided): NO `-Ofast`, NO fast-math (host or device), NO `-march=native`
+  (build on login, run on compute -> SIGILL risk; and the run is GPU-bound so the gain is nil). Only genuinely
+  useful safe lever would be adding native `-arch` per exact GPU (sm_89 L40S, sm_86 A40) -- not done.
+- **Throughput:** ~1800 s/traj (~30 min). MPS 2-stream costs ~6%/stream -> ~2x aggregate (worth it).
+  Acceptance ~100% (one 0.77), |dH|<=0.6 -- clean. `N_CHAIN=4` (~80 traj) is FINE for massive (60) but far
+  short of massless (400 needs ~18 links); massless needs re-runs to extend.
+- **Concurrent-writer incident (fixed).** Re-running the wrapper spawned a 2nd parallel chain for 2 ensembles
+  (old+new both writing one ckpt dir). Cost = wasted allocation only; NO data corruption (all `ckpoint_lat`
+  intact, uniform 657408 B; contiguous k). NM `qdel`'d the old remnants. FIX: wrapper now snapshots existing
+  jobs (`qstat -r`) and `existing_tail()` `-hold_jid`s a new chain onto any live chain covering either
+  ensemble (match by token `Nf<nf>g<gsq>m<mass>`) -- re-runs EXTEND, never collide. Verified by dry-run.
+- **rng disk:** each rng ckpt ~0.5 GB; `KRNG=1` (running binary) keeps ALL -> currently 136 ckpts / 67.5 GB
+  (disk 4.6 T free of 11 T, fine). Wrapper default now `KRNG=4` (future rebuilds thin). PENDING (NM: "work on
+  rng shortly"): delete old rng's keeping latest ~3/ensemble (NM runs the `rm`; Claude never rm's).
+- **Intermittent `CUDA error`** at first `cudaMalloc` on some shared GPU nodes (MPS/GPU-init, node-dependent);
+  the `-hold_jid` chain self-recovers on the next link/node. Watch; if frequent, revisit MPS or 1 stream/GPU.
+- **Current live jobs:** 4 serial chains (verified single-writer): `L470_Nf2g2`(g2+g6), `L480_Nf2g4`(g4),
+  `L470_Nf2g6`(m0.1+m1.0), `L480_Nf2g6`(m0.5+m1.5). Tails to anchor future extends: 6738719/23/27/31.
+- Monitor: `bash tmp_monitor_L4_scc_claude.sh`.

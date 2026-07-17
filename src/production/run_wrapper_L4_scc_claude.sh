@@ -50,7 +50,7 @@ MV_MASS=${MV_MASS:-"0.1 0.5 1.0 1.5"}
 MV_KMAX=${MV_KMAX:-60}
 
 NU0=${NU0:-1.0}
-KRNG=${KRNG:-1}                      # keep every KRNG-th rng checkpoint (1 = full)
+KRNG=${KRNG:-4}                      # keep every KRNG-th rng checkpoint (rng ckpt ~0.5 GB each; 4 -> ~1/4 the disk)
 
 # ---- GPU architectures (EDIT / override) --------------------------------------------------------
 # Build for each arch in ARCH_LIST; SUBMIT_ARCHS selects the node pools to actually submit to (ensembles
@@ -147,9 +147,33 @@ else
   build_all
 fi
 
-# ---- 3. within each arch bucket: pair 2/GPU, submit a DEPENDENT CHAIN per pair -------------------
-# Each pair becomes N_CHAIN jobs: link 0 (h_rt=H_RT_FIRST=6h), links 1.. (-hold_jid on the previous, h_rt=H_RT).
-# The pair's (Nf,gsq,mass) is fixed down the chain, so every link resumes the SAME ensembles' checkpoints.
+# ---- dependency safety ACROSS wrapper re-runs (per NM: "the script should catch all the dependencies") ----
+# Snapshot every existing L4 job as "jobid <TAB> full_jobname". Before submitting a new chain, submit_chain
+# looks here for any chain that already covers EITHER ensemble in the pair and -hold_jid's the new chain onto
+# its tail -- so re-running the wrapper EXTENDS existing chains instead of starting a concurrent c0 that would
+# write the same checkpoint dir (the collision that cost allocation on 2026-07-17). Match is by ensemble token
+# Nf<nf>g<gsq>m<mass> (arch-independent, so it catches the ensemble even if its arch/partner changed).
+EXIST_JOBS=$(qstat -u "$USER" -r 2>/dev/null | awk '
+  /^[0-9]+ /{ jid=$1 }
+  /Full jobname:/{ if($3 ~ /^L4[0-9]/) print jid"\t"$3 }
+')
+# echo the max existing job-id whose chain covers tokA (or tokB); empty if none. Trailing (__|_c) anchors the
+# token to a chain-name boundary so m0.0 does not match m0.05, etc.
+existing_tail () {   # tokA [tokB]
+  local a=${1//./\\.} b=${2:-} pat
+  pat="(${a})(__|_c)"
+  if [ -n "$b" ]
+  then
+    b=${b//./\\.}
+    pat="(${a}|${b})(__|_c)"
+  fi
+  printf '%s\n' "$EXIST_JOBS" | awk -F'\t' -v pat="$pat" '$2 ~ pat {print $1}' | sort -n | tail -1
+}
+
+# ---- pair 2/GPU, submit a DEPENDENT CHAIN per pair -----------------------------------------------
+# N_CHAIN jobs: link 0 (h_rt=H_RT_FIRST=6h), links 1.. (-hold_jid on the previous, h_rt=H_RT). If a chain for
+# either ensemble already exists, link 0 -hold_jid's its TAIL (extend, never collide). Pair (Nf,gsq,mass) is
+# fixed down the chain, so every link resumes the SAME ensembles' checkpoints.
 submit_chain () {   # arch  A="Nf|KMAX|gsq|mass"  [B=...]
   local arch=$1 A=$2 B=${3:-}
   local gpuc
@@ -168,7 +192,13 @@ submit_chain () {   # arch  A="Nf|KMAX|gsq|mass"  [B=...]
     name="${name}__Nf${nfB}g${gsqB}m${massB}"
   fi
 
-  local prev="" c hrt maxsec jid
+  # anchor onto any existing chain writing THIS pair's ensembles (extend, don't collide) -> c0 -hold_jid's it
+  local tokA="Nf${nfA}g${gsqA}m${massA}" tokB=""
+  [ -n "$B" ] && tokB="Nf${nfB}g${gsqB}m${massB}"
+  local prev
+  prev=$(existing_tail "$tokA" "$tokB")
+  [ -n "$prev" ] && echo "  [anchor] ${name}: existing chain found -> new links hold on tail jid=$prev (no concurrent writer)"
+  local c hrt maxsec jid
   for (( c=0; c<N_CHAIN; c++ ))
   do
     if [ "$c" -eq 0 ]; then hrt=$H_RT_FIRST; else hrt=$H_RT; fi
