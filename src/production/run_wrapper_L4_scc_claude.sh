@@ -62,7 +62,7 @@ PE_OMP=${PE_OMP:-16}                       # CPU slots per job (split across the
 # ---- job chaining (each pair is a CHAIN of dependent jobs; each resumes the previous checkpoint) --
 # One SGE job runs until its wall budget, checkpoints (k_ckpoint=1, lossless), exits; the next job in the
 # SAME chain (-hold_jid) resumes. This walks each ensemble PAIR (fixed Nf/gsq/mass) up to its KMAX target.
-H_RT_FIRST=${H_RT_FIRST:-6:00:00}          # walltime of the FIRST link in every chain (per NM: 6h)
+H_RT_FIRST=${H_RT_FIRST:-12:00:00}         # walltime of the FIRST link in every chain (bumped 6h -> 12h, 2026-07-17: run is healthy)
 H_RT=${H_RT:-12:00:00}                      # walltime of the subsequent chained links
 N_CHAIN=${N_CHAIN:-4}                       # links per chain (over-provision is safe: once KMAX is reached the driver exits immediately)
 BUFFER_SEC=${BUFFER_SEC:-900}               # wall budget = h_rt - BUFFER_SEC (covers startup + MPS teardown); driver also self-estimates 1.3x last traj

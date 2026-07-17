@@ -147,3 +147,11 @@ nvcc -arch=sm_70 -O3 -std=c++20 -lcublas -lcusolver -lcusparse -lgomp -Xcompiler
 - **Current live jobs:** 4 serial chains (verified single-writer): `L470_Nf2g2`(g2+g6), `L480_Nf2g4`(g4),
   `L470_Nf2g6`(m0.1+m1.0), `L480_Nf2g6`(m0.5+m1.5). Tails to anchor future extends: 6738719/23/27/31.
 - Monitor: `bash tmp_monitor_L4_scc_claude.sh`.
+- **Acceptance (measured 2026-07-17):** 87-94% per ensemble (gsq2 87, gsq4 92, gsq6 87, m0.1 90, m0.5 91,
+  m1.0 94, m1.5 91). maxdH 3-8 = early-thermalization spikes, not a problem.
+- **rng cleanup done:** thinned to keep-every-4th + latest-per-ensemble via `rng_delete_list_claude.txt`
+  (Claude lists, NM `xargs rm`); 136->37 ckpts, 67.5->18.3 GB, resume-safe. KRNG=4 thins future links.
+- **Blackboard `redo_ensembles_claude.txt`:** L4 (SCC) rows now have exact massive hb tags (resc=0.259021*mRe)
+  + refreshed snapshot + an RSYNC block (host scc1.bu.edu, base `.../src/production/`, pull only
+  `ckpoint_lat.*`) so a local agent can pull configs. (Shared file w/ the separate AFFINE L1/L2 campaign.)
+- **SCOPE clarified (NM):** L4 Nf=2 = SCC (this plan). L4 Nf=4,6 = handled at FNAL, NOT here.
