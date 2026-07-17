@@ -5,9 +5,23 @@
 # See params_L1L2_claude.md / params_massive_claude.md and cost doc redo_cost_estimate_claude.md.
 # 26 streams = 18 massless (Nf{2,4,6}) + 8 massive (Nf2).
 #
-# status column:  DONE = target reached = CLOSED (its wrapper slot is commented out in run_wrapper_redo_claude.sh;
-#                 re-apply no longer submits it).   running = still filling; slots p5-p8 are the ONLY active ones.
-# CLOSED slots (commented out): p0-p4 (L1 all + L2 Nf2 gsq1.0) , p9-p12 (all massive).  ACTIVE: p5,p6,p7,p8 (L2 tail).
+
+# # status column:  DONE = target reached = CLOSED (its wrapper slot is commented out in run_wrapper_redo_claude.sh;
+# #                 re-apply no longer submits it).   running = still filling; slots p5-p8 are the ONLY active ones.
+# # CLOSED slots (commented out): p0-p4 (L1 all + L2 Nf2 gsq1.0) , p9-p12 (all massive).  ACTIVE: p5,p6,p7,p8 (L2 tail).
+# NOTE (2026-07-16): the L1/L2 rows below are the AFFINE (Fermilab, SLURM) campaign. The L=4 ensembles are
+# generated SEPARATELY on the BU SCC (SGE qsub) with the _scc driver -- see the "L4 (SCC)" section appended
+# at the BOTTOM of this file (impl plan: scc_L4_production_impl_plan_claude.md). L4 is Nf=2-only (per NM).
+#
+# Columns (whitespace-separated; col 1 = ensemble dir basename, contains ckpoint_lat.<k>):
+#   ensemble   output dir3 basename
+#   type       massless (mRe=0) | massive (mRe!=0)
+#   slot       wrapper pair-slot p<idx> (run_wrapper_redo_claude.sh); packed 2/GPU under MPS
+#   L Nf gsq mRe   lattice refinement / flavors / coupling / physical mass (R=1)
+#   target     compiled trajectory cap -DKMAX (massless L1=2000 L2=1200 ; massive L1=120 L2=80)
+#   ncfg       ckpoint_lat configs on disk NOW (snapshot)
+#   status     DONE (>=target-1) | running
+#   acc%       acceptance over all this stream's logs ; maxdH = max |dH|  (health)
 #
 # Columns (whitespace-separated; col 1 = ensemble dir basename under /lustre2/affine/redo/):
 #   ensemble  dir3 basename   type massless|massive   slot wrapper pair p<idx>
@@ -43,3 +57,26 @@
   Nf2_gsq3.000000at0.200000nu01.000000mRe0.200000mIm0.000000nt128L2_hb1.000000 massive  p11    2   2   3.0   0.2      80     79 DONE      98.7   0.480
   Nf2_gsq3.000000at0.200000nu01.000000mRe0.300000mIm0.000000nt128L2_hb1.000000 massive  p12    2   2   3.0   0.3      80     79 DONE      98.7   0.471
   Nf2_gsq3.000000at0.200000nu01.000000mRe0.400000mIm0.000000nt128L2_hb1.000000 massive  p12    2   2   3.0   0.4      80     79 DONE      98.7   0.461
+
+# ==================================================================================================
+# L4 (SCC) -- SEPARATE cluster/scheduler from the affine rows above. These run on the BU SCC under
+# /projectnb/qfe/nmatsum/qed3/src/production/ via SGE (qsub), NOT SLURM/affine. Driver = the _scc block
+# copy hmc_hasenbusch_block_scc_claude.cu (absolute geometry). Params: tau(s_tot)=1.0, steps{4,4,4}, gauge
+# MG100, frozen Zolotarev (0.008,5), n_action=31 / n_force=11, -DMIXED_FORCE. Launcher =
+# run_wrapper_L4_scc_claude.sh: **Nf=2 ONLY** (per NM 2026-07-16; Nf4/6 dropped), per-set MPS pairing
+# (massless<->massless k400, massive<->massive k60 -- never mixed), 2 streams/GPU, dependent chains
+# (link0 h_rt=6h then 12h, -hold_jid). 7 streams -> 4 GPU chains, arches sm_70(V100 gpu_c7.0) / sm_80(A100
+# gpu_c8.0). Targets: massless -> 400 traj, massive -> 60. Monitor: bash tmp_monitor_L4_scc_claude.sh .
+# SNAPSHOT (2026-07-16 23:12): all 4 chains RUNNING but in L4 startup -- 0 traj, no output dirs yet.
+# 'chain' col = SGE job-name / MPS slot (A|B) / arch. massive dir hb tag is resc-shifted:
+#   hb = "<0.4+resc>-<1.0+resc>", resc = (mean_dual_area/mean_ell)*mRe ~= 0.259*mRe  (fill exact once the
+#   output dir appears; massless mRe=0 -> resc=0 -> hb0.400000-1.000000 exact).
+#
+# ensemble                                                                              type     chain            L Nf gsq mRe target ncfg status   acc% maxdH
+  Nf2_gsq2.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless L470_Nf2g2/A/sm70 4  2  2.0 0.0    400    0  starting  -     -
+  Nf2_gsq6.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless L470_Nf2g2/B/sm70 4  2  6.0 0.0    400    0  starting  -     -
+  Nf2_gsq4.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless L480_Nf2g4/A/sm80 4  2  4.0 0.0    400    0  starting  -     -
+  Nf2_gsq6.000000at0.200000nu01.000000mRe0.100000mIm0.000000nt128L4_hb<0.4+resc>-<1.0+resc> massive L470_Nf2g6/A/sm70 4  2  6.0 0.1     60    0  starting  -     -
+  Nf2_gsq6.000000at0.200000nu01.000000mRe1.000000mIm0.000000nt128L4_hb<0.4+resc>-<1.0+resc> massive L470_Nf2g6/B/sm70 4  2  6.0 1.0     60    0  starting  -     -
+  Nf2_gsq6.000000at0.200000nu01.000000mRe0.500000mIm0.000000nt128L4_hb<0.4+resc>-<1.0+resc> massive L480_Nf2g6/A/sm80 4  2  6.0 0.5     60    0  starting  -     -
+  Nf2_gsq6.000000at0.200000nu01.000000mRe1.500000mIm0.000000nt128L4_hb<0.4+resc>-<1.0+resc> massive L480_Nf2g6/B/sm80 4  2  6.0 1.5     60    0  starting  -     -
