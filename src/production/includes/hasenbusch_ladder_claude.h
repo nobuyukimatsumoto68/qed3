@@ -38,9 +38,10 @@ inline std::vector<std::complex<double>> hasenbusch_ladder( const int L ){
 }
 
 // per-stage MD step counts (outer=massless -> inner=heavy), size = ladder size (K+1). Must integer-nest.
-// L4 step count is COMPILE-TIME overridable via -DL4_MDSTEP (default 4). Per NM 2026-07-17: the SCC L4
-// Nf=2 run keeps {4,4,4}; the added Nf=4,6 massless run uses {5,5,5} (heavier fermion force -> finer
-// integration -> acceptance margin). The SCC wrapper passes -DL4_MDSTEP=5 for Nf>=4, default 4 for Nf=2.
+// L4 step count is COMPILE-TIME overridable via -DL4_MDSTEP (default 4). Per NM 2026-07-17: L4 Nf=2 keeps
+// {4,4,4} (default); the L4 Nf=4,6 massless run (on AFFINE/FNAL -- launch_redo_claude.sh) uses {5,5,5}
+// (heavier fermion force -> finer integration -> acceptance margin), built with -DL4_MDSTEP=5. Any build
+// not passing the flag gets the default 4 (affine L1/L2 never hit L==4; SCC L4 Nf2 is unaffected).
 #ifndef L4_MDSTEP
 #define L4_MDSTEP 4
 #endif
