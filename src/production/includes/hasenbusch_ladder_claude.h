@@ -46,11 +46,14 @@ inline std::vector<int> hasenbusch_steps( const int L ){
   return {};
 }
 
-// trajectory length tau (= s_tot). L1 -> 1.0, L2 -> 1.0; L4 -> 0.8 (SHIP 2026-07-16, paired with gauge MG100).
+// trajectory length tau (= s_tot). L1 -> 1.0, L2 -> 1.0; L4 -> 1.0 (per NM 2026-07-16: raised 0.8 -> 1.0
+// for the Nf=2-focused run -- milder force at Nf2 -> a longer trajectory decorrelates better / fewer traj
+// to target; steps {4,4,4} + gauge MG100 kept).
 inline double hasenbusch_tau( const int L ){
   if( L==1 ) return 1.0;
   if( L==2 ) return 1.0;
-  return 0.8;   // L4
+  // return 0.8;   // L4 (SHIP 2026-07-16, paired with gauge MG100; superseded by tau=1.0 below per NM)
+  return 1.0;   // L4
 }
 
 // gauge substeps MG per innermost(heaviest)-frame MD step. L1/L2 -> 20; L4 -> 100 (SHIP 2026-07-16: the gauge
