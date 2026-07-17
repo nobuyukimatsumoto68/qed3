@@ -35,7 +35,7 @@ MRE2=${MRE2:?set via --export}
 OUTDIR=${OUTDIR:?set via --export}
 NU0=1.0
 
-WALL_SEC=${WALL_SEC:-14400}      # MUST match the wrapper --time (first try: 4h = 14400)
+WALL_SEC=${WALL_SEC:-28800}      # MUST match the wrapper --time (8h = 28800, opp MaxWall)
 SAFETY=${SAFETY:-600}            # headroom for final checkpoint write + MPS teardown
 MAX_SEC=$(( WALL_SEC - SAFETY )) # binary's 6th arg: graceful stop between trajectories
 BACKSTOP=$(( WALL_SEC - 120 ))   # hard timeout backstop (hang guard)

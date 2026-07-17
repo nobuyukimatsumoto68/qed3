@@ -21,8 +21,8 @@ BINDIR=$OUTDIR
 RUNSCRIPT=$SCRIPTDIR/run_redo_mps2_claude.sh
 ACCT=${ACCT:-affine.lq2_gpu}
 QOS=${QOS:-opp}             # affine allows only {opp,test} (default opp); smoke overrides to 'test'
-WALL=${WALL:-04:00:00}      # smoke overrides to 00:30:00
-WSEC=${WSEC:-14400}         # MUST match WALL (passed to the binary as WALL_SEC); smoke -> 1800
+WALL=${WALL:-08:00:00}      # opp MaxWall = 8h (used for L1/L2 and L4 alike, per NM 2026-07-17); smoke -> 00:30:00
+WSEC=${WSEC:-28800}         # MUST match WALL (passed to the binary as WALL_SEC); smoke -> 1800
 NCHAIN=${1:-1}
 
 # binary resolvers (built by launch_redo_claude.sh)
@@ -60,6 +60,13 @@ CA[8]="ml 2 6 2.0 0.0";  CB[8]="ml 2 6 3.0 0.0"
 # commented out (NOT deleted) so re-apply skips them. ALL massive done -> re-apply now runs the 18 massless only.
 # CA[11]="mv 2 2 3.0 0.1"; CB[11]="mv 2 2 3.0 0.2"
 # CA[12]="mv 2 2 3.0 0.3"; CB[12]="mv 2 2 3.0 0.4"
+# L4 massless Nf{4,6} x gsq{2,4,6} -- ADDED 2026-07-17 (NM). Binaries built with steps {5,5,5} (-DL4_MDSTEP=5),
+# -DMIXED_FORCE, KMAX 400, KRNG 4 (launch_redo_claude.sh BUILDS). L4 is EXPENSIVE but runs at the same 8h
+# default wall as L2 now; a plain re-apply covers them. To run ONLY L4: SLOTS="13 14 15" bash run_wrapper_redo_claude.sh <N>
+# (pairs kept ~like-cost: Nf4 g2+g4 / Nf6 g2+g4 / the two g6 together).
+CA[13]="ml 4 4 2.0 0.0"; CB[13]="ml 4 4 4.0 0.0"
+CA[14]="ml 4 6 2.0 0.0"; CB[14]="ml 4 6 4.0 0.0"
+CA[15]="ml 4 4 6.0 0.0"; CB[15]="ml 4 6 6.0 0.0"
 
 binof() {  # $1=TYPE $2=L $3=Nf  -> binary path
   if [ "$1" = ml ]; then mlbin "$2" "$3"; else mvbin "$2"; fi

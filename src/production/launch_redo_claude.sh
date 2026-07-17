@@ -34,9 +34,11 @@ RUNSCRIPT=$SCRIPTDIR/run_redo_mps2_claude.sh
 LOG=$HOME/launch_redo_claude.log
 ENVSH=/home/nmatsum/env.sh; [ -f "$ENVSH" ] || ENVSH=/lustre2/affine/env.sh
 
-# build matrix: "OUT LREF NF KMAX KRNG"
+# build matrix: "OUT LREF NF KMAX KRNG [EXTRA nvcc flags]"  (EXTRA is optional 6th..N field, may be empty)
 #   massless (mRe set to 0 at runtime): full trajectory targets, thin rng by 5
 #   massive  (mRe set per stream)     : short targets, FULL rng checkpointing (KRNG=1)
+#   L4 Nf4/6 (2026-07-17, NM): massless only, KMAX 400, KRNG 4, -DMIXED_FORCE + steps {5,5,5} via
+#     -DL4_MDSTEP=5 (Nf2 L4 would stay 4, not built here). Runs on affine (SLURM/MPS), NOT SCC.
 BUILDS=(
   "hmc_fermilab_redo_massless_L1_Nf2_claude.o 1 2 2000 5"
   "hmc_fermilab_redo_massless_L1_Nf4_claude.o 1 4 2000 5"
@@ -44,13 +46,15 @@ BUILDS=(
   "hmc_fermilab_redo_massless_L2_Nf2_claude.o 2 2 1200 5"
   "hmc_fermilab_redo_massless_L2_Nf4_claude.o 2 4 1200 5"
   "hmc_fermilab_redo_massless_L2_Nf6_claude.o 2 6 1200 5"
+  "hmc_fermilab_redo_massless_L4_Nf4_claude.o 4 4  400 4 -DMIXED_FORCE -DL4_MDSTEP=5"
+  "hmc_fermilab_redo_massless_L4_Nf6_claude.o 4 6  400 4 -DMIXED_FORCE -DL4_MDSTEP=5"
   "hmc_fermilab_redo_massive_L1_claude.o      1 2  120 1"
   "hmc_fermilab_redo_massive_L2_claude.o      2 2   80 1"
 )
 
 {
 echo "######## REDO L=1,2 build + launch ($MODE)  $(date) ########"; hostname
-echo "# affine only ; 4h/job ; 2 streams/GPU (MPS) ; massless Nf{2,4,6} + massive Nf2 ; NCHAIN=$NCHAIN"
+echo "# affine only ; 8h/job (opp MaxWall) ; 2 streams/GPU (MPS) ; massless L1/L2 Nf{2,4,6} + L4 Nf{4,6} ; NCHAIN=$NCHAIN"
 echo "# SRC=$SRC"
 echo "# geometry (in _fermilab driver): /project/affine/nmatsum/qed3/geometry/  (absolute, mimics both_3d)"
 
@@ -69,14 +73,14 @@ if [ "$MODE" != dry ]; then
   LDFLAGS="-L/srv/software/el8/x86_64/eb/HDF5/1.14.2-GCC-12.3.0-serial/lib/ -L/project/qed3/gsl/lib/ -lhdf5 -lgsl -lgslcblas -lm"
   mkdir -p "$BINDIR"
   for spec in "${BUILDS[@]}"; do
-    read -r out L NF KMAX KRNG <<< "$spec"
+    read -r out L NF KMAX KRNG EXTRA <<< "$spec"   # EXTRA = optional trailing nvcc flags (e.g. L4: -DMIXED_FORCE -DL4_MDSTEP=5)
     dst=$BINDIR/$out
     # Incremental: (re)build only if missing, older than SRC, or --rebuild. NO rm -- nvcc overwrites in place.
     if [ "$REBUILD" -eq 0 ] && [ -x "$dst" ] && [ "$dst" -nt "$SRC" ]; then
-      echo "  up-to-date: $out (LREF=$L NF=$NF KMAX=$KMAX KRNG=$KRNG)"; continue
+      echo "  up-to-date: $out (LREF=$L NF=$NF KMAX=$KMAX KRNG=$KRNG $EXTRA)"; continue
     fi
-    echo "  build $out (LREF=$L NF=$NF KMAX=$KMAX KRNG=$KRNG)  [$(date +%H:%M:%S)]"
-    nvcc $NVCCFLAGS $INCLUDES -DLREF=$L -DNF=$NF -DKMAX=$KMAX -DKRNG=$KRNG "$SRC" $LDFLAGS -o "$dst" \
+    echo "  build $out (LREF=$L NF=$NF KMAX=$KMAX KRNG=$KRNG $EXTRA)  [$(date +%H:%M:%S)]"
+    nvcc $NVCCFLAGS $INCLUDES -DLREF=$L -DNF=$NF -DKMAX=$KMAX -DKRNG=$KRNG $EXTRA "$SRC" $LDFLAGS -o "$dst" \
       2> "$BINDIR/build_${out%.o}_claude.log" \
       || { echo "  BUILD FAILED: $out (see build_${out%.o}_claude.log) -- ABORT"; exit 1; }
     [ -x "$dst" ] || { echo "  MISSING after build: $out -- ABORT"; exit 1; }
@@ -84,7 +88,7 @@ if [ "$MODE" != dry ]; then
   echo "== BUILD OK =="; ls -la "$BINDIR"/hmc_fermilab_redo_*.o | sed 's/^/  /'
 else
   echo "  would build (incremental unless --rebuild):"
-  for spec in "${BUILDS[@]}"; do read -r out L NF KMAX KRNG <<< "$spec"; echo "    $out : -DLREF=$L -DNF=$NF -DKMAX=$KMAX -DKRNG=$KRNG"; done
+  for spec in "${BUILDS[@]}"; do read -r out L NF KMAX KRNG EXTRA <<< "$spec"; echo "    $out : -DLREF=$L -DNF=$NF -DKMAX=$KMAX -DKRNG=$KRNG $EXTRA"; done
 fi
 
 # --- stage + permissions ---

@@ -91,3 +91,21 @@
 #     --include='Nf2_*L4_hb*/' --include='ckpoint_lat.*' --exclude='*' \
 #     nmatsum@scc1.bu.edu:/projectnb/qfe/nmatsum/qed3/src/production/ <LOCAL_DEST>/
 # (or per-ensemble: rsync -avz nmatsum@scc1.bu.edu:'<SCC base><basename>/ckpoint_lat.*' <LOCAL_DEST>/<basename>/)
+
+# ==================================================================================================
+# L4 Nf4,6 (AFFINE / FNAL) -- ADDED 2026-07-17 (NM). MASSLESS ONLY, run HERE on affine (SLURM/MPS 2/GPU),
+# NOT SCC. Driver = hmc_hasenbusch_block_fermilab_claude.cu (absolute FNAL geometry, n4 spin-connection
+# files omega_n4/alpha_n4 verified present). Binaries hmc_fermilab_redo_massless_L4_Nf{4,6}_claude.o built
+# with -DLREF=4 -DKMAX=400 -DKRNG=4 -DMIXED_FORCE -DL4_MDSTEP=5 (steps {5,5,5}; Nf2 L4 would be {4,4,4}).
+# Params: ladder {0,0.4,1.0}, tau 1.0, gauge MG100, frozen Zolotarev (0.008,5), n_action 31 / n_force 11.
+# Wrapper slots p13/p14/p15 (run_wrapper_redo_claude.sh); 6 streams -> 3 GPU pairs, 2 MPS streams/GPU.
+# LAUNCH (opp MaxWall 8h):  SLOTS="13 14 15" WALL=08:00:00 WSEC=28800 bash run_wrapper_redo_claude.sh <N>
+# (binaries already built + staged in /lustre2/affine/redo). ncfg/status below = NOT-YET-LAUNCHED snapshot.
+#
+# ensemble                                                                              type     slot L Nf gsq mRe target ncfg status
+  Nf4_gsq2.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p13  4 4  2.0 0.0  400    0  not-launched
+  Nf4_gsq4.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p13  4 4  4.0 0.0  400    0  not-launched
+  Nf4_gsq6.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p15  4 4  6.0 0.0  400    0  not-launched
+  Nf6_gsq2.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p14  4 6  2.0 0.0  400    0  not-launched
+  Nf6_gsq4.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p14  4 6  4.0 0.0  400    0  not-launched
+  Nf6_gsq6.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p15  4 6  6.0 0.0  400    0  not-launched
