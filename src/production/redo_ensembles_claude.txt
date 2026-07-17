@@ -67,16 +67,27 @@
 # (massless<->massless k400, massive<->massive k60 -- never mixed), 2 streams/GPU, dependent chains
 # (link0 h_rt=6h then 12h, -hold_jid). 7 streams -> 4 GPU chains, arches sm_70(V100 gpu_c7.0) / sm_80(A100
 # gpu_c8.0). Targets: massless -> 400 traj, massive -> 60. Monitor: bash tmp_monitor_L4_scc_claude.sh .
-# SNAPSHOT (2026-07-16 23:12): all 4 chains RUNNING but in L4 startup -- 0 traj, no output dirs yet.
-# 'chain' col = SGE job-name / MPS slot (A|B) / arch. massive dir hb tag is resc-shifted:
-#   hb = "<0.4+resc>-<1.0+resc>", resc = (mean_dual_area/mean_ell)*mRe ~= 0.259*mRe  (fill exact once the
-#   output dir appears; massless mRe=0 -> resc=0 -> hb0.400000-1.000000 exact).
+# SNAPSHOT (2026-07-17): all 4 chains RUNNING + healthy (acc 87-94%, ncfg growing, ~1800 s/traj). maxdH is
+# elevated (3-8) only because these are still EARLY/thermalizing -- expected; acceptance is fine.
+# 'chain' col = SGE job-name / MPS slot (A|B) / arch. massive dir hb tag is resc-shifted (now filled exact):
+#   hb = "<0.4+resc>-<1.0+resc>", resc = (mean_dual_area/mean_ell)*mRe = 0.259021*mRe.
 #
-# ensemble                                                                              type     chain            L Nf gsq mRe target ncfg status   acc% maxdH
-  Nf2_gsq2.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless L470_Nf2g2/A/sm70 4  2  2.0 0.0    400    0  starting  -     -
-  Nf2_gsq6.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless L470_Nf2g2/B/sm70 4  2  6.0 0.0    400    0  starting  -     -
-  Nf2_gsq4.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless L480_Nf2g4/A/sm80 4  2  4.0 0.0    400    0  starting  -     -
-  Nf2_gsq6.000000at0.200000nu01.000000mRe0.100000mIm0.000000nt128L4_hb<0.4+resc>-<1.0+resc> massive L470_Nf2g6/A/sm70 4  2  6.0 0.1     60    0  starting  -     -
-  Nf2_gsq6.000000at0.200000nu01.000000mRe1.000000mIm0.000000nt128L4_hb<0.4+resc>-<1.0+resc> massive L470_Nf2g6/B/sm70 4  2  6.0 1.0     60    0  starting  -     -
-  Nf2_gsq6.000000at0.200000nu01.000000mRe0.500000mIm0.000000nt128L4_hb<0.4+resc>-<1.0+resc> massive L480_Nf2g6/A/sm80 4  2  6.0 0.5     60    0  starting  -     -
-  Nf2_gsq6.000000at0.200000nu01.000000mRe1.500000mIm0.000000nt128L4_hb<0.4+resc>-<1.0+resc> massive L480_Nf2g6/B/sm80 4  2  6.0 1.5     60    0  starting  -     -
+# ensemble                                                                              type     chain            L Nf gsq mRe target ncfg status  acc%  maxdH
+  Nf2_gsq2.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless L470_Nf2g2/A/sm70 4  2  2.0 0.0    400   24  running 87.0  6.130
+  Nf2_gsq6.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless L470_Nf2g2/B/sm70 4  2  6.0 0.0    400   24  running 87.0  4.384
+  Nf2_gsq4.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless L480_Nf2g4/A/sm80 4  2  4.0 0.0    400   38  running 91.9  8.444
+  Nf2_gsq6.000000at0.200000nu01.000000mRe0.100000mIm0.000000nt128L4_hb0.425902-1.025902 massive  L470_Nf2g6/A/sm70 4  2  6.0 0.1     60   31  running 90.0  4.309
+  Nf2_gsq6.000000at0.200000nu01.000000mRe1.000000mIm0.000000nt128L4_hb0.659021-1.259021 massive  L470_Nf2g6/B/sm70 4  2  6.0 1.0     60   31  running 93.5  3.720
+  Nf2_gsq6.000000at0.200000nu01.000000mRe0.500000mIm0.000000nt128L4_hb0.529511-1.129511 massive  L480_Nf2g6/A/sm80 4  2  6.0 0.5     60   34  running 91.2  4.034
+  Nf2_gsq6.000000at0.200000nu01.000000mRe1.500000mIm0.000000nt128L4_hb0.788532-1.388532 massive  L480_Nf2g6/B/sm80 4  2  6.0 1.5     60   35  running 91.4  3.418
+#
+# ----- RSYNC (SCC -> local): pull the L4 gauge configs for local analysis --------------------------
+# SCC host : scc1.bu.edu  (or scc2.bu.edu; /projectnb is shared across SCC login + compute nodes)
+# SCC base : /projectnb/qfe/nmatsum/qed3/src/production/     (each ensemble = <col-1 basename>/ under here)
+# Pull ONLY ckpoint_lat.* -- the gauge configs (ckpoint_lat.<k>, k=1..ncfg, ~0.64 MB each). Do NOT pull
+# ckpoint_rng.* (thinned, ~0.5 GB each, not needed for measurement), logs, or binaries.
+# From the LOCAL machine (repeatable; rsync sends only new k's):
+#   rsync -avz --prune-empty-dirs \
+#     --include='Nf2_*L4_hb*/' --include='ckpoint_lat.*' --exclude='*' \
+#     nmatsum@scc1.bu.edu:/projectnb/qfe/nmatsum/qed3/src/production/ <LOCAL_DEST>/
+# (or per-ensemble: rsync -avz nmatsum@scc1.bu.edu:'<SCC base><basename>/ckpoint_lat.*' <LOCAL_DEST>/<basename>/)
