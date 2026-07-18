@@ -29,34 +29,45 @@
 #   target -DKMAX (massless L1=2000 L2=1200 ; massive L1=120 L2=80)   ncfg NOW   status DONE(closed)|running
 #   acc% acceptance over all logs   maxdH max|dH|
 #
+# OBS-STATE columns (ADDED 2026-07-17, local measurement campaign; plan
+# redo_obs_measurement_impl_plan_claude.md; style of both_3d jj_ensembles_claude.txt existing_jj).
+# Every data row (all three sections) carries TWO extra trailing columns:
+#   loc_ncfg   ckpoint_lat configs pulled to LOCAL barracuda22 so far (0 = not pulled yet)
+#   obs        LOCAL obs-calc state: comma-joined tag:N (N = configs measured), "-" = none. Tags:
+#              thm  = gluonic thermalization series (stride 1; sets the per-ensemble kmin cut)
+#              conn = connected jj+scalar Y_lm tower (GPU, stride 20)  [massless]
+#              disc = disconnected jj (GPU, stride 20)                 [massless]
+#              glue = F shapes corr ; f2 = F^2 shapes corr (CPU, stride 1)  [massless]
+#              cond = scalar condensate e/o+spin (GPU, stride 20)      [massive]
+#
 # SNAPSHOT: point-in-time (running ncfg advances). Regenerate: re-run this header's generator block.
-# ensemble                                                 type     slot   L  Nf   gsq   mRe  target   ncfg status    acc%   maxdH
-  Nf2_gsq0.500000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L1_hb1.000000 massless p0     1   2   0.5   0.0    2000   1999 DONE      93.3   0.724
-  Nf2_gsq1.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L1_hb1.000000 massless p0     1   2   1.0   0.0    2000   1999 DONE      96.7   0.298
-  Nf2_gsq1.500000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L1_hb1.000000 massless p1     1   2   1.5   0.0    2000   1999 DONE      98.1   0.261
-  Nf4_gsq0.500000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L1_hb1.000000 massless p1     1   4   0.5   0.0    2000   1999 DONE      90.0   1.402
-  Nf4_gsq1.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L1_hb1.000000 massless p2     1   4   1.0   0.0    2000   1999 DONE      95.6   0.437
-  Nf4_gsq1.500000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L1_hb1.000000 massless p2     1   4   1.5   0.0    2000   1999 DONE      96.8   0.394
-  Nf6_gsq0.500000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L1_hb1.000000 massless p3     1   6   0.5   0.0    2000   1999 DONE      86.0   1.905
-  Nf6_gsq1.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L1_hb1.000000 massless p3     1   6   1.0   0.0    2000   1999 DONE      93.6   0.576
-  Nf6_gsq1.500000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L1_hb1.000000 massless p4     1   6   1.5   0.0    2000   1999 DONE      95.3   0.418
-  Nf2_gsq1.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L2_hb1.000000 massless p4     2   2   1.0   0.0    1200   1199 DONE      98.9   0.464
-  Nf2_gsq2.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L2_hb1.000000 massless p5     2   2   2.0   0.0    1200   1194 running   99.2   0.448
-  Nf2_gsq3.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L2_hb1.000000 massless p5     2   2   3.0   0.0    1200   1057 running   98.5   0.487
-  Nf4_gsq1.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L2_hb1.000000 massless p6     2   4   1.0   0.0    1200   1137 running   98.2   0.957
-  Nf4_gsq2.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L2_hb1.000000 massless p6     2   4   2.0   0.0    1200   1015 running   97.9   0.871
-  Nf4_gsq3.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L2_hb1.000000 massless p7     2   4   3.0   0.0    1200    826 running   97.5   0.975
-  Nf6_gsq1.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L2_hb1.000000 massless p7     2   6   1.0   0.0    1200    978 running   96.8   1.442
-  Nf6_gsq2.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L2_hb1.000000 massless p8     2   6   2.0   0.0    1200    876 running   98.4   1.308
-  Nf6_gsq3.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L2_hb1.000000 massless p8     2   6   3.0   0.0    1200    727 running   97.8   1.525
-  Nf2_gsq1.500000at0.200000nu01.000000mRe0.100000mIm0.000000nt128L1_hb1.000000 massive  p9     1   2   1.5   0.1     120    119 DONE      97.5   0.242
-  Nf2_gsq1.500000at0.200000nu01.000000mRe0.200000mIm0.000000nt128L1_hb1.000000 massive  p9     1   2   1.5   0.2     120    119 DONE      97.5   0.223
-  Nf2_gsq1.500000at0.200000nu01.000000mRe0.300000mIm0.000000nt128L1_hb1.000000 massive  p10    1   2   1.5   0.3     120    119 DONE      98.3   0.183
-  Nf2_gsq1.500000at0.200000nu01.000000mRe0.400000mIm0.000000nt128L1_hb1.000000 massive  p10    1   2   1.5   0.4     120    119 DONE      98.3   0.155
-  Nf2_gsq3.000000at0.200000nu01.000000mRe0.100000mIm0.000000nt128L2_hb1.000000 massive  p11    2   2   3.0   0.1      80     79 DONE      98.7   0.485
-  Nf2_gsq3.000000at0.200000nu01.000000mRe0.200000mIm0.000000nt128L2_hb1.000000 massive  p11    2   2   3.0   0.2      80     79 DONE      98.7   0.480
-  Nf2_gsq3.000000at0.200000nu01.000000mRe0.300000mIm0.000000nt128L2_hb1.000000 massive  p12    2   2   3.0   0.3      80     79 DONE      98.7   0.471
-  Nf2_gsq3.000000at0.200000nu01.000000mRe0.400000mIm0.000000nt128L2_hb1.000000 massive  p12    2   2   3.0   0.4      80     79 DONE      98.7   0.461
+# ensemble                                                 type     slot   L  Nf   gsq   mRe  target   ncfg status    acc%   maxdH  loc_ncfg  obs
+  Nf2_gsq0.500000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L1_hb1.000000 massless p0     1   2   0.5   0.0    2000   1999 DONE      93.3   0.724      0  -
+  Nf2_gsq1.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L1_hb1.000000 massless p0     1   2   1.0   0.0    2000   1999 DONE      96.7   0.298      0  -
+  Nf2_gsq1.500000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L1_hb1.000000 massless p1     1   2   1.5   0.0    2000   1999 DONE      98.1   0.261      0  -
+  Nf4_gsq0.500000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L1_hb1.000000 massless p1     1   4   0.5   0.0    2000   1999 DONE      90.0   1.402      0  -
+  Nf4_gsq1.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L1_hb1.000000 massless p2     1   4   1.0   0.0    2000   1999 DONE      95.6   0.437      0  -
+  Nf4_gsq1.500000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L1_hb1.000000 massless p2     1   4   1.5   0.0    2000   1999 DONE      96.8   0.394      0  -
+  Nf6_gsq0.500000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L1_hb1.000000 massless p3     1   6   0.5   0.0    2000   1999 DONE      86.0   1.905      0  -
+  Nf6_gsq1.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L1_hb1.000000 massless p3     1   6   1.0   0.0    2000   1999 DONE      93.6   0.576      0  -
+  Nf6_gsq1.500000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L1_hb1.000000 massless p4     1   6   1.5   0.0    2000   1999 DONE      95.3   0.418      0  -
+  Nf2_gsq1.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L2_hb1.000000 massless p4     2   2   1.0   0.0    1200   1199 DONE      98.9   0.464      0  -
+  Nf2_gsq2.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L2_hb1.000000 massless p5     2   2   2.0   0.0    1200   1194 running   99.2   0.448      0  -
+  Nf2_gsq3.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L2_hb1.000000 massless p5     2   2   3.0   0.0    1200   1057 running   98.5   0.487      0  -
+  Nf4_gsq1.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L2_hb1.000000 massless p6     2   4   1.0   0.0    1200   1137 running   98.2   0.957      0  -
+  Nf4_gsq2.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L2_hb1.000000 massless p6     2   4   2.0   0.0    1200   1015 running   97.9   0.871      0  -
+  Nf4_gsq3.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L2_hb1.000000 massless p7     2   4   3.0   0.0    1200    826 running   97.5   0.975      0  -
+  Nf6_gsq1.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L2_hb1.000000 massless p7     2   6   1.0   0.0    1200    978 running   96.8   1.442      0  -
+  Nf6_gsq2.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L2_hb1.000000 massless p8     2   6   2.0   0.0    1200    876 running   98.4   1.308      0  -
+  Nf6_gsq3.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L2_hb1.000000 massless p8     2   6   3.0   0.0    1200    727 running   97.8   1.525      0  -
+  Nf2_gsq1.500000at0.200000nu01.000000mRe0.100000mIm0.000000nt128L1_hb1.000000 massive  p9     1   2   1.5   0.1     120    119 DONE      97.5   0.242      0  -
+  Nf2_gsq1.500000at0.200000nu01.000000mRe0.200000mIm0.000000nt128L1_hb1.000000 massive  p9     1   2   1.5   0.2     120    119 DONE      97.5   0.223      0  -
+  Nf2_gsq1.500000at0.200000nu01.000000mRe0.300000mIm0.000000nt128L1_hb1.000000 massive  p10    1   2   1.5   0.3     120    119 DONE      98.3   0.183      0  -
+  Nf2_gsq1.500000at0.200000nu01.000000mRe0.400000mIm0.000000nt128L1_hb1.000000 massive  p10    1   2   1.5   0.4     120    119 DONE      98.3   0.155      0  -
+  Nf2_gsq3.000000at0.200000nu01.000000mRe0.100000mIm0.000000nt128L2_hb1.000000 massive  p11    2   2   3.0   0.1      80     79 DONE      98.7   0.485      0  -
+  Nf2_gsq3.000000at0.200000nu01.000000mRe0.200000mIm0.000000nt128L2_hb1.000000 massive  p11    2   2   3.0   0.2      80     79 DONE      98.7   0.480      0  -
+  Nf2_gsq3.000000at0.200000nu01.000000mRe0.300000mIm0.000000nt128L2_hb1.000000 massive  p12    2   2   3.0   0.3      80     79 DONE      98.7   0.471      0  -
+  Nf2_gsq3.000000at0.200000nu01.000000mRe0.400000mIm0.000000nt128L2_hb1.000000 massive  p12    2   2   3.0   0.4      80     79 DONE      98.7   0.461      0  -
 
 # ==================================================================================================
 # L4 (SCC) -- SEPARATE cluster/scheduler from the affine rows above. These run on the BU SCC under
@@ -71,15 +82,16 @@
 # elevated (3-8) only because these are still EARLY/thermalizing -- expected; acceptance is fine.
 # 'chain' col = SGE job-name / MPS slot (A|B) / arch. massive dir hb tag is resc-shifted (now filled exact):
 #   hb = "<0.4+resc>-<1.0+resc>", resc = (mean_dual_area/mean_ell)*mRe = 0.259021*mRe.
+# Rows here ALSO carry the trailing loc_ncfg/obs columns (see OBS-STATE header block above).
 #
-# ensemble                                                                              type     chain            L Nf gsq mRe target ncfg status  acc%  maxdH
-  Nf2_gsq2.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless L470_Nf2g2/A/sm70 4  2  2.0 0.0    400   24  running 87.0  6.130
-  Nf2_gsq6.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless L470_Nf2g2/B/sm70 4  2  6.0 0.0    400   24  running 87.0  4.384
-  Nf2_gsq4.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless L480_Nf2g4/A/sm80 4  2  4.0 0.0    400   38  running 91.9  8.444
-  Nf2_gsq6.000000at0.200000nu01.000000mRe0.100000mIm0.000000nt128L4_hb0.425902-1.025902 massive  L470_Nf2g6/A/sm70 4  2  6.0 0.1     60   31  running 90.0  4.309
-  Nf2_gsq6.000000at0.200000nu01.000000mRe1.000000mIm0.000000nt128L4_hb0.659021-1.259021 massive  L470_Nf2g6/B/sm70 4  2  6.0 1.0     60   31  running 93.5  3.720
-  Nf2_gsq6.000000at0.200000nu01.000000mRe0.500000mIm0.000000nt128L4_hb0.529511-1.129511 massive  L480_Nf2g6/A/sm80 4  2  6.0 0.5     60   34  running 91.2  4.034
-  Nf2_gsq6.000000at0.200000nu01.000000mRe1.500000mIm0.000000nt128L4_hb0.788532-1.388532 massive  L480_Nf2g6/B/sm80 4  2  6.0 1.5     60   35  running 91.4  3.418
+# ensemble                                                                              type     chain            L Nf gsq mRe target ncfg status  acc%  maxdH  loc_ncfg  obs
+  Nf2_gsq2.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless L470_Nf2g2/A/sm70 4  2  2.0 0.0    400   24  running 87.0  6.130      0  -
+  Nf2_gsq6.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless L470_Nf2g2/B/sm70 4  2  6.0 0.0    400   24  running 87.0  4.384      0  -
+  Nf2_gsq4.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless L480_Nf2g4/A/sm80 4  2  4.0 0.0    400   38  running 91.9  8.444      0  -
+  Nf2_gsq6.000000at0.200000nu01.000000mRe0.100000mIm0.000000nt128L4_hb0.425902-1.025902 massive  L470_Nf2g6/A/sm70 4  2  6.0 0.1     60   31  running 90.0  4.309      0  -
+  Nf2_gsq6.000000at0.200000nu01.000000mRe1.000000mIm0.000000nt128L4_hb0.659021-1.259021 massive  L470_Nf2g6/B/sm70 4  2  6.0 1.0     60   31  running 93.5  3.720      0  -
+  Nf2_gsq6.000000at0.200000nu01.000000mRe0.500000mIm0.000000nt128L4_hb0.529511-1.129511 massive  L480_Nf2g6/A/sm80 4  2  6.0 0.5     60   34  running 91.2  4.034      0  -
+  Nf2_gsq6.000000at0.200000nu01.000000mRe1.500000mIm0.000000nt128L4_hb0.788532-1.388532 massive  L480_Nf2g6/B/sm80 4  2  6.0 1.5     60   35  running 91.4  3.418      0  -
 #
 # ----- RSYNC (SCC -> local): pull the L4 gauge configs for local analysis --------------------------
 # SCC host : scc1.bu.edu  (or scc2.bu.edu; /projectnb is shared across SCC login + compute nodes)
@@ -101,14 +113,15 @@
 # Wrapper slots p13/p14/p15 (run_wrapper_redo_claude.sh); 6 streams -> 3 GPU pairs, 2 MPS streams/GPU.
 # LAUNCH (opp MaxWall 8h):  SLOTS="13 14 15" WALL=08:00:00 WSEC=28800 bash run_wrapper_redo_claude.sh <N>
 # (binaries already built + staged in /lustre2/affine/redo). ncfg/status below = NOT-YET-LAUNCHED snapshot.
+# Rows here ALSO carry the trailing loc_ncfg/obs columns (see OBS-STATE header block above).
 #
-# ensemble                                                                              type     slot L Nf gsq mRe target ncfg status
-  Nf4_gsq2.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p13  4 4  2.0 0.0  400    0  not-launched
-  Nf4_gsq4.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p13  4 4  4.0 0.0  400    0  not-launched
-  Nf4_gsq6.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p15  4 4  6.0 0.0  400    0  not-launched
-  Nf6_gsq2.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p14  4 6  2.0 0.0  400    0  not-launched
-  Nf6_gsq4.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p14  4 6  4.0 0.0  400    0  not-launched
-  Nf6_gsq6.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p15  4 6  6.0 0.0  400    0  not-launched
+# ensemble                                                                              type     slot L Nf gsq mRe target ncfg status        loc_ncfg  obs
+  Nf4_gsq2.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p13  4 4  2.0 0.0  400    0  not-launched      0  -
+  Nf4_gsq4.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p13  4 4  4.0 0.0  400    0  not-launched      0  -
+  Nf4_gsq6.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p15  4 4  6.0 0.0  400    0  not-launched      0  -
+  Nf6_gsq2.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p14  4 6  2.0 0.0  400    0  not-launched      0  -
+  Nf6_gsq4.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p14  4 6  4.0 0.0  400    0  not-launched      0  -
+  Nf6_gsq6.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p15  4 6  6.0 0.0  400    0  not-launched      0  -
 
 # ----- RSYNC (FNAL -> local): pull the L1/L2/L4 gauge configs for local analysis -------------------
 # FNAL host : lq.fnal.gov   (login node; needs your FNAL ssh/kerberos auth. ~/affine -> /lustre2/affine symlink)
