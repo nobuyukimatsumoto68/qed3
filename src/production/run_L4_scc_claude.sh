@@ -59,20 +59,27 @@ THREADS=$(( ${NSLOTS:-2} / NPROC ))
 export OMP_NUM_THREADS=$THREADS
 export OPENBLAS_NUM_THREADS=$THREADS
 
-# ---- start a PRIVATE MPS daemon for this job (per-job pipe/log dirs under TMPDIR) ----------------
-export CUDA_MPS_PIPE_DIRECTORY="${TMPDIR:-/tmp}/mps_pipe_${JOB_ID:-$$}"
-export CUDA_MPS_LOG_DIRECTORY="${TMPDIR:-/tmp}/mps_log_${JOB_ID:-$$}"
-mkdir -p "$CUDA_MPS_PIPE_DIRECTORY" "$CUDA_MPS_LOG_DIRECTORY"
-echo "MPS pipe dir : $CUDA_MPS_PIPE_DIRECTORY"
-nvidia-cuda-mps-control -d
-for i in 1 2 3 4 5
-do
-  pgrep -f "nvidia-cuda-mps-control" >/dev/null && break
-  sleep 1
-done
-pgrep -f "nvidia-cuda-mps-control" >/dev/null \
-  || { echo "ERROR: MPS daemon failed to start -- aborting"; exit 1; }
-echo "MPS daemon up; OMP_NUM_THREADS=$THREADS per stream ($NPROC streams)"
+# ---- MPS only when packing 2 streams on one GPU. For 1 stream/GPU (NPROC=1) we run the binary DIRECTLY,
+# NO MPS daemon -- the per-job MPS daemon was the source of the frequent cudaMalloc/init "CUDA error" on
+# shared ece/l40s nodes (per NM 2026-07-18: switch to 1 stream/GPU). ------------------------------------
+if [ "$NPROC" -ge 2 ]
+then
+  export CUDA_MPS_PIPE_DIRECTORY="${TMPDIR:-/tmp}/mps_pipe_${JOB_ID:-$$}"
+  export CUDA_MPS_LOG_DIRECTORY="${TMPDIR:-/tmp}/mps_log_${JOB_ID:-$$}"
+  mkdir -p "$CUDA_MPS_PIPE_DIRECTORY" "$CUDA_MPS_LOG_DIRECTORY"
+  echo "MPS pipe dir : $CUDA_MPS_PIPE_DIRECTORY"
+  nvidia-cuda-mps-control -d
+  for i in 1 2 3 4 5
+  do
+    pgrep -f "nvidia-cuda-mps-control" >/dev/null && break
+    sleep 1
+  done
+  pgrep -f "nvidia-cuda-mps-control" >/dev/null \
+    || { echo "ERROR: MPS daemon failed to start -- aborting"; exit 1; }
+  echo "MPS daemon up; OMP_NUM_THREADS=$THREADS per stream ($NPROC streams)"
+else
+  echo "single stream (no MPS); OMP_NUM_THREADS=$THREADS"
+fi
 
 # ---- launch the ensemble stream(s) on the single shared GPU -------------------------------------
 run_slot () {   # tag app gsq Nf mass
@@ -94,8 +101,8 @@ fi
 wait "$PIDA"
 [ -n "${PIDB:-}" ] && wait "$PIDB"
 
-# ---- stop the private MPS daemon ----------------------------------------------------------------
-echo quit | nvidia-cuda-mps-control 2>/dev/null || true
+# ---- stop the private MPS daemon (only if we started one) ---------------------------------------
+[ "$NPROC" -ge 2 ] && { echo quit | nvidia-cuda-mps-control 2>/dev/null || true; }
 
 echo "end date : $(date)"
 echo "finished"
