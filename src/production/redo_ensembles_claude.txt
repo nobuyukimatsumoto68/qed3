@@ -109,3 +109,14 @@
   Nf6_gsq2.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p14  4 6  2.0 0.0  400    0  not-launched
   Nf6_gsq4.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p14  4 6  4.0 0.0  400    0  not-launched
   Nf6_gsq6.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p15  4 6  6.0 0.0  400    0  not-launched
+
+# ----- RSYNC (FNAL -> local): pull the L1/L2/L4 gauge configs for local analysis -------------------
+# FNAL host : lq.fnal.gov   (login node; needs your FNAL ssh/kerberos auth. ~/affine -> /lustre2/affine symlink)
+# FNAL base : /lustre2/affine/redo/     (each ensemble = <col-1 basename>/ under here; covers L1/L2 + L4)
+# Pull ONLY ckpoint_lat.* -- the gauge configs (ckpoint_lat.<k>, ~0.64 MB each). Do NOT pull ckpoint_rng.*
+# (thinned KRNG, ~0.5 GB each, not needed for measurement), logs, binaries (*.o), or slurm_*.out.
+# From the LOCAL machine (repeatable; rsync sends only new k's) -- all redo L1/L2/L4 ensembles at once:
+#   rsync -avz --prune-empty-dirs \
+#     --include='Nf*_*nt128L*_hb*/' --include='ckpoint_lat.*' --exclude='*' \
+#     nmatsum@lq.fnal.gov:/lustre2/affine/redo/ <LOCAL_DEST>/
+# (or per-ensemble: rsync -avz nmatsum@lq.fnal.gov:'/lustre2/affine/redo/<basename>/ckpoint_lat.*' <LOCAL_DEST>/<basename>/)
