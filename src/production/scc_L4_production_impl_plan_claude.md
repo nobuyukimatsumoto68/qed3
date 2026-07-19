@@ -155,3 +155,27 @@ nvcc -arch=sm_70 -O3 -std=c++20 -lcublas -lcusolver -lcusparse -lgomp -Xcompiler
   + refreshed snapshot + an RSYNC block (host scc1.bu.edu, base `.../src/production/`, pull only
   `ckpoint_lat.*`) so a local agent can pull configs. (Shared file w/ the separate AFFINE L1/L2 campaign.)
 - **SCOPE clarified (NM):** L4 Nf=2 = SCC (this plan). L4 Nf=4,6 = handled at FNAL, NOT here.
+- **Chains EXTENDED (NOBUILD=1):** re-ran the wrapper; anchoring `-hold_jid`'d new links onto live tails
+  (6738719/23/27/31) -> ~6-7 links/chain, 26 jobs, verified single-writer (no collision). `H_RT_FIRST` bumped
+  6h->12h (all links 12h now). Committed `git fa0eea7 "from SCC"` (run_wrapper + this plan).
+- **FNAL sync (bidirectional git, branch develop):** FNAL added `-DL4_MDSTEP` to `includes/hasenbusch_ladder_claude.h`
+  (default 4 -> Nf2 `{4,4,4}` UNAFFECTED; Nf4/6 uses 5), L4 Nf4/6 blackboard rows (p14/p15, "not-launched"),
+  and an "RSYNC (FNAL->local)" block (lq.fnal.gov:/lustre2/affine/redo/). My `tau=1.0` survived the merge.
+  `tuning/includes` copy DIVERGED (still tau=0.8, no L4_MDSTEP) -- harmless for SCC (builds against production/includes).
+- **NM now moving to LOCAL + observation (measurement).** Configs pulled via the blackboard's two rsync blocks
+  (SCC: `scc1.bu.edu:.../src/production/Nf2_*L4_hb*/ckpoint_lat.*`; FNAL: `lq.fnal.gov:/lustre2/affine/redo/`).
+  SCC jobs keep filling autonomously via the `-hold_jid` chains.
+
+## UPDATE 2026-07-18 -- massive done; switched to 1 stream/GPU (MPS OFF)
+- **Massive (4 ens) COMPLETE** at k=59 (target 60; driver `for k<kmax` gives 59). Chains drained normally.
+  Wrapper `WHICH` default -> `massless` (massive lines effectively commented out; `WHICH=both` re-includes).
+- **`CUDA error` root cause = MPS on shared nodes.** Frequent `what(): CUDA error` at the first cudaMalloc on
+  `ece`/`l40s` nodes: `-l gpus=1` -> GPU in EXCLUSIVE_PROCESS mode; the per-job `nvidia-cuda-mps-control -d` +
+  client attach is unreliable there, so a stream's first context/malloc fails. Chains self-recovered via
+  `-hold_jid` but burned many links. Exact code unrecoverable (CUDA_CHECK printf buffered, lost on `terminate()`).
+- **FIX: 1 stream/GPU, no MPS.** Wrapper `NPACK=1` (default now) -> one ensemble per GPU, no pairing; batch
+  `run_L4_scc_claude.sh` starts MPS only when `NPROC>=2` (solo runs the binary directly, prints "single stream
+  (no MPS)"). `NPACK=2` restores MPS pairing. Massless resubmitted as 3 solo chains, `-hold_jid`-anchored onto
+  the still-running old 2-stream links (6738719/6738722) -> clean cutover, verified single-writer.
+- **Massless progress:** gsq2 k=64 / gsq4 k=65 / gsq6 k=62 of 400 (~16%); acc 83-90%. Needs repeated re-batches
+  (`NOBUILD=1 bash run_wrapper_L4_scc_claude.sh`, anchors) to reach 400.

@@ -36,7 +36,9 @@ source /projectnb/qfe/nmatsum/qed3/env.sh          # unified env: cuda/12.8, gcc
 # Each set is (Nf list) x (gsq list) x (mass list), with its own KMAX target (trajectories/ensemble).
 # KMAX is COMPILE-TIME and is baked into the binary name, so the two sets get distinct binaries even
 # at the same Nf (massless Nf2->k400 vs massive Nf2->k60). Auto-resumes; extend by rebuilding larger.
-WHICH=${WHICH:-both}                 # massless | massive | both
+# massive set is DONE (2026-07-18: all 4 at k=59 / target 60) -- default to massless-only so a re-batch does
+# NOT resubmit it. Set WHICH=massive or WHICH=both to include the (finished) massive ensembles again.
+WHICH=${WHICH:-massless}              # massless | massive | both
 
 # FOCUS: Nf=2 only (per NM 2026-07-16 -- Nf4/6 dropped; ~2-3x cheaper force, priority physics).
 ML_NF=${ML_NF:-"2"}                  # MASSLESS: params_L1L2_claude.md
@@ -57,7 +59,10 @@ KRNG=${KRNG:-4}                      # keep every KRNG-th rng checkpoint (rng ck
 # are round-robined across them). gpu_c is the SGE minimum-compute-capability request per arch.
 ARCH_LIST=${ARCH_LIST:-"sm_70 sm_80"}      # build these (V100=sm_70, A100=sm_80)
 SUBMIT_ARCHS=${SUBMIT_ARCHS:-"$ARCH_LIST"} # submit to these node pools (round-robin)
-PE_OMP=${PE_OMP:-16}                       # CPU slots per job (split across the 2 MPS streams)
+PE_OMP=${PE_OMP:-16}                       # CPU slots per job
+# streams packed per GPU: 1 = one ensemble/GPU, NO MPS (per NM 2026-07-18: the per-job MPS daemon caused
+# frequent cudaMalloc/init "CUDA error" on shared ece/l40s nodes). Set NPACK=2 to re-enable MPS pairing.
+NPACK=${NPACK:-1}
 
 # ---- job chaining (each pair is a CHAIN of dependent jobs; each resumes the previous checkpoint) --
 # One SGE job runs until its wall budget, checkpoints (k_ckpoint=1, lossless), exits; the next job in the
@@ -254,12 +259,18 @@ do
   do
     mapfile -t r < <(printf "%s" "${SB[$arch]:-}" | sed '/^$/d')
     [ "${#r[@]}" -eq 0 ] && continue
-    echo "--- $sname / $arch : ${#r[@]} ensembles -> $(( (${#r[@]}+1)/2 )) chains x $N_CHAIN links ---"
+    echo "--- $sname / $arch : ${#r[@]} ensembles -> $(( (${#r[@]}+NPACK-1)/NPACK )) chains x $N_CHAIN links (NPACK=$NPACK/GPU) ---"
     i=0
     while [ "$i" -lt "${#r[@]}" ]
     do
-      submit_chain "$arch" "${r[$i]}" "${r[$((i+1))]:-}"
-      i=$(( i + 2 ))
+      if [ "$NPACK" -ge 2 ]
+      then
+        submit_chain "$arch" "${r[$i]}" "${r[$((i+1))]:-}"   # 2 streams/GPU (MPS pair)
+        i=$(( i + 2 ))
+      else
+        submit_chain "$arch" "${r[$i]}"                       # 1 stream/GPU (no MPS)
+        i=$(( i + 1 ))
+      fi
     done
   done
 done
