@@ -20,10 +20,11 @@ Blackboard obs counts not yet filled. Session memory: project_redo_obs_flow.md.
 
 - Fermionic stride = 20 (INCLUDING massive condensate, Q5 resolved), glue/therm stride = 1
   (NM 2026-07-17).
-- Thermalization cut kmin: NOT fixed a priori; determined per ensemble from the new gluonic
-  observable's MC-time series, then recorded in the blackboard and used as `--kmin` for all
-  fermionic obs. Glue corr measurement can start at k=1 (cut applied at analysis time) since
-  stride 1 re-measures everything anyway.
+- Thermalization cut kmin: **SET k >= 20 (all massless, 2026-07-18).** From the flow monitor
+  E_s(t0) at r/t0=1 vs trajectory (`therm_cut_first20_claude.png`): rise is k=1-11, plateau by
+  k~12; k=20 = first config on the stride-20 jj grid, so the cut is free. Applied at ANALYSIS
+  time (measurements stay uncut). Massive: TBD (short streams; dense-condensate monitor
+  `run_cond_therm_claude.sh` written, unlaunched).
 - Scalar DISC on massless: expected to VANISH at m=0 (dropped in the gsq8 campaign,
   scalar_ylm_corr plan 2026-07-15) -> default = conn scalar only; disc = jj vector+axial only.
   Confirm (Q2).

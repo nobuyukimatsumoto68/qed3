@@ -1,0 +1,68 @@
+# plot_glue_gevp_claude.py
+# GEVP effective-mass spectra for the massless redo ensembles (per-m strategy, kmin=20).
+# Two figures (F l=1 ground, F^2 0++), each panelled by L (1,2), curves = ensembles (Nf x gsq).
+# Effmass points from gevp_<chan>_<tag>_claude.dat (col1=t, col2=ground mean, col3=err);
+# fit band (M +/- sig) from fit_perm on the jk dump over the channel's t-window.
+import subprocess
+import numpy as np
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
+NFS = [2, 4, 6]
+GS = {1: [0.5, 1.0, 1.5], 2: [1.0, 2.0, 3.0]}
+nfcol = {2: "tab:red", 4: "tab:blue", 6: "tab:green"}
+gls = {0.5: "-", 1.0: "--", 1.5: ":", 2.0: "--", 3.0: ":"}
+# channel: (dat prefix, fit t-window, fit states, plotted-state col pair, title)
+# .dat cols: 0=t, 1/2=ground(=last state), 3/4=s0, 5/6=s1, ...  F^2 0++ = s0 (cols 3,4);
+# F l=1 ground = the m-averaged plateau, use the ground col (1,2).
+CH = {
+    "F":  ("gevp_F",  (0.2, 0.8), "0,1,2", (1, 2), r"$F$ ($\ell=1$) ground"),
+    "f2": ("gevp_f2", (0.2, 0.6), "0",     (3, 4), r"$F^2$ ($0^{++}$)"),
+}
+
+
+def fit(jk, tlo, thi, states):
+    out = subprocess.run(["python3", "fit_perm_claude.py", jk, str(tlo), str(thi), states],
+                         capture_output=True, text=True).stdout
+    for line in out.splitlines():
+        if "variance-avg" in line or (states == "0" and "state 0:" in line):
+            # parse M(err)
+            seg = line.split("M =")[-1] if "==>" in line else line.split("M=")[-1]
+            m = seg.strip().split()[0]
+            val = float(m.split("(")[0])
+            err = float(m.split("(")[1].rstrip(")"))
+            return val, err
+    return None, None
+
+
+for chan, (pref, (tlo, thi), states, (cm, ce), title) in CH.items():
+    fig, axs = plt.subplots(1, 2, figsize=(12, 5), sharey=True)
+    for ax, L in zip(axs, [1, 2]):
+        for nf in NFS:
+            for g in GS[L]:
+                tag = "Nf%d_g%.6f_L%d" % (nf, g, L)
+                dat = "%s_%s_claude.dat" % (pref, tag)
+                jk = "%s_%s_jk_claude.dat" % (pref, tag)
+                try:
+                    d = np.loadtxt(dat)
+                except OSError:
+                    continue
+                t, m, e = d[:, 0], d[:, cm], d[:, ce]
+                sel = t <= 1.6
+                lab = "Nf%d g%.1f" % (nf, g)
+                ax.errorbar(t[sel], m[sel], e[sel], marker="o", ms=3, lw=0.8,
+                            color=nfcol[nf], ls=gls[g], capsize=2, label=lab)
+                M, sig = fit(jk, tlo, thi, states)
+                if M is not None:
+                    ax.hlines(M, tlo, thi, color=nfcol[nf], lw=1.5, alpha=0.7)
+        ax.axvspan(tlo, thi, color="gray", alpha=0.08)
+        ax.set_title("L%d  %s" % (L, title))
+        ax.set_xlabel("t")
+        ax.grid(alpha=0.3)
+        ax.legend(fontsize=6, ncol=2)
+        ax.set_ylim(0, 5)
+    axs[0].set_ylabel(r"$a_t\, m_{\rm eff}$")
+    fig.tight_layout()
+    fig.savefig("glue_gevp_%s_spectra_claude.png" % chan, dpi=150)
+    print("# wrote glue_gevp_%s_spectra_claude.png" % chan)

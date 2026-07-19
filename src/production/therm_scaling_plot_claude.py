@@ -32,10 +32,15 @@ colors = ["tab:red", "tab:orange", "tab:brown",
 lstyles = ["-", "--", ":"] * 3
 
 
+KMIN = 20   # thermalization cut (2026-07-18): keep trajectories k >= 20
+
+
 def load(ens):
     f = h5py.File("data_%s/therm_flow_claude.h5" % ens, "r")
     tl = f["tlist"][()]
     E = f["E"][()].T
+    kl = f["klist"][()]
+    E = E[kl >= KMIN, :]
     n = min(NLATE, E.shape[0])
     return tl, E[-n:, :]
 
@@ -62,21 +67,6 @@ def sum_x(x, L, b):
     return res
 
 
-# per-L free calibration on the weakest coupling, over x in [0.2, 2]
-calib = {}
-for idx in [0, 3, 6]:
-    ens, lab, L, gsq = ENS[idx]
-    tl, A = load(ens)
-    El = A.mean(axis=0)
-    x = (gsq / L) / tl[1:]
-    y = El[1:]
-    m = (x >= 0.2) & (x <= 2.0)
-    def model_log(xx, lnA, b, L=L):
-        return lnA + np.log(sum_x(xx, L, b))
-    popt, _ = curve_fit(model_log, x[m], np.log(y[m]), p0=[np.log(1e-4), 0.8])
-    calib[L] = (np.exp(popt[0]), popt[1])
-    print("# L%d free calib on %s: A=%.4e b=%.4f" % (L, lab, calib[L][0], calib[L][1]))
-
 fig, ax = plt.subplots(figsize=(7, 5))
 for i, (ens, lab, L, gsq) in enumerate(ENS):
     tl, A = load(ens)
@@ -87,17 +77,14 @@ for i, (ens, lab, L, gsq) in enumerate(ENS):
     ax.plot(x, y, linestyle=lstyles[i], color=colors[i], label=lab, lw=1.5)
     ax.fill_between(x, y - dy, y + dy, color=colors[i], alpha=0.2, linewidth=0)
 
-xg = np.geomspace(0.05, 5.0, 300)
-greys = {1: "0.55", 2: "0.35", 4: "0.0"}
-for L in [1, 2, 4]:
-    A_, b_ = calib[L]
-    ax.plot(xg, A_ * sum_x(xg, L, b_) * np.sqrt(L), color=greys[L], linestyle="-.", lw=1.0,
-            label="free (LO) L%d ($j_{max}$=%d)" % (L, 6 * L))
+xg = np.geomspace(0.05, 5.0, 2)
+ax.plot(xg, 4.5e-2 * xg**1.5, color="gray", linestyle="--", lw=1.0, label=r"slope $3/2$")
 
 ax.set_xlabel(r"$r/t$")
 ax.set_ylabel(r"$E_s(t)\,\sqrt{L}$")
 ax.set_xscale("log")
 ax.set_yscale("log")
+ax.set_ylim(4e-4, 0.8)
 ax.legend(fontsize=7, ncol=2)
 ax.grid(alpha=0.3, which="both")
 fig.tight_layout()
@@ -124,10 +111,8 @@ for i, (ens, lab) in enumerate(NFENS):
     dy = err[1:] * np.sqrt(L2)
     ax2.plot(x, y, linestyle=nfstyles[i], color=nfcolors[i], label=lab, lw=1.5)
     ax2.fill_between(x, y - dy, y + dy, color=nfcolors[i], alpha=0.2, linewidth=0)
-A2, b2 = calib[L2]
-xg2 = np.geomspace(0.05, 5.0, 300)
-ax2.plot(xg2, A2 * sum_x(xg2, L2, b2) * np.sqrt(L2), color="gray", linestyle="-.", lw=1.2,
-         label="free (LO), calib. L2 g1")
+xg2 = np.geomspace(0.05, 5.0, 2)
+ax2.plot(xg2, 4.5e-2 * xg2**1.5, color="gray", linestyle="--", lw=1.0, label=r"slope $3/2$")
 ax2.set_xlabel(r"$r/t$")
 ax2.set_ylabel(r"$E_s(t)\,\sqrt{L}$")
 ax2.set_xscale("log")
