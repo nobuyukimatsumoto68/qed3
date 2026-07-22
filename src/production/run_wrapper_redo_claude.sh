@@ -39,15 +39,14 @@ mvbin() { echo "$BINDIR/hmc_fermilab_redo_massive_L$1_claude.o"; }         # $1=
 # output dir3) -> two procs writing one checkpoint dir -> corruption. Indices here MUST match the originally
 # submitted hmc_redo_p<idx> job names. 26 streams / 13 slots.
 declare -A CA CB
-# massless L1 gsq{0.5,1.0,1.5} x Nf{2,4,6} + L2 Nf2 gsq1.0 -- slots 0-4 CLOSED 2026-07-16 (both streams each
-# at target: L1 1999/2000, L2 Nf2 gsq1.0 1199/1200). Commented out (NOT deleted) so re-apply skips them and
-# the p5-p8 indices stay put:
-# CA[0]="ml 1 2 0.5 0.0";  CB[0]="ml 1 2 1.0 0.0"
-# CA[1]="ml 1 2 1.5 0.0";  CB[1]="ml 1 4 0.5 0.0"
-# CA[2]="ml 1 4 1.0 0.0";  CB[2]="ml 1 4 1.5 0.0"
-# CA[3]="ml 1 6 0.5 0.0";  CB[3]="ml 1 6 1.0 0.0"
-# CA[4]="ml 1 6 1.5 0.0";  CB[4]="ml 2 2 1.0 0.0"
-# massless L2 (remaining) -- slots 5-8 still RUNNING (L2 Nf2 g2/g3, Nf4 g1/2/3, Nf6 g1/2/3); the ONLY active slots
+# massless L1 gsq{0.5,1.0,1.5} x Nf{2,4,6} -- REOPENED 2026-07-20 for the L1/L2 stats bump 2000->4000
+# (KMAX 4000, KRNG 20). All 9 L1 were done@1999; they resume from disk and run on to 3999.
+CA[0]="ml 1 2 0.5 0.0";  CB[0]="ml 1 2 1.0 0.0"
+CA[1]="ml 1 2 1.5 0.0";  CB[1]="ml 1 4 0.5 0.0"
+CA[2]="ml 1 4 1.0 0.0";  CB[2]="ml 1 4 1.5 0.0"
+CA[3]="ml 1 6 0.5 0.0";  CB[3]="ml 1 6 1.0 0.0"
+CA[4]="ml 1 6 1.5 0.0";  CB[4]="ml 2 2 1.0 0.0"
+# massless L2 gsq{1.0,2.0,3.0} x Nf{2,4,6} -- slots 5-8, also bumped to KMAX 4000 (2026-07-20; were 2000)
 CA[5]="ml 2 2 2.0 0.0";  CB[5]="ml 2 2 3.0 0.0"
 CA[6]="ml 2 4 1.0 0.0";  CB[6]="ml 2 4 2.0 0.0"
 CA[7]="ml 2 4 3.0 0.0";  CB[7]="ml 2 6 1.0 0.0"
@@ -64,9 +63,11 @@ CA[8]="ml 2 6 2.0 0.0";  CB[8]="ml 2 6 3.0 0.0"
 # -DMIXED_FORCE, KMAX 400, KRNG 4 (launch_redo_claude.sh BUILDS). L4 is EXPENSIVE but runs at the same 8h
 # default wall as L2 now; a plain re-apply covers them. To run ONLY L4: SLOTS="13 14 15" bash run_wrapper_redo_claude.sh <N>
 # (pairs kept ~like-cost: Nf4 g2+g4 / Nf6 g2+g4 / the two g6 together).
-CA[13]="ml 4 4 2.0 0.0"; CB[13]="ml 4 4 4.0 0.0"
-CA[14]="ml 4 6 2.0 0.0"; CB[14]="ml 4 6 4.0 0.0"
-CA[15]="ml 4 4 6.0 0.0"; CB[15]="ml 4 6 6.0 0.0"
+# L4 DROPPED 2026-07-20 (NM: pursue L1/L2 stats to 4000 instead of L4). Commented out so re-apply skips
+# them; the L4 data (k~30/400) stays on disk. Uncomment + restore the BUILDS lines to revive.
+# CA[13]="ml 4 4 2.0 0.0"; CB[13]="ml 4 4 4.0 0.0"
+# CA[14]="ml 4 6 2.0 0.0"; CB[14]="ml 4 6 4.0 0.0"
+# CA[15]="ml 4 4 6.0 0.0"; CB[15]="ml 4 6 6.0 0.0"
 
 binof() {  # $1=TYPE $2=L $3=Nf  -> binary path
   if [ "$1" = ml ]; then mlbin "$2" "$3"; else mvbin "$2"; fi

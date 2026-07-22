@@ -3,7 +3,7 @@
 # _claude HANDOFF -- REDO production (corrected-gsq, bug-fixed) on AFFINE only.
 # Builds the L=1,2 binaries from the _fermilab block driver (absolute geometry, mimics src/both_3d),
 # then LAUNCHES 2-client MPS jobs (two streams per A100) via run_wrapper_redo_claude.sh. First try: 4h.
-#   MASSLESS Nf{2,4,6}:  L1 gsq{0.5,1.0,1.5} (KMAX 2000)   L2 gsq{1.0,2.0,3.0} (KMAX 1200)
+#   MASSLESS Nf{2,4,6}:  L1 gsq{0.5,1.0,1.5} + L2 gsq{1.0,2.0,3.0}: KMAX 4000, KRNG 20 (bumped 2000->4000 & rng-thinned 5->20, 2026-07-20). L4 DROPPED.
 #   MASSIVE  Nf2      :  L1 gsq1.5 m{0.1..0.4} (KMAX 120)  L2 gsq3.0 m{0.1..0.4} (KMAX 80)
 #   -> 26 streams -> 13 pair-jobs, all in /lustre2/affine/redo.
 # Params: /project/qed3/qed3/src/production/params_L1L2_claude.md , params_massive_claude.md .
@@ -40,16 +40,26 @@ ENVSH=/home/nmatsum/env.sh; [ -f "$ENVSH" ] || ENVSH=/lustre2/affine/env.sh
 #   L4 Nf4/6 (2026-07-17, NM): massless only, KMAX 400, KRNG 4, -DMIXED_FORCE + steps {5,5,5} via
 #     -DL4_MDSTEP=5 (Nf2 L4 would stay 4, not built here). Runs on affine (SLURM/MPS), NOT SCC.
 BUILDS=(
-  "hmc_fermilab_redo_massless_L1_Nf2_claude.o 1 2 2000 5"
-  "hmc_fermilab_redo_massless_L1_Nf4_claude.o 1 4 2000 5"
-  "hmc_fermilab_redo_massless_L1_Nf6_claude.o 1 6 2000 5"
-  "hmc_fermilab_redo_massless_L2_Nf2_claude.o 2 2 1200 5"
-  "hmc_fermilab_redo_massless_L2_Nf4_claude.o 2 4 1200 5"
-  "hmc_fermilab_redo_massless_L2_Nf6_claude.o 2 6 1200 5"
-  "hmc_fermilab_redo_massless_L4_Nf4_claude.o 4 4  400 4 -DMIXED_FORCE -DL4_MDSTEP=5"
-  "hmc_fermilab_redo_massless_L4_Nf6_claude.o 4 6  400 4 -DMIXED_FORCE -DL4_MDSTEP=5"
+  "hmc_fermilab_redo_massless_L1_Nf2_claude.o 1 2 4000 20"
+  "hmc_fermilab_redo_massless_L1_Nf4_claude.o 1 4 4000 20"
+  "hmc_fermilab_redo_massless_L1_Nf6_claude.o 1 6 4000 20"
+  "hmc_fermilab_redo_massless_L2_Nf2_claude.o 2 2 4000 20"
+  "hmc_fermilab_redo_massless_L2_Nf4_claude.o 2 4 4000 20"
+  "hmc_fermilab_redo_massless_L2_Nf6_claude.o 2 6 4000 20"
+  # L4 DROPPED 2026-07-20 (NM: pursue L1/L2 stats to 4000 instead). Binaries stay on disk; not rebuilt/run.
+  # KMAX 2000->4000 + KRNG 5->20 (coarser rng thinning to bound disk over the longer run).
+  # "hmc_fermilab_redo_massless_L4_Nf4_claude.o 4 4  400 4 -DMIXED_FORCE -DL4_MDSTEP=5"
+  # "hmc_fermilab_redo_massless_L4_Nf6_claude.o 4 6  400 4 -DMIXED_FORCE -DL4_MDSTEP=5"
   "hmc_fermilab_redo_massive_L1_claude.o      1 2  120 1"
   "hmc_fermilab_redo_massive_L2_claude.o      2 2   80 1"
+  # HALF-a_t ensembles (2026-07-22): at=0.1 (fixed Nt=128), middle gsq/L, massless. KMAX 2000, KRNG 20.
+  # Same HMC params + same frozen Zolotarev window as at=0.2 (NM: at shift won't matter much; smoke validates).
+  "hmc_fermilab_redo_massless_L1_Nf2_at0p1_claude.o 1 2 2000 20 -DAT_VAL=0.1"
+  "hmc_fermilab_redo_massless_L1_Nf4_at0p1_claude.o 1 4 2000 20 -DAT_VAL=0.1"
+  "hmc_fermilab_redo_massless_L1_Nf6_at0p1_claude.o 1 6 2000 20 -DAT_VAL=0.1"
+  "hmc_fermilab_redo_massless_L2_Nf2_at0p1_claude.o 2 2 2000 20 -DAT_VAL=0.1"
+  "hmc_fermilab_redo_massless_L2_Nf4_at0p1_claude.o 2 4 2000 20 -DAT_VAL=0.1"
+  "hmc_fermilab_redo_massless_L2_Nf6_at0p1_claude.o 2 6 2000 20 -DAT_VAL=0.1"
 )
 
 {
