@@ -20,14 +20,16 @@ OUTDIR=/lustre2/affine/redo
 BINDIR=$OUTDIR
 RUNSCRIPT=$SCRIPTDIR/run_redo_mps2_claude.sh
 ACCT=${ACCT:-affine.lq2_gpu}
-QOS=${QOS:-opp}             # affine allows only {opp,test} (default opp); smoke overrides to 'test'
+QOS=${QOS:-normal}          # affine.lq2_gpu allows {normal,opp,test}. Default normal 2026-07-23 (allocation-backed,
+                            # NOT preempted). Small alloc (~2 kcore-hr) -> override QOS=opp for bulk when it drains.
 WALL=${WALL:-08:00:00}      # opp MaxWall = 8h (used for L1/L2 and L4 alike, per NM 2026-07-17); smoke -> 00:30:00
 WSEC=${WSEC:-28800}         # MUST match WALL (passed to the binary as WALL_SEC); smoke -> 1800
 NCHAIN=${1:-1}
 
 # binary resolvers (built by launch_redo_claude.sh)
-mlbin() { echo "$BINDIR/hmc_fermilab_redo_massless_L$1_Nf$2_claude.o"; }   # $1=L $2=Nf (massless, mRe=0)
-mvbin() { echo "$BINDIR/hmc_fermilab_redo_massive_L$1_claude.o"; }         # $1=L      (massive Nf2)
+mlbin() { echo "$BINDIR/hmc_fermilab_redo_massless_L$1_Nf$2_claude.o"; }        # $1=L $2=Nf (massless at=0.2)
+mlbin01() { echo "$BINDIR/hmc_fermilab_redo_massless_L$1_Nf$2_at0p1_claude.o"; } # $1=L $2=Nf (massless, HALF a_t=0.1)
+mvbin() { echo "$BINDIR/hmc_fermilab_redo_massive_L$1_claude.o"; }              # $1=L      (massive Nf2)
 
 # ---- stream list: "TYPE L Nf gsq mRe" -- 18 massless (Nf{2,4,6}) then 8 massive (Nf2) -------------
 # Ordered so consecutive pairing keeps massless-with-massless and massive-with-massive (never mixed:
@@ -41,7 +43,8 @@ mvbin() { echo "$BINDIR/hmc_fermilab_redo_massive_L$1_claude.o"; }         # $1=
 declare -A CA CB
 # massless L1 gsq{0.5,1.0,1.5} x Nf{2,4,6} -- REOPENED 2026-07-20 for the L1/L2 stats bump 2000->4000
 # (KMAX 4000, KRNG 20). All 9 L1 were done@1999; they resume from disk and run on to 3999.
-CA[0]="ml 1 2 0.5 0.0";  CB[0]="ml 1 2 1.0 0.0"
+# slot 0 CLOSED 2026-07-23: both streams done@3999 (L1 Nf2 g0.5 + g1.0, KMAX 4000). Commented out.
+# CA[0]="ml 1 2 0.5 0.0";  CB[0]="ml 1 2 1.0 0.0"
 CA[1]="ml 1 2 1.5 0.0";  CB[1]="ml 1 4 0.5 0.0"
 CA[2]="ml 1 4 1.0 0.0";  CB[2]="ml 1 4 1.5 0.0"
 CA[3]="ml 1 6 0.5 0.0";  CB[3]="ml 1 6 1.0 0.0"
@@ -68,9 +71,15 @@ CA[8]="ml 2 6 2.0 0.0";  CB[8]="ml 2 6 3.0 0.0"
 # CA[13]="ml 4 4 2.0 0.0"; CB[13]="ml 4 4 4.0 0.0"
 # CA[14]="ml 4 6 2.0 0.0"; CB[14]="ml 4 6 4.0 0.0"
 # CA[15]="ml 4 4 6.0 0.0"; CB[15]="ml 4 6 6.0 0.0"
+# HALF-a_t (at=0.1, fixed Nt=128) ensembles -- ADDED 2026-07-22 (NM). type "ml01" -> _at0p1 binaries.
+# Massless, middle gsq per L (L1 g1.0, L2 g2.0), all Nf2/4/6. KMAX 2000, KRNG 20, SAME HMC params + frozen
+# window as at=0.2. MPS pairs kept ~like-cost (cheap L1s together / mid / heavy L2s together). dir3 = at0.100000.
+CA[16]="ml01 1 2 1.0 0.0"; CB[16]="ml01 1 4 1.0 0.0"   # at0.1: L1 Nf2 g1.0 || L1 Nf4 g1.0
+CA[17]="ml01 1 6 1.0 0.0"; CB[17]="ml01 2 2 2.0 0.0"   # at0.1: L1 Nf6 g1.0 || L2 Nf2 g2.0
+CA[18]="ml01 2 4 2.0 0.0"; CB[18]="ml01 2 6 2.0 0.0"   # at0.1: L2 Nf4 g2.0 || L2 Nf6 g2.0
 
-binof() {  # $1=TYPE $2=L $3=Nf  -> binary path
-  if [ "$1" = ml ]; then mlbin "$2" "$3"; else mvbin "$2"; fi
+binof() {  # $1=TYPE $2=L $3=Nf  -> binary path.  ml=massless at0.2 ; ml01=massless HALF a_t=0.1 ; mv=massive
+  if [ "$1" = ml ]; then mlbin "$2" "$3"; elif [ "$1" = ml01 ]; then mlbin01 "$2" "$3"; else mvbin "$2"; fi
 }
 
 declare -A PREV=()

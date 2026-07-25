@@ -75,6 +75,17 @@ procedure (he set the $a_t=0.2$ ones) — see Open Q3.**
 1. **Include $L=4$** (middle $g^2=4.0$) → 9 ensembles, or only $L=1,2$ → 6? ($L=4$ was just dropped
    from the 4000-stat production; this is a separate probe, so it may or may not want $L=4$.)
 
+## STATUS 2026-07-22: C1-C3 DONE (code written, UNVALIDATED -- pending NM smoke)
+- Scope FIXED: **L1+L2 only, 6 ensembles** (L1 g1.0 + L2 g2.0, Nf2/4/6), **KMAX 2000**, KRNG 20.
+- C1: driver `at` -> `-DAT_VAL` macro (default 0.2; :182-185).
+- C2: 6 BUILDS entries `_at0p1 ... -DAT_VAL=0.1` in BOTH launchers.
+- C3: wrapper `mlbin01()` + `binof` ml01 branch + slots **16/17/18** (type `ml01`), like-cost MPS pairs:
+  16 = L1 Nf2+Nf4 g1.0 ; 17 = L1 Nf6 g1.0 + L2 Nf2 g2.0 ; 18 = L2 Nf4+Nf6 g2.0. Active slots = 0-8 + 16-18.
+- BUILD via `/lustre2/affine/redo/tmp_build_half_at_claude.sh` (builds the 6 at=0.1 ONLY + `touch`es the
+  running at=0.2 prod bins so the SRC edit doesn't trigger their rebuild -> ETXTBSY). NOT the launcher.
+- PENDING (NM): run the build script; smoke slot 16 (qos=test 30min) via the wrapper; validate
+  delta/admiss/alat + NO "eval outside window"; then `SLOTS="16 17 18" ... 2` on opp.
+
 ## Revised chunks (window retune dropped)
 - **C1** — `-DAT_VAL` macro in driver (default 0.2 preserves all existing builds). Files: driver.
 - **C2** — build the 6/9 half-$a_t$ binaries with `-DAT_VAL=0.1` (distinct `_at0p1` name). Files: both
