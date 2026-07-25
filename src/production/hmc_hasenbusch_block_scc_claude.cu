@@ -196,7 +196,11 @@ int main(int argc, char* argv[]){
 
   const double r = 1.0;
   const double M5 = -1.0;
-  const double at = 0.2;
+#ifndef AT_VAL
+#define AT_VAL 0.2
+#endif
+  const double at = AT_VAL;   // temporal lattice spacing (a_t). -DAT_VAL=0.1 -> half-a_t ensembles (2026-07-22).
+                              // dir3 embeds to_string(at) -> at0.100000 dirs, distinct from at0.200000 (no clash).
   assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
   WilsonDirac DW(base, 0.0, 1.0, M5, at, nu0);
   std::cout << "# DW set" << std::endl;

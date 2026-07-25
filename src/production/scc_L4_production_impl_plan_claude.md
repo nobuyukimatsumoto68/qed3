@@ -179,3 +179,19 @@ nvcc -arch=sm_70 -O3 -std=c++20 -lcublas -lcusolver -lcusparse -lgomp -Xcompiler
   the still-running old 2-stream links (6738719/6738722) -> clean cutover, verified single-writer.
 - **Massless progress:** gsq2 k=64 / gsq4 k=65 / gsq6 k=62 of 400 (~16%); acc 83-90%. Needs repeated re-batches
   (`NOBUILD=1 bash run_wrapper_L4_scc_claude.sh`, anchors) to reach 400.
+- **1-stream/no-MPS VERIFIED (2026-07-18):** the 3 solo massless chains run clean -- logs show "single stream
+  (no MPS)", ZERO CUDA errors post-switch, ~1630-1810 s/traj (no throughput loss), progress k~69-72/400.
+- **MASS ERROR fixed (2026-07-18):** L4 massive was at `{0.1,0.5,1.0,1.5}` (from the STALE params_massive doc)
+  != L1/L2's `{0.1,0.2,0.3,0.4}` -> WRONG physical masses. Cause: followed the doc, didn't cross-check the live
+  L1/L2 blackboard rows. Fixed in wrapper (`MV_MASS="0.2 0.3 0.4"` -- only the new ones, m=0.1 already correct/done),
+  `params_massive_claude.md`, and the blackboard. Old `{0.5,1.0,1.5}` dirs = wrong-mass leftovers (NM keep/discard TBD).
+  NEXT: `WHICH=massive NOBUILD=1 bash run_wrapper_L4_scc_claude.sh` generates 0.2/0.3/0.4.
+  LESSON: verify physics params (masses, couplings) against the ACTUAL runs, not a params doc that may be stale.
+
+## UPDATE 2026-07-18 (late) -- massive complete, massless ~42%
+- **Massive corrected set {0.1,0.2,0.3,0.4} ALL DONE** at k=59 (acc 85-92%). hb tags (resc=0.259021*mRe):
+  0.1->hb0.425902-1.025902, 0.2->hb0.451804-1.051804, 0.3->hb0.477706-1.077706, 0.4->hb0.503608-1.103608.
+  The wrong-mass {0.5,1.0,1.5} dirs (k=59) remain on disk as leftovers -- NM keep/discard TBD (Claude won't rm).
+- **Massless ~42% of 400:** gsq2 k=167, gsq4 k=166, gsq6 k=174 (acc 87-89%), 3 solo chains, 1 stream/GPU,
+  no MPS, ZERO CUDA errors. Extend to 400 via repeated `NOBUILD=1 bash run_wrapper_L4_scc_claude.sh` (anchors).
+- Blackboard `redo_ensembles_claude.txt` L4 (SCC) rows updated to match (massive DONE + exact hb tags; massless ncfg).

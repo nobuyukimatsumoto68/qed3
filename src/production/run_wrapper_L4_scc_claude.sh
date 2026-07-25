@@ -36,8 +36,9 @@ source /projectnb/qfe/nmatsum/qed3/env.sh          # unified env: cuda/12.8, gcc
 # Each set is (Nf list) x (gsq list) x (mass list), with its own KMAX target (trajectories/ensemble).
 # KMAX is COMPILE-TIME and is baked into the binary name, so the two sets get distinct binaries even
 # at the same Nf (massless Nf2->k400 vs massive Nf2->k60). Auto-resumes; extend by rebuilding larger.
-# massive set is DONE (2026-07-18: all 4 at k=59 / target 60) -- default to massless-only so a re-batch does
-# NOT resubmit it. Set WHICH=massive or WHICH=both to include the (finished) massive ensembles again.
+# default massless-only. NOTE: the massive run at the OLD masses {0.1,0.5,1.0,1.5} finished (k=59) but was at
+# the WRONG masses (see MV_MASS below) -- the CORRECT-mass massive {0.1,0.2,0.3,0.4} still needs generating:
+# run it explicitly with WHICH=massive. (massless L4 is unaffected -- mRe=0.)
 WHICH=${WHICH:-massless}              # massless | massive | both
 
 # FOCUS: Nf=2 only (per NM 2026-07-16 -- Nf4/6 dropped; ~2-3x cheaper force, priority physics).
@@ -46,9 +47,14 @@ ML_GSQ=${ML_GSQ:-"2.0 4.0 6.0"}
 ML_MASS=${ML_MASS:-"0.0"}
 ML_KMAX=${ML_KMAX:-400}
 
-MV_NF=${MV_NF:-"2"}                  # MASSIVE: params_massive_claude.md (largest gsq per L = 6.0)
+MV_NF=${MV_NF:-"2"}                  # MASSIVE: largest gsq per L = 6.0
 MV_GSQ=${MV_GSQ:-"6.0"}
-MV_MASS=${MV_MASS:-"0.1 0.5 1.0 1.5"}
+# physical masses mRe -- MUST match the L1/L2 (affine) runs for a same-physical-mass L=1,2,4 comparison.
+# Full matched set = {0.1, 0.2, 0.3, 0.4}. CORRECTED 2026-07-18: the earlier {0.1,0.5,1.0,1.5} (from the stale
+# params_massive_claude.md) did NOT match L1/L2 -- the mRe0.5/1.0/1.5 dirs are WRONG-mass leftovers.
+# m=0.1 already exists at the correct mass (done, k=59), so this list is only the NEW ones to ADD.
+# To regenerate the full set instead, set MV_MASS="0.1 0.2 0.3 0.4".  Run:  WHICH=massive NOBUILD=1 bash ...
+MV_MASS=${MV_MASS:-"0.2 0.3 0.4"}
 MV_KMAX=${MV_KMAX:-60}
 
 NU0=${NU0:-1.0}
@@ -63,6 +69,14 @@ PE_OMP=${PE_OMP:-16}                       # CPU slots per job
 # streams packed per GPU: 1 = one ensemble/GPU, NO MPS (per NM 2026-07-18: the per-job MPS daemon caused
 # frequent cudaMalloc/init "CUDA error" on shared ece/l40s nodes). Set NPACK=2 to re-enable MPS pairing.
 NPACK=${NPACK:-1}
+
+# GPU MODEL PIN (per NM 2026-07-22): this HMC is FP64-heavy (cuDoubleComplex). -l gpu_c is only a MINIMUM
+# compute capability, so it lets jobs land on weak-FP64 L40S/A40 (1:64 FP64, e.g. L40S ~1.4 TFLOP/s) -- much
+# slower than a strong-FP64 GPU. gpu_type is a requestable resource (==); pin each arch to its native,
+# full-rate-FP64 model. Empty value => no pin (old behavior).
+GPUT_SM70=${GPUT_SM70:-V100}         # sm_70 native, FP64 1:2 ~7 TFLOP/s (26 nodes)
+GPUT_SM80=${GPUT_SM80:-A100}         # sm_80 native, FP64 1:2 ~9.7 TFLOP/s (9 nodes)
+GPUT_SM90=${GPUT_SM90:-H200}         # sm_90 native, strongest FP64 ~34 TFLOP/s (8 nodes; Hopper, cuda>=12)
 
 # ---- job chaining (each pair is a CHAIN of dependent jobs; each resumes the previous checkpoint) --
 # One SGE job runs until its wall budget, checkpoints (k_ckpoint=1, lossless), exits; the next job in the
@@ -96,12 +110,31 @@ gpuc_of () {
     sm_75) echo "7.5" ;;
     sm_80) echo "8.0" ;;
     sm_86) echo "8.6" ;;
+    sm_90) echo "9.0" ;;
     *) echo "7.0" ;;
+  esac
+}
+
+# strong-FP64 GPU model (gpu_type) per arch -- pins the job to native, full-rate-FP64 hardware and OFF the
+# weak-FP64 L40S/A40. Empty for arches without a mapping -> no gpu_type pin.
+gput_of () {
+  case "$1" in
+    sm_70) echo "$GPUT_SM70" ;;
+    sm_80) echo "$GPUT_SM80" ;;
+    sm_90) echo "$GPUT_SM90" ;;
+    *) echo "" ;;
   esac
 }
 
 # binary name per (Nf, KMAX, arch): Nf and KMAX are compile-time, arch is the SASS target
 binname () { echo "hmc_L4_scc_Nf${1}_k${2}_${3}.out"; }
+
+# L4 MD steps per Nf: Nf2 -> {4,4,4} (default 4); Nf4/6 -> {5,5,5} (-DL4_MDSTEP=5). Matches the FNAL Nf4/6
+# builds (needed for the FNAL->SCC L4 config resume: same integrator tuning). Nf is 1:1 with the step count,
+# and Nf is already in the binary name, so no extra name tag is needed. resume_fnal_L4_scc_impl_plan_claude.md.
+mdstep_of () {
+  if [ "$1" -eq 2 ]; then echo 4; else echo 5; fi
+}
 
 # ---- selected ensemble SET(S): each = "name|nf_list|gsq_list|mass_list|kmax" ---------------------
 # Enumeration + pairing happen PER SET (below), so a massless (k400) stream is never MPS-packed with a
@@ -130,16 +163,17 @@ done
 
 # ---- 1. build one binary per (Nf, KMAX) per arch ------------------------------------------------
 build_all () {
-  local arch nf kmax out key
+  local arch nf kmax out key mds
   for arch in $ARCH_LIST
   do
     for key in "${!NKSEEN[@]}"
     do
       read -r nf kmax <<< "$key"
       out=$(binname "$nf" "$kmax" "$arch")
-      echo "===== build $out (LREF=4 NF=$nf KMAX=$kmax arch=$arch -DMIXED_FORCE) [$(date +%F_%H:%M:%S)] ====="
+      mds=$(mdstep_of "$nf")
+      echo "===== build $out (LREF=4 NF=$nf KMAX=$kmax L4_MDSTEP=$mds arch=$arch -DMIXED_FORCE) [$(date +%F_%H:%M:%S)] ====="
       $NVCC -arch="$arch" $NVCCBASE $INCLUDES \
-        -DLREF=4 -DNF="$nf" -DKMAX="$kmax" -DKRNG="$KRNG" -DMIXED_FORCE \
+        -DLREF=4 -DNF="$nf" -DKMAX="$kmax" -DKRNG="$KRNG" -DL4_MDSTEP="$mds" -DMIXED_FORCE \
         "$SRC" $LDFLAGS -o "$out" 2>&1 | tee "build_L4_scc_Nf${nf}_k${kmax}_${arch}_claude.log"
       test -f "$out" || { echo "BUILD FAILED: $out"; exit 1; }
     done
@@ -181,8 +215,9 @@ existing_tail () {   # tokA [tokB]
 # fixed down the chain, so every link resumes the SAME ensembles' checkpoints.
 submit_chain () {   # arch  A="Nf|KMAX|gsq|mass"  [B=...]
   local arch=$1 A=$2 B=${3:-}
-  local gpuc
+  local gpuc gput
   gpuc=$(gpuc_of "$arch")
+  gput=$(gput_of "$arch")
   local nfA kmaxA gsqA massA appA
   IFS='|' read -r nfA kmaxA gsqA massA <<< "$A"
   appA=$(binname "$nfA" "$kmaxA" "$arch")
@@ -211,6 +246,7 @@ submit_chain () {   # arch  A="Nf|KMAX|gsq|mass"  [B=...]
     [ "$maxsec" -lt 60 ] && maxsec=60
     local qsub_cmd=( qsub -terse -N "${name}_c${c}"
                      -l "gpus=1" -l "gpu_c=${gpuc}" -l "h_rt=${hrt}" -pe omp "${PE_OMP}" )
+    [ -n "$gput" ] && qsub_cmd+=( -l "gpu_type=${gput}" )
     [ -n "$prev" ] && qsub_cmd+=( -hold_jid "$prev" )
     qsub_cmd+=( -v "${vars},MAX_SEC=${maxsec}" run_L4_scc_claude.sh )
     echo "+ ${qsub_cmd[*]}"

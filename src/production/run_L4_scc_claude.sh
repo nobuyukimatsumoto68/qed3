@@ -50,6 +50,7 @@ APPB=${APPB:-}
 GSQB=${GSQB:-}
 NFB=${NFB:-}
 MASSB=${MASSB:-0.0}
+AT_TAG=${AT_TAG:-}       # optional campaign tag (e.g. at0.1) inserted into the run-log name; empty for a_t=0.2
 
 # ---- split the assigned CPU slots across the (up to two) MPS streams -----------------------------
 NPROC=1
@@ -84,7 +85,8 @@ fi
 # ---- launch the ensemble stream(s) on the single shared GPU -------------------------------------
 run_slot () {   # tag app gsq Nf mass
   local tag=$1 app=$2 gsq=$3 Nf=$4 mass=$5
-  local log="run_L4_scc_${tag}_Nf${Nf}_gsq${gsq}_m${mass}_$(date +%y%m%d%H%M).log"
+  # local log="run_L4_scc_${tag}_Nf${Nf}_gsq${gsq}_m${mass}_$(date +%y%m%d%H%M).log"
+  local log="run_L4_scc_${tag}_Nf${Nf}_gsq${gsq}_m${mass}${AT_TAG:+_$AT_TAG}_$(date +%y%m%d%H%M).log"
   echo "### [$tag] ./$app $gsq $Nf $NU0 $mass 0.0 $MAX_SEC   -> $log   [$(date +%F_%H:%M:%S)] ###"
   ./"$app" "$gsq" "$Nf" "$NU0" "$mass" 0.0 "$MAX_SEC" 2>&1 | tee "$log"
   echo "### [$tag] done (status ${PIPESTATUS[0]}) [$(date +%F_%H:%M:%S)] ###"

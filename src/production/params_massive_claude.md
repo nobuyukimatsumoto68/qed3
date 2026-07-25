@@ -12,7 +12,11 @@ four physical masses. **HMC parameters are REUSED from the massless tuning AS-IS
   $(1+m_L)\eta$-through-resolvent version. Integrator `MinimumNorm2ML`, gauge substeps MG = 20 (L1/L2), 100 (L4).
 
 ## Scope
-- Physical masses **m = 0.1, 0.5, 1.0, 1.5** (R=1 units), real (mass_im = 0).
+- Physical masses **m = 0.1, 0.2, 0.3, 0.4** (R=1 units), real (mass_im = 0).
+  **[CORRECTED 2026-07-18]** was `{0.1,0.5,1.0,1.5}` here, but the masses MUST equal the L1/L2 (affine) runs'
+  `{0.1,0.2,0.3,0.4}` for a same-physical-mass L=1,2,4 comparison (mRe = physical mass in R=1 units; the per-L
+  `mass_coeff = m*Abar/abar_s` rescaling is just the discretization). The SCC L4 first ran the wrong
+  `{0.5,1.0,1.5}` (those dirs are wrong-mass leftovers); m=0.1 was already correct.
 - Couplings = LARGEST corrected gsq per L: **L1 gsq1.5, L2 gsq3.0, L4 gsq6.0**.
 - 3 L x 4 m = **12 ensembles**. Target trajectories: **L1 -> 120, L2 -> 80, L4 -> 60**.
 
@@ -32,7 +36,8 @@ UNCHANGED (mass-independent; act on $M_{DW}=D_W-M$): L1 (0.1,13) n25/n11, L2 (0.
 $\bar A/\bar a_s$ = 0.946 (L1) / 0.506 (L2) / 0.259 (L4). With the shift, frame 1 is ALWAYS heavier than
 frame 0 by exactly $c_1$ (the massless gap), so the split is valid for ANY mass -- the old
 "$\text{mass\_coeff}<c_1$" constraint is MOOT (it would have broken at L1 m=1.0/1.5). A heavier mass gap only
-better-conditions the frames. **Force-validated at L1** (all masses {0.1,0.5,1.0,1.5}, grad-vs-FD ~1e-8,
+better-conditions the frames. **Force-validated at L1** (masses {0.1,0.5,1.0,1.5}, which BRACKET the corrected
+production set {0.1,0.2,0.3,0.4}; the force is mass-generic, grad-vs-FD ~1e-8,
 reference + block grad): `test_hasenbusch_force_massive_l1_claude.cu`.
 
 ## Driver + invocation
