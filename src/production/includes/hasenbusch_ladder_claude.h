@@ -27,11 +27,13 @@
 //   n_action/n_force UNCHANGED (previously frozen). Tune ladder/steps/tau below from dH/acceptance.
 //   L1: {0.0, 1.0}      steps {2,2}       tau 1.2
 //   L2: {0.0, 1.0}      steps {3,3}       tau 1.2
+//   L3: {0.0, 0.4, 1.0} steps Nf2 {3,3,3} / Nf4,6 {4,4,4}  tau 1.0   (_claude 2026-07-27; Nf4/6 bumped 3->4 NM 2026-07-30)
 //   L4: {0.0, 0.4, 1.0} steps {4,4,4}     tau 1.2
 inline std::vector<std::complex<double>> hasenbusch_ladder( const int L ){
   using C = std::complex<double>;
   if( L==1 ) return { C(0.0,0.0), C(1.0,0.0) };
   if( L==2 ) return { C(0.0,0.0), C(1.0,0.0) };
+  if( L==3 ) return { C(0.0,0.0), C(0.4,0.0), C(1.0,0.0) };   // L3 3-stage (NM-approved 2026-07-27)
   if( L==4 ) return { C(0.0,0.0), C(0.4,0.0), C(1.0,0.0) };
   assert( false && "hasenbusch_ladder: no ladder defined for this L" );
   return {};
@@ -48,6 +50,14 @@ inline std::vector<std::complex<double>> hasenbusch_ladder( const int L ){
 inline std::vector<int> hasenbusch_steps( const int L ){
   if( L==1 ) return { 2, 2 };
   if( L==2 ) return { 3, 3 };
+  // L3 3-stage: Nf2 keeps {3,3,3}; Nf4/6 finer {4,4,4} (NM 2026-07-30 -- heavier fermion force wants finer
+  // integration, mirrors the L4 Nf4/6 -DL4_MDSTEP=5 rationale). NF is a compile-time macro (-DNF per build).
+  // if( L==3 ) return { 3, 3, 3 };   // L3 3-stage (NM 2026-07-27; confirm/retune via test_hasenbusch_tune)
+#if defined(NF) && (NF >= 4)
+  if( L==3 ) return { 4, 4, 4 };   // L3 Nf4/6
+#else
+  if( L==3 ) return { 3, 3, 3 };   // L3 Nf2
+#endif
   if( L==4 ) return { L4_MDSTEP, L4_MDSTEP, L4_MDSTEP };
   assert( false && "hasenbusch_steps: no steps defined for this L" );
   return {};
@@ -59,6 +69,7 @@ inline std::vector<int> hasenbusch_steps( const int L ){
 inline double hasenbusch_tau( const int L ){
   if( L==1 ) return 1.0;
   if( L==2 ) return 1.0;
+  if( L==3 ) return 1.0;   // L3
   // return 0.8;   // L4 (SHIP 2026-07-16, paired with gauge MG100; superseded by tau=1.0 below per NM)
   return 1.0;   // L4
 }
@@ -68,6 +79,7 @@ inline double hasenbusch_tau( const int L ){
 inline int hasenbusch_mg( const int L ){
   if( L==1 ) return 20;
   if( L==2 ) return 20;
+  if( L==3 ) return 100;   // L3 (start L4-like; gauge force grows with L -- lower to 50/20 if delta cheap)
   return 100;   // L4
 }
 
@@ -79,6 +91,7 @@ inline int hasenbusch_mg( const int L ){
 inline int hasenbusch_nforce( const int L ){
   if( L==1 ) return 11;
   if( L==2 ) return 11;
+  if( L==3 ) return 11;   // L3
   if( L==4 ) return 11;
   assert( false && "hasenbusch_nforce: no n_force defined for this L" );
   return 21;
@@ -89,6 +102,7 @@ inline int hasenbusch_nforce( const int L ){
 inline int hasenbusch_naction( const int L ){
   if( L==1 ) return 25;
   if( L==2 ) return 25;
+  if( L==3 ) return 31;   // L3 provisional (conservative = L4); drop toward ~28 once the window is frozen
   if( L==4 ) return 31;
   assert( false && "hasenbusch_naction: no n_action defined for this L" );
   return 31;

@@ -28,10 +28,12 @@ BIN1=${BIN1:?set via --export}
 GSQ1=${GSQ1:?set via --export}
 NF1=${NF1:?set via --export}
 MRE1=${MRE1:?set via --export}
-BIN2=${BIN2:?set via --export}
-GSQ2=${GSQ2:?set via --export}
-NF2=${NF2:?set via --export}
-MRE2=${MRE2:?set via --export}
+# BIN2 OPTIONAL (_claude 2026-07-28): empty BIN2 -> SOLO slot (1 client, e.g. odd L3 stream). Existing 2-client
+# slots pass BIN2 -> unchanged. Client 2's args are only used when BIN2 is set.
+BIN2=${BIN2:-}
+GSQ2=${GSQ2:-}
+NF2=${NF2:-}
+MRE2=${MRE2:-}
 OUTDIR=${OUTDIR:?set via --export}
 NU0=1.0
 
@@ -44,7 +46,7 @@ hostname; date
 source /home/nmatsum/env.sh 2>/dev/null || source /lustre2/affine/env.sh
 command -v nvidia-cuda-mps-control >/dev/null || { echo "ERROR: nvidia-cuda-mps-control not found"; exit 1; }
 [ -x "$BIN1" ] || { echo "ERROR: binary missing/not executable: $BIN1"; exit 1; }
-[ -x "$BIN2" ] || { echo "ERROR: binary missing/not executable: $BIN2"; exit 1; }
+[ -z "$BIN2" ] || [ -x "$BIN2" ] || { echo "ERROR: binary missing/not executable: $BIN2"; exit 1; }
 cd "$OUTDIR" || { echo "ERROR: no OUTDIR $OUTDIR"; exit 1; }
 nvidia-smi | head -15
 
@@ -73,9 +75,13 @@ run_client() {  # $1=bin $2=gsq $3=Nf $4=mass_re
     > "$out" 2>&1
 }
 
-echo "=== REDO 2-MPS pack: [1] $(basename "$BIN1") gsq${GSQ1} Nf${NF1} mRe${MRE1} || [2] $(basename "$BIN2") gsq${GSQ2} Nf${NF2} mRe${MRE2}  MAX_SEC=${MAX_SEC}s OUTDIR=${OUTDIR} ==="
+if [ -n "$BIN2" ]; then
+  echo "=== REDO 2-MPS pack: [1] $(basename "$BIN1") gsq${GSQ1} Nf${NF1} mRe${MRE1} || [2] $(basename "$BIN2") gsq${GSQ2} Nf${NF2} mRe${MRE2}  MAX_SEC=${MAX_SEC}s OUTDIR=${OUTDIR} ==="
+else
+  echo "=== REDO SOLO pack: [1] $(basename "$BIN1") gsq${GSQ1} Nf${NF1} mRe${MRE1}  (no client 2)  MAX_SEC=${MAX_SEC}s OUTDIR=${OUTDIR} ==="
+fi
 run_client "$BIN1" "$GSQ1" "$NF1" "$MRE1" &
-run_client "$BIN2" "$GSQ2" "$NF2" "$MRE2" &
+[ -n "$BIN2" ] && run_client "$BIN2" "$GSQ2" "$NF2" "$MRE2" &
 wait
 date
 echo "=== redo 2-MPS job done ==="
