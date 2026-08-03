@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# rsync_scc_claude.sh -- pull the L4 Nf2 REDO gauge configs (ckpoint_lat.* ONLY) from BU SCC to local.
-# Source : nmatsum@scc1.bu.edu:/projectnb/qfe/nmatsum/qed3/src/production/   (7 L4 Nf2 streams)
+# rsync_scc_claude.sh -- pull the L4 REDO gauge configs (ckpoint_lat.* ONLY) from BU SCC to local.
+# Source : nmatsum@scc1.bu.edu:/projectnb/qfe/nmatsum/qed3/src/production/
+#          SCC now hosts ALL L4: massless Nf{2,4,6} (Nf4/6 handed off from FNAL 2026-07-22) + Nf2 massive.
 # Dest   : /mnt/barracuda22/qed3/qed3/src/production/<ensemble-basename>/
 # Run    : bash rsync_scc_claude.sh           (repeatable; rsync sends only new k's -- re-run as streams fill)
 # Log    : rsync_scc_claude.log (appended, run delimited by date headers)
@@ -26,7 +27,7 @@ LOG="$DEST"/rsync_scc_claude.log
 } | tee -a "$LOG"
 
 rsync -avz --prune-empty-dirs \
-  --include='Nf2_*L4_hb*/' --include='ckpoint_lat.*' --exclude='*' \
+  --include='Nf*_*L4_hb*/' --include='ckpoint_lat.*' --exclude='*' \
   "$SRC" "$DEST"/ 2>&1 | tee -a "$LOG"
 rc=${PIPESTATUS[0]}
 if [ "$rc" -ne 0 ]
@@ -37,7 +38,7 @@ fi
 
 {
   echo "### local ckpoint_lat counts per L4 ensemble (for the loc_ncfg blackboard column) ###"
-  for d in "$DEST"/Nf2_*L4_hb*
+  for d in "$DEST"/Nf*_*L4_hb*
   do
     [ -d "$d" ] || continue
     n=$(ls "$d"/ckpoint_lat.* 2>/dev/null | wc -l)
