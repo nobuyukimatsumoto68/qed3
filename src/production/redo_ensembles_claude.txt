@@ -10,6 +10,20 @@
 #   - at=0.2 MASSLESS stats BUMPED: -DKMAX L1 2000->4000 and L2 1200->4000 (KRNG 5->20).
 #   - HALF-a_t (at=0.1) ensembles ADDED: slots p16/p17/p18, -DKMAX 2000, -DAT_VAL=0.1 binaries (_at0p1).
 #   - Default QOS flipped opp->normal (affine.lq2_gpu now allocation-backed; small ~2 kcore-hr -> QOS=opp for bulk when it drains).
+#
+# UPDATE 2026-07-25 (MEASUREMENT -- extended-statistics conn+disc, LAUNCHED):
+#   - `run_conn_disc_ext_claude.sh` LAUNCHED (combined single script, SEQUENTIAL: PHASE1 conn MPS 2/GPU
+#     4 workers -> PHASE2 disc no-MPS 1/GPU 2 workers; MPS daemon quit between phases if script started it).
+#   - STRIDE=10 (2x the old stride-20 grid), nhits1, disc tb2, kmin=first (k>=20 therm cut in analysis).
+#   - COVERS ALL 33 massless ens: at0.2 L1/L2/L4 (9+9+9) + at0.1 half-at L1/L2 (3+3). RESUMABLE (per-config
+#     h5 complete-gate; old stride-20 configs are a subset of the stride-10 grid -> skipped, no rework).
+#   - ETA ~200h (~8.3d) both GPUs: conn ~110h + disc ~88h (at0.2). Per-config wall (measured): conn
+#     136/318/1603 s (L1/L2/L4, MPS 2/GPU), disc 66/124/467 s (1/GPU).
+#   - Concurrency note: MPS is PER-GPU so conn(MPS)+disc(noMPS) cannot share a GPU; true concurrency
+#     (1 GPU/channel) makes conn the bottleneck (~220h) SLOWER than 2-phase-on-both-GPUs -> chose sequential.
+#   - Standalone `run_conn_ext_claude.sh` / `run_disc_ext_claude.sh` (stride 10) also available.
+#   - Earlier (kmax=2000, stride 20) conn/disc + condensate + glue-shapes sweeps already DONE; this run
+#     extends the fermion tower to the full stride-10 grid. loc_ncfg/obs columns below still 0 -> fill after.
 
 # # status column:  DONE = target reached = CLOSED (its wrapper slot is commented out in run_wrapper_redo_claude.sh;
 # #                 re-apply no longer submits it).   running = still filling.
@@ -139,7 +153,7 @@
 # ckpoint_rng.* (thinned, ~0.5 GB each, not needed for measurement), logs, or binaries.
 # From the LOCAL machine (repeatable; rsync sends only new k's):
 #   rsync -avz --prune-empty-dirs \
-#     --include='Nf2_*L4_hb*/' --include='ckpoint_lat.*' --exclude='*' \
+#     --include='Nf*_*L4_hb*/' --include='ckpoint_lat.*' --exclude='*' \
 #     nmatsum@scc1.bu.edu:/projectnb/qfe/nmatsum/qed3/src/production/ <LOCAL_DEST>/
 # (or per-ensemble: rsync -avz nmatsum@scc1.bu.edu:'<SCC base><basename>/ckpoint_lat.*' <LOCAL_DEST>/<basename>/)
 

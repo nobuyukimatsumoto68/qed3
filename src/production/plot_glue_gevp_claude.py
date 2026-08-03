@@ -10,15 +10,16 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 NFS = [2, 4, 6]
-GS = {1: [0.5, 1.0, 1.5], 2: [1.0, 2.0, 3.0]}
+GS = {1: [0.5, 1.0, 1.5], 2: [1.0, 2.0, 3.0], 4: [2.0, 4.0, 6.0]}
 nfcol = {2: "tab:red", 4: "tab:blue", 6: "tab:green"}
-gls = {0.5: "-", 1.0: "--", 1.5: ":", 2.0: "--", 3.0: ":"}
+gls = {0.5: "-", 1.0: "--", 1.5: ":", 2.0: "--", 3.0: ":", 4.0: "--", 6.0: ":"}
 # channel: (dat prefix, fit t-window, fit states, plotted-state col pair, title)
 # .dat cols: 0=t, 1/2=ground(=last state), 3/4=s0, 5/6=s1, ...  F^2 0++ = s0 (cols 3,4);
 # F l=1 ground = the m-averaged plateau, use the ground col (1,2).
 CH = {
-    "F":  ("gevp_F",  (0.2, 0.8), "0,1,2", (1, 2), r"$F$ ($\ell=1$) ground"),
-    "f2": ("gevp_f2", (0.2, 0.6), "0",     (3, 4), r"$F^2$ ($0^{++}$)"),
+    "F":   ("gevp_F",   (0.2, 1.0), "0,1,2",     (1, 2), r"$F$ ($\ell=1$) ground"),
+    "Fl2": ("gevp_Fl2", (0.2, 0.6), "0,1,2,3,4", (1, 2), r"$F$ ($\ell=2$, H) ground"),
+    "f2":  ("gevp_f2",  (0.2, 0.4), "0",         (3, 4), r"$F^2$ ($0^{++}$)"),
 }
 
 
@@ -36,9 +37,25 @@ def fit(jk, tlo, thi, states):
     return None, None
 
 
+def plotted_curve(d, chan, cm, ce):
+    # per-m channels (F, Fl2): the plotted curve must MATCH what is fitted -- the m-AVERAGE over the
+    # per-m ground states, NOT the single-state "ground" column (col 1/2 = lightest m-block only).
+    # inverse-variance weighted mean per t over the per-m state cols (means=3,5,..; errs=4,6,..).
+    if chan in ("F", "Fl2"):
+        nst = (d.shape[1] - 3) // 2
+        ms = d[:, [3 + 2 * s for s in range(nst)]]
+        es = d[:, [4 + 2 * s for s in range(nst)]]
+        w = 1.0 / np.maximum(es, 1e-12) ** 2
+        m = (ms * w).sum(1) / w.sum(1)
+        e = np.sqrt(1.0 / w.sum(1))
+        return m, e
+    return d[:, cm], d[:, ce]
+
+
 for chan, (pref, (tlo, thi), states, (cm, ce), title) in CH.items():
-    fig, axs = plt.subplots(1, 2, figsize=(12, 5), sharey=True)
-    for ax, L in zip(axs, [1, 2]):
+    Ls = [1, 2, 4] if chan == "F" else [1, 2]   # L4 = F l=1 only (l=2/F^2 too noisy at L4)
+    fig, axs = plt.subplots(1, len(Ls), figsize=(6 * len(Ls), 5), sharey=True)
+    for ax, L in zip(np.atleast_1d(axs), Ls):
         for nf in NFS:
             for g in GS[L]:
                 tag = "Nf%d_g%.6f_L%d" % (nf, g, L)
@@ -48,7 +65,8 @@ for chan, (pref, (tlo, thi), states, (cm, ce), title) in CH.items():
                     d = np.loadtxt(dat)
                 except OSError:
                     continue
-                t, m, e = d[:, 0], d[:, cm], d[:, ce]
+                t = d[:, 0]
+                m, e = plotted_curve(d, chan, cm, ce)
                 sel = t <= 1.6
                 lab = "Nf%d g%.1f" % (nf, g)
                 ax.errorbar(t[sel], m[sel], e[sel], marker="o", ms=3, lw=0.8,
@@ -62,7 +80,7 @@ for chan, (pref, (tlo, thi), states, (cm, ce), title) in CH.items():
         ax.grid(alpha=0.3)
         ax.legend(fontsize=6, ncol=2)
         ax.set_ylim(0, 5)
-    axs[0].set_ylabel(r"$a_t\, m_{\rm eff}$")
+    np.atleast_1d(axs)[0].set_ylabel(r"$a_t\, m_{\rm eff}$")
     fig.tight_layout()
     fig.savefig("glue_gevp_%s_spectra_claude.png" % chan, dpi=150)
     print("# wrote glue_gevp_%s_spectra_claude.png" % chan)
