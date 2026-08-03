@@ -28,7 +28,10 @@ SRCDIR=/projectnb/qfe/nmatsum/qed3/src/production
 cd "$SRCDIR" || { echo "ERROR: cannot cd $SRCDIR"; exit 1; }
 
 # ---- knobs (EDIT) -------------------------------------------------------------------------------
-KMAX=${KMAX:-400}                    # trajectory target (all ensembles)
+KMAX=${KMAX:-600}                    # trajectory target (all ensembles); bumped 400->600 (2026-08-01). KMAX is
+                                     # COMPILE-TIME (-DKMAX, in the binary name k<KMAX>); the output dir does NOT
+                                     # encode it, so a k600 binary RESUMES the same dir -> Nf2 (at 399) restarts
+                                     # -> 599, Nf4/6 continue past 400. New k600 binaries are built (k400 ones stay).
 PE_OMP=${PE_OMP:-4}                  # CPU slots/job (4 -> packs public GPU slots=16/user; jobs are GPU-bound)
 N_CHAIN=${N_CHAIN:-4}                # dependent links appended PER ensemble PER run (each ~12h)
 DRYRUN=${DRYRUN:-0}
