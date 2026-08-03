@@ -285,7 +285,8 @@ int main(int argc, char* argv[]){
     base_mult[l] = base_steps[l] / base_steps[l-1];
   }
   const int MDsteps = base_steps[0];
-  const int MG = 20;   // gauge substeps per heaviest-frame step (matches the tuning)
+  const int MG = hasenbusch_mg( Comp::N_REFINE );   // gauge substeps/heaviest-frame step. L1/L2=20 (unchanged),
+                                                    // L3/L4=100 (gauge force grows with L). _claude 2026-07-27 (was hardcoded 20).
   std::cout << "# tmax = " << tmax << "  steps {";
   for(size_t i=0;i<base_steps.size();i++) std::cout << base_steps[i] << (i+1<base_steps.size()?",":"");
   std::cout << "}  MDsteps = " << MDsteps << "  gauge x" << MG << std::endl;
@@ -308,6 +309,11 @@ int main(int argc, char* argv[]){
 
   double r_mean = 0.0;
   double last_traj_sec = 0.0;
+#ifndef NO_METROP_UNTIL
+#define NO_METROP_UNTIL 0   // # of BURN-IN trajectories run with NO Metropolis (always-accept, no_reject=true) to
+#endif                      // relax a COLD start off the free field; 0 = always Metropolis (L1/L2/L4 unchanged).
+                            // These configs are BIASED -- DISCARD them from analysis (thermalization cut). _claude 2026-07-27.
+  std::cout << "# NO_METROP_UNTIL = " << NO_METROP_UNTIL << " (k<=this -> no-Metropolis burn-in, discard)" << std::endl;
   for(int k=k_tmp+1; k<kmax; k++){
     if(max_sec > 0.0 && last_traj_sec > 0.0){
       const double elapsed = wall_timer.currentSeconds();
@@ -319,10 +325,11 @@ int main(int argc, char* argv[]){
       }
     }
     Timer timer;
-    hmc.run( rate, dH, is_accept);
+    hmc.run( rate, dH, is_accept, k <= NO_METROP_UNTIL );   // no-Metropolis (always-accept) while k<=NO_METROP_UNTIL
     std::cout << "# dH : " << dH
               << " is_accept : " << is_accept
-              << " rate : " << rate << std::endl;
+              << " rate : " << rate
+              << (k <= NO_METROP_UNTIL ? "  [burn-in:no-Metrop]" : "") << std::endl;
     r_mean += rate;
     last_traj_sec = timer.currentSeconds();
     std::cout << "# HMC : " << last_traj_sec << " sec" << std::endl;

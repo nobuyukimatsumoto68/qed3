@@ -23,6 +23,7 @@
 inline void frozen_window( const int L, double& lmin, double& lmax ){
   if( L==1 ){ lmin = 0.1;   lmax = 13.0; }
   else if( L==2 ){ lmin = 0.06;  lmax = 8.0;  }
+  else if( L==3 ){ lmin = 0.015; lmax = 8.0;  }  // L3 PROVISIONAL (mirror production/includes; freeze from measured extrema)
   else if( L==4 ){ lmin = 0.008; lmax = 5.0;  }
   else{ assert( false && "frozen_window: no frozen (lambda_min,lambda_max) defined for this L" ); }
 }

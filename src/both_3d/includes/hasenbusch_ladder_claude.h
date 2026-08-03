@@ -26,6 +26,7 @@ inline std::vector<std::complex<double>> hasenbusch_ladder( const int L ){
   using C = std::complex<double>;
   if( L==1 ) return { C(0.0,0.0), C(0.5,0.0)  };
   if( L==2 ) return { C(0.0,0.0), C(0.5,0.0)  };
+  if( L==3 ) return { C(0.0,0.0), C(0.4,0.0), C(1.0,0.0) };  // L3 mirror production/includes (tune hand-picks, but keep consistent)
   if( L==4 ) return { C(0.0,0.0), C(0.16,0.0), C(0.32,0.0), C(0.5,0.0) };
   assert( false && "hasenbusch_ladder: no ladder defined for this L" );
   return {};
@@ -35,6 +36,7 @@ inline std::vector<std::complex<double>> hasenbusch_ladder( const int L ){
 inline std::vector<int> hasenbusch_steps( const int L ){
   if( L==1 ) return { 2, 2 };
   if( L==2 ) return { 3, 3 };
+  if( L==3 ) return { 3, 3, 3 };   // L3 mirror production
   if( L==4 ) return { 2, 2, 2, 4 };
   assert( false && "hasenbusch_steps: no steps defined for this L" );
   return {};
@@ -43,6 +45,7 @@ inline std::vector<int> hasenbusch_steps( const int L ){
 // trajectory length tau (= s_tot) PER L (from the s_tot scan). L1/L2 use tau=1.2; L4 keeps tau=1.0 (no
 // bump -- its near-zero-mode stiffness disfavors a longer trajectory).
 inline double hasenbusch_tau( const int L ){
+  if( L==3 ) return 1.0;   // L3 mirror production (NOT the 1.2 L1/L2 default)
   if( L==4 ) return 1.0;
   return 1.2;   // L1, L2
 }
@@ -55,6 +58,7 @@ inline double hasenbusch_tau( const int L ){
 inline int hasenbusch_nforce( const int L ){
   if( L==1 ) return 11;
   if( L==2 ) return 11;
+  if( L==3 ) return 11;   // L3 mirror production
   if( L==4 ) return 11;
   assert( false && "hasenbusch_nforce: no n_force defined for this L" );
   return 21;
@@ -65,6 +69,7 @@ inline int hasenbusch_nforce( const int L ){
 inline int hasenbusch_naction( const int L ){
   if( L==1 ) return 25;
   if( L==2 ) return 25;
+  if( L==3 ) return 31;   // L3 mirror production
   if( L==4 ) return 31;
   assert( false && "hasenbusch_naction: no n_action defined for this L" );
   return 31;

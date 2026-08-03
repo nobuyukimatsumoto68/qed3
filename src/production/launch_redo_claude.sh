@@ -60,6 +60,12 @@ BUILDS=(
   "hmc_fermilab_redo_massless_L2_Nf2_at0p1_claude.o 2 2 2000 20 -DAT_VAL=0.1"
   "hmc_fermilab_redo_massless_L2_Nf4_at0p1_claude.o 2 4 2000 20 -DAT_VAL=0.1"
   "hmc_fermilab_redo_massless_L2_Nf6_at0p1_claude.o 2 6 2000 20 -DAT_VAL=0.1"
+  # L=3 (at=0.2) ensembles (2026-07-28): gsq{1.5,3,4.5} via CLI, Nf{2,4,6}, KMAX 800, KRNG 20. 3-stage
+  # {0,0.4,1.0}/{3,3,3}, MG100, window (0.015,8.0), cold-start burn-in -DNO_METROP_UNTIL=2. Build via
+  # tmp_build_L3_claude.sh (targeted, touches prod bins) to avoid ETXTBSY on running at=0.2/half-a_t bins.
+  "hmc_fermilab_redo_massless_L3_Nf2_claude.o 3 2 800 20 -DNO_METROP_UNTIL=2"
+  "hmc_fermilab_redo_massless_L3_Nf4_claude.o 3 4 800 20 -DNO_METROP_UNTIL=2"
+  "hmc_fermilab_redo_massless_L3_Nf6_claude.o 3 6 800 20 -DNO_METROP_UNTIL=2"
 )
 
 {
