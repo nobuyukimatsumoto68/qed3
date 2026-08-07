@@ -19,9 +19,11 @@ SCRIPTDIR=/project/qed3/qed3/src/production
 OUTDIR=/lustre2/affine/redo
 BINDIR=$OUTDIR
 RUNSCRIPT=$SCRIPTDIR/run_redo_mps2_claude.sh
-ACCT=${ACCT:-affine.lq2_gpu}
-QOS=${QOS:-normal}          # affine.lq2_gpu allows {normal,opp,test}. Default normal 2026-07-23 (allocation-backed,
-                            # NOT preempted). Small alloc (~2 kcore-hr) -> override QOS=opp for bulk when it drains.
+ACCT=${ACCT:-qed3.lq2_gpu}  # DEFAULT flipped affine->qed3 2026-08-03 (NM: affine allocation gone -> all L3 on qed3).
+                            # qed3-account jobs still write to /lustre2/affine/redo (OUTDIR is on affine Lustre; only
+                            # COMPUTE is charged to qed3). Override ACCT=affine.lq2_gpu only if affine ever comes back.
+QOS=${QOS:-normal}          # qed3.lq2_gpu allows {normal,opp,test}. Default normal (allocation-backed, NOT preempted).
+                            # Override QOS=opp for bulk when qed3 lquota avail nears 0.
 WALL=${WALL:-08:00:00}      # opp MaxWall = 8h (used for L1/L2 and L4 alike, per NM 2026-07-17); smoke -> 00:30:00
 WSEC=${WSEC:-28800}         # MUST match WALL (passed to the binary as WALL_SEC); smoke -> 1800
 NCHAIN=${1:-1}
@@ -89,11 +91,15 @@ declare -A CA CB
 # (3-stage {0,0.4,1.0}/{3,3,3}, MG100, frozen window (0.015,8.0), KMAX 800, KRNG 20, -DNO_METROP_UNTIL=2).
 # gsq{1.5,3.0,4.5} x Nf{2,4,6} = 9 streams -> 4 like-cost MPS pairs + 1 SOLO (Nf6 g4.5 = most expensive, gets a
 # dedicated GPU; CB unset -> run_redo_mps2 runs client 1 only). gsq3.0/Nf2 (CB[19]) already thermalizing (k~4).
-CA[19]="ml 3 2 1.5 0.0"; CB[19]="ml 3 2 3.0 0.0"   # L3: Nf2 g1.5 || Nf2 g3.0
-CA[20]="ml 3 2 4.5 0.0"; CB[20]="ml 3 4 1.5 0.0"   # L3: Nf2 g4.5 || Nf4 g1.5
+# slot 19 CLOSED 2026-08-07: both done@799 (Nf2 g1.5 + g3.0, KMAX 800). First L3 ensembles complete. Commented out.
+# CA[19]="ml 3 2 1.5 0.0"; CB[19]="ml 3 2 3.0 0.0"   # L3: Nf2 g1.5 || Nf2 g3.0
+# REPACK 2026-08-07 (all jobs pending -> zero-risk moment): 7 live streams -> 3 pairs + 1 solo. Nf2 g4.5 (704,
+# finishes soonest) SINGLED OUT as the solo (shortest solo-GPU waste); its old partner Nf4 g1.5 re-paired with
+# the old p23 solo Nf6 g4.5. p21/p22 untouched (already balanced pairs). See repack note in the memory snapshot.
+CA[20]="ml 3 2 4.5 0.0"                             # L3: Nf2 g4.5 (SOLO now -- was paired w/ Nf4 g1.5)
 CA[21]="ml 3 4 3.0 0.0"; CB[21]="ml 3 4 4.5 0.0"   # L3: Nf4 g3.0 || Nf4 g4.5
 CA[22]="ml 3 6 1.5 0.0"; CB[22]="ml 3 6 3.0 0.0"   # L3: Nf6 g1.5 || Nf6 g3.0
-CA[23]="ml 3 6 4.5 0.0"                            # L3: Nf6 g4.5 (SOLO -- no CB)
+CA[23]="ml 3 4 1.5 0.0"; CB[23]="ml 3 6 4.5 0.0"   # L3: Nf4 g1.5 || Nf6 g4.5 (REPACKED pair -- was Nf6 g4.5 solo)
 
 binof() {  # $1=TYPE $2=L $3=Nf  -> binary path.  ml=massless at0.2 ; ml01=massless HALF a_t=0.1 ; mv=massive
   if [ "$1" = ml ]; then mlbin "$2" "$3"; elif [ "$1" = ml01 ]; then mlbin01 "$2" "$3"; else mvbin "$2"; fi

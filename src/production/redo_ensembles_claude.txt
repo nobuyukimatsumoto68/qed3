@@ -29,10 +29,16 @@
 # #                 re-apply no longer submits it).   running = still filling.
 # # CLOSED slots (commented out) 2026-07-30: p0-p8 (all 9 L1 + all 9 L2 at=0.2 @3999) , p9-p12 (massive @119/79) ,
 # #   p16/p17/p18 (ALL 6 half-a_t @1999). => at=0.2 + massive + half-a_t are ALL COMPLETE.
-# # ACTIVE slots (2026-07-30 eve): ONLY p19-p23 (L=3 gsq{1.5,3,4.5} x Nf{2,4,6} -> 800; 4 MPS pairs +
-# #   SOLO p23=Nf6 g4.5) = the SOLE remaining generator.
+# # ACTIVE slots (2026-08-07): L=3 ONLY (SOLE generator). p19 DONE@799 (first L3 done) -> CLOSED. REPACKED
+# #   2026-08-07 (7 live streams -> 3 pairs + 1 solo): p20=Nf2 g4.5 SOLO, p23=Nf4 g1.5||Nf6 g4.5 (repacked),
+# #   p21=Nf4 g3||g4.5, p22=Nf6 g1.5||g3. **SPLIT: affine{p20,p23} + qed3{p21,p22}** (both live, END 2026-08-07).
+# #   NOTE: 5 MPS slots = 5 GPUs all running = throughput CEILING; the 2nd alloc only SPLITS COST, not speed.
+# #   Wrapper default ACCT flipped affine->qed3 (:22); affine slots use ACCT=affine.lq2_gpu override; qed3 jobs
+# #   still write here (affine Lustre, compute charged qed3). MIGRATION RULE: to move a slot between accounts,
+# #   cancel the WHOLE old-account chain (running+pending, PER-SLOT single -n) then the pre-submitted new-account
+# #   chain (anchored on the old tail) runs alone -- NEVER cancel only old-pending while old-running (double-writer).
 # #   L3 Nf4/6 nsteps bumped {3,3,3}->{4,4,4} (Nf2 stays 3). Job names now pretty: p<idx>_[a1]L<l>N<n>g<gsq*10>[m..].
-# #   L3 SLOW (~13-16 traj/4h) -> topup chain-4 often; switch QOS=opp when normal (~1.2 affine/1.8 qed3 avail) nears 0.
+# #   L3 SLOW (~13-16 traj/4h) -> topup per-account chain-8; QOS=opp per side when its lquota nears 0.
 # # NOTE: FNAL L4 was tried then DROPPED (2026-07-20); the L4 section at the bottom is the SEPARATE BU-SCC campaign.
 # NOTE (2026-07-16): the L1/L2 rows below are the AFFINE (Fermilab, SLURM) campaign. The L=4 ensembles are
 # generated SEPARATELY on the BU SCC (SGE qsub) with the _scc driver -- see the "L4 (SCC)" section appended
@@ -93,17 +99,19 @@
   Nf6_gsq2.000000at0.100000nu01.000000mRe0.000000mIm0.000000nt128L2_hb1.000000       massless p18   2  6  2.0  0.0    2000   1999 DONE        88.5    1.228      0  -
 # L=3 (at=0.2) massless -- ADDED 2026-07-28. gsq{1.5,3,4.5} x Nf{2,4,6}, KMAX 800, KRNG 20, 3-stage {0,0.4,1.0}/{3,3,3},
 #   MG100, frozen window (0.015,8.0), -DNO_METROP_UNTIL=2 cold-start burn-in. Slots p19-p23 (4 pairs + SOLO p23=Nf6 g4.5).
-# L3 SNAPSHOT 2026-08-03 (all healthy; chains 4-deep but momentarily ALL PENDING on cluster contention
-#   Resources/Priority -- NOT a fault; alloc reset fresh 0/2 for the new period). nsteps: Nf2 {3,3,3}, Nf4/6 {4,4,4}.
-  Nf2_gsq1.500000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L3_hb0.400000-1.000000 massless p19   3  2  1.5  0.0     800    496 running     93.8    0.220      0  -
-  Nf2_gsq3.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L3_hb0.400000-1.000000 massless p19   3  2  3.0  0.0     800    488 running     93.8    0.230      0  -
-  Nf2_gsq4.500000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L3_hb0.400000-1.000000 massless p20   3  2  4.5  0.0     800    403 running    100.0    0.340      0  -
-  Nf4_gsq1.500000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L3_hb0.400000-1.000000 massless p20   3  4  1.5  0.0     800    327 running    100.0    0.350      0  -
-  Nf4_gsq3.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L3_hb0.400000-1.000000 massless p21   3  4  3.0  0.0     800    298 running     92.3    0.780      0  -
-  Nf4_gsq4.500000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L3_hb0.400000-1.000000 massless p21   3  4  4.5  0.0     800    271 running     81.8    0.500      0  -
-  Nf6_gsq1.500000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L3_hb0.400000-1.000000 massless p22   3  6  1.5  0.0     800    293 running    100.0    0.400      0  -
-  Nf6_gsq3.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L3_hb0.400000-1.000000 massless p22   3  6  3.0  0.0     800    263 running     81.8    0.610      0  -
-  Nf6_gsq4.500000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L3_hb0.400000-1.000000 massless p23   3  6  4.5  0.0     800    326 running    100.0    0.570      0  -
+# L3 SNAPSHOT 2026-08-07 (all healthy). p19 (Nf2 g1.5/g3.0) DONE@799 = FIRST L3 ensembles complete -> slot 19 CLOSED.
+#   REPACK (zero-risk, all jobs were pending): Nf2 g4.5 SINGLED OUT as SOLO (p20, finishes soonest); its old
+#   partner Nf4 g1.5 re-paired w/ old-p23 solo Nf6 g4.5 -> new pair slot p23. SPLIT: affine{p20 solo, p23 pair}
+#   + qed3{p21, p22}. p21/p22 pairs untouched. nsteps: Nf2 {3,3,3}, Nf4/6 {4,4,4}.
+  Nf2_gsq1.500000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L3_hb0.400000-1.000000 massless p19   3  2  1.5  0.0     800    799 DONE        93.8    0.220      0  -
+  Nf2_gsq3.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L3_hb0.400000-1.000000 massless p19   3  2  3.0  0.0     800    799 DONE        93.8    0.230      0  -
+  Nf2_gsq4.500000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L3_hb0.400000-1.000000 massless p20   3  2  4.5  0.0     800    704 running    100.0    0.340      0  -
+  Nf4_gsq1.500000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L3_hb0.400000-1.000000 massless p23   3  4  1.5  0.0     800    558 running    100.0    0.350      0  -
+  Nf4_gsq3.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L3_hb0.400000-1.000000 massless p21   3  4  3.0  0.0     800    454 running     92.3    0.780      0  -
+  Nf4_gsq4.500000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L3_hb0.400000-1.000000 massless p21   3  4  4.5  0.0     800    415 running     81.8    0.500      0  -
+  Nf6_gsq1.500000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L3_hb0.400000-1.000000 massless p22   3  6  1.5  0.0     800    455 running    100.0    0.400      0  -
+  Nf6_gsq3.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L3_hb0.400000-1.000000 massless p22   3  6  3.0  0.0     800    407 running     81.8    0.610      0  -
+  Nf6_gsq4.500000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L3_hb0.400000-1.000000 massless p23   3  6  4.5  0.0     800    503 running    100.0    0.570      0  -
   Nf2_gsq1.500000at0.200000nu01.000000mRe0.100000mIm0.000000nt128L1_hb1.000000 massive  p9     1   2   1.5   0.1     120    119 DONE      97.5   0.242      0  -
   Nf2_gsq1.500000at0.200000nu01.000000mRe0.200000mIm0.000000nt128L1_hb1.000000 massive  p9     1   2   1.5   0.2     120    119 DONE      97.5   0.223      0  -
   Nf2_gsq1.500000at0.200000nu01.000000mRe0.300000mIm0.000000nt128L1_hb1.000000 massive  p10    1   2   1.5   0.3     120    119 DONE      98.3   0.183      0  -
