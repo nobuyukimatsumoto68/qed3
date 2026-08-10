@@ -3,7 +3,7 @@
 # massless redo ensembles.  stride 20, nhits 1, disc-tblock=2 (tb2, self-contraction-bias fixed).
 # NO MPS: ONE process per GPU (2 workers, GPU 0 and GPU 1).  Each worker does half of EVERY
 # ensemble (config-range split: worker W starts at first+20*W, effective stride 40; union = full
-# stride-20 grid).  Output -> data_<ens>_vmRe0.../corr_ylm_disc_tb2_nhits1/corr.<k>.h<h>.h5.
+# stride-20 grid).  Output -> data_<ens>_vmRe0.../corr_ylm_disc_tb2/corr.<k>.h<h>.h5.
 # RESUMABLE: per-config h5 "complete"-gated -> re-run after each rsync top-up.  No rm anywhere.
 #
 # Run detached:

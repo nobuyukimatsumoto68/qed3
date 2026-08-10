@@ -53,7 +53,7 @@ axs[0].set_ylabel(r"$\sigma_{PS}$"); axs[1].set_ylabel(r"$-\sigma_{FS}$")
 for ax in axs:
     ax.set_xlabel(r"$m$ (physical, R=1)"); ax.grid(alpha=0.3); ax.legend(fontsize=9); ax.axhline(0,color="gray",lw=0.5)
 axs[0].set_title("Nf2 PS condensate (matched m)"); axs[1].set_title("Nf2 FS condensate (matched m)")
-fig.tight_layout(); fig.savefig("cond_vs_mass_claude.png",dpi=150)
+fig.tight_layout(); fig.savefig("figs/cond_vs_mass_claude.png",dpi=150)
 print("wrote cond_vs_mass_claude.png")
 for L,mre,n,m1,e1,m2,e2 in rows:
     s = "%.4f(%.4f) %.4f(%.4f)"%(m1,e1,-m2,e2) if not np.isnan(m1) else "-- (ncfg=%d)"%n

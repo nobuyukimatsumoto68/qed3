@@ -256,14 +256,20 @@ int main(int argc, char* argv[]){
   std::vector<double> w_site(base.n_sites);
   for(Idx n=0; n<base.n_sites; n++) w_site[n]=base.dual_areas[n];
 
-  // ---- output: data_<ESNID>/corr_ylm_disc_tb<tb>_nhits<H>/corr.<k>.h<h>.h5
+  // ---- output: data_<ESNID>/corr_ylm_disc_tb<tb>/corr.<k>.h<h>.h5
+  // nhits is NOT in the dir name (renamed 2026-08-10): hits are already indexed per file (h<h>) and
+  // gated individually on "complete", and the RNG seed is (esnid, k, h) -- independent of nhits -- so
+  // hit h is reproducible whatever nhits was passed.  Raising nhits therefore ACCUMULATES into the
+  // same dir, computing only the missing hits.
+  // CAVEAT: the dir is no longer homogeneous by construction -- a partially finished run leaves some
+  // configs with more hits than others.  Any analysis that averages over hits MUST require an equal
+  // hit count per config (and drop the stragglers), or configs get unevenly weighted.
   std::string ens_base = ens_dir;
   if(!ens_base.empty() && ens_base.back()=='/') ens_base.pop_back();
   { const auto slash = ens_base.find_last_of('/'); if(slash!=std::string::npos) ens_base = ens_base.substr(slash+1); }
   const std::string esnid = (free_field ? std::string("free") : ens_base)
                           + "_vmRe"+std::to_string(mass_re)+"vmIm"+std::to_string(mass_im);
-  const std::string dir_out = "data_"+esnid+"/corr_ylm_disc_tb"+std::to_string(disc_tblock)
-                            + "_nhits"+std::to_string(nhits)+"/";
+  const std::string dir_out = "data_"+esnid+"/corr_ylm_disc_tb"+std::to_string(disc_tblock)+"/";
   std::filesystem::create_directories(dir_out);
   std::cout << "# dir_out = " << dir_out << std::endl;
 

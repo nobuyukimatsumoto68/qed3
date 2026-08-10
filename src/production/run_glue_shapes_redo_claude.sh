@@ -31,7 +31,7 @@ echo "================ REDO glue shapes sweep START $(date) ================" | 
 
 # ---- build six binaries -----------------------------------------------------
 echo "---- build $(date) ----" | tee -a "$LOG"
-for L in 1 2 4
+for L in 1 2 3 4
 do
   if [ "$L" = "1" ]; then DEF=""; else DEF="-DN_REFINE_CLI=$L"; fi
   "$NVCC" glue2_msm_shapes_claude.cu $DEF $NVCCFLAGS $INCLUDES $LDFLAGS -o glue2_msm_shapes_L${L}_claude.o 2>&1 | tee -a "$LOG"

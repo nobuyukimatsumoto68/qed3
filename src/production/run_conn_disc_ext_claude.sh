@@ -2,13 +2,13 @@
 # run_conn_disc_ext_claude.sh -- EXTENDED-STATISTICS conn + disc jj Y_lm tower on ALL massless redo
 # ensembles (incl. L4 AND the half-at at0.100000 ones), in ONE script, run SEQUENTIALLY:
 #   PHASE 1 = conn (MPS ON, 2 procs/GPU, 4 workers, both GPUs)
-#   PHASE 2 = disc (MPS OFF, 1 proc/GPU, 2 workers, both GPUs)  -- disc genuinely MPS-free
+#   PHASE 2 = disc (MPS UP, 1 proc/GPU, 2 workers, both GPUs)  -- 1 client/GPU = NO packing
 # STRIDE=10 (2x the old stride-20 grid), nhits 1, disc tb=2.  NO thermalization cut at measurement
 # (kmin=first config; k>=20 applied in analysis).
-# WHY SEQUENTIAL, not concurrent: MPS is PER-GPU, so conn(MPS)+disc(no-MPS) cannot share a GPU.
-# True concurrency would force GPU0->conn / GPU1->disc, giving conn only 1 GPU (bottleneck ~220h) --
-# SLOWER than these two phases on both GPUs (~198h).  So we run both phases on both GPUs in turn.
-# Between phases the MPS daemon is quit (only if THIS script started it) so disc is MPS-free.
+# WHY SEQUENTIAL, not concurrent: conn packs 2/GPU under MPS; disc runs 1/GPU (unpacked).  Running
+# both on both GPUs in turn (~198h) beats dedicating GPU0->conn / GPU1->disc (conn bottleneck ~220h).
+# MPS daemon is kept UP through BOTH phases (NM preference); disc at 1 proc/GPU is a single MPS
+# client per GPU, i.e. no packing (same throughput as no-MPS), the daemon just stays alive.
 # RESUMABLE: per-config h5 "complete"-gated (old stride-20 configs are a SUBSET of the stride-10
 # grid -> skipped).  No rm anywhere.
 #
@@ -41,7 +41,7 @@ need_build () {
   find . -maxdepth 2 \( -name '*.cu' -o -name '*.h' \) -newer "$1" -print -quit 2>/dev/null | grep -q . && return 0
   return 1
 }
-for L in 1 2 4
+for L in 1 2 3 4
 do
   for spec in "conn ${SRC_CONN} jj_local_ylm_scalar_conn_stoch_L${L}.o" "disc ${SRC_DISC} jj_local_ylm_disc_stoch_L${L}.o"
   do
@@ -156,16 +156,10 @@ for (( W=0; W<NWCONN; W++ )); do conn_worker "$W" & done
 wait
 echo "### PHASE 1 conn DONE  [$(date +%F_%H:%M:%S)] ###"
 
-# ---- quit MPS before disc IF this script started it (so disc is genuinely MPS-free) ----
-if [ "$STARTED_MPS" -eq 1 ]
-then
-  echo "### quitting MPS daemon (this script started it) for MPS-free disc phase ###"
-  echo quit | nvidia-cuda-mps-control 2>/dev/null || true
-  sleep 2
-else
-  echo "### NOTE: MPS daemon pre-existed -- NOT quitting it. disc runs 1 proc/GPU (a single MPS ###"
-  echo "###       client per GPU = no packing); stop the daemon manually if you need it fully off. ###"
-fi
+# ---- keep the MPS daemon UP through the disc phase (NM preference) ----
+# disc still runs 1 proc/GPU, so a single MPS client per GPU = NO packing (same throughput as no-MPS);
+# the daemon just stays alive. (STARTED_MPS tracked but daemon left running either way.)
+echo "### MPS daemon kept UP for disc phase (NM preference); disc = 1 proc/GPU, single client, no packing ###"
 
 # ================= PHASE 2: disc (MPS OFF) =================
 echo "### PHASE 2 disc: ${NWDISC}w (GPUs ${DISC_GPUS[*]}), STRIDE=$STRIDE, tb=$DISC_TB, no MPS  [$(date +%F_%H:%M:%S)] ###"

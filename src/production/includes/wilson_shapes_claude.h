@@ -244,6 +244,79 @@ struct WilsonShapes {
     return v;
   }
 
+  // FOUR-FIVE shape: the site contour with ONE face REMOVED -> q-1 faces at vertex s (q = 5 or 6),
+  // w=+1 each, r_ins = site (SAME anchor as site_contours). q placements per site.
+  // THREE-FOUR shape (below): TWO NON-ADJACENT faces removed (the removed pair must NOT share an
+  // edge, i.e. must not be dual-link neighbours) -> q-2 faces. 5 placements per pentagon, 9 per hexagon.
+  //
+  // USE THESE ONLY IN THE SQUARED (F^2) DRIVER.  For the LINEAR operator they are REDUNDANT: all
+  // placements at a site share r_ins, so the orbit average / shape consolidation sums them with the
+  // same Y_lm weight and, with Theta = sum_i theta_i the full contour,
+  //     sum_k (Theta - theta_k) = (q-1) Theta ,   sum_{k,m non-adj} (Theta - theta_k - theta_m) = 6 Theta
+  // (hexagon; 3 Theta for the pentagon) -- i.e. just multiples of site_contours, which would only make
+  // the GEVP metric singular.  SQUARED is different because the square does not commute with that sum:
+  //     sum_k (Theta - theta_k)^2 = (q-2) Theta^2 + sum_k theta_k^2
+  // giving access to the sum of INDIVIDUAL face squares (and, for three-four, to sum theta_k theta_m
+  // over non-adjacent pairs) -- structure the plain contour squared does NOT contain.
+  std::vector<Instance> site_contours_minus1() const {
+    std::vector<std::vector<Idx>> site_faces(base.n_sites);
+    for(Idx f=0; f<base.n_faces; f++){
+      for(const Idx s : base.faces[f]) site_faces[s].push_back(f);
+    }
+    std::vector<Instance> v;
+    for(Idx s=0; s<base.n_sites; s++){
+      const std::vector<Idx>& fs = site_faces[s];
+      if(fs.size() < 3) continue;
+      for(size_t k=0; k<fs.size(); k++){
+        Instance in;
+        for(size_t i=0; i<fs.size(); i++){
+          if(i == k) continue;
+          in.faces.push_back( fs[i] );
+          in.w.push_back( +1 );
+        }
+        in.r_ins = base.sites[s];
+        v.push_back(in);
+      }
+    }
+    return v;
+  }
+
+  std::vector<Instance> site_contours_minus2() const {
+    std::vector<std::vector<Idx>> site_faces(base.n_sites);
+    for(Idx f=0; f<base.n_faces; f++){
+      for(const Idx s : base.faces[f]) site_faces[s].push_back(f);
+    }
+    // face edge-adjacency from the link -> (face,face) dual adjacency
+    std::vector<std::vector<Idx>> fnbr(base.n_faces);
+    for(Idx il=0; il<base.n_links; il++){
+      fnbr[ base.dual_links[il][0] ].push_back( base.dual_links[il][1] );
+      fnbr[ base.dual_links[il][1] ].push_back( base.dual_links[il][0] );
+    }
+    std::vector<Instance> v;
+    for(Idx s=0; s<base.n_sites; s++){
+      const std::vector<Idx>& fs = site_faces[s];
+      if(fs.size() < 4) continue;
+      for(size_t k=0; k<fs.size(); k++){
+        for(size_t m=k+1; m<fs.size(); m++){
+          bool adjacent = false;
+          for(const Idx nb : fnbr[ fs[k] ]){
+            if(nb == fs[m]) adjacent = true;
+          }
+          if(adjacent) continue;                   // keep only NON-adjacent removed pairs
+          Instance in;
+          for(size_t i=0; i<fs.size(); i++){
+            if(i == k || i == m) continue;
+            in.faces.push_back( fs[i] );
+            in.w.push_back( +1 );
+          }
+          in.r_ins = base.sites[s];
+          v.push_back(in);
+        }
+      }
+    }
+    return v;
+  }
+
   // --- generic holonomy / operator ---
   template<typename Gauge>
   double holonomy(const Gauge& U, const int s, const Instance& in) const {

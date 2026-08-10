@@ -10,9 +10,9 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 NFS = [2, 4, 6]
-GS = {1: [0.5, 1.0, 1.5], 2: [1.0, 2.0, 3.0], 4: [2.0, 4.0, 6.0]}
+GS = {1: [0.5, 1.0, 1.5], 2: [1.0, 2.0, 3.0], 3: [1.5, 3.0, 4.5], 4: [2.0, 4.0, 6.0]}
 nfcol = {2: "tab:red", 4: "tab:blue", 6: "tab:green"}
-gls = {0.5: "-", 1.0: "--", 1.5: ":", 2.0: "--", 3.0: ":", 4.0: "--", 6.0: ":"}
+gls = {0.5: "-", 1.0: "--", 1.5: "-", 2.0: "--", 3.0: ":", 4.0: "--", 4.5: ":", 6.0: ":"}
 # channel: (dat prefix, fit t-window, fit states, plotted-state col pair, title)
 # .dat cols: 0=t, 1/2=ground(=last state), 3/4=s0, 5/6=s1, ...  F^2 0++ = s0 (cols 3,4);
 # F l=1 ground = the m-averaged plateau, use the ground col (1,2).
@@ -53,7 +53,7 @@ def plotted_curve(d, chan, cm, ce):
 
 
 for chan, (pref, (tlo, thi), states, (cm, ce), title) in CH.items():
-    Ls = [1, 2, 4] if chan == "F" else [1, 2]   # L4 = F l=1 only (l=2/F^2 too noisy at L4)
+    Ls = [1, 2, 3, 4] if chan == "F" else [1, 2, 3, 4]   # L4 = F l=1 only (l=2/F^2 too noisy at L4)
     fig, axs = plt.subplots(1, len(Ls), figsize=(6 * len(Ls), 5), sharey=True)
     for ax, L in zip(np.atleast_1d(axs), Ls):
         for nf in NFS:
@@ -82,5 +82,5 @@ for chan, (pref, (tlo, thi), states, (cm, ce), title) in CH.items():
         ax.set_ylim(0, 5)
     np.atleast_1d(axs)[0].set_ylabel(r"$a_t\, m_{\rm eff}$")
     fig.tight_layout()
-    fig.savefig("glue_gevp_%s_spectra_claude.png" % chan, dpi=150)
+    fig.savefig("figs/glue_gevp_%s_spectra_claude.png" % chan, dpi=150)
     print("# wrote glue_gevp_%s_spectra_claude.png" % chan)

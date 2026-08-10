@@ -5,7 +5,7 @@
 # first config; k>=20 cut applied later in analysis).  Run AFTER run_conn_ext_claude.sh finishes.
 # NO MPS: ONE process per GPU (2 workers, GPU 0 and GPU 1).  Each worker does half of EVERY ensemble
 # (config-range split: worker W starts at first+10*W, effective stride 20; union = full stride-10 grid).
-# Output -> data_<ens>_vmRe0.../corr_ylm_disc_tb2_nhits1/corr.<k>.h<h>.h5.
+# Output -> data_<ens>_vmRe0.../corr_ylm_disc_tb2/corr.<k>.h<h>.h5.
 # RESUMABLE: per-config h5 "complete"-gated (old stride-20 configs are a SUBSET of the stride-10 grid
 # -> skipped, no rework).  Re-run after each rsync top-up.  No rm anywhere.
 #
@@ -35,7 +35,7 @@ need_build () {
   find . -maxdepth 2 \( -name '*.cu' -o -name '*.h' \) -newer "$1" -print -quit 2>/dev/null | grep -q . && return 0
   return 1
 }
-for L in 1 2 4
+for L in 1 2 3 4
 do
   BIN="jj_local_ylm_disc_stoch_L${L}.o"
   if need_build "$BIN"

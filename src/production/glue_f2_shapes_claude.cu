@@ -278,10 +278,25 @@ int main(int argc, char* argv[]){
   }
   if(k_tmp > kmax_run) k_tmp = kmax_run; // cap for smoke test / flow tuning
 
-  // ---- single Wilson-flow smearing (matches non-_claude glue2.cu: tmax=1.0, 100 steps) ----
-  constexpr double FLOW_TMAX = 2.0;   // bumped 1.0 -> 2.0
-  constexpr int FLOW_NSTEP = 200;     // keep dt=0.01 (100 -> 200)
-  Flow flow(&SW, FLOW_TMAX, FLOW_NSTEP);
+  // ---- MULTI-FLOW smearing levels: the SAME shapes measured at N_FLOW cumulative flow times ----
+  // Multi-smearing variational basis: C. Morningstar & M. Peardon, arXiv:hep-lat/9901004
+  // (Phys. Rev. D 60, 034509 (1999)).  Wilson flow as the smearing: M. Luescher, arXiv:1006.4518.
+  // The flow acts IN PLACE, so ONE trajectory 0 -> 0.5 -> 1.0 -> 2.0 -> 3.0 yields every level:
+  // only the (cheap) shape evaluations multiply; the integration cost is just the longest time.
+  // dt is UNCHANGED at 0.01, so the t=2.0 level reproduces the old single-flow data exactly
+  // (same total step count, same integrator) -- used as the correctness check.
+  // OLD single level (kept for reference):
+  // constexpr double FLOW_TMAX = 2.0;   // bumped 1.0 -> 2.0
+  // constexpr int FLOW_NSTEP = 200;     // keep dt=0.01 (100 -> 200)
+  // Flow flow(&SW, FLOW_TMAX, FLOW_NSTEP);
+  // MULTI-FLOW SET BACK TO ONE LEVEL (t=2.0 = the production smearing): the 4-level basis was tested
+  // on L3 Nf2 g1.5 (202 cfg) and gave NO improvement -- at 14 ops the error was unchanged
+  // (F l=1 0.0453 -> 0.0449) and at 21/28 ops the GEVP collapsed to nan, because the levels are the
+  // same 7 shapes merely smoothed differently (redundant -> near-singular metric).  Kept as N_FLOW=1
+  // so the machinery stays available; FLOW_T={2.0} reproduces the old single flow EXACTLY.
+  constexpr double FLOW_DT = 0.01;                          // UNCHANGED dt
+  constexpr int N_FLOW = 1;
+  const double FLOW_T[N_FLOW] = { 2.0 };                    // CUMULATIVE flow times
 
   // ---- shape operator basis: icosahedral orbits of spatial Wilson-loop shapes ----
   // SQUARED (F^2 / 0++) operators; full Y_lm tower ell=0..3 (l=0 KEPT = scalar signal).
@@ -289,26 +304,36 @@ int main(int argc, char* argv[]){
   WilsonShapes<Base> shp( base, orb );
   using Inst = typename WilsonShapes<Base>::Instance;
   std::vector<std::vector<Inst>> orbits;
-  std::array<int,7> shape_sizes{};   // # icosahedral orbits per shape type (for consolidation)
+  std::array<int,9> shape_sizes{};   // # icosahedral orbits per shape type (for consolidation)
   {
-    // 7 shape types (TWISTED shapes removed). Order fixed: triangle, rect, fig8, three-tri, star,
-    // trio (star-center), five-six (site contour).
-    std::vector<std::vector<Inst>> all[7] = {
+    // 9 shape types (TWISTED shapes removed). Order fixed: triangle, rect, fig8, three-tri, star,
+    // trio (star-center), five-six (site contour), four-five, three-four.
+    // The last two are the site contour with 1 / 2 non-adjacent faces removed (NM 2026-08-08).
+    // They are SQUARED-ONLY: for the linear operator they collapse to multiples of the five-six
+    // (see wilson_shapes_claude.h), but squared they add sum_k theta_k^2 and sum_{non-adj} th_k th_m.
+    std::vector<std::vector<Inst>> all[9] = {
       shp.orbits_from( shp.triangles() ),
       shp.orbits_from( shp.rectangles() ),
       shp.orbits_from( shp.figure8s() ),
       shp.orbits_from( shp.three_triangles() ),         // central triangle + 2 edge-neighbors
       shp.orbits_from( shp.four_triangles() ),          // 4-triangle STAR (central + all 3 edge-nbrs)
-      shp.orbits_from( shp.trios() ),                   // NEW: star minus center (3 edge-neighbors)
-      shp.orbits_from( shp.site_contours() ),           // NEW: five-six contour around each site
+      shp.orbits_from( shp.trios() ),                   // star minus center (3 edge-neighbors)
+      shp.orbits_from( shp.site_contours() ),           // five-six contour around each site
+      shp.orbits_from( shp.site_contours_minus1() ),    // NEW: four-five (contour minus 1 face)
+      shp.orbits_from( shp.site_contours_minus2() ),    // NEW: three-four (minus 2 non-adjacent)
     };
-    for(int is=0; is<7; is++) shape_sizes[is] = (int)all[is].size();
-    for(int is=0; is<7; is++) for(auto& o : all[is]) orbits.push_back(std::move(o));
+    for(int is=0; is<9; is++) shape_sizes[is] = (int)all[is].size();
+    for(int is=0; is<9; is++) for(auto& o : all[is]) orbits.push_back(std::move(o));
   }
   // CONSOLIDATE raw icosahedral orbits into ONE operator per shape (equal weight per orbit) -> 7-shape
-  // basis at every L (validated ~lossless; F_corr_blk = n_lm*n_shapes^2).
+  // basis at every L (F_corr_blk = n_lm*n_shapes^2).  9 shapes now (four-five, three-four added).
   const int n_orbits_raw = (int)orbits.size();   // 7 (L1), grows with L
-  const int n_shapes = 7;
+  // const int n_shapes = 7;                     // OLD: single flow level
+  const int n_shapes_geom = 9;                   // geometric shape types (7 + four-five + three-four)
+  const int n_shapes = N_FLOW * n_shapes_geom;   // 28 = flow level FOLDED INTO the shape axis, so the
+                                                 // analysis (op = ishape*n_lm + ilm, n_shapes read
+                                                 // from h5) needs NO change; select flow subsets at
+                                                 // analysis time via its orbits_arg operator subset.
   const bool SQUARED = true;
 
   // F^2: physical 0++ is l=0; keep l=1 too (vector F^2 channel). l=2 DROPPED for disk.
@@ -320,7 +345,8 @@ int main(int argc, char* argv[]){
   const int n_lm = lm_set.size();
   const int nops = n_shapes * n_lm;        // consolidated 5-shape ops: op = ishape*n_lm + ilm
   const int nops_raw = n_orbits_raw * n_lm; // raw per-orbit ops (computed, then summed by shape)
-  std::cout << "# n_shapes = " << n_shapes << " n_lm = " << n_lm << " nops = " << nops << std::endl;
+  std::cout << "# n_shapes = " << n_shapes << " (n_flow = " << N_FLOW << " x n_shapes_geom = "
+            << n_shapes_geom << ") n_lm = " << n_lm << " nops = " << nops << std::endl;
 
   // serial over configs k; parallelism is ensemble-level (one process per Nf).
   for(int k=kmin; k<=k_tmp; k+=stride ){
@@ -329,7 +355,9 @@ int main(int argc, char* argv[]){
 #ifdef FLOW_FULL
     const std::string h5path = dir4+"glue_f2_shapes_fullflow."+std::to_string(k)+".h5"; // full 3D flow variant
 #else
-    const std::string h5path = dir4+"glue_f2_shapes."+std::to_string(k)+".h5"; // distinct prefix in shared dir
+    // "_s9" = 9-SHAPE basis (7 + four-five + three-four): DISTINCT prefix so it never clobbers (nor is
+    // skipped by the per-config "complete" gate of) the existing 7-shape glue_f2_shapes production data.
+    const std::string h5path = dir4+"glue_f2_shapes_s9."+std::to_string(k)+".h5";
 #endif
     {
       bool done=false;
@@ -343,30 +371,40 @@ int main(int argc, char* argv[]){
     U.read( str_lat );
 
     Gauge Uflow = U;
-    flow(Uflow);   // single flow (measure on the flowed field)
 
-    // obs_raw[op][t] per RAW orbit, then CONSOLIDATE (equal weight per orbit) into obs[ishape*n_lm+ilm].
-    // squared shape operators (F^2 / 0++).
+    // obs[(iflow*n_shapes_geom + is)*n_lm + ilm][t] -- ONE in-place flow trajectory, measured at each
+    // cumulative level FLOW_T[iflow].  Per level: obs_raw[op][t] per RAW orbit (op = iorbit*n_lm+ilm),
+    // then CONSOLIDATE (equal weight per orbit) into the shape slot.  SQUARED operators (F^2 / 0++).
+    std::vector<std::vector<double>> obs( nops, std::vector<double>(Comp::Nt, 0.0) );
     std::vector<std::vector<double>> obs_raw( nops_raw, std::vector<double>(Comp::Nt, 0.0) );
-    for(int iorbit=0; iorbit<n_orbits_raw; iorbit++){
-      for(int ilm=0; ilm<n_lm; ilm++){
-        const int ell = lm_set[ilm][0];
-        const int em  = lm_set[ilm][1];
-        const int op  = iorbit*n_lm + ilm;
-        for(int t=0; t<Comp::Nt; t++){
-          obs_raw[op][t] = shp.op( Uflow, t, orbits[iorbit], ell, em, SQUARED );
+    for(int iflow=0; iflow<N_FLOW; iflow++){
+      // advance the SAME field from the previous level to FLOW_T[iflow] (cumulative, in place)
+      const double t_prev = (iflow==0) ? 0.0 : FLOW_T[iflow-1];
+      const double seg = FLOW_T[iflow] - t_prev;
+      const int nstep_seg = (int)(seg/FLOW_DT + 0.5);
+      Flow flow_seg(&SW, seg, nstep_seg);
+      flow_seg(Uflow);
+
+      for(int iorbit=0; iorbit<n_orbits_raw; iorbit++){
+        for(int ilm=0; ilm<n_lm; ilm++){
+          const int ell = lm_set[ilm][0];
+          const int em  = lm_set[ilm][1];
+          const int op  = iorbit*n_lm + ilm;
+          for(int t=0; t<Comp::Nt; t++){
+            obs_raw[op][t] = shp.op( Uflow, t, orbits[iorbit], ell, em, SQUARED );
+          }
         }
       }
-    }
-    std::vector<std::vector<double>> obs( nops, std::vector<double>(Comp::Nt, 0.0) );
-    for(int ilm=0; ilm<n_lm; ilm++){
-      int o0=0;
-      for(int is=0; is<n_shapes; is++){
-        for(int oo=0; oo<shape_sizes[is]; oo++){
-          const int orbit = o0+oo;
-          for(int t=0; t<Comp::Nt; t++) obs[is*n_lm+ilm][t] += obs_raw[orbit*n_lm+ilm][t];
+      for(int ilm=0; ilm<n_lm; ilm++){
+        int o0=0;
+        for(int is=0; is<n_shapes_geom; is++){
+          const int ishape = iflow*n_shapes_geom + is;
+          for(int oo=0; oo<shape_sizes[is]; oo++){
+            const int orbit = o0+oo;
+            for(int t=0; t<Comp::Nt; t++) obs[ishape*n_lm+ilm][t] += obs_raw[orbit*n_lm+ilm][t];
+          }
+          o0 += shape_sizes[is];
         }
-        o0 += shape_sizes[is];
       }
     }
 
@@ -408,6 +446,10 @@ int main(int argc, char* argv[]){
     h5.createDataSet( "F", F1 );
     h5.createDataSet( "n_lm", std::vector<int>{n_lm} );  // (l,m) count so the analysis auto-adapts to the l-tower
     h5.createDataSet( "n_shapes", std::vector<int>{n_shapes} );  // shapes/orbit count -> nops = n_shapes*n_lm
+    // multi-flow provenance: n_shapes = n_flow * n_shapes_geom, ishape = iflow*n_shapes_geom + is
+    h5.createDataSet( "n_flow", std::vector<int>{N_FLOW} );
+    h5.createDataSet( "n_shapes_geom", std::vector<int>{n_shapes_geom} );
+    h5.createDataSet( "flow_times", std::vector<double>( FLOW_T, FLOW_T + N_FLOW ) );
     // explicit channel labels: ell[ilm], em[ilm] (op = iorbit*n_lm + ilm) so the analysis reads the
     // EXACT (l,m) list -- required now that the driver saves a reduced l-tower (F^2 saves l=0,1).
     std::vector<int> ell_v( n_lm ), em_v( n_lm );
