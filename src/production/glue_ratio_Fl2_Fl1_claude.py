@@ -11,9 +11,9 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 NFS = [2, 4, 6]
-GS = {1: [0.5, 1.0, 1.5], 2: [1.0, 2.0, 3.0]}
+GS = {1: [0.5, 1.0, 1.5], 2: [1.0, 2.0, 3.0], 3: [1.5, 3.0, 4.5], 4: [2.0, 4.0, 6.0]}
 nfcol = {2: "tab:red", 4: "tab:blue", 6: "tab:green"}
-Lmk = {1: "o", 2: "s"}
+Lmk = {1: "o", 2: "s", 3: "D", 4: "^"}
 # channel -> (dat/jk prefix, states list, fit window)
 CH = {
     "Fl1": ("gevp_F",   "0,1,2",     (0.2, 1.0)),
@@ -33,7 +33,7 @@ def fit(jk, states, tlo, thi):
 
 
 rows = []
-for L in [1, 2]:
+for L in [1, 2, 3, 4]:
     for nf in NFS:
         for g in GS[L]:
             tag = "Nf%d_g%.6f_L%d" % (nf, g, L)
@@ -56,7 +56,7 @@ for L, nf, g, m1, e1, m2, e2, r, er in rows:
 
 # ---- vs gsq ----
 fig, ax = plt.subplots(figsize=(7, 5))
-for L in [1, 2]:
+for L in [1, 2, 3, 4]:
     for nf in NFS:
         d = [x for x in rows if x[0] == L and x[1] == nf]
         if not d:
@@ -76,15 +76,15 @@ ax.set_title(r"Glueball $F$ ratio $\ell=2/\ell=1$ vs $g_0^2$")
 ax.grid(alpha=0.3)
 ax.legend(fontsize=8, ncol=2)
 fig.tight_layout()
-fig.savefig("glue_ratio_Fl2_Fl1_vs_gsq_claude.png", dpi=150)
+fig.savefig("figs/glue_ratio_Fl2_Fl1_vs_gsq_claude.png", dpi=150)
 print("wrote glue_ratio_Fl2_Fl1_vs_gsq_claude.png")
 
 # ---- vs 1/L^2 (per-Nf x-displacement) ----
 fig, ax = plt.subplots(figsize=(7, 5))
-invL2 = {1: 1.0, 2: 0.25}
+invL2 = {1: 1.0, 2: 0.25, 3: 1.0/9.0, 4: 0.0625}
 dx = {2: -0.012, 4: 0.0, 6: 0.012}
 for nf in NFS:
-    for g in GS[1] + GS[2]:
+    for g in GS[1] + GS[2] + GS[3] + GS[4]:
         d = [x for x in rows if x[1] == nf and abs(x[2] - g) < 1e-9]
         if not d:
             continue
@@ -103,5 +103,5 @@ ax.set_xlim(-0.05, 1.1)
 ax.grid(alpha=0.3)
 ax.legend(fontsize=9)
 fig.tight_layout()
-fig.savefig("glue_ratio_Fl2_Fl1_vs_invL2_claude.png", dpi=150)
+fig.savefig("figs/glue_ratio_Fl2_Fl1_vs_invL2_claude.png", dpi=150)
 print("wrote glue_ratio_Fl2_Fl1_vs_invL2_claude.png")

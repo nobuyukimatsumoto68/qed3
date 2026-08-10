@@ -12,11 +12,11 @@ import matplotlib.pyplot as plt
 Nt = 128
 at = 0.2
 KMIN = 20
-GS = {1: [0.5, 1.0, 1.5], 2: [1.0, 2.0, 3.0]}
-HB = {1: "1.000000", 2: "1.000000"}
+GS = {1: [0.5, 1.0, 1.5], 2: [1.0, 2.0, 3.0], 3: [1.5, 3.0, 4.5], 4: [2.0, 4.0, 6.0]}
+HB = {1: "1.000000", 2: "1.000000", 3: "0.400000-1.000000", 4: "0.400000-1.000000"}
 NFS = [2, 4, 6]
 nfcol = {2: "tab:red", 4: "tab:blue", 6: "tab:green"}
-FITDT = {1: np.arange(8, 21), 2: np.arange(6, 14)}   # per-L const+exp window (dt)
+FITDT = {1: np.arange(8, 21), 2: np.arange(6, 14), 3: np.arange(6, 14), 4: np.arange(6, 14)}   # L3/L4 PROVISIONAL (=L2)
 dtp = np.arange(1, Nt // 2)
 LVAL = 3
 
@@ -100,7 +100,7 @@ def m0fit(me, mean, err, D):
 
 
 # axial l=1 const-fit plateau (t = a_t n_t): established windows
-AXW1 = {1: (4.0, 5.2), 2: (2.4, 4.0)}
+AXW1 = {1: (4.0, 5.2), 2: (2.4, 4.0), 3: (2.4, 4.0), 4: (2.4, 4.0)}
 tt = dtp * at
 
 
@@ -124,10 +124,10 @@ def axial_l1(nf, L, g):
 
 
 # ---------- axial l=3 const+exp fit + effmass plot ----------
-gls = {0.5: "-", 1.0: "--", 1.5: ":", 2.0: "--", 3.0: ":"}
+gls = {0.5: "-", 1.0: "--", 1.5: ":", 2.0: "--", 3.0: ":", 4.5: "-.", 4.0: "--", 6.0: "-."}
 rows3 = []   # (L, g, nf, m0, sig)
-fig, axs = plt.subplots(1, 2, figsize=(13, 5))
-for ax, L in zip(axs, [1, 2]):
+fig, axs = plt.subplots(1, 4, figsize=(24, 5))
+for ax, L in zip(np.atleast_1d(axs).ravel(), [1, 2, 3, 4]):
     D = FITDT[L]
     xc = np.linspace(D[0], D[-1], 60)
     for g in GS[L]:
@@ -153,7 +153,7 @@ for ax, L in zip(axs, [1, 2]):
     ax.legend(fontsize=6, ncol=3)
 fig.suptitle(r"AXIAL $\ell=3$: fit $m_0+A\,e^{-c_1 dt}$  (m0 = plateau)")
 fig.tight_layout()
-fig.savefig("effmass_axial_l3_expfit_claude.png", dpi=150)
+fig.savefig("figs/effmass_axial_l3_expfit_claude.png", dpi=150)
 print("# wrote effmass_axial_l3_expfit_claude.png")
 
 lines = ["# Axial l=3 const+exp fit masses (m-avg conn, m0+A exp(-c1 dt), kmin=20)", "",
@@ -169,7 +169,7 @@ print("# wrote axial_l3_expfit_masses_claude.md (%d fits)" % len(rows3))
 # ---------- ratio axial l=3 / l=1 ----------
 m3 = {(L, g, nf): (M, sig) for (L, g, nf, M, sig, n) in rows3}
 ratios = []   # (L, g, nf, r, er)
-for L in [1, 2]:
+for L in [1, 2, 3, 4]:
     for g in GS[L]:
         for nf in NFS:
             if (L, g, nf) not in m3:
@@ -183,13 +183,13 @@ for L in [1, 2]:
             ratios.append((L, g, nf, r, er))
 
 FREE = 2.0   # fermion Delta_l = l+1 -> l=3/l=1 = 4/2
-Lmk = {1: "o", 2: "s"}
-invL2 = {1: 1.0, 2: 0.25}
+Lmk = {1: "o", 2: "s", 3: "D", 4: "^"}
+invL2 = {1: 1.0, 2: 0.25, 3: 1.0/9.0, 4: 0.0625}
 dxNf = {2: -0.012, 4: 0.0, 6: 0.012}
 
 # vs gsq
 fig, ax = plt.subplots(figsize=(7, 5))
-for L in [1, 2]:
+for L in [1, 2, 3, 4]:
     for nf in NFS:
         d = [x for x in ratios if x[0] == L and x[2] == nf]
         if not d:
@@ -205,13 +205,13 @@ ax.set_title(r"axial $\ell=3/\ell=1$ vs $g_0^2$")
 ax.grid(alpha=0.3)
 ax.legend(fontsize=8, ncol=2)
 fig.tight_layout()
-fig.savefig("ratio_axial_l3l1_vs_gsq_claude.png", dpi=150)
+fig.savefig("figs/ratio_axial_l3l1_vs_gsq_claude.png", dpi=150)
 print("# wrote ratio_axial_l3l1_vs_gsq_claude.png")
 
 # vs 1/L^2
 fig, ax = plt.subplots(figsize=(7, 5))
 for nf in NFS:
-    for g in GS[1] + GS[2]:
+    for g in GS[1] + GS[2] + GS[3] + GS[4]:
         d = [x for x in ratios if x[2] == nf and abs(x[1] - g) < 1e-9]
         if not d:
             continue
@@ -227,5 +227,5 @@ ax.set_xlim(-0.05, 1.1)
 ax.grid(alpha=0.3)
 ax.legend(fontsize=9)
 fig.tight_layout()
-fig.savefig("ratio_axial_l3l1_vs_invL2_claude.png", dpi=150)
+fig.savefig("figs/ratio_axial_l3l1_vs_invL2_claude.png", dpi=150)
 print("# wrote ratio_axial_l3l1_vs_invL2_claude.png")

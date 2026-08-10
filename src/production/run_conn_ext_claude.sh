@@ -56,7 +56,7 @@ need_build () {   # $1 = output binary
   find . -maxdepth 2 \( -name '*.cu' -o -name '*.h' \) -newer "$1" -print -quit 2>/dev/null | grep -q . && return 0
   return 1
 }
-for L in 1 2 4
+for L in 1 2 3 4
 do
   BIN="jj_local_ylm_scalar_conn_stoch_L${L}.o"
   if need_build "$BIN"

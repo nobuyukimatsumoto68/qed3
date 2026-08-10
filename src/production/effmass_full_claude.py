@@ -11,7 +11,7 @@ import numpy as np, h5py
 import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
 
 Nt=128; at=0.2; KMIN=20; inv4pi=1.0/(4.0*math.pi)
-GS={1:[0.5,1.0,1.5],2:[1.0,2.0,3.0]}; HB={1:"1.000000",2:"1.000000"}
+GS={1:[0.5,1.0,1.5],2:[1.0,2.0,3.0],3:[1.5,3.0,4.5],4:[2.0,4.0,6.0]}; HB={1:"1.000000",2:"1.000000",3:"0.400000-1.000000",4:"0.400000-1.000000"}
 NFS=[2,4,6]; nfcol={2:"tab:red",4:"tab:blue",6:"tab:green"}
 LSET=[0,1,2,3]
 PWIN=np.arange(16,Nt//2+1)          # disc plateau window (dt)
@@ -24,7 +24,7 @@ def conn_files(nf,L,g):
     fs=sorted(glob.glob(esn(nf,L,g)+"corr_ylm_conn_t00_nhits1_s1/corr.*.h0.h5"))
     return [f for f in fs if kof(f)>=KMIN]
 def disc_files(nf,L,g):
-    fs=sorted(glob.glob(esn(nf,L,g)+"corr_ylm_disc_tb2_nhits1/corr.*.h0.h5"))
+    fs=sorted(glob.glob(esn(nf,L,g)+"corr_ylm_disc_tb2/corr.*.h0.h5"))
     return [f for f in fs if kof(f)>=KMIN]
 def matched(nf,L,g):
     cfm={kof(f):f for f in conn_files(nf,L,g)}; dfm={kof(f):f for f in disc_files(nf,L,g)}
@@ -76,7 +76,7 @@ def effmass_jk(samp):   # samp (H,Nt) real correlator -> mean,err of cosh effmas
     return mean,err
 
 # ---------- VECTOR full vs conn ----------
-for L in [1,2]:
+for L in [1,2,3,4]:
     for g in GS[L]:
         fig,axs=plt.subplots(2,2,figsize=(13,9))
         drew=False
@@ -94,13 +94,13 @@ for L in [1,2]:
             ax.set_xlabel("dt"); ax.set_ylabel(r"$m_\mathrm{eff}$ ($1/a_t$)"); ax.grid(alpha=0.3); ax.legend(fontsize=6,ncol=2)
         fig.suptitle("VECTOR tp: full (conn+disc, DC+plateau sub) vs conn -- L%d g%.1f (window dt[8,16])"%(L,g))
         fig.tight_layout()
-        if drew: fig.savefig("effmass_vecfull_L%d_g%.1f_claude.png"%(L,g),dpi=140)
+        if drew: fig.savefig("figs/effmass_vecfull_L%d_g%.1f_claude.png"%(L,g),dpi=140)
         plt.close(fig)
         print("vec L%d g%.1f done"%(L,g))
 
 # ---------- AXIAL (conn) and SCALAR (conn), l=0..3 ----------
 for grp,name,func in [("axial","axial tp (s3) conn",None),("scalar","scalar PS/FS conn",None)]:
-    for L in [1,2]:
+    for L in [1,2,3,4]:
         for g in GS[L]:
             fig,axs=plt.subplots(2,2,figsize=(13,9)); drew=False
             for l,ax in zip(LSET,axs.ravel()):
@@ -121,6 +121,6 @@ for grp,name,func in [("axial","axial tp (s3) conn",None),("scalar","scalar PS/F
                 ax.set_xlabel("dt"); ax.set_ylabel(r"$m_\mathrm{eff}$ ($1/a_t$)"); ax.grid(alpha=0.3); ax.legend(fontsize=6,ncol=2)
             fig.suptitle("%s -- L%d g%.1f"%(name,L,g)); fig.tight_layout()
             tag="axial" if grp=="axial" else "scalar"
-            if drew: fig.savefig("effmass_%s_L%d_g%.1f_claude.png"%(tag,L,g),dpi=140)
+            if drew: fig.savefig("figs/effmass_%s_L%d_g%.1f_claude.png"%(tag,L,g),dpi=140)
             plt.close(fig)
             print("%s L%d g%.1f done"%(tag,L,g))

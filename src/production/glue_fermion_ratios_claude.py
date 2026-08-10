@@ -20,15 +20,15 @@ at = 0.2
 KMIN = 20
 AX_MINCFG = 20
 NFS = [2, 4, 6]
-GS = {1: [0.5, 1.0, 1.5], 2: [1.0, 2.0, 3.0], 4: [2.0, 4.0, 6.0]}
-HB = {1: "1.000000", 2: "1.000000", 4: "0.400000-1.000000"}
+GS = {1: [0.5, 1.0, 1.5], 2: [1.0, 2.0, 3.0], 3: [1.5, 3.0, 4.5], 4: [2.0, 4.0, 6.0]}
+HB = {1: "1.000000", 2: "1.000000", 3: "0.400000-1.000000", 4: "0.400000-1.000000"}
 nfcol = {2: "tab:red", 4: "tab:blue", 6: "tab:green"}
-Lmk = {1: "o", 2: "s", 4: "^"}
-invL2 = {1: 1.0, 2: 0.25, 4: 0.0625}
+Lmk = {1: "o", 2: "s", 3: "D", 4: "^"}
+invL2 = {1: 1.0, 2: 0.25, 3: 1.0/9.0, 4: 0.0625}
 dxNf = {2: -0.012, 4: 0.0, 6: 0.012}
 dt = np.arange(1, Nt // 2)
 tt = dt * at
-FITW_AX = {1: (4.0, 5.2), 2: (2.4, 4.0), 4: (2.4, 4.0)}
+FITW_AX = {1: (4.0, 5.2), 2: (2.4, 4.0), 3: (2.4, 4.0), 4: (2.4, 4.0)}
 
 
 # ---------- glueball mass via fit_perm ----------
@@ -121,7 +121,7 @@ def rerr(m1, e1, m2, e2):
 # ---------- collect rows: (L, nf, g, ratio, err) ----------
 def collect(numfun, denfun):
     rows = []
-    for L in [1, 2, 4]:
+    for L in [1, 2, 3, 4]:
         for nf in NFS:
             for g in GS[L]:
                 tag = "Nf%d_g%.6f_L%d" % (nf, g, L)
@@ -151,7 +151,7 @@ for key, rows, free, freelab, ylab, title in RATIOS:
         print("  L%d Nf%d g%.1f : %.4f(%.4f)" % (L, nf, g, r, er))
     # vs gsq
     fig, ax = plt.subplots(figsize=(7, 5))
-    for L in [1, 2, 4]:
+    for L in [1, 2, 3, 4]:
         for nf in NFS:
             d = [x for x in rows if x[0] == L and x[1] == nf]
             if not d:
@@ -168,12 +168,12 @@ for key, rows, free, freelab, ylab, title in RATIOS:
     ax.grid(alpha=0.3)
     ax.legend(fontsize=8, ncol=2)
     fig.tight_layout()
-    fig.savefig("ratio_%s_vs_gsq_claude.png" % key, dpi=150)
+    fig.savefig("figs/ratio_%s_vs_gsq_claude.png" % key, dpi=150)
     print("  wrote ratio_%s_vs_gsq_claude.png" % key)
     # vs 1/L^2
     fig, ax = plt.subplots(figsize=(7, 5))
     for nf in NFS:
-        for g in GS[1] + GS[2] + GS[4]:
+        for g in GS[1] + GS[2] + GS[3] + GS[4]:
             d = [x for x in rows if x[1] == nf and abs(x[2] - g) < 1e-9]
             if not d:
                 continue
@@ -190,5 +190,5 @@ for key, rows, free, freelab, ylab, title in RATIOS:
     ax.grid(alpha=0.3)
     ax.legend(fontsize=9)
     fig.tight_layout()
-    fig.savefig("ratio_%s_vs_invL2_claude.png" % key, dpi=150)
+    fig.savefig("figs/ratio_%s_vs_invL2_claude.png" % key, dpi=150)
     print("  wrote ratio_%s_vs_invL2_claude.png" % key)

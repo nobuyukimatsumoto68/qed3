@@ -1,5 +1,5 @@
 # effmass_conn_claude.py
-# Effective-mass analysis of the redo massless CONN tower (config-jackknife, cosh effmass).
+# Effective-mass analysis of the redo massless CONN tower (config-jackknife, cosh effmass). L=1,2,3,4.
 # Group (1) AXIAL tp: l=1,2.   Group (2) SCALAR: PS & FS, l=0,1.
 # One png per (group, L, gsq); Nf=2,4,6 overlaid.  kmin=20 therm cut (dir=trajectory, stride 20
 # so effectively all conn configs kept; applied for safety on the config index).
@@ -14,8 +14,8 @@ Nt = 128
 at = 0.2
 KMIN = 20
 NFS = [2, 4, 6]
-GS = {1: [0.5, 1.0, 1.5], 2: [1.0, 2.0, 3.0], 4: [2.0, 4.0, 6.0]}
-HB = {1: "1.000000", 2: "1.000000", 4: "0.400000-1.000000"}
+GS = {1: [0.5, 1.0, 1.5], 2: [1.0, 2.0, 3.0], 3: [1.5, 3.0, 4.5], 4: [2.0, 4.0, 6.0]}
+HB = {1: "1.000000", 2: "1.000000", 3: "0.400000-1.000000", 4: "0.400000-1.000000"}
 nfcol = {2: "tab:red", 4: "tab:blue", 6: "tab:green"}
 dt = np.arange(1, Nt // 2)
 tt = dt * at
@@ -68,9 +68,11 @@ def meff_acosh(C):
     return m
 
 
-# per-(group, L) constant-fit plateau windows in t = a_t n_t (NM 2026-07-18)
-FITW = {('tp', 1): (4.0, 5.2), ('tp', 2): (2.4, 4.0),
-        ('sc', 1): (3.6, 4.8), ('sc', 2): (2.4, 3.2)}
+# per-(group, L) constant-fit plateau windows in t = a_t n_t (NM 2026-07-18).
+# L3/L4 PROVISIONAL: reuse the L2 windows (the large-L regime) -- these are NOT yet tuned to the
+# L3/L4 plateaus and should be set by inspecting effmass_{axial,scalar}_L{3,4}_g*.png.
+FITW = {('tp', 1): (4.0, 5.2), ('tp', 2): (2.4, 4.0), ('tp', 3): (2.4, 4.0), ('tp', 4): (2.4, 4.0),
+        ('sc', 1): (3.6, 4.8), ('sc', 2): (2.4, 3.2), ('sc', 3): (2.4, 3.2), ('sc', 4): (2.4, 3.2)}
 
 
 def effmass_jk(samp):
@@ -131,14 +133,14 @@ def panel(ax, series, title, lo, hi):
 
 
 FITS = []
-for L in [1, 2]:
+for L in [1, 2, 3, 4]:
     for g in GS[L]:
         # group (1): axial tp l=1,2
         tlo, thi = FITW[('tp', L)]
         fig, ax = plt.subplots(figsize=(7.5, 5.5))
         n1 = panel(ax, [("A l1", None, "o", C_axial, 1), ("A l2", None, "s", C_axial, 2)],
                    "axial tp effmass: L%d g%.1f (l=1,2; fit [%.1f,%.1f])" % (L, g, tlo, thi), tlo, thi)
-        fn = "effmass_axial_L%d_g%.1f_claude.png" % (L, g)
+        fn = "figs/effmass_axial_L%d_g%.1f_claude.png" % (L, g)
         if n1:
             fig.tight_layout()
             fig.savefig(fn, dpi=150)
@@ -149,7 +151,7 @@ for L in [1, 2]:
         n2 = panel(ax, [("PS l0", None, "o", C_PS, 0), ("PS l1", None, "s", C_PS, 1),
                         ("FS l0", None, "^", C_FS, 0), ("FS l1", None, "v", C_FS, 1)],
                    "scalar effmass: L%d g%.1f (PS/FS, l=0,1; fit [%.1f,%.1f])" % (L, g, slo, shi), slo, shi)
-        fn2 = "effmass_scalar_L%d_g%.1f_claude.png" % (L, g)
+        fn2 = "figs/effmass_scalar_L%d_g%.1f_claude.png" % (L, g)
         if n2:
             fig.tight_layout()
             fig.savefig(fn2, dpi=150)
@@ -157,7 +159,7 @@ for L in [1, 2]:
         print("L%d g%.1f: axial=%d scalar=%d series%s" % (L, g, n1, n2, "" if (n1 or n2) else " (SKIP)"))
 
 # write fitted constants to md
-lines = ["# Effective-mass constant fits (redo massless conn, L1/L2)", "",
+lines = ["# Effective-mass constant fits (redo massless conn, L1/L2/L3/L4)", "",
          "a_t m_eff = cosh effective mass, constant fit (inverse-variance, config-jackknife err),",
          "kmin=20. Axial tp l=1,2; scalar PS/FS l=0,1.  Nf=2,4,6.  Per-(group,L) fit windows",
          "in t=a_t n_t (the 'fit range' column). Value = a_t m (jackknife error in parens).", "",

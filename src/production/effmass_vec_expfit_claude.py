@@ -16,15 +16,15 @@ Nt = 128
 at = 0.2
 KMIN = 20
 inv4pi = 1.0 / (4.0 * math.pi)
-GS = {1: [0.5, 1.0, 1.5], 2: [1.0, 2.0, 3.0]}
-HB = {1: "1.000000", 2: "1.000000"}
+GS = {1: [0.5, 1.0, 1.5], 2: [1.0, 2.0, 3.0], 3: [1.5, 3.0, 4.5], 4: [2.0, 4.0, 6.0]}
+HB = {1: "1.000000", 2: "1.000000", 3: "0.400000-1.000000", 4: "0.400000-1.000000"}
 NFS = [2, 4, 6]
 nfcol = {2: "tab:red", 4: "tab:blue", 6: "tab:green"}
 LSET = [1]                            # only l=1 is meaningful with current stats
 LLIST = [1]                           # L1 only (L2 too noisy for the m0+A exp fit)
 PWIN = np.arange(16, Nt // 2 + 1)     # disc plateau window (dt)
 FITDT = np.arange(8, 15)             # m0+A exp fit range dt = 8..14
-FITW_AX = {1: (4.0, 5.2)}            # axial l=1 conn const-fit plateau (t = a_t n_t)
+FITW_AX = {1: (4.0, 5.2), 2: (2.4, 4.0), 3: (2.4, 4.0), 4: (2.4, 4.0)}
 dtp = np.arange(1, Nt // 2)
 tt = dtp * at
 
@@ -44,7 +44,7 @@ def conn_files(nf, L, g):
 
 
 def disc_files(nf, L, g):
-    fs = sorted(glob.glob(esn(nf, L, g) + "corr_ylm_disc_tb2_nhits1/corr.*.h0.h5"))
+    fs = sorted(glob.glob(esn(nf, L, g) + "corr_ylm_disc_tb2/corr.*.h0.h5"))
     return [f for f in fs if kof(f) >= KMIN]
 
 
@@ -209,7 +209,7 @@ for L in LLIST:
                      % (FITDT[0], FITDT[-1], L, g))
         fig.tight_layout()
         if drew:
-            fig.savefig("expfit_vec_L%d_g%.1f_claude.png" % (L, g), dpi=140)
+            fig.savefig("figs/expfit_vec_L%d_g%.1f_claude.png" % (L, g), dpi=140)
         plt.close(fig)
         print("L%d g%.1f done" % (L, g))
 
@@ -256,5 +256,5 @@ ax.set_title(r"vector $\ell=1$ / axial $\ell=1$ (L1) vs $g_0^2$")
 ax.grid(alpha=0.3)
 ax.legend(fontsize=9)
 fig.tight_layout()
-fig.savefig("ratio_vec_over_axial_l1_L1_claude.png", dpi=150)
+fig.savefig("figs/ratio_vec_over_axial_l1_L1_claude.png", dpi=150)
 print("# wrote ratio_vec_over_axial_l1_L1_claude.png")

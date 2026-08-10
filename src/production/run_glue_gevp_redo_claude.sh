@@ -19,32 +19,31 @@ NWORK=6
 
 ENS=()
 for nf in 2 4 6; do
-  for spec in "1 0.500000" "1 1.000000" "1 1.500000" "2 1.000000" "2 2.000000" "2 3.000000"; do
+  # L1, L2 (at0.2) + NEW L3 (gsq 1.5/3/4.5) + L4 (gsq 2/4/6) -- glue is 100% measured at every L
+  for spec in "1 0.500000" "1 1.000000" "1 1.500000" \
+              "2 1.000000" "2 2.000000" "2 3.000000" \
+              "3 1.500000" "3 3.000000" "3 4.500000" \
+              "4 2.000000" "4 4.000000" "4 6.000000"; do
     set -- $spec
     ENS+=("$nf $1 $2")   # nf L gsq
   done
-done
-# L4 Nf2 -- F l=1 ONLY (l=2 too noisy, F^2 skipped) at the resc-shifted hb tag; ~350 cfg each.
-for g in 2.000000 4.000000 6.000000; do
-  ENS+=("2 4 $g")
 done
 
 ana_one () {
   local nf=$1 L=$2 g=$3
   local hb="hb1.000000"
-  [ "$L" = "4" ] && hb="hb0.400000-1.000000"
+  # L3 and L4 both use the resc-shifted hb tag
+  { [ "$L" = "3" ] || [ "$L" = "4" ]; } && hb="hb0.400000-1.000000"
   local dd="data_Nf${nf}_gsq${g}at0.200000nu01.000000mRe0.000000mIm0.000000nt128L${L}_${hb}"
   [ -d "$dd" ] || { echo "skip (no dir) Nf${nf} g${g} L${L}"; return; }
   local tag="Nf${nf}_g${g}_L${L}"
   # F l=1 (per-m grounds) -- all L
   $ANA "$dd" 1 1 0 $AT gevp_F_${tag}_claude.dat 1 $TCUT $BIN $KMIN $RTOL glue_msm_shapes $TREBASE "" 0 1 0 "1" 1 0 0 gevp_F_${tag}_jk_claude.dat 1 > ana_F_${tag}_claude.log 2>&1
-  if [ "$L" != "4" ]
-  then
-    # F l=2 (per-m grounds, H irrep; same F operator, lsel="2") -- L1/L2 only
-    $ANA "$dd" 1 1 0 $AT gevp_Fl2_${tag}_claude.dat 1 $TCUT $BIN $KMIN $RTOL glue_msm_shapes $TREBASE "" 0 1 0 "2" 1 0 0 gevp_Fl2_${tag}_jk_claude.dat 1 > ana_Fl2_${tag}_claude.log 2>&1
-    # F^2 0++ (2nd-lightest, l=0) -- L1/L2 only
-    $ANA "$dd" 1 1 0 $AT gevp_f2_${tag}_claude.dat 2 $TCUT $BIN $KMIN $RTOL glue_f2_shapes $TREBASE "" 0 1 0 "0" 1 0 0 gevp_f2_${tag}_jk_claude.dat 0 > ana_f2_${tag}_claude.log 2>&1
-  fi
+  # F l=2 (per-m grounds, H irrep; same F operator, lsel="2") -- ALL L now (L3 signal is good;
+  # at L4 the low-stat ensembles may return nan, which the ratio scripts skip).
+  $ANA "$dd" 1 1 0 $AT gevp_Fl2_${tag}_claude.dat 1 $TCUT $BIN $KMIN $RTOL glue_msm_shapes $TREBASE "" 0 1 0 "2" 1 0 0 gevp_Fl2_${tag}_jk_claude.dat 1 > ana_Fl2_${tag}_claude.log 2>&1
+  # F^2 0++ (2nd-lightest, l=0) -- ALL L
+  $ANA "$dd" 1 1 0 $AT gevp_f2_${tag}_claude.dat 2 $TCUT $BIN $KMIN $RTOL glue_f2_shapes $TREBASE "" 0 1 0 "0" 1 0 0 gevp_f2_${tag}_jk_claude.dat 0 > ana_f2_${tag}_claude.log 2>&1
   echo "done $tag"
 }
 export -f ana_one

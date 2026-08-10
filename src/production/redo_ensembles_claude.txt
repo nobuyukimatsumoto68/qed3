@@ -24,6 +24,23 @@
 #   - Standalone `run_conn_ext_claude.sh` / `run_disc_ext_claude.sh` (stride 10) also available.
 #   - Earlier (kmax=2000, stride 20) conn/disc + condensate + glue-shapes sweeps already DONE; this run
 #     extends the fermion tower to the full stride-10 grid. loc_ncfg/obs columns below still 0 -> fill after.
+#
+# UPDATE 2026-08-07 (MEASUREMENT -- L=3 added + extended conn/disc RESUMED + glue relaunched):
+#   - NEW L=3 lattice now MEASURED locally: N_REFINE=3 geometry generated (`geom.out 3`, all 13 _n3
+#     families); L=3 ADDED to build loops (`for L in 1 2 3 4`) of run_conn_ext / run_disc_ext /
+#     run_conn_disc_ext / run_glue_shapes_redo (+ tmp_build_L3_claude.sh pre-flight). L3 binaries clean.
+#   - 1st extended pass (07-25) reached conn 100%/disc 90% then STOPPED for OS livepatch + rsync of bigger
+#     configs (L2->4k, L4->~470/ens, at0.1->~2k, NEW L3). RESUMED 08-03 via run_conn_disc_ext (MPS now
+#     kept UP through BOTH phases per NM; disc still 1/GPU = no packing). Status 08-07: conn 99% (8992/9052;
+#     L3 conn 81% = ~60 stragglers from L3 growth AFTER the conn-phase snapshot), disc 74% running (~2d left).
+#   - GLUE sweep RELAUNCHED with L3 (`NWORK=16 run_glue_shapes_redo_claude.sh`, CPU-only, stride 1,
+#     complete-gated) -- runs CONCURRENT with GPU disc (no contention). Skips done, measures new incl L3.
+#   - DISC packing NOT worth it: 1 disc proc already saturates the GPU (util 80-92%; validates the 1/GPU
+#     no-MPS design -- unlike conn which sat ~50-60% -> packed 2/GPU). Per-config wall L3 est conn ~810 s
+#     disc ~270 s (92 sites; interp sites^1.2/^1.0). Disk: 4.3 TB free, 0.83 MB/cfg output, whole run <10 GB.
+#   - SNAPSHOT CAVEAT: ensemble list + per-ens k-range snapshotted at launch -> a FINAL run_conn_disc_ext
+#     re-run needed after everything lands to sweep L3 conn stragglers + late configs. rsync-during-run is
+#     SAFE (rsync -avz temp .name.XXXXXX + atomic rename; glob ckpoint_lat.* ignores dotfiles).
 
 # # status column:  DONE = target reached = CLOSED (its wrapper slot is commented out in run_wrapper_redo_claude.sh;
 # #                 re-apply no longer submits it).   running = still filling.
