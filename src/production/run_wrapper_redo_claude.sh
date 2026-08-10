@@ -96,7 +96,8 @@ declare -A CA CB
 # REPACK 2026-08-07 (all jobs pending -> zero-risk moment): 7 live streams -> 3 pairs + 1 solo. Nf2 g4.5 (704,
 # finishes soonest) SINGLED OUT as the solo (shortest solo-GPU waste); its old partner Nf4 g1.5 re-paired with
 # the old p23 solo Nf6 g4.5. p21/p22 untouched (already balanced pairs). See repack note in the memory snapshot.
-CA[20]="ml 3 2 4.5 0.0"                             # L3: Nf2 g4.5 (SOLO now -- was paired w/ Nf4 g1.5)
+# slot 20 CLOSED 2026-08-08: Nf2 g4.5 solo done@799 (KMAX 800). All 3 L3 Nf2 ensembles complete. Commented out.
+# CA[20]="ml 3 2 4.5 0.0"                             # L3: Nf2 g4.5 (SOLO -- was paired w/ Nf4 g1.5)
 CA[21]="ml 3 4 3.0 0.0"; CB[21]="ml 3 4 4.5 0.0"   # L3: Nf4 g3.0 || Nf4 g4.5
 CA[22]="ml 3 6 1.5 0.0"; CB[22]="ml 3 6 3.0 0.0"   # L3: Nf6 g1.5 || Nf6 g3.0
 CA[23]="ml 3 4 1.5 0.0"; CB[23]="ml 3 6 4.5 0.0"   # L3: Nf4 g1.5 || Nf6 g4.5 (REPACKED pair -- was Nf6 g4.5 solo)
