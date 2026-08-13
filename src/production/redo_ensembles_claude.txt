@@ -41,6 +41,20 @@
 #   - SNAPSHOT CAVEAT: ensemble list + per-ens k-range snapshotted at launch -> a FINAL run_conn_disc_ext
 #     re-run needed after everything lands to sweep L3 conn stragglers + late configs. rsync-during-run is
 #     SAFE (rsync -avz temp .name.XXXXXX + atomic rename; glob ckpoint_lat.* ignores dotfiles).
+#
+# UPDATE 2026-08-13 (MEASUREMENT -- stride-2 CONNECTED generation ON FNAL, for the axial l=3):
+#   - Taking the CONNECTED Y_lm tower (conn only -- axial l=3 is connected) from stride-10 to STRIDE 2 on the
+#     massless ensembles. FNAL slice of the 3-site plan `conn_stride2_three_site_impl_plan_claude.md`; FNAL
+#     detail = `conn_s2_fnal_L1_impl_plan_claude.md`. New work = the 4 DISJOINT residue classes k = 3,5,7,9
+#     (mod 10) (existing conn sits on k=1 mod10) -> nothing already-solved is re-shipped; resumable (complete-gate).
+#   - Runs IN PLACE on FNAL (configs + n1..n4 geometry all here, incl n3): 2x 1-GPU MPS chains per L on qed3
+#     (jobnames conn_s2_L<L>{a,b}). Scripts run_conn_s2_fnal / run_wrapper_conn_s2_fnal (CONN_L/CONN_OFFSETS),
+#     build `tmp_build_conn_s2_fnal_claude.sh <L>`; driver = jj_local_ylm_scalar_conn_stoch_fnal_claude.cu
+#     (abs-geometry copy). Output -> /lustre2/affine/redo/conn_s2/data_<esnid>/corr_ylm_conn_t00_nhits1_s1/
+#     corr.<k>.h0.h5 (esnid = <ens dir basename>_vmRe0.000000vmIm0.000000). A100 L1 ~105 s/cfg (~= TITAN V;
+#     small L overhead-bound) -> L1 ~7d, L2 ~16d on 2 GPUs. STATUS: L1 + L2 RUNNING (L1 ~3300 stride-2 h5).
+#   - PER-ROW obs NOT yet updated: this h5 lives on FNAL, PENDING pull-back to LOCAL. When LOCAL pulls it, the
+#     per-row `obs conn` tag upgrades stride-20 -> stride-2. Until then loc_ncfg/obs below are unchanged.
 
 # # status column:  DONE = target reached = CLOSED (its wrapper slot is commented out in run_wrapper_redo_claude.sh;
 # #                 re-apply no longer submits it).   running = still filling.
