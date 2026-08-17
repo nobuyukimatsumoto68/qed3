@@ -48,6 +48,13 @@ WRAP=run_wrapper_L4_scc_claude.sh
 # 2026-07-22: switched ALL to V100 -- qfe has buy-in priority on ece V100 nodes + broad public V100 access
 # (26 nodes), whereas A100/H200 are other groups' buy-in (qfe locked out -> those jobs sat in qw). V100 is
 # strong FP64 and needs NO rebuild (sm_70 binaries exist). To retry H200/A100 later, set that row's arch back.
+# 2026-08-14: retried A100 on Nf6g6 (the long pole). Measured HMC 3773 vs V100 4543 s/traj = 1.2x faster
+# (below the conn benchmark's ~1.5x: HMC's FP64-heavy action/Metropolis solve erodes the gain, and the V100
+# baseline is SXM2 not the conn's weak PCIE-16GB). BUT public A100 -pub queues were disabled/full (the 5-6 free
+# A100 GPUs sat behind PRIVATE buy-in qfe cannot schedule) -> the chain's 2nd link stalled 3.6h in qw, past the
+# ~2.4h/link break-even. Reverted to V100. CONCLUSION: V100 is the DEFAULT. A100 is only worth retrying when the
+# -pub A100 queues are ENABLED and actually have a free GPU (qstat -f -l gpu_type=A100 | grep -- '-pub@'); the
+# 1.2x is real but not worth the queue risk otherwise. V100 reallocates each chain link in ~2.5 min (measured).
 ENSEMBLES=(
   "2 2.0 sm_70"     # Nf2 g2 -> V100   (SCC-native)
   "2 4.0 sm_70"     # Nf2 g4 -> V100   (was A100)
@@ -57,7 +64,7 @@ ENSEMBLES=(
   "4 6.0 sm_70"     # Nf4 g6 -> V100
   "6 2.0 sm_70"     # Nf6 g2 -> V100   (was A100)   (FNAL cont.)
   "6 4.0 sm_70"     # Nf6 g4 -> V100
-  "6 6.0 sm_70"     # Nf6 g6 -> V100   (was H200 test; H200 too contended to schedule)
+  "6 6.0 sm_70"     # Nf6 g6 -> V100   (H200 too contended; A100 1.2x but -pub queues disabled -> see 08-14 note)
 )
 
 echo "######## unified L4 SCC driver  [$(date +%F_%H:%M:%S)]  (KMAX=$KMAX N_CHAIN=$N_CHAIN PE_OMP=$PE_OMP DRYRUN=$DRYRUN ONLY='${ONLY}') ########"

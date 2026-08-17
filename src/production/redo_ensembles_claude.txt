@@ -55,6 +55,12 @@
 #     small L overhead-bound) -> L1 ~7d, L2 ~16d on 2 GPUs. STATUS: L1 + L2 RUNNING (L1 ~3300 stride-2 h5).
 #   - PER-ROW obs NOT yet updated: this h5 lives on FNAL, PENDING pull-back to LOCAL. When LOCAL pulls it, the
 #     per-row `obs conn` tag upgrades stride-20 -> stride-2. Until then loc_ncfg/obs below are unchanged.
+#   - SCC SLICE of the SAME 3-site stride-2 conn plan = **L4 ONLY** (SCC has only n4 geometry; n1/n2 miss
+#     omega/alpha + n3 absent -> L1/L2/L3 went to LOCAL/FNAL). 3 L4 ens (Nf2 g2.0, Nf6 g4.0, Nf6 g6.0) x 4
+#     offsets = 12 units. SGE scripts run_wrapper_conn_s2_scc / run_conn_s2_scc (plan
+#     scc_conn_s2_L4_impl_plan_claude.md); driver builds IN PLACE (no _scc copy). gpu_type-pinned V100/A100,
+#     continuations on L40S (idle qfe buy-in, off the live L4 HMC). Output on SCC src/production/data_*/ --
+#     ~528 stride-2 h5 so far; PENDING pull-back to LOCAL (loc_ncfg/obs of the 3 L4 rows unchanged till then).
 
 # # status column:  DONE = target reached = CLOSED (its wrapper slot is commented out in run_wrapper_redo_claude.sh;
 # #                 re-apply no longer submits it).   running = still filling.
