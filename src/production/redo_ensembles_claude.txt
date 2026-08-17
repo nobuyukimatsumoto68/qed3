@@ -56,6 +56,22 @@
 #   - PER-ROW obs NOT yet updated: this h5 lives on FNAL, PENDING pull-back to LOCAL. When LOCAL pulls it, the
 #     per-row `obs conn` tag upgrades stride-20 -> stride-2. Until then loc_ncfg/obs below are unchanged.
 #
+# UPDATE 2026-08-17 (MEASUREMENT -- conn stride-2 now L1+L2+L3, moved to affine, at=0.1 DROPPED):
+#   - L3 HMC target BUMPED 800 -> 1000 (NM; -DKMAX rebuild via tmp_build_L3_claude.sh; resume @799 stays
+#     exact-Metropolis since NO_METROP_UNTIL keys on abs k). All 9 L3 on qed3 = MAIN acct (p19,p20 REOPENED).
+#     Now: p20 Nf2 g4.5 DONE@999; rest 827-992/1000, 0 flagged. L3 rows above -> target 1000.
+#   - conn MOVED qed3 -> affine (`ACCT=affine.lq2_gpu`): L3 HMC filled qed3 and starved conn (Priority) ->
+#     conn now on affine. CAVEAT: both accts share the SAME lq2_gpu partition; account = billing + fairshare
+#     priority, NOT separate GPUs. Over 3 days it ran fine concurrent w/ L3-on-qed3.
+#   - at=0.1 half-a_t ensembles DROPPED from the conn tower (NM): run_conn_s2 glob pinned `at0.200000` (was
+#     `Nf*mRe...` which swept in at0.100000). 9 at=0.2 ens/L (Nf{2,4,6} x gsq). Already-made at0.1 conn h5
+#     (4 dirs ~2451 h5) LEFT on disk (no rm), orphaned.
+#   - L3 conn STARTED (NM): built jj_conn_s2_L3_fnal_claude.o (tmp_build_conn_s2_fnal_claude.sh 3), submitted
+#     `ACCT=affine.lq2_gpu CONN_L=3 ... 4`. conn_s2_L3{a,b} RUNNING on affine (2x 1-GPU MPS chains, 2 offsets/GPU).
+#     NB L3 HMC still generating -> L3 conn covers configs-so-far, complete-gated, topup later for 800->1000.
+#   - conn h5 now: L1 ~11412, L2 ~4241, L3 ~just-started. All L on affine = 6 GPUs; affine avail 0.52 -> QOS=opp soon.
+#   - PENDING (unchanged): pull-back to LOCAL + per-row obs stride-20 -> stride-2. Files git-modified -> commit develop.
+#
 # UPDATE 2026-08-17 (INFRASTRUCTURE -- ZFS /home + /project FULL; cleanup PENDING on NM):
 #   - Admin email: the ZFS filesystem (storage/home, storage/project, storage/project/fermilab) is FULL and
 #     already degrading service (login failures). Measured: /home 588G/607G = 97% (20G free);
@@ -157,15 +173,15 @@
 #   REPACK (zero-risk, all jobs were pending): Nf2 g4.5 SINGLED OUT as SOLO (p20, finishes soonest); its old
 #   partner Nf4 g1.5 re-paired w/ old-p23 solo Nf6 g4.5 -> new pair slot p23. SPLIT: affine{p20 solo, p23 pair}
 #   + qed3{p21, p22}. p21/p22 pairs untouched. nsteps: Nf2 {3,3,3}, Nf4/6 {4,4,4}.
-  Nf2_gsq1.500000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L3_hb0.400000-1.000000 massless p19   3  2  1.5  0.0    1000    799 running     93.8    0.220      0  -
-  Nf2_gsq3.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L3_hb0.400000-1.000000 massless p19   3  2  3.0  0.0    1000    799 running     93.8    0.230      0  -
-  Nf2_gsq4.500000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L3_hb0.400000-1.000000 massless p20   3  2  4.5  0.0    1000    799 running    100.0    0.340      0  -
-  Nf4_gsq1.500000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L3_hb0.400000-1.000000 massless p23   3  4  1.5  0.0    1000    799 running    100.0    0.350      0  -
-  Nf4_gsq3.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L3_hb0.400000-1.000000 massless p21   3  4  3.0  0.0    1000    726 running     92.3    0.780      0  -
-  Nf4_gsq4.500000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L3_hb0.400000-1.000000 massless p21   3  4  4.5  0.0    1000    657 running     81.8    0.500      0  -
-  Nf6_gsq1.500000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L3_hb0.400000-1.000000 massless p22   3  6  1.5  0.0    1000    725 running    100.0    0.400      0  -
-  Nf6_gsq3.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L3_hb0.400000-1.000000 massless p22   3  6  3.0  0.0    1000    647 running     81.8    0.610      0  -
-  Nf6_gsq4.500000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L3_hb0.400000-1.000000 massless p23   3  6  4.5  0.0    1000    731 running    100.0    0.570      0  -
+  Nf2_gsq1.500000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L3_hb0.400000-1.000000 massless p19   3  2  1.5  0.0    1000    992 running     93.8    0.220      0  -
+  Nf2_gsq3.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L3_hb0.400000-1.000000 massless p19   3  2  3.0  0.0    1000    989 running     93.8    0.230      0  -
+  Nf2_gsq4.500000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L3_hb0.400000-1.000000 massless p20   3  2  4.5  0.0    1000    999 DONE       100.0    0.340      0  -
+  Nf4_gsq1.500000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L3_hb0.400000-1.000000 massless p23   3  4  1.5  0.0    1000    916 running    100.0    0.350      0  -
+  Nf4_gsq3.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L3_hb0.400000-1.000000 massless p21   3  4  3.0  0.0    1000    915 running     92.3    0.780      0  -
+  Nf4_gsq4.500000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L3_hb0.400000-1.000000 massless p21   3  4  4.5  0.0    1000    849 running     81.8    0.500      0  -
+  Nf6_gsq1.500000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L3_hb0.400000-1.000000 massless p22   3  6  1.5  0.0    1000    910 running    100.0    0.400      0  -
+  Nf6_gsq3.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L3_hb0.400000-1.000000 massless p22   3  6  3.0  0.0    1000    827 running     81.8    0.610      0  -
+  Nf6_gsq4.500000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L3_hb0.400000-1.000000 massless p23   3  6  4.5  0.0    1000    878 running    100.0    0.570      0  -
   Nf2_gsq1.500000at0.200000nu01.000000mRe0.100000mIm0.000000nt128L1_hb1.000000 massive  p9     1   2   1.5   0.1     120    119 DONE      97.5   0.242      0  -
   Nf2_gsq1.500000at0.200000nu01.000000mRe0.200000mIm0.000000nt128L1_hb1.000000 massive  p9     1   2   1.5   0.2     120    119 DONE      97.5   0.223      0  -
   Nf2_gsq1.500000at0.200000nu01.000000mRe0.300000mIm0.000000nt128L1_hb1.000000 massive  p10    1   2   1.5   0.3     120    119 DONE      98.3   0.183      0  -
