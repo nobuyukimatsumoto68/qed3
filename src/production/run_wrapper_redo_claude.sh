@@ -88,16 +88,16 @@ declare -A CA CB
 # slot 18 CLOSED 2026-07-30: both done@1999 (at=0.1 L2 Nf4 g2.0 + Nf6 g2.0, KMAX 2000). Last half-a_t slot -> half-a_t COMPLETE. Commented out.
 # CA[18]="ml01 2 4 2.0 0.0"; CB[18]="ml01 2 6 2.0 0.0"   # at0.1: L2 Nf4 g2.0 || L2 Nf6 g2.0
 # L=3 (at=0.2) ensembles -- ADDED 2026-07-28 (NM). type "ml" L3 -> hmc_fermilab_redo_massless_L3_Nf<Nf>_claude.o
-# (3-stage {0,0.4,1.0}/{3,3,3}, MG100, frozen window (0.015,8.0), KMAX 800, KRNG 20, -DNO_METROP_UNTIL=2).
+# (3-stage {0,0.4,1.0}/{3,3,3}, MG100, frozen window (0.015,8.0), KMAX 1000 [was 800, bumped 2026-08-14], KRNG 20, -DNO_METROP_UNTIL=2).
 # gsq{1.5,3.0,4.5} x Nf{2,4,6} = 9 streams -> 4 like-cost MPS pairs + 1 SOLO (Nf6 g4.5 = most expensive, gets a
 # dedicated GPU; CB unset -> run_redo_mps2 runs client 1 only). gsq3.0/Nf2 (CB[19]) already thermalizing (k~4).
-# slot 19 CLOSED 2026-08-07: both done@799 (Nf2 g1.5 + g3.0, KMAX 800). First L3 ensembles complete. Commented out.
-# CA[19]="ml 3 2 1.5 0.0"; CB[19]="ml 3 2 3.0 0.0"   # L3: Nf2 g1.5 || Nf2 g3.0
+# slot 19 REOPENED 2026-08-14: target bumped 800 -> 1000 (KMAX 1000 rebuild). Nf2 g1.5+g3.0 resume 799 -> 999.
+CA[19]="ml 3 2 1.5 0.0"; CB[19]="ml 3 2 3.0 0.0"   # L3: Nf2 g1.5 || Nf2 g3.0
 # REPACK 2026-08-07 (all jobs pending -> zero-risk moment): 7 live streams -> 3 pairs + 1 solo. Nf2 g4.5 (704,
 # finishes soonest) SINGLED OUT as the solo (shortest solo-GPU waste); its old partner Nf4 g1.5 re-paired with
 # the old p23 solo Nf6 g4.5. p21/p22 untouched (already balanced pairs). See repack note in the memory snapshot.
-# slot 20 CLOSED 2026-08-08: Nf2 g4.5 solo done@799 (KMAX 800). All 3 L3 Nf2 ensembles complete. Commented out.
-# CA[20]="ml 3 2 4.5 0.0"                             # L3: Nf2 g4.5 (SOLO -- was paired w/ Nf4 g1.5)
+# slot 20 REOPENED 2026-08-14: target bumped 800 -> 1000 (KMAX 1000 rebuild). Nf2 g4.5 SOLO resumes 799 -> 999.
+CA[20]="ml 3 2 4.5 0.0"                             # L3: Nf2 g4.5 (SOLO -- was paired w/ Nf4 g1.5)
 CA[21]="ml 3 4 3.0 0.0"; CB[21]="ml 3 4 4.5 0.0"   # L3: Nf4 g3.0 || Nf4 g4.5
 CA[22]="ml 3 6 1.5 0.0"; CB[22]="ml 3 6 3.0 0.0"   # L3: Nf6 g1.5 || Nf6 g3.0
 CA[23]="ml 3 4 1.5 0.0"; CB[23]="ml 3 6 4.5 0.0"   # L3: Nf4 g1.5 || Nf6 g4.5 (REPACKED pair -- was Nf6 g4.5 solo)
