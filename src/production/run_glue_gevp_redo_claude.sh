@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # run_glue_gevp_redo_claude.sh -- GEVP spectra for the massless redo ensembles (latest strategy:
-# per-m GEVP, therm cut kmin=20). Uses the both_3d analysis binary (takes the data dir as arg1).
+# per-m GEVP, therm cut kmin=20). Uses the LOCAL analysis binary glue_gevp_analysis_claude.o
+# (moved out of the obsolete src/both_3d 2026-08-13; takes the data dir as arg1).
 # F   (l=1):  per_m=1, nops2=1, lsel="1"  -> 3 m-block grounds; jkdump for fit_perm.
 # F^2 (0++):  per_m=0, nops2=2, l=0        -> 0++ = 2nd-lightest (index nops2-2); jkdump.
 # Output in production/: gevp_{F,f2}_<tag>_claude.dat + _jk.dat + .log.  L4 skipped (too few cfgs).
@@ -8,7 +9,16 @@ set -u
 cd /mnt/barracuda22/qed3/qed3/src/production || exit 1
 export OMP_NUM_THREADS=1
 export LD_LIBRARY_PATH=/mnt/hdd_barracuda/opt/myhdfstuff/hdf5-2.1.0/lib:${LD_LIBRARY_PATH:-}
-ANA=../both_3d/glue_gevp_analysis_claude.o
+# ANA=../both_3d/glue_gevp_analysis_claude.o   # OLD: src/both_3d is OBSOLETE (NM 2026-08-13)
+ANA=./glue_gevp_analysis_claude.o
+if [ ! -x "$ANA" ]
+then
+  H5I="-I/mnt/hdd_barracuda/opt/highfive/include/ -I/mnt/hdd_barracuda/opt/myhdfstuff/hdf5-2.1.0/include/"
+  H5L="-L/mnt/hdd_barracuda/opt/myhdfstuff/hdf5-2.1.0/lib/ -lhdf5"
+  echo "### building $ANA ###"
+  g++ -O2 -std=c++17 -x c++ -I../../qfe_mod/include $H5I glue_gevp_analysis_claude.cu $H5L -o "$ANA" \
+    || { echo "### ANALYSIS BUILD FAILED ###"; exit 1; }
+fi
 AT=0.2
 TCUT=14
 BIN=0        # auto Nc/50

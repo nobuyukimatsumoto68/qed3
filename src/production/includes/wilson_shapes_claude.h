@@ -340,4 +340,26 @@ struct WilsonShapes {
     }
     return avg / orbit.size();
   }
+
+  // Same projection as op(), with a general LOCAL power p of the holonomy (power >= 1):
+  //   O^{(p)}_{i,lm}(s) = (1/N_orb) sum_inst Ylm(r_ins) [ theta_inst(s) ]^p
+  // The power is applied to the LOCAL angle, BEFORE the Y_lm sum -- so O^{(p)} carries the same
+  // (l,m) label as O^{(1)} / O^{(2)} and the (l,m)-block-diagonal correlator storage is preserved.
+  // p=1 reproduces op(...,false) and p=2 reproduces op(...,true) BIT-FOR-BIT (same operation order,
+  // no std::pow), so the existing F and F^2 bases are untouched.  p=4 is the F^4 local density
+  // (glue_f2_v2_shapes_impl_plan_claude.md).
+  // Only EVEN p may be mixed into the 0++ basis: theta is parity-odd (see the header note above), so
+  // <O^{(odd)} O^{(even)}> vanishes by parity and odd powers would contribute noise-only rows.
+  template<typename Gauge>
+  double op_pow(const Gauge& U, const int s, const std::vector<Instance>& orbit,
+                const int ell, const int em, const int power) const {
+    double avg = 0.0;
+    for(const Instance& in : orbit){
+      const double th = holonomy(U, s, in);
+      double g = th;
+      for(int q=1; q<power; q++) g *= th;
+      avg += Ylm_real(ell, em, in.r_ins) * g;
+    }
+    return avg / orbit.size();
+  }
 };

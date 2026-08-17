@@ -325,9 +325,26 @@ Conn only. Disc keeps its own separate pending nhits=2 job (`run_disc_h2_claude.
 **Q6. Thermalization cut. -> UNCHANGED.**
 $k < 20$ in TRAJECTORY units (so 10 samples on a stride-2 grid, was 2). No analysis change.
 
-## 9. Open questions (still need NM)
+## 9. ACTUAL SITE SPLIT (2026-08-13) -- supersedes the equal-thirds assignment
 
-**Q7. Relative site capacity.** The by-ensemble machine assignment needs a capacity weight per site.
-The assignment generator defaults to **equal thirds** by worker-h; changing that is one line
-(`WEIGHTS` at the top of `conn_stride2_assign_claude.py`). LOCAL is 2x TITAN V and is also carrying the
-pending disc nhits=2 job. FNAL and SCC GPU counts available for this are unknown here.
+Q7 (site capacity) was settled by GEOMETRY, not capacity:
+
+| site | levels | status |
+|---|---|---|
+| FNAL | **L1 + L2** | RUNNING. In place on `/lustre2/affine/redo`; output to `/lustre2/affine/redo/conn_s2/data_<esnid>/corr_ylm_conn_t00_nhits1_s1/`. A100 L1 ~105 s/cfg (same as TITAN V -- small L is overhead-bound, no A100 gain) -> L1 ~7 d, L2 ~16 d on 2 GPUs. L1 had ~3300 stride-2 h5 as of 08-13. |
+| SCC | **L4 only** | SCC has complete `n4` geometry but LACKS `omega/alpha` for n1/n2 and ALL of n3 -> L1/L2/L3 reassigned away. 3 ensembles x 4 offsets = 12 units. |
+| LOCAL | **L3** | |
+
+`conn_stride2_assign_claude.txt` now carries a SUPERSEDED banner: its `kmin/stride/kmax/offset`
+columns are still correct, only the `site` column is stale.
+
+Per-site detail plans (written on the remotes): `conn_s2_fnal_L1_impl_plan_claude.md` (its header
+still says "L=1 only" and is BEHIND the blackboard, which reports L1+L2 running),
+`scc_conn_s2_L4_impl_plan_claude.md`.
+
+**Pull-back wired 2026-08-13:** `rsync_fnal_claude.sh` and `rsync_scc_claude.sh` each gained a second
+rsync invocation for `data_Nf*/corr_ylm_conn_t00_nhits1_s1/corr.*.h5` with `--ignore-existing`, plus a
+residue-class census (`k%10 = 1 / 3 / 5 / 7 / 9`) so the stride-2 fill is visible per ensemble. FNAL
+pulls from the DEEPER root `/lustre2/affine/redo/conn_s2/` (the jobs `cd` there), SCC from the same
+root as its configs. Per the blackboard, the per-row `obs conn` tag upgrades stride-20 -> stride-2
+only once LOCAL has pulled; `loc_ncfg`/`obs` are still `0`/`-` on every row.

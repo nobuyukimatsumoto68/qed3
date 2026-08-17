@@ -287,11 +287,42 @@ int main(int argc, char* argv[]){
   const int k_hi      = free_field ? 1 : kmax;
 
   for(int k = k_lo; k < k_hi; k += k_ckpoint){
+    // Checkpoint presence FIRST -- the break on a missing ckpoint_lat must still fire before any
+    // skip logic, or a strided worker would run past the end of the stream.
+    std::string str_lat;
     if(!free_field){
-      const std::string str_lat = ens_dir + "ckpoint_lat." + std::to_string(k);
+      str_lat = ens_dir + "ckpoint_lat." + std::to_string(k);
       if(!std::filesystem::exists(str_lat)){ if(k==0) continue; else break; }
-      U.read(str_lat);
     }
+
+    // EARLY SKIP (added 2026-08-15): if EVERY hit of this config is already "complete", skip it
+    // WITHOUT U.read + Dm.update.  Dm.update recomputes lambda_min/lambda_max, which is the
+    // expensive part, so a resume or a catch-up pass over already-finished ensembles used to pay
+    // that cost per config for nothing (visible in the logs as "# k=N lambda_min/max=..." followed
+    // immediately by "# skip k=N hit 0 (complete)").  Mirrors the conn driver,
+    // jj_local_ylm_scalar_conn_stoch_claude.cu:336-351.
+    // SAFE: the RNG is reseeded per hit from the string (esnid,k,h) -- there is NO sequential
+    // stream -- so skipping a config cannot perturb any other config's noise vectors or results.
+    {
+      bool all_done = true;
+      for(int h=0; h<nhits; h++){
+        const std::string h5p = dir_out + "corr." + std::to_string(k) + ".h" + std::to_string(h) + ".h5";
+        bool done_h = false;
+        if(std::filesystem::exists(h5p)){
+          try { HighFive::File f(h5p, HighFive::File::ReadOnly); done_h = f.exist("complete"); } catch(...) {}
+        }
+        if(!done_h){ all_done = false; break; }
+      }
+      if(all_done){
+        std::cout << "# skip k=" << k << " (all " << nhits << " hits done; no U.read/update)" << std::endl;
+        continue;
+      }
+    }
+
+    // OLD (paid U.read + Dm.update unconditionally, even when every hit was already complete):
+    //   if(!free_field){ ... U.read(str_lat); }
+    //   Dm.update(U);
+    if(!free_field) U.read(str_lat);
     Dm.update(U);
     std::cout << "# k="<<k<<(free_field?" (free field)":"")
               << "  lambda_min/max="<<Dm.lambda_min<<"/"<<Dm.lambda_max<<std::endl;

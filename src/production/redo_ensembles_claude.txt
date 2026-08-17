@@ -100,6 +100,65 @@
 #       npm cache clean --force
 #     Not yet done as of this entry. If Dinv.0.h5 is ever needed again it must be REGENERATED (cost unknown
 #     to Claude -- NM's call whether the GPU time is cheaper than the 51 GB).
+#
+# UPDATE 2026-08-17 (LOCAL barracuda22 -- disc nhits=2 DONE bar L4; MPS packing measured; F^4 basis):
+#   - **disc nhits=2 (2nd stochastic hit) COMPLETE for L1, L2 AND L3**; only L4 left.
+#     L1 4200/4200, L2 4200/4200, L3 686/686, L4 411/464 (53 h1 to go, ETA ~4.4 h at 2 solo workers).
+#     Driver `run_disc_h2_claude.sh`; dir `data_<ens>_vm*/corr_ylm_disc_tb2/corr.<k>.h1.h5`.
+#     Readers still glob h0 ONLY -- a hit-averaging reader MUST require an equal hit count per config.
+#   - **MPS PACKING GAIN MEASURED = 1.46x** (was a guess before). L2 solo 133.1 s/cfg (n=1961, 2 workers)
+#     vs PACKED 182.5 s/cfg (n=2239, 4 workers) => per-proc 1.37x slower but 2x as many = 1.46x net.
+#     That matches 1/util = 1/0.70 almost exactly, so the utilisation-inverse rule is a good estimator
+#     on this hardware. Applied via the `PACK_L` knob: "1 2" (L2, phase A 08-13 20:46 -> 08-15 04:15),
+#     then "1 2 3" (adds L3, phase A -> 08-16 14:15). L4 left SOLO (util 91% on g6.0 -> no headroom).
+#   - **The L3 Nf6 g3.0 / g4.5 GAP IS CLOSED.** Both had configs but NO data_* dir at all (never measured,
+#     conn or disc). They now have disc h0+h1 68/68 and 77/77 -- nhits=2 computed both hits from scratch
+#     when a worker reached them. (Their CONN is still absent; see the conn note below.)
+#   - Machine RESTARTED 2026-08-13 ~20:40 (NM, Ubuntu livepatch). Nothing lost: the disc driver writes
+#     .tmp then renames with "complete" written LAST, so a hard kill leaves no partial h5.
+#   - DRIVER FIX (`jj_local_ylm_disc_stoch_claude.cu:289-322`, compiles clean, NOT yet in a running
+#     binary): early-skip -- if EVERY hit of a config is already "complete", skip WITHOUT U.read +
+#     Dm.update. Dm.update recomputes lambda_min/max and was being paid per config on every catch-up
+#     pass over finished ensembles (logs show "# k=N lambda_min/max=..." then "# skip k=N hit 0").
+#     Mirrors the conn driver (jj_local_ylm_scalar_conn_stoch_claude.cu:336-351). SAFE: the RNG is
+#     reseeded per hit from the string (esnid,k,h), no sequential stream, so skipping cannot perturb
+#     any other config. `need_build()` picks it up on the next relaunch.
+#   - **GLUE: F^4 ADDED TO THE 0++ BASIS -- first NON-NULL basis enlargement (multi-flow and the s9
+#     shapes were both null).** New driver `glue_f2_v2_shapes_claude.cu` (copy, original untouched),
+#     prefix `glue_f2_v2_shapes`, n_shapes=14: shapes 0-6 = p=2 (BIT-IDENTICAL to glue_f2_shapes,
+#     F_corr_blk max|diff| = 0.000e+00), shapes 7-13 = p=4. The power is applied to the LOCAL holonomy
+#     theta_inst BEFORE the Y_lm projection (WilsonShapes::op_pow) -- so O^(4) carries the same (l,m)
+#     label as O^(2) and the analysis needed NO change. Only EVEN powers may mix (theta is parity-odd).
+#     SWEEP COMPLETE 2026-08-11: 93707/93707 h5, all 42 massless ens, 4h33m on 8 CPU workers (~36
+#     worker-h). Verdict (L3 Nf2 g1.5, 799 cfg): 0++ err/ref = 0.933 +- 0.017 = 4.0 sigma, PLUS a
+#     monotone downward mean within each vacsub (the variational signature). PRODUCTION SETTING: all 14
+#     ops, nops2=4, vacsub=0, **0++ = STATE 2** (not state 0 -- downstream fit scripts must retarget).
+#     Plan + full table: glue_f2_v2_shapes_impl_plan_claude.md section 6b.
+#     NB `glue_f2_v2_shapes` (93707) has 713 MORE configs than `glue_f2_shapes` (92994) and contains the
+#     p=2 block bit-identically => it SUPERSEDES the old prefix for any F^2 analysis (use orbits_arg
+#     "0,1,2,3,4,5,6").
+#   - INFRA: `glue_gevp_analysis_claude.{cu,o}` MOVED out of the OBSOLETE src/both_3d into
+#     src/production (NM: "src/both_3d is obsolete"). Rebuild is BIT-IDENTICAL (md5 of source AND
+#     binary match) and reproduces the prior .dat exactly. Both GEVP scripts repointed to
+#     `./glue_gevp_analysis_claude.o` + a build-if-absent guard. No project-local headers (Eigen +
+#     HighFive + std only). Audited: NO production program now depends on any obsolete tree.
+#     The both_3d copies were NOT deleted (handed to NM).
+#   - CONN PULL-BACK WIRED (not yet run): `rsync_fnal_claude.sh` and `rsync_scc_claude.sh` each gained a
+#     SECOND rsync for `data_Nf*/corr_ylm_conn_t00_nhits1_s1/corr.*.h5`, with `--ignore-existing` (the
+#     stride-2 residue classes k=3,5,7,9 mod 10 are disjoint from the local k=1 mod 10, so the pull is
+#     purely ADDITIVE and a collision would signal a partition bug) plus a per-ensemble census by
+#     residue class. FNAL pulls from the DEEPER root /lustre2/affine/redo/conn_s2/ (the jobs cd there);
+#     SCC from the same root as its configs. Per-row loc_ncfg/obs still UNCHANGED, as the 08-13 entry
+#     says, until the pull actually happens.
+#   - `conn_stride2_assign_claude.txt` carries a SUPERSEDED banner: its site column was an equal-thirds
+#     guess; the real split is geometry-driven (FNAL L1+L2+L3, SCC L4 only, LOCAL L3). kmin/stride/kmax
+#     columns are still correct.
+#   - LOCAL DISK IS FINE (unrelated to the ZFS entry above, which is the FNAL side): barracuda22 has
+#     4.3 TB free. NOTE src/both_3d holds 549 GB of OLD-campaign h5 (nt96/nt192, gsq8/12/16) -- the
+#     largest reclaimable block here, NOT touched, NM's call.
+#   - GOTCHA (cost a false "0 files, data lost" alarm): `ls data_Nf*/<prefix>.*.h5 | wc -l` over ~93k
+#     files EXCEEDS ARG_MAX -- ls dies "Argument list too long", 2>/dev/null hides it, wc returns 0.
+#     Use `find . -maxdepth 2 -name '...' | wc -l`. Fixed in run_glue_f2_v2_sweep_claude.sh:106,134.
 
 # # status column:  DONE = target reached = CLOSED (its wrapper slot is commented out in run_wrapper_redo_claude.sh;
 # #                 re-apply no longer submits it).   running = still filling.
