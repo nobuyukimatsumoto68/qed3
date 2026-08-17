@@ -143,7 +143,16 @@
 #     `./glue_gevp_analysis_claude.o` + a build-if-absent guard. No project-local headers (Eigen +
 #     HighFive + std only). Audited: NO production program now depends on any obsolete tree.
 #     The both_3d copies were NOT deleted (handed to NM).
-#   - CONN PULL-BACK WIRED (not yet run): `rsync_fnal_claude.sh` and `rsync_scc_claude.sh` each gained a
+#   - CONN PULL-BACK **HAS RUN** (2026-08-17 13:18 SCC / 13:27 FNAL, NM -- an earlier draft of this
+#     entry wrongly said "not yet run"; corrected). LOCAL conn is now at **51% of the stride-2 grid**
+#     (21518/41886 over the at=0.2 ensembles). By residue class: k%10=1 93% (7792/8380), and the four
+#     NEW classes k%10=3/5/7/9 at 42/40/42/40%. Fill is very uneven -- 6 L1 ensembles are COMPLETE at
+#     stride 2 while all of L2 Nf4/Nf6, all of L3, and 4 of 9 L4 have ZERO in the new classes.
+#     NOTE the k%10=1 BASELINE is itself 7% short (588 missing), concentrated at L3/L4: those were
+#     measured on the stride-10 pass when the streams were shorter, and the ensembles have since grown
+#     (L3 799 -> 826-999 after the 800->1000 target bump). So the OLD grid needs a topup too, not just
+#     the new classes.
+#     Mechanism: `rsync_fnal_claude.sh` and `rsync_scc_claude.sh` each gained a
 #     SECOND rsync for `data_Nf*/corr_ylm_conn_t00_nhits1_s1/corr.*.h5`, with `--ignore-existing` (the
 #     stride-2 residue classes k=3,5,7,9 mod 10 are disjoint from the local k=1 mod 10, so the pull is
 #     purely ADDITIVE and a collision would signal a partition bug) plus a per-ensemble census by
