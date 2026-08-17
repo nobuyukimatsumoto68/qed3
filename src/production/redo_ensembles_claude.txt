@@ -61,6 +61,9 @@
 #     scc_conn_s2_L4_impl_plan_claude.md); driver builds IN PLACE (no _scc copy). gpu_type-pinned V100/A100,
 #     continuations on L40S (idle qfe buy-in, off the live L4 HMC). Output on SCC src/production/data_*/ --
 #     ~528 stride-2 h5 so far; PENDING pull-back to LOCAL (loc_ncfg/obs of the 3 L4 rows unchanged till then).
+#     2026-08-17: fresh L40S sweep RESUBMITTED (48 cs2 jobs = 12 units x 4 links) to pick up the grown HMC tail
+#     (Nf6g4 ->586, Nf6g6 ->427; Nf2g2 already complete). qfe ece/ece-long L40S enabled (public A100/L40S -pub
+#     disabled that day); complete-gating sweeps only new configs.
 #
 # UPDATE 2026-08-17 (MEASUREMENT -- conn stride-2 now L1+L2+L3, moved to affine, at=0.1 DROPPED):
 #   - L3 HMC target BUMPED 800 -> 1000 (NM; -DKMAX rebuild via tmp_build_L3_claude.sh; resume @799 stays
@@ -331,11 +334,11 @@
 #
 # ensemble                                                                              type     slot L Nf gsq mRe target ncfg status        loc_ncfg  obs
   Nf4_gsq2.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p13  4 4  2.0 0.0  600  599  DONE       0  -
-  Nf4_gsq4.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p13  4 4  4.0 0.0  600  540  SCC-running       0  -
-  Nf4_gsq6.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p15  4 4  6.0 0.0  600  516  SCC-running       0  -
-  Nf6_gsq2.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p14  4 6  2.0 0.0  600  475  SCC-running       0  -
-  Nf6_gsq4.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p14  4 6  4.0 0.0  600  480  SCC-running       0  -
-  Nf6_gsq6.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p15  4 6  6.0 0.0  600  348  SCC-running       0  -
+  Nf4_gsq4.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p13  4 4  4.0 0.0  600  599  DONE              0  -
+  Nf4_gsq6.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p15  4 4  6.0 0.0  600  599  DONE              0  -
+  Nf6_gsq2.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p14  4 6  2.0 0.0  600  592  SCC-running       0  -
+  Nf6_gsq4.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p14  4 6  4.0 0.0  600  586  SCC-running       0  -
+  Nf6_gsq6.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p15  4 6  6.0 0.0  600  427  SCC-running       0  -
 
 # ----- RSYNC (FNAL -> local): pull the L1/L2/L4 gauge configs for local analysis -------------------
 # FNAL host : lq.fnal.gov   (login node; needs your FNAL ssh/kerberos auth. ~/affine -> /lustre2/affine symlink)
