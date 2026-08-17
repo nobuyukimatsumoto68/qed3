@@ -36,7 +36,7 @@ NW=${#OFFSETS[@]}
 export OMP_NUM_THREADS=${OMP_NUM_THREADS:-4}
 
 cd "$WORKDIR" || { echo "ERROR: no WORKDIR $WORKDIR"; exit 1; }
-[ -x "$BIN" ] || { echo "ERROR: binary missing: $BIN (run tmp_build_conn_s2_L1_fnal_claude.sh)"; exit 1; }
+[ -x "$BIN" ] || { echo "ERROR: binary missing: $BIN (build it: bash /lustre2/affine/redo/tmp_build_conn_s2_fnal_claude.sh $CONN_L)"; exit 1; }
 
 # Runtime env: same as the HMC job -- `module load hdf5` puts libhdf5.so.310 on LD_LIBRARY_PATH,
 # plus the gsl lib export. Without this the binary dies "libhdf5.so.310: cannot open shared object file".
@@ -45,8 +45,10 @@ source /home/nmatsum/env.sh 2>/dev/null || source /lustre2/affine/env.sh
 echo "### conn_s2 L${CONN_L} job ${SLURM_JOB_ID:-nojob} on $(hostname)  $(date) ###"
 nvidia-smi -L 2>/dev/null | head
 
-# ---- L=1 MASSLESS ensembles (mRe0.000000; excludes the massive L1 condensate set) ----
-mapfile -t ENS < <(cd "$CFGROOT" && ls -d Nf*mRe0.000000mIm0.000000nt128L${CONN_L}_hb*/ 2>/dev/null | sed 's#/$##')
+# ---- MASSLESS at=0.2 ensembles (mRe0.000000; excludes the massive condensate set AND the at=0.1 half-a_t set) ----
+# NB 2026-08-17 (NM): dropped the at=0.1 half-a_t ensembles from the conn tower -> match at0.200000 only.
+#   Old glob (all at): Nf*mRe0.000000mIm0.000000nt128L${CONN_L}_hb*   (swept in the at0.100000 dirs too).
+mapfile -t ENS < <(cd "$CFGROOT" && ls -d Nf*at0.200000*mRe0.000000mIm0.000000nt128L${CONN_L}_hb*/ 2>/dev/null | sed 's#/$##')
 [ -n "${CONN_ENS_FILTER:-}" ] && mapfile -t ENS < <(printf '%s\n' "${ENS[@]}" | grep -E "$CONN_ENS_FILTER")
 NENS=${#ENS[@]}
 echo "### ensembles: $NENS ###"; printf '  %s\n' "${ENS[@]}"
