@@ -52,8 +52,18 @@ ana_one () {
   # F l=2 (per-m grounds, H irrep; same F operator, lsel="2") -- ALL L now (L3 signal is good;
   # at L4 the low-stat ensembles may return nan, which the ratio scripts skip).
   $ANA "$dd" 1 1 0 $AT gevp_Fl2_${tag}_claude.dat 1 $TCUT $BIN $KMIN $RTOL glue_msm_shapes $TREBASE "" 0 1 0 "2" 1 0 0 gevp_Fl2_${tag}_jk_claude.dat 1 > ana_Fl2_${tag}_claude.log 2>&1
-  # F^2 0++ (2nd-lightest, l=0) -- ALL L
-  $ANA "$dd" 1 1 0 $AT gevp_f2_${tag}_claude.dat 2 $TCUT $BIN $KMIN $RTOL glue_f2_shapes $TREBASE "" 0 1 0 "0" 1 0 0 gevp_f2_${tag}_jk_claude.dat 0 > ana_f2_${tag}_claude.log 2>&1
+  # F^2 0++ (l=0) -- ALL L.  INCLUDES F^4 (NM 2026-08-18): the F^2-v2 basis has 14 shapes
+  # (0-6 = p2 = F^2, 7-13 = p4 = F^4); the F^4 operators sharpen the 0++ variational estimate.
+  # nops2=2 (NOT 4): keep only the 2 lightest GEVP modes = the near-zero VACUUM/constant mode
+  # (vacsub=0) + the physical 0++.  The 0++ is then the NON-vacuum one = STATE 0 / cols (3,4),
+  # ROBUST across all 36 ensembles by construction (no fixed high-index to misfire).
+  # WHY NOT nops2=4: verify_f2v2_states_claude.py showed the fixed "0++ = state 2" assignment BREAKS
+  # on the 5 noisiest ensembles (L4 g4/g6, L3 Nf4 g4.5): there state 2 catches a vacuum-like/spurious
+  # mode and the 0++ falls to state 1.  nops2=4 err/ref 0.933 vs nops2=2 0.948 -- 1.5% traded for
+  # robustness (glue_f2_v2_shapes_impl_plan_claude.md sec 6b: full_n2_v0 vs full_n4_v0).
+  # OLD (7-shape F^2 only, no F^4): same nops2=2 / state 0 / cols (3,4), prefix glue_f2_shapes:
+  # $ANA "$dd" 1 1 0 $AT gevp_f2_${tag}_claude.dat 2 $TCUT $BIN $KMIN $RTOL glue_f2_shapes $TREBASE "" 0 1 0 "0" 1 0 0 gevp_f2_${tag}_jk_claude.dat 0 > ana_f2_${tag}_claude.log 2>&1
+  $ANA "$dd" 1 1 0 $AT gevp_f2_${tag}_claude.dat 2 $TCUT $BIN $KMIN $RTOL glue_f2_v2_shapes $TREBASE "" 0 1 0 "0" 1 0 0 gevp_f2_${tag}_jk_claude.dat 0 > ana_f2_${tag}_claude.log 2>&1
   echo "done $tag"
 }
 export -f ana_one

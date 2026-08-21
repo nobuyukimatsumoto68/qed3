@@ -120,12 +120,25 @@ static int seed_from_string(const std::string& s){
   return static_cast<int>(w);
 }
 
+// extract a_t from an ensemble dir name.  The a_t token is the unique 'at' immediately
+// followed by a digit, e.g. "...gsq2.000000at0.100000nu0..." -> 0.1 .  Returns -1.0 if not found.
+// Used so the valence temporal spacing ALWAYS tracks the sea ensemble (no silent 0.2 mismatch).
+static double at_from_ensdir(const std::string& s){
+  for(std::size_t p = 0; p + 2 < s.size(); ++p){
+    const bool is_at = (s[p] == 'a' && s[p+1] == 't');
+    const bool digit_after = (s[p+2] >= '0' && s[p+2] <= '9');
+    if(is_at && digit_after) return std::stod(s.substr(p+2));
+  }
+  return -1.0;
+}
+
 void PrintHelp(){
   printf("jj_local_ylm_disc_stoch: stochastic DISCONNECTED per-m Y_lm one-point loops + sigma_PS.\n");
   printf("  --gsq <x>            Wilson coupling squared (ensemble id; default 8.0)\n");
   printf("  --Nf <n>             number of fermion flavors (ensemble id; default 2)\n");
   printf("  --nu0 <x>            sea quark asymmetry (ensemble id; default 1.0)\n");
   printf("  --nu1 <x>            valence Wilson-Dirac asymmetry (operator; default nu0)\n");
+  printf("  --at <x>             valence temporal spacing a_t (default: derive from ens-dir; free field 0.2)\n");
   printf("  --mass-re <x>        valence mass Re (default 0.0; m_F is real)\n");
   printf("  --mass-im <y>        valence mass Im (default 0.0; m_P parity NOT supported here)\n");
   printf("  --ens-dir <path>     sea config dir; OMIT => free field (U=1)\n");
@@ -141,12 +154,13 @@ void ParseArgs(int argc, char* argv[],
                double& gsq, int& Nf, double& nu0, double& nu1,
                double& mass_re, double& mass_im,
                std::string& ens_dir, int& nhits, int& disc_tblock, int& stride,
-               int& kmin, int& kmax){
+               int& kmin, int& kmax, double& at_cli){
   static struct option long_opts[] = {
     {"gsq",     required_argument, nullptr, 'g'},
     {"Nf",      required_argument, nullptr, 'N'},
     {"nu0",     required_argument, nullptr, 'n'},
     {"nu1",     required_argument, nullptr, 'm'},
+    {"at",      required_argument, nullptr, 'A'},
     {"mass-re", required_argument, nullptr, 'r'},
     {"mass-im", required_argument, nullptr, 'i'},
     {"ens-dir", required_argument, nullptr, 'e'},
@@ -159,12 +173,13 @@ void ParseArgs(int argc, char* argv[],
     {nullptr, 0, nullptr, 0}
   };
   int opt, idx;
-  while((opt = getopt_long(argc, argv, "g:N:n:m:r:i:e:H:T:I:a:b:h", long_opts, &idx)) != -1){
+  while((opt = getopt_long(argc, argv, "g:N:n:m:A:r:i:e:H:T:I:a:b:h", long_opts, &idx)) != -1){
     switch(opt){
     case 'g': gsq     = std::stod(optarg); break;
     case 'N': Nf      = std::stoi(optarg); break;
     case 'n': nu0     = std::stod(optarg); break;
     case 'm': nu1     = std::stod(optarg); break;
+    case 'A': at_cli  = std::stod(optarg); break;
     case 'r': mass_re = std::stod(optarg); break;
     case 'i': mass_im = std::stod(optarg); break;
     case 'e': ens_dir = optarg; break;
@@ -193,17 +208,24 @@ int main(int argc, char* argv[]){
   int stride=10;
   int kmin=0;
   int kmax=1000000;
+  double at_cli=-1.0;       // -1 => derive a_t from ens-dir (free field: 0.2)
 
-  ParseArgs(argc, argv, gsq, Nf, nu0, nu1, mass_re, mass_im, ens_dir, nhits, disc_tblock, stride, kmin, kmax);
+  ParseArgs(argc, argv, gsq, Nf, nu0, nu1, mass_re, mass_im, ens_dir, nhits, disc_tblock, stride, kmin, kmax, at_cli);
   if(nu1 < 0.0) nu1 = nu0;
 
   const Complex valence_mass(mass_re, mass_im);
   const bool free_field = ens_dir.empty();
+
+  // resolve valence temporal spacing a_t: --at overrides; else derive from the ensemble dir name
+  // (so a_t ALWAYS tracks the sea ensemble); free field defaults to 0.2.
+  double at = at_cli;
+  if(at < 0.0) at = free_field ? 0.2 : at_from_ensdir(ens_dir);
+  assert(at > 0.0 && "could not resolve a_t from ens-dir; pass --at explicitly");
   const bool parity = (std::abs(mass_im) > 1.0e-15) && (std::abs(mass_re) <= 1.0e-15);
   assert(!parity && "m_P needs the tilde-D backward leg -- OUT OF SCOPE for B2 (vector disc + sigma_PS, massless/m_F)");
   assert(disc_tblock >= 1 && Comp::Nt % disc_tblock == 0 && "Nt % disc_tblock must be 0");
 
-  std::cout << "# gsq="<<gsq<<" Nf="<<Nf<<" nu0="<<nu0<<" nu1="<<nu1
+  std::cout << "# gsq="<<gsq<<" Nf="<<Nf<<" nu0="<<nu0<<" nu1="<<nu1<<" at="<<at
             << " mass=("<<mass_re<<","<<mass_im<<")"
             << " ens_dir="<<(free_field?std::string("<free-field U=1>"):ens_dir)
             << " nhits="<<nhits<<" disc_tblock="<<disc_tblock << std::endl;
@@ -230,7 +252,7 @@ int main(int argc, char* argv[]){
   std::cout << "# lattice set." << std::endl;
 
   const double M5 = -1.0;
-  const double at = 0.2;
+  // const double at = 0.2;   // was hardcoded (WRONG for at0.1 ensembles); now resolved above from ens-dir/--at
   if(Nt!=1) assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
   WilsonDirac DW(base, 0.0, 1.0, M5, at, nu1);
   std::cout << "# DW set." << std::endl;

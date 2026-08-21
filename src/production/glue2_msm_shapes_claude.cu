@@ -308,8 +308,15 @@ int main(int argc, char* argv[]){
   // constexpr int FLOW_NSTEP = 200;     // keep dt=0.01 (100 -> 200)
   // Flow flow(&SW, FLOW_TMAX, FLOW_NSTEP);
   constexpr double FLOW_DT = 0.01;                          // UNCHANGED dt
-  constexpr int N_FLOW = 4;
-  const double FLOW_T[N_FLOW] = { 0.5, 1.0, 2.0, 3.0 };     // CUMULATIVE flow times
+  // REVERTED 2026-08-17 to the single PRODUCTION flow level.  The 4-level multi-flow basis was a
+  // controlled test and came back NULL (no error reduction; the levels are the same shapes merely
+  // smoothed differently -> near-singular metric), so it must NOT be left on for a production topup:
+  // it would cost 4x the shape evaluation AND write the "_mf" test prefix instead of topping up
+  // glue_msm_shapes.  Old test values kept here for reference.
+  // constexpr int N_FLOW = 4;                                  // MULTI-FLOW test (NULL result)
+  // const double FLOW_T[N_FLOW] = { 0.5, 1.0, 2.0, 3.0 };      // CUMULATIVE flow times
+  constexpr int N_FLOW = 1;
+  const double FLOW_T[N_FLOW] = { 2.0 };                    // production single level
 
   // ---- shape operator basis: icosahedral orbits of spatial Wilson-loop shapes ----
   // LINEAR (F_12) operators; Y_lm tower ell=0..3. l=0 = orbit-summed total flux = monopole/
@@ -328,9 +335,11 @@ int main(int argc, char* argv[]){
 #elif defined(FLOW_FULL)
   const std::string H5PREFIX = "glue_msm_shapes_fullflow";   // full 3D flow variant
 #else
-  // "_mf" = MULTI-FLOW basis: DISTINCT prefix so it never clobbers (nor is skipped by the per-config
-  // "complete" gate of) the existing single-flow glue_msm_shapes production data.
-  const std::string H5PREFIX = "glue_msm_shapes_mf";
+  // REVERTED 2026-08-17 to the PRODUCTION prefix (paired with N_FLOW=1 above), so a re-run TOPS UP
+  // the existing glue_msm_shapes data via the per-config "complete" gate instead of writing a
+  // separate test set.  Restore the "_mf" line below only together with N_FLOW=4.
+  // const std::string H5PREFIX = "glue_msm_shapes_mf";   // MULTI-FLOW test prefix (NULL result)
+  const std::string H5PREFIX = "glue_msm_shapes";
 #endif
   using Inst = typename WilsonShapes<Base>::Instance;
   std::vector<std::vector<Inst>> orbits;

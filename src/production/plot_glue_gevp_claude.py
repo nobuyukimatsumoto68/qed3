@@ -14,20 +14,24 @@ GS = {1: [0.5, 1.0, 1.5], 2: [1.0, 2.0, 3.0], 3: [1.5, 3.0, 4.5], 4: [2.0, 4.0, 
 nfcol = {2: "tab:red", 4: "tab:blue", 6: "tab:green"}
 gls = {0.5: "-", 1.0: "--", 1.5: "-", 2.0: "--", 3.0: ":", 4.0: "--", 4.5: ":", 6.0: ":"}
 # channel: (dat prefix, fit t-window, fit states, plotted-state col pair, title)
-# .dat cols: 0=t, 1/2=ground(=last state), 3/4=s0, 5/6=s1, ...  F^2 0++ = s0 (cols 3,4);
+# .dat cols: 0=t, 1/2=ground(=last state=lightest), 3/4=s0, 5/6=s1, 7/8=s2, 9/10=s3, ...
 # F l=1 ground = the m-averaged plateau, use the ground col (1,2).
+# F^2 0++ INCLUDES F^4 (NM 2026-08-18): prefix glue_f2_v2_shapes, nops2=4 -> 4 states.  With vacsub=0
+# the near-zero VACUUM mode is the lightest (ground col / state 3), so the physical 0++ is STATE 2 =
+# cols (7,8).  (Old 7-shape F^2 was nops2=2 -> 0++ = s0 = cols (3,4).)
 CH = {
     "F":   ("gevp_F",   (0.2, 1.0), "0,1,2",     (1, 2), r"$F$ ($\ell=1$) ground"),
     "Fl2": ("gevp_Fl2", (0.2, 0.6), "0,1,2,3,4", (1, 2), r"$F$ ($\ell=2$, H) ground"),
-    "f2":  ("gevp_f2",  (0.2, 0.4), "0",         (3, 4), r"$F^2$ ($0^{++}$)"),
+    "f2":  ("gevp_f2",  (0.2, 0.4), "0",         (3, 4), r"$F^2$/$F^4$ ($0^{++}$)"),
 }
 
 
 def fit(jk, tlo, thi, states):
     out = subprocess.run(["python3", "fit_perm_claude.py", jk, str(tlo), str(thi), states],
                          capture_output=True, text=True).stdout
+    single = ("," not in states)   # single-state fit (e.g. F^2 0++ = "2"): match "state <s>:"
     for line in out.splitlines():
-        if "variance-avg" in line or (states == "0" and "state 0:" in line):
+        if "variance-avg" in line or (single and ("state %s:" % states) in line):
             # parse M(err)
             seg = line.split("M =")[-1] if "==>" in line else line.split("M=")[-1]
             m = seg.strip().split()[0]
@@ -53,7 +57,9 @@ def plotted_curve(d, chan, cm, ce):
 
 
 for chan, (pref, (tlo, thi), states, (cm, ce), title) in CH.items():
-    Ls = [1, 2, 3, 4] if chan == "F" else [1, 2, 3, 4]   # L4 = F l=1 only (l=2/F^2 too noisy at L4)
+    # F l=1 and F l=2: all 4 L.  F^2/F^4 0++: L1,L2 ONLY (NM 2026-08-18 -- L3/L4 0++ unresolved at
+    # these stats; 10/36 returned nan, all strong-coupling L3/L4).
+    Ls = [1, 2] if chan == "f2" else [1, 2, 3]   # L=4 dropped for F (NM 2026-08-18)
     fig, axs = plt.subplots(1, len(Ls), figsize=(6 * len(Ls), 5), sharey=True)
     for ax, L in zip(np.atleast_1d(axs), Ls):
         for nf in NFS:
