@@ -20,10 +20,12 @@ GS = {1: [0.5, 1.0, 1.5], 2: [1.0, 2.0, 3.0], 3: [1.5, 3.0, 4.5], 4: [2.0, 4.0, 
 HB = {1: "1.000000", 2: "1.000000", 3: "0.400000-1.000000", 4: "0.400000-1.000000"}
 NFS = [2, 4, 6]
 nfcol = {2: "tab:red", 4: "tab:blue", 6: "tab:green"}
-LSET = [1]                            # only l=1 is meaningful with current stats
-LLIST = [1]                           # L1 only (L2 too noisy for the m0+A exp fit)
+LSET = [1]                            # vec tp: ell=1 only (NM 2026-08-18)
+LLIST = [1]                           # L1 only (NM 2026-08-18: L2 vector given up -- 5-pt window runs away)
 PWIN = np.arange(16, Nt // 2 + 1)     # disc plateau window (dt)
-FITDT = np.arange(8, 15)             # m0+A exp fit range dt = 8..14
+# m0+A exp fit range dt (inclusive), PER-L: both are disc-limited (~398 cfg) and go noisy past dt~12,
+# so L2 stops before that wall.  L1 [10,16]; L2 [9,13] (NM 2026-08-18).
+FITDT_L = {1: np.arange(10, 17), 2: np.arange(9, 14)}
 FITW_AX = {1: (4.0, 5.2), 2: (2.4, 4.0), 3: (2.4, 4.0), 4: (2.4, 4.0)}
 dtp = np.arange(1, Nt // 2)
 tt = dtp * at
@@ -116,7 +118,7 @@ def model(dt, m0, A, c1):
     return m0 + A * np.exp(-c1 * dt)
 
 
-def m0fit(me, mean, err):
+def m0fit(me, mean, err, FITDT):
     # fit m_eff(dt)=m0+A exp(-c1 dt) over FITDT; central fit + config-jackknife on m0.
     # returns (m0, sig, popt_central) or (None, None, None)
     x = FITDT.astype(float)
@@ -176,6 +178,7 @@ def axial_l1(nf, L, g):
 
 rows = []
 for L in LLIST:
+    FITDT = FITDT_L[L]                 # per-L window: L1 [10,16], L2 [9,13]
     for g in GS[L]:
         fig, axs = plt.subplots(1, len(LSET), figsize=(6.5 * len(LSET), 5))
         drew = False
@@ -187,7 +190,7 @@ for L in LLIST:
                     continue
                 full = full.astype(float)
                 me, mean, err = effmass_jk(full)
-                M, sig, popt = m0fit(me, mean, err)
+                M, sig, popt = m0fit(me, mean, err, FITDT)
                 ax.errorbar(dtp, mean[dtp], yerr=err[dtp], fmt='o', ms=2.5, capsize=1.5,
                             color=nfcol[nf], label="Nf%d" % nf)
                 if M is not None:
@@ -198,7 +201,7 @@ for L in LLIST:
                     rows.append((L, g, l, nf, M, sig, full.shape[0]))
                 drew = True
             ax.axvspan(FITDT[0], FITDT[-1], color="gray", alpha=0.1)
-            ax.set_title("vector full l=%d  (m0 = plateau)" % l)
+            ax.set_title("vector full l=%d L%d  (m0 = plateau)" % (l, L))
             ax.set_xlim(0, 30)
             ax.set_ylim(0, 6)
             ax.set_xlabel("dt")
@@ -214,10 +217,10 @@ for L in LLIST:
         print("L%d g%.1f done" % (L, g))
 
 # ---- table + md ----
-lines = ["# Vector-current effmass-fit masses (conn-disc full, m0+A exp(-c1 dt), dt[%d,%d], kmin=20)"
-         % (FITDT[0], FITDT[-1]), "",
+lines = ["# Vector-current effmass-fit masses (conn-disc full, m0+A exp(-c1 dt), kmin=20)", "",
          "a_t m0 from m_eff(dt)=m0+A exp(-c1 dt), config-jackknife.  m0 = plateau (vector mass).",
-         "L1 l=1 only (l=2 / L2 too noisy at current stats).", "",
+         "per-L window: L1 dt[10,16], L2 dt[9,13] (both disc-limited ~398 cfg, L2 stops before the noise wall).",
+         "ell=1 only.", "",
          "| L | gsq | l | Nf | a_t m0 | ncfg |", "|---|-----|---|----|--------|------|"]
 print("\n# L gsq l Nf : a_t m0 (err)  ncfg")
 for L, g, l, nf, M, sig, n in rows:
@@ -227,34 +230,63 @@ open("vec_expfit_masses_claude.md", "w").write("\n".join(lines) + "\n")
 print("# wrote vec_expfit_masses_claude.md (%d fits)" % len(rows))
 
 # ---- vector l=1 / axial l=1 ratio (L1) vs gsq ----
-# vector m0 = m0+A exp fit above; axial l=1 = conn cosh effmass const fit over [4.0,5.2].
+# vector m0 = m0+A exp fit above; axial l=1 = CANONICAL const+exp m0 read from the axial tp mass summary
+# (axial_tp_masses_summary_claude.md, written by effmass_axial_tp_expfit_claude.py) -- SAME definition
+# on both channels, no mixing with the old const-fit [4.0,5.2] baseline (the local axial_l1() is kept
+# only for reference and is no longer used in this ratio).
 # free ref: vector l=1 = sqrt2 (conserved current, 1 photon-like), axial l=1 = 2 -> sqrt2/2 = 1/sqrt2.
+AXSUM = "axial_tp_masses_summary_claude.md"
+
+
+def axial_l1_summary():
+    # (L, g, nf) -> (m0, err) for ell=1 from the axial tp const+exp summary table
+    d = {}
+    for line in open(AXSUM):
+        s = line.strip()
+        if not s.startswith("|"):
+            continue
+        c = [x.strip() for x in s.strip("|").split("|")]
+        if len(c) != 11 or not c[0].isdigit():
+            continue
+        if int(c[0]) != 1:
+            continue
+        d[(int(c[2]), float(c[4]), int(c[5]))] = (float(c[8]), float(c[9]))
+    return d
+
+
+# free value = 1.0 (vector and axial l=1 degenerate in the free theory) -- NOT drawn (NM 2026-08-18).
+# Strong-coupling g^2=1.5 point DROPPED as suspicious/noisy.  L2 vector given up.
+# Points kept: L1 -> g^2 in {0.5,1.0}.
+GRATIO = {1: [0.5, 1.0]}
+Lmk = {1: "o", 2: "s"}
+axsum = axial_l1_summary()
 vmass = {(L, g, nf): (M, sig) for (L, g, l, nf, M, sig, n) in rows if l == 1}
+rrows = []   # (L, g, nf, r, er)
 fig, ax = plt.subplots(figsize=(7, 5))
 for nf in NFS:
-    xs, ys, es = [], [], []
-    for g in GS[1]:
-        if (1, g, nf) not in vmass:
-            continue
-        vm, ve = vmass[(1, g, nf)]
-        am, ae = axial_l1(nf, 1, g)
-        if am is None:
-            continue
-        r = vm / am
-        er = r * math.sqrt((ve / vm) ** 2 + (ae / am) ** 2)
-        xs.append(g)
-        ys.append(r)
-        es.append(er)
-    if xs:
-        ax.errorbar(xs, ys, es, marker="o", color=nfcol[nf], capsize=3, ls="-", lw=0.8, label="Nf%d" % nf)
-ax.axhline(1.0 / math.sqrt(2.0), color="gray", ls="--", lw=1.0)
-ax.text(0.02, 1.0 / math.sqrt(2.0), r" free $1/\sqrt{2}$", color="gray", fontsize=9, va="bottom",
-        transform=ax.get_yaxis_transform())
+    for L in GRATIO:
+        xs, ys, es = [], [], []
+        for g in GRATIO[L]:
+            if (L, g, nf) not in vmass or (L, g, nf) not in axsum:
+                continue
+            vm, ve = vmass[(L, g, nf)]
+            am, ae = axsum[(L, g, nf)]
+            r = vm / am
+            er = r * math.sqrt((ve / vm) ** 2 + (ae / am) ** 2)
+            xs.append(g)
+            ys.append(r)
+            es.append(er)
+            rrows.append((L, g, nf, r, er))
+        if xs:
+            ax.errorbar(xs, ys, es, marker=Lmk[L], color=nfcol[nf], capsize=3, ls="-", lw=0.8,
+                        mfc="none" if L == 2 else nfcol[nf], label="Nf%d L%d" % (nf, L))
 ax.set_xlabel(r"$g_0^2$")
 ax.set_ylabel(r"$\Delta_{V,\ell=1}/\Delta_{A,\ell=1}$")
-ax.set_title(r"vector $\ell=1$ / axial $\ell=1$ (L1) vs $g_0^2$")
+ax.set_title(r"vector $\ell=1$ / axial $\ell=1$ vs $g_0^2$  (L1 filled, L2 open)")
 ax.grid(alpha=0.3)
-ax.legend(fontsize=9)
+ax.legend(fontsize=8, ncol=2)
 fig.tight_layout()
 fig.savefig("figs/ratio_vec_over_axial_l1_L1_claude.png", dpi=150)
 print("# wrote ratio_vec_over_axial_l1_L1_claude.png")
+for L, g, nf, r, er in rrows:
+    print("  V/A  L%d g%.1f Nf%d : %.4f(%.4f)" % (L, g, nf, r, er))

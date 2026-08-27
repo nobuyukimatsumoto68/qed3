@@ -10,6 +10,7 @@ Makefile
 *.out
 *.o
 *.d
+*.x
 
 *.pdf
 *.png
