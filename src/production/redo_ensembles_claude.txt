@@ -323,9 +323,9 @@
 # Rows here ALSO carry the trailing loc_ncfg/obs columns (see OBS-STATE header block above).
 #
 # ensemble                                                                              type     chain          L Nf gsq mRe target ncfg status  acc%  maxdH  loc_ncfg  obs
-  Nf2_gsq2.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless L470_Nf2g2/sm70 4  2  2.0 0.0    600  599  DONE    87.0  6.130      0  -
-  Nf2_gsq6.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless L470_Nf2g6/sm70 4  2  6.0 0.0    600  599  DONE    89.0  4.384      0  -
-  Nf2_gsq4.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless L480_Nf2g4/sm80 4  2  4.0 0.0    600  599  DONE    88.0  8.444      0  -
+  Nf2_gsq2.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless L470_Nf2g2/sm70 4  2  2.0 0.0    800  799  DONE    87.0  6.130      0  -
+  Nf2_gsq6.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless L470_Nf2g6/sm70 4  2  6.0 0.0    800  799  DONE    89.0  4.384      0  -
+  Nf2_gsq4.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless L480_Nf2g4/sm80 4  2  4.0 0.0    800  799  DONE    88.0  8.444      0  -
 # CORRECTED mass set {0.1,0.2,0.3,0.4} to MATCH L1/L2 (same physical mass). m=0.1 already generated (DONE);
 # 0.2/0.3/0.4 to be generated (WHICH=massive; hb tag filled once the dir appears, resc=0.259021*mRe). The
 # old wrong-mass dirs mRe0.5/1.0/1.5 (each 59 cfg) are LEFTOVERS on disk, NOT part of the set -- pending cleanup.
@@ -362,12 +362,12 @@
 # Rows here ALSO carry the trailing loc_ncfg/obs columns (see OBS-STATE header block above).
 #
 # ensemble                                                                              type     slot L Nf gsq mRe target ncfg status        loc_ncfg  obs
-  Nf4_gsq2.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p13  4 4  2.0 0.0  600  599  DONE       0  -
-  Nf4_gsq4.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p13  4 4  4.0 0.0  600  599  DONE              0  -
-  Nf4_gsq6.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p15  4 4  6.0 0.0  600  599  DONE              0  -
-  Nf6_gsq2.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p14  4 6  2.0 0.0  600  592  SCC-running       0  -
-  Nf6_gsq4.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p14  4 6  4.0 0.0  600  586  SCC-running       0  -
-  Nf6_gsq6.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p15  4 6  6.0 0.0  600  427  SCC-running       0  -
+  Nf4_gsq2.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p13  4 4  2.0 0.0  800  756  SCC-running  0  -
+  Nf4_gsq4.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p13  4 4  4.0 0.0  800  745  SCC-running       0  -
+  Nf4_gsq6.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p15  4 4  6.0 0.0  800  722  SCC-running       0  -
+  Nf6_gsq2.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p14  4 6  2.0 0.0  800  733  SCC-running       0  -
+  Nf6_gsq4.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p14  4 6  4.0 0.0  800  723  SCC-running       0  -
+  Nf6_gsq6.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p15  4 6  6.0 0.0  800  617  SCC-running       0  -
 
 # ----- RSYNC (FNAL -> local): pull the L1/L2/L4 gauge configs for local analysis -------------------
 # FNAL host : lq.fnal.gov   (login node; needs your FNAL ssh/kerberos auth. ~/affine -> /lustre2/affine symlink)
