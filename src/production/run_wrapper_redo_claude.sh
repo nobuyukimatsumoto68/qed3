@@ -87,6 +87,16 @@ declare -A CA CB
 # CA[17]="ml01 1 6 1.0 0.0"; CB[17]="ml01 2 2 2.0 0.0"   # at0.1: L1 Nf6 g1.0 || L2 Nf2 g2.0
 # slot 18 CLOSED 2026-07-30: both done@1999 (at=0.1 L2 Nf4 g2.0 + Nf6 g2.0, KMAX 2000). Last half-a_t slot -> half-a_t COMPLETE. Commented out.
 # CA[18]="ml01 2 4 2.0 0.0"; CB[18]="ml01 2 6 2.0 0.0"   # at0.1: L2 Nf4 g2.0 || L2 Nf6 g2.0
+# NEW at=0.1 gsq POINTS -- ADDED 2026-08-19 (NM): bracket the existing L1 g1.0 with g0.5 + g1.5 (Nf2), on qed3.
+# Reuses the _at0p1 binary (gsq is a runtime CLI arg; AT_VAL=0.1 + KMAX=2000 compiled in) -> NO rebuild.
+# Fresh COLD-START dirs (these gsq at=0.1 don't exist yet); L1 is small/well-conditioned so no burn-in needed.
+CA[24]="ml01 1 2 0.5 0.0"; CB[24]="ml01 1 2 1.5 0.0"   # at0.1: L1 Nf2 g0.5 || L1 Nf2 g1.5 (target 2000)
+# at=0.1 Nf4,6 ADDED 2026-08-22 (NM): extend p24's g{0.5,1.5} to Nf4 & Nf6 -> completes the L1 at=0.1 grid
+# g{0.5,1.0,1.5} x Nf{2,4,6}. Same cheap add (reuse _at0p1 bins, gsq CLI, KMAX=2000, NO rebuild), fresh cold-start.
+# ACCT: was affine (NM 2026-08-22); AFFINE EXHAUSTED 2026-08-24 (0 avail) -> p25/p26 move to qed3 like everything else.
+# Submit: WALL=04:00:00 WSEC=14400 SLOTS="25 26" bash <wrapper> 8  (qed3 default acct).
+CA[25]="ml01 1 4 0.5 0.0"; CB[25]="ml01 1 4 1.5 0.0"   # at0.1: L1 Nf4 g0.5 || L1 Nf4 g1.5 (target 2000)
+CA[26]="ml01 1 6 0.5 0.0"; CB[26]="ml01 1 6 1.5 0.0"   # at0.1: L1 Nf6 g0.5 || L1 Nf6 g1.5 (target 2000)
 # L=3 (at=0.2) ensembles -- ADDED 2026-07-28 (NM). type "ml" L3 -> hmc_fermilab_redo_massless_L3_Nf<Nf>_claude.o
 # (3-stage {0,0.4,1.0}/{3,3,3}, MG100, frozen window (0.015,8.0), KMAX 1000 [was 800, bumped 2026-08-14], KRNG 20, -DNO_METROP_UNTIL=2).
 # gsq{1.5,3.0,4.5} x Nf{2,4,6} = 9 streams -> 4 like-cost MPS pairs + 1 SOLO (Nf6 g4.5 = most expensive, gets a

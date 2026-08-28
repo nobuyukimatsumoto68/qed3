@@ -33,10 +33,12 @@ CONN_L=${CONN_L:-1}                              # lattice L (1/2/3/4); binary j
 echo "# conn_s2 L${CONN_L} -> qed3 (acct=$ACCT qos=$QOS time=$WALL, 1 GPU/job) x NCHAIN=$NCHAIN per group"
 for grp in "${CHAINS[@]}"; do
   sfx=${grp%%:*}; offs=${grp#*:}                # sfx=a ; offs="2 4"
-  jobname="conn_s2_L${CONN_L}${sfx}"
+  att=""; [ "${CONN_AT:-0.200000}" = "0.100000" ] && att="a1"   # at=0.1 -> distinct jobname so its afterany-chain
+  jobname="conn_s2_${att}L${CONN_L}${sfx}"                       # doesn't tangle with the at=0.2 conn_s2_L<L> chain
   export_env="ALL,CONN_L=${CONN_L},CONN_OFFSETS=${offs// /_}"   # underscore-join: SLURM --export splits on commas
   [ -n "${CONN_ENS_FILTER:-}" ] && export_env="$export_env,CONN_ENS_FILTER=$CONN_ENS_FILTER"
   [ -n "${CONN_KMAX_CAP:-}" ]   && export_env="$export_env,CONN_KMAX_CAP=$CONN_KMAX_CAP"
+  [ -n "${CONN_AT:-}" ]         && export_env="$export_env,CONN_AT=$CONN_AT"   # temporal spacing set (default 0.2 in run script)
   anchor=$(squeue -u "$SLURM_USER" -h --name="$jobname" -o "%i" | sort -n | tail -1)
   echo "## group $sfx (offsets $offs) jobname=$jobname anchor=${anchor:-none}"
   for (( c=0; c<NCHAIN; c++ )); do

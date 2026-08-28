@@ -45,10 +45,13 @@ source /home/nmatsum/env.sh 2>/dev/null || source /lustre2/affine/env.sh
 echo "### conn_s2 L${CONN_L} job ${SLURM_JOB_ID:-nojob} on $(hostname)  $(date) ###"
 nvidia-smi -L 2>/dev/null | head
 
-# ---- MASSLESS at=0.2 ensembles (mRe0.000000; excludes the massive condensate set AND the at=0.1 half-a_t set) ----
-# NB 2026-08-17 (NM): dropped the at=0.1 half-a_t ensembles from the conn tower -> match at0.200000 only.
-#   Old glob (all at): Nf*mRe0.000000mIm0.000000nt128L${CONN_L}_hb*   (swept in the at0.100000 dirs too).
-mapfile -t ENS < <(cd "$CFGROOT" && ls -d Nf*at0.200000*mRe0.000000mIm0.000000nt128L${CONN_L}_hb*/ 2>/dev/null | sed 's#/$##')
+# ---- MASSLESS ensembles at temporal spacing CONN_AT (default 0.2; set CONN_AT=0.100000 for the half-a_t rerun) ----
+# The DRIVER now resolves valence a_t (bca707b "at bug fix": at_from_ensdir + --at override) so it ALWAYS matches
+# the sea a_t; this glob only selects WHICH a_t set to loop. We also pass --at "$CONN_AT" below (belt-and-suspenders).
+# NB 2026-08-17 at=0.1 dropped from the default tower; 2026-08-21 re-enabled as an opt-in via CONN_AT (correct a_t now).
+# Excludes the massive condensate set (mRe!=0) always.
+CONN_AT=${CONN_AT:-0.200000}
+mapfile -t ENS < <(cd "$CFGROOT" && ls -d Nf*at${CONN_AT}*mRe0.000000mIm0.000000nt128L${CONN_L}_hb*/ 2>/dev/null | sed 's#/$##')
 [ -n "${CONN_ENS_FILTER:-}" ] && mapfile -t ENS < <(printf '%s\n' "${ENS[@]}" | grep -E "$CONN_ENS_FILTER")
 NENS=${#ENS[@]}
 echo "### ensembles: $NENS ###"; printf '  %s\n' "${ENS[@]}"
@@ -77,9 +80,19 @@ run_worker() {   # $1 = worker id 0..3
   local off=${OFFSETS[$wid]}
   local gpu=$(( wid % NGPU ))                           # round-robin over allocated GPUs (1-GPU job -> all on 0)
   local kmin=$(( 1 + off ))
+  # GLOBAL, EVENLY-SPREAD rotation start (2026-08-18 fix). The OLD `wid`-based start bunched ALL 4 offsets onto
+  # ensembles 0/1: `wid` is the PER-JOB worker id (only 0/1, since each 1-GPU job packs 2 offsets), and BOTH
+  # jobs (L3a off 2,4 / L3b off 6,8) therefore start their workers at ens 0 and 1 -> ens 2..8 (all Nf4/Nf6) got
+  # ZERO coverage until 0/1 finished (weeks, at L3 conn cost). Fix: derive a GLOBAL index 0..3 from the offset
+  # VALUE (2,4,6,8 -> 0,1,2,3; unique across both jobs) and space the 4 residue classes EVENLY over the ensemble
+  # list, so every ensemble (incl high-index Nf6) is worked from the start. Each worker still visits all NENS
+  # (rotation), so eventual per-ensemble stride-2 coverage is unchanged -- only the ORDER differs (breadth-first).
+  local gidx=$(( off/2 - 1 ))                          # 2->0 4->1 6->2 8->3 (stride-2 = 4 fixed residue classes)
+  local start=$(( gidx * NENS / 4 % NENS ))            # even spread: NENS=9 -> starts 0,2,4,6
   local i j ens nf gsq d last kmax
   for (( j=0; j<NENS; j++ )); do
-    i=$(( (j + wid) % NENS ))                          # rotated start per worker
+    # i=$(( (j + wid) % NENS ))                        # OLD: per-job wid (0/1) -> all 4 offsets bunch on ens 0/1
+    i=$(( (j + start) % NENS ))                        # NEW: global even-spread start (breadth-first coverage)
     ens=${ENS[$i]}
     nf=$(printf '%s' "$ens" | grep -oE '^Nf[0-9]+' | sed 's/Nf//')
     gsq=$(printf '%s' "$ens" | grep -oE 'gsq[0-9.]+at' | sed 's/gsq//;s/at//')
@@ -89,7 +102,7 @@ run_worker() {   # $1 = worker id 0..3
     kmax=$(( last + 1 ))                               # half-open [kmin,kmax) -> include k=last
     [ -n "${CONN_KMAX_CAP:-}" ] && [ "$kmax" -gt "$CONN_KMAX_CAP" ] && kmax=$CONN_KMAX_CAP   # smoke cap
     echo "  [off$off gpu$gpu] $ens  kmin=$kmin stride=$STRIDE kmax=$kmax"
-    CUDA_VISIBLE_DEVICES=$gpu "$BIN" --gsq "$gsq" --Nf "$nf" --nu0 1.0 \
+    CUDA_VISIBLE_DEVICES=$gpu "$BIN" --gsq "$gsq" --Nf "$nf" --nu0 1.0 --at "$CONN_AT" \
       --ens-dir "$d" --kmin "$kmin" --stride "$STRIDE" --kmax "$kmax" \
       --nhits "$NHITS" --t0 0 --spin-dilution
   done
