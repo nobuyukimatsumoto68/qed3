@@ -189,6 +189,18 @@ using CuC = cuDoubleComplex;
 #include "wilson_shapes_claude.h"  // generic shape (triangle/rectangle) orbit operators
 
 
+// Derive a_t from the ensemble-dir string (parse "at<digits>"); returns -1 if absent.
+// Mirrors the fermion valence fix at_from_ensdir (jj_local_ylm_scalar_conn_stoch_fnal_claude.cu),
+// so the Wilson-flow smearing uses the ensemble's true a_t (0.1 at0.1) instead of a hardcode.
+static double at_from_ensdir(const std::string& s){
+  for(std::size_t p = 0; p + 2 < s.size(); ++p){
+    const bool is_at = (s[p] == 'a' && s[p+1] == 't');
+    const bool digit_after = (s[p+2] >= '0' && s[p+2] <= '9');
+    if(is_at && digit_after) return std::stod(s.substr(p+2));
+  }
+  return -1.0;
+}
+
 int main(int argc, char* argv[]){
   std::cout << std::scientific << std::setprecision(15);
   std::clog << std::scientific << std::setprecision(15);
@@ -224,6 +236,10 @@ int main(int argc, char* argv[]){
   // construction below cannot form; plan redo_obs_measurement_impl_plan_claude.md Sec 5)
   std::string ens_dir = "";
   if(argc>7) ens_dir = argv[7];
+  // arg8 = optional output-prefix suffix (e.g. "_v2.1") to tag a distinct data set (e.g. the
+  // a_t-corrected at0.1 flow) WITHOUT clobbering existing h5.  Empty = production prefix.
+  std::string out_suffix = "";
+  if(argc>8) out_suffix = argv[8];
   std::cout << "# gsq = " << gsq << " Nf = " << Nf << " nu0 = " << nu0
             << " kmax_run = " << kmax_run << " kmin = " << kmin << " stride = " << stride
             << " ens_dir = " << (ens_dir.empty() ? std::string("<legacy dir3>") : ens_dir) << std::endl;
@@ -251,7 +267,16 @@ int main(int argc, char* argv[]){
   std::cout << "# lattice set. " << std::endl;
 
   // ----------------------
-  const double at = 0.2; // production a_t
+  // a_t enters ONLY the Wilson-flow smearing (Action SW -> beta_s = at/(vol*gsq), linear in at).
+  // Derive it from the ensemble dir so at0.1 configs are flowed with beta_s(0.1); at0.2 dirs
+  // resolve to 0.2 = the old hardcode (bit-identical).  Fallback 0.2 for the legacy/free path.
+  // const double at = 0.2; // production a_t (OLD hardcode -- replaced by dir-derived at)
+  double at = 0.2;
+  if(!ens_dir.empty()){
+    const double at_ens = at_from_ensdir(ens_dir);
+    if(at_ens > 0.0) at = at_ens;
+  }
+  std::cout << "# at = " << at << " (from ens_dir)" << std::endl;
   if(Nt!=1) assert(std::sqrt(3.0)*base.mean_ell/at - 4.0/std::sqrt(3.0) > -1.0e-14);
 
   Action SW( gsq, at, base );
@@ -395,17 +420,23 @@ int main(int argc, char* argv[]){
     // resume-safe: skip configs already fully measured (h5 with "complete" flag)
     // const std::string h5path = dir4+"glue_f2_shapes."+std::to_string(k)+".h5"; // distinct prefix in shared dir
 #ifdef FLOW_FULL
-    const std::string h5path = dir4+"glue_f2_v2_shapes_fullflow."+std::to_string(k)+".h5"; // full 3D flow variant
+    const std::string h5path = dir4+"glue_f2_v2_shapes_fullflow"+out_suffix+"."+std::to_string(k)+".h5"; // full 3D flow variant
 #else
     // "_v2" = POWER-EXTENDED basis (p = 2 and 4 on the production 7 shapes): DISTINCT prefix so it
     // never clobbers (nor is skipped by the per-config "complete" gate of) the existing
     // glue_f2_shapes production data or the glue_f2_shapes_s9 test data.
-    const std::string h5path = dir4+"glue_f2_v2_shapes."+std::to_string(k)+".h5";
+    // out_suffix (arg8) tags a further-distinct set, e.g. "_v2.1" for the a_t-corrected at0.1 flow.
+    const std::string h5path = dir4+"glue_f2_v2_shapes"+out_suffix+"."+std::to_string(k)+".h5";
 #endif
     {
       bool done=false;
+      // _claude: GLUE_REQUIRE_O=1 forces a config to be re-measured unless it ALSO has the per-timeslice
+      // "O" dataset (used by the sigma^2 O-dump re-run to add O to existing complete files; the Truncate
+      // write recomputes F_corr_blk bit-identically via the deterministic Wilson flow, so no data loss).
+      // Default (env unset): unchanged -- skip on "complete".
+      const bool need_o = (std::getenv("GLUE_REQUIRE_O") != nullptr);
       if(std::filesystem::exists(h5path)){
-        try { HighFive::File f(h5path, HighFive::File::ReadOnly); done = f.exist("complete"); } catch(...) {}
+        try { HighFive::File f(h5path, HighFive::File::ReadOnly); done = f.exist("complete") && (!need_o || f.exist("O")); } catch(...) {}
       }
       if(done) continue;
     }
@@ -493,6 +524,10 @@ int main(int argc, char* argv[]){
     HighFive::File h5( h5path, HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Truncate );
     h5.createDataSet( "F_corr_blk", Fcorr );  // per-(l,m) shape blocks (symmetry-allowed only)
     h5.createDataSet( "F", F1 );
+    // _claude: per-timeslice operator series O_i(t) (nops x Nt), needed for the F^2 - sigma\sigma cross
+    // correlator <O_F(t) sigma\sigma(0)>_c (sigma^2 mixing check).  F_corr_blk is the F^2 auto-corr and
+    // cannot give a cross with a different operator; O keeps the raw per-config, per-timeslice series.
+    h5.createDataSet( "O", obs );
     h5.createDataSet( "n_lm", std::vector<int>{n_lm} );  // (l,m) count so the analysis auto-adapts to the l-tower
     h5.createDataSet( "n_shapes", std::vector<int>{n_shapes} );  // shapes/orbit count -> nops = n_shapes*n_lm
     // multi-flow provenance: n_shapes = n_flow * n_shapes_geom, ishape = iflow*n_shapes_geom + is

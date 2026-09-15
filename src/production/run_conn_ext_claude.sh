@@ -18,6 +18,7 @@ export OMP_NUM_THREADS="${OMP_NUM_THREADS:-4}"
 
 STRIDE=10
 NHITS=1
+LKEEP="${LKEEP:-}"   # space-list of refinement levels to INCLUDE (empty = all; e.g. LKEEP="1 3")
 # worker -> gpu map: 2 jobs per GPU under MPS (override with WGPU="0 1" etc.)
 if [ -n "${WGPU:-}" ]
 then
@@ -76,6 +77,14 @@ for d in Nf*_*nt128L*_hb*
 do
   [ -d "$d" ] || continue
   case "$d" in *mRe0.000000*) ;; *) continue;; esac
+  if [ -n "$LKEEP" ]
+  then
+    Ld=$(printf '%s' "$d" | grep -oE 'nt128L[0-9]+' | sed 's/nt128L//')
+    case " $LKEEP " in
+      *" $Ld "*) ;;
+      *) continue;;
+    esac
+  fi
   ls "$d"/ckpoint_lat.* >/dev/null 2>&1 && MASSLESS+=("$d")
 done
 echo "### massless: ${#MASSLESS[@]} ensembles ###"

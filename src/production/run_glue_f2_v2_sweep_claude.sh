@@ -28,11 +28,16 @@
 #
 # Run detached:
 #   nohup bash run_glue_f2_v2_sweep_claude.sh > run_glue_f2_v2_sweep_claude.log 2>&1 &
-# Knobs: NWORK (default 8), FORCE_BUILD=1
+# Knobs: NWORK (default 8), FORCE_BUILD=1, L_ONLY (default empty = all L; e.g. L_ONLY=4 or L_ONLY="1 4"
+#   restricts the ensemble list to those refinement levels -- used 2026-08-28 to launch the L4 glue
+#   remainder locally first, per NM's assignment L4 disc+glue = LOCAL, L4 conn = SCC).
 set -u
 cd /mnt/barracuda22/qed3/qed3/src/production || exit 1
 export OMP_NUM_THREADS=1
 NWORK="${NWORK:-8}"
+L_ONLY="${L_ONLY:-}"
+AT_ONLY="${AT_ONLY:-}"   # empty = all a_t; e.g. AT_ONLY=0.100000 restricts to at0.1 ensembles
+OUT_SUFFIX="${OUT_SUFFIX:-}"  # empty = production prefix; e.g. _v2.1 tags the a_t-corrected at0.1 set
 
 KMAX=100000
 KMIN=1
@@ -92,6 +97,20 @@ ENS_SORTED=$(
     n=$(ls "$d"/ckpoint_lat.* 2>/dev/null | wc -l)
     [ "$n" -gt 0 ] || continue
     L=$(printf '%s' "$d" | grep -oE 'nt128L[0-9]+' | sed 's/nt128L//')
+    if [ -n "$L_ONLY" ]
+    then
+      case " $L_ONLY " in
+        *" $L "*) ;;
+        *) continue;;
+      esac
+    fi
+    if [ -n "$AT_ONLY" ]
+    then
+      case "$d" in
+        *at${AT_ONLY}*) ;;
+        *) continue;;
+      esac
+    fi
     cost=$(( n * L * L ))
     echo "$cost $d"
   done | sort -rn | awk '{print $2}'
@@ -119,14 +138,14 @@ run_one () {
   echo "[start $(date '+%F %T')] $tag" >> "$LOG"
   {
     echo "==== $tag  F^2-v2 (p=2,4)  $(date) ===="
-    ./glue_f2_v2_shapes_L${L}_claude.o "$gsq" "$nf" 1.0 "$KMAX" "$KMIN" "$STRIDE" "$ens"/
+    ./glue_f2_v2_shapes_L${L}_claude.o "$gsq" "$nf" 1.0 "$KMAX" "$KMIN" "$STRIDE" "$ens"/ "$OUT_SUFFIX"
     echo "==== $tag done (status $?)  $(date) ===="
   } >> "$elog" 2>&1
   t1=$(date +%s)
   echo "[done  $(date '+%F %T')] $tag  ($(( t1 - t0 ))s)  log: $elog" >> "$LOG"
 }
 export -f run_one
-export KMAX KMIN STRIDE LOG
+export KMAX KMIN STRIDE LOG OUT_SUFFIX
 
 echo "---- launch $NWORK-worker pool $(date) ----" | tee -a "$LOG"
 printf '%s\n' "$ENS_SORTED" | xargs -P "$NWORK" -I{} bash -c 'run_one "$1"' _ {}
