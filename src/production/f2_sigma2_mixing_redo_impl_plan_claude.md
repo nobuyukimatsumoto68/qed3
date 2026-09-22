@@ -75,3 +75,67 @@ subtract the vacuum products; decide from the F-diagram normalization tell (as i
 
 Refs: CP arXiv:1603.05582; distillation Peardon 0905.2160; glue shapes `project_glue_shapes`; corrected FS/triple
 subtraction `fs_diag_corr_v2_claude.py`; no-SSB `project_chi_volume_scaling_nossb`.
+
+## CFT: is there a mass shift for the two-meson state? (recurring question)
+
+**Yes -- but the right object is an anomalous dimension, not a binding energy.** At the (putative) massless
+conformal fixed point there are NO asymptotic particles and NO $2m_{PS}$ threshold. States on the sphere are
+labeled by scaling dimensions; radial quantization on $S^2\times\mathbb{R}$ gives
+$$
+E \;=\; \Delta/R ,
+$$
+with $R$ the sphere radius. What we call the "single meson" is the scalar bilinear $\sigma=\bar\psi\psi$
+(a CFT primary), so the measured $m_{PS}=\Delta_\sigma/R$. The "two-meson state" is the DOUBLE-TRACE primary
+$[\sigma\sigma]_{n=0,\ell=0}=:\!\sigma\sigma\!:$, whose dimension is
+$$
+\Delta_{[\sigma\sigma]} \;=\; 2\,\Delta_\sigma \;+\; \gamma_{[\sigma\sigma]} ,
+\qquad
+\gamma_{[\sigma\sigma]} = O(1/N_f) .
+$$
+So the energy sits at $(2\Delta_\sigma+\gamma)/R$, i.e. shifted from the naive $2m_{PS}=2\Delta_\sigma/R$ by
+$$
+\delta E \;=\; \gamma_{[\sigma\sigma]}/R .
+$$
+
+- **Origin of $\gamma$:** gauge-boson / auxiliary-field exchange between the two $\sigma$ constituents (the same
+  interaction that in AdS language is the two-particle binding in AdS$_4$). It is $O(1/N_f)$ and NOT necessarily
+  small at $N_f=2$.
+- **Sign = effective interaction.** $\gamma<0$ (attractive, energy below $2m_{PS}$) vs $\gamma>0$ (repulsive,
+  above). There is no threshold, so $\gamma<0$ is NOT "binding" in the scattering sense -- just a smaller scaling
+  dimension. This is the honest replacement for the earlier (retracted) "bound two-meson".
+- **What the data says.** $s2$-only partial Hankel L2: $m_1\simeq0.735$ vs $2m_{PS}=0.705(3)$, i.e. a small
+  POSITIVE offset $\delta E\simeq+0.03$ ($\gamma\gtrsim0$), consistent with mild repulsion / unbound.
+- **Caveat before quoting $\gamma$.** We are NOT exactly at the fixed point (finite $a_t$, finite refinement,
+  possible non-conformal IR). $m_{PS}=\Delta_\sigma/R$ itself carries its own lattice corrections, so part of the
+  $0.03$ offset can be artifact. The clean CFT statement requires the continuum + a genuine $\Delta_\sigma$; the
+  lattice number is only suggestive of the SIGN.
+
+Contrast with the $(2,2)$ single-meson level ($\sim0.62$ L1): that is a distinct 1-particle CFT primary (a
+$\sigma$-descendant / higher radial excitation), NOT the double trace -- so its shift is unrelated to
+$\gamma_{[\sigma\sigma]}$.
+
+## CURRENT BEST -- L2 two-meson tower (2026-09-17)
+
+Ensemble Nf2 gsq1.0 L2 at0.2, 400 cfg (perams `distill_Nv24_v2`, TRUNCATED Nv=24=smeared).
+P+ 6-op flavor-geometry basis + PARTIAL Hankel: `s2` (=$\sigma^2_{00}$) offset-set {0,2} and `O1m`
+(coincident single-sum) offset-set {0,2,4}; both flavors PP,FF -> 12 ops. reb3@4 T0=3 bin10.
+Driver: `sigma2_Peven_partialhankel_fit_claude.py` (S2SET=0-2 O1MSET=0-2-4).
+Correlated constant fit (GLS with jackknife covariance) over $t\in[5,9]$:
+
+| state | $a_t m$ (corr fit) | $\chi^2/\nu$ | note |
+|---|---|---|---|
+| 0 | 0.3522(9)  | 0.51 | $= m_{PS}=0.3527(14)$ |
+| 1 | 0.6956(189) | 0.37 | on threshold $2m_{PS}=0.7054(28)$ |
+| 2 | 0.7376(85)  | 2.24 | just above threshold |
+
+- m0 reproduces $m_{PS}$ (single meson).
+- m1 sits right AT $2m_{PS}$ -> the near-threshold double-trace $[\sigma\sigma]_{0,0}$; anomalous-dimension shift
+  consistent with $\gamma\simeq0$ (see "CFT: is there a mass shift" section).
+- m2 slightly above threshold; $\chi^2/\nu=2.2$ from mild curvature in [5,9] -- firm up with fine-stride stats or
+  window [6,9].
+- Uncorrelated cross-check (diag): m0=0.3524(6), m1=0.7053(256), m2=0.7432(85) -- consistent.
+- Plot: `figs/sigma2_Peven_partialhankel_fit_s202_o1m024_..._L2_..._fit59_claude.png`.
+
+CAVEAT (assignment): s2 got the 2-shift set, O1m the 3-shift set; the reverse (s2=0-2-4) was noise. 400 cfg only;
+the fine-stride run (~800 cfg) will tighten m1/m2. Not yet continuum / exact-Nv84, so the SIGN of the shift is
+robust, the VALUE is not.

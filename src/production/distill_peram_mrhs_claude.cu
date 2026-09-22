@@ -491,10 +491,28 @@ int main(int argc, char* argv[]){
     double max_ortho = 0.0;      // T1a: max |V^dag V - I|
     double max_compl = 0.0;      // T1d: max |V V^dag - I| (only meaningful at nv==n2)
 
+    // BASIS_SYM (compile-time, -DBASIS_SYM=1): distillation-basis operator whose low modes form V(t).
+    //   0 (default) = D_W^H D_W (original, ONE-SIDED normal op).  Its eigenbasis does NOT carry the theory's
+    //     symmetry (sigma3/parity maps D_W^H D_W eigenmodes to D_W D_W^H eigenmodes -- a DIFFERENT operator),
+    //     so a TRUNCATED basis (Nv < 2 N_s) spans a NON-symmetry-invariant subspace and breaks symmetry-
+    //     protected zeros -- e.g. the single meson m_PS leaks into sigma^2 at L2 Nv=24-of-84 (dominates the P+
+    //     GEVP ground; verified free: complete Nv84 -> two-meson, truncated Nv24 -> m_PS).
+    //   1 = the SYMMETRIZED operator D_W^H D_W + D_W D_W^H, which IS invariant under the symmetry that swaps the
+    //     two normal ops, so its low-mode truncation spans a symmetry-invariant subspace and the protection
+    //     survives truncation.  (Identical to option 0 at the COMPLETE basis and whenever D_W is normal; it only
+    //     differs, and only helps, when D_W is non-normal -- which the Wilson term makes true.)
+    //   Rationale + the truncation-leak diagnosis: fs_gw_collapse_v_agent_two_meson_claude.md.
+#ifndef BASIS_SYM
+#define BASIS_SYM 0
+#endif
     Eigen::MatrixXcd M(n2, n2), MhM(n2, n2);
     for(int t=0; t<Nt; t++){
       assemble_Dslice(M, D2, is, js, U, t);
-      MhM.noalias() = M.adjoint() * M;             // Hermitian PSD; low modes = small singular vals of D2
+#if BASIS_SYM
+      MhM.noalias() = M.adjoint() * M + M * M.adjoint();   // symmetrized basis (symmetry-respecting -> truncation-safe)
+#else
+      MhM.noalias() = M.adjoint() * M;             // Hermitian PSD; low modes = small singular vals of D2 (original one-sided)
+#endif
       Eigen::SelfAdjointEigenSolver<Eigen::MatrixXcd> es(MhM);   // eigenvalues ASCENDING
       const Eigen::VectorXd&  lam = es.eigenvalues();
       const Eigen::MatrixXcd& Q   = es.eigenvectors();
@@ -527,7 +545,11 @@ int main(int argc, char* argv[]){
       Eigen::MatrixXcd Mg(n2,n2), MhMg(n2,n2);
       for(int t=0; t<Nt; t++){
         assemble_Dslice(Mg, D2, is, js, Ug, t);
+#if BASIS_SYM
+        MhMg.noalias() = Mg.adjoint() * Mg + Mg * Mg.adjoint();   // symmetrized (match the V(t) operator)
+#else
         MhMg.noalias() = Mg.adjoint() * Mg;
+#endif
         Eigen::SelfAdjointEigenSolver<Eigen::MatrixXcd> esg(MhMg);
         const Eigen::VectorXd& lg = esg.eigenvalues();
         for(int a=0; a<nv; a++){

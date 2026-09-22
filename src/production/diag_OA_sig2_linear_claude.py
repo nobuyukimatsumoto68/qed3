@@ -37,7 +37,9 @@ def main():
     for k in dc.KS:
         V, tau, taugw, tsrc0, twin = dc.load_peram(k)
         Phi = [(V[tsrc0 + a].T).conj().T @ (w00[:, None] * (V[tsrc0 + a].T)) for a in range(twin)]
-        leg = tau if channel == "PS" else -taugw
+        # FS leg collapses to tau by GW (S~ D_ov^{-dag} = tau); -taugw was the tau_gw artifact -> FS == PS.
+        # See fs_furnishing_derivation_claude.md.  Original (A/B): leg = tau if channel == "PS" else -taugw
+        leg = tau
         tt = [leg[a, a] - de.CONTACT * np.eye(leg.shape[-1]) for a in range(twin)]
         PA = [Phi[a] @ tt[a] for a in range(twin)]
         D = np.zeros((4, twin))

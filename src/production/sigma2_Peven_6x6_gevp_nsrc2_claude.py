@@ -51,7 +51,12 @@ def main():
     CACHEDIR = "sigma2_flavor_cache_claude"
     import glob
     import re
-    hits = glob.glob("%s/sigma2_flavorgeom_FULL_%s_*cfg_nsrc2_d%d_claude.npy" % (CACHEDIR, tag.replace(".", "p"), SPLIT))
+    MCTAG = "_mc1" if int(os.environ.get("MODE_CONTACT", "0")) else ""   # mode-space contact fix -> _mc1 cache
+    hits = glob.glob("%s/sigma2_flavorgeom_FULL_%s_L%d_*cfg_nsrc2_d%d%s_claude.npy" % (CACHEDIR, tag.replace(".", "p"), dc.L, SPLIT, MCTAG))
+    if not hits and dc.L == 1:
+        # L1 nsrc2 cache predates the _L%d naming (no _L tag = L1 by convention); accept it, exclude other L.
+        hits = [h for h in glob.glob("%s/sigma2_flavorgeom_FULL_%s_*cfg_nsrc2_d%d%s_claude.npy" % (CACHEDIR, tag.replace(".", "p"), SPLIT, MCTAG))
+                if "_L2_" not in h and "_L4_" not in h]
     if not hits:
         print("# no nsrc2 FULL cache found; run sigma2_flavorgeom_full_v2_nsrc2_claude.py first")
         return
@@ -83,12 +88,14 @@ def main():
     import matplotlib.pyplot as plt
     ts = np.arange(tmax)
     fig, ax = plt.subplots(figsize=(11.5, 7.0))
-    ax.axhline(0.644, color="gray", ls="--", lw=1, alpha=0.6)
-    ax.text(tmax * 0.72, 0.652, r"$2m_{PS}=0.644$", fontsize=9, color="gray")
-    ax.axhline(0.46, color="gray", ls=":", lw=1, alpha=0.45)
-    ax.text(tmax * 0.72, 0.468, r"$0.46$ ground", fontsize=9, color="gray")
-    ax.axhline(0.92, color="gray", ls=":", lw=1, alpha=0.45)
-    ax.text(tmax * 0.62, 0.928, r"$0.92$ excited two-meson", fontsize=9, color="gray")
+    # m_PS (single meson) and 2 m_PS (threshold) reference lines -- authoritative a_t*m from the final
+    # production / scalar-5b: L1 m_PS=0.3209(17), L2 m_PS=0.3527(14).  Per-L defaults, env-overridable.
+    mps = float(os.environ.get("M_PS", "0.3527" if dc.L == 2 else "0.3209"))
+    m2ps = float(os.environ.get("M2PS", "0.7054" if dc.L == 2 else "0.6418"))
+    ax.axhline(m2ps, color="gray", ls="--", lw=1, alpha=0.6)
+    ax.text(tmax * 0.72, m2ps + 0.008, r"$2m_{PS}=%.4f$ (L%d)" % (m2ps, dc.L), fontsize=9, color="gray")
+    ax.axhline(mps, color="dimgray", ls=":", lw=1.1, alpha=0.6)
+    ax.text(tmax * 0.72, mps + 0.008, r"$m_{PS}=%.4f$ (L%d)" % (mps, dc.L), fontsize=9, color="dimgray")
     cols = ["tab:green", "tab:red", "tab:orange", "gray", "tab:blue", "tab:purple"]
     mkr = ["o", "s", "s", "x", "D", "v"]
     for n in range(NKEEP):
@@ -97,16 +104,16 @@ def main():
         ax.errorbar(ts[g], em_c[g, n], yerr=em_err[g, n], color=cols[n % 6], marker=mkr[n % 6], ms=5, lw=1.1,
                     capsize=2.5, label=lab)
     ax.axvline(REBT, color="k", ls=":", lw=0.9, alpha=0.35)
-    ax.set_ylim(0.3, 1.1)
+    ax.set_ylim(0.25, 1.1)
     ax.set_xlim(T0, min(tmax, int(os.environ.get("TMAXPLOT", "14"))))
     ax.set_xlabel(r"$t$")
     ax.set_ylabel(r"$a_t m_\mathrm{eff}$")
-    ax.set_title(r"P+ 6x6 {PP,FF}$\times$geom reb%d@%d T0=%d  %s L1 %dcfg" % (NKEEP, REBT, T0, tag, ncfg), fontsize=11)
+    ax.set_title(r"P+ 6x6 {PP,FF}$\times$geom reb%d@%d T0=%d  %s L%d %dcfg" % (NKEEP, REBT, T0, tag, dc.L, ncfg), fontsize=11)
     ax.legend(fontsize=9, loc="upper right")
     ax.grid(alpha=0.3)
     fig.tight_layout()
     os.makedirs("figs", exist_ok=True)
-    out = "figs/sigma2_Peven_6x6_reb%d_T0%d_%s_nsrc2_claude.png" % (NKEEP, T0, tag)
+    out = "figs/sigma2_Peven_6x6_reb%d_T0%d_%s_L%d_nsrc2_claude.png" % (NKEEP, T0, tag, dc.L)
     fig.savefig(out, dpi=130)
     plt.close(fig)
     print("\n# -> %s" % out)

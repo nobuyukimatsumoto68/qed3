@@ -28,6 +28,16 @@ NPACK=2
 NWORKERS=$(( NGPU * NPACK ))
 STRIDE=10
 NHITS=1
+# TPONLY=1 -> build/run the tp-only variant (-DTP_ONLY: skips the sp components a=1,2, keeps a=3 + scalar;
+#             ~2x fewer solves). Separate _tponly binary so the full-tower build stays intact.
+if [ -n "${TPONLY:-}" ]
+then
+  BINSUF="_tponly"
+  DEFEXTRA="-DTP_ONLY"
+else
+  BINSUF=""
+  DEFEXTRA=""
+fi
 
 NVCC=nvcc
 NVCCBASE="-arch=sm_70 -g -O3 -std=c++20 -lcublas -lcusolver -lcusparse -lgomp -Xcompiler -fopenmp"
@@ -44,11 +54,11 @@ need_build () {
 }
 build_L () {
   local L="$1"
-  local BIN="jj_local_ylm_scalar_conn_stoch_L${L}.o"
+  local BIN="jj_local_ylm_scalar_conn_stoch_L${L}${BINSUF}.o"
   if need_build "$BIN"
   then
     echo "### compile conn L${L} (-DN_REFINE_CLI=${L}) -> $BIN  [$(date +%F_%H:%M:%S)] ###"
-    $NVCC $NVCCBASE -DN_REFINE_CLI=${L} $INCLUDES $LDFLAGS "$SRC_CONN" -o "$BIN" \
+    $NVCC $NVCCBASE -DN_REFINE_CLI=${L} $DEFEXTRA $INCLUDES $LDFLAGS "$SRC_CONN" -o "$BIN" \
       || { echo "### conn L${L} BUILD FAILED ###"; exit 1; }
   else
     echo "### conn L${L} binary up-to-date, skip (FORCE_BUILD=1 to rebuild) ###"
@@ -77,7 +87,7 @@ run_unit () {   # $1=ens-dir  $2=offset(kmin)  $3=at  $4=L  $5=WID  $6=gpu
   local nf gsq bin last kmax LOG
   nf=$(printf '%s' "$ens" | grep -oE '^Nf[0-9]+' | sed 's/Nf//')
   gsq=$(printf '%s' "$ens" | grep -oE 'gsq[0-9.]+at' | sed 's/gsq//;s/at//')
-  bin="jj_local_ylm_scalar_conn_stoch_L${L}.o"
+  bin="jj_local_ylm_scalar_conn_stoch_L${L}${BINSUF}.o"
   last=$(ls "$ens"/ckpoint_lat.* 2>/dev/null | sed 's#.*ckpoint_lat\.##' | grep -E '^[0-9]+$' | sort -n | tail -1)
   if [ -z "$last" ]
   then

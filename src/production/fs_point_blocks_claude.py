@@ -92,7 +92,10 @@ def main():
     Ap_st = -posprop(U, taugw, s, t)
     Gp = -np.einsum("xayb,ybxa->xy", site_blocks(Ap_ts), site_blocks(Ap_st)).real
     CSp_point = np.einsum("x,y,xy->", dual * dc.Y00, dual * dc.Y00, Gp)
-    CSp_nv = (-np.trace(Phi[t] @ (-taugw[t, s]) @ Phi[s] @ (-taugw[s, t]))).real
+    # FS leg collapses to tau by GW (S~ D_ov^{-dag} = tau); -taugw was the tau_gw artifact -> FS == PS.
+    # See fs_furnishing_derivation_claude.md.  Original (A/B):
+    # CSp_nv = (-np.trace(Phi[t] @ (-taugw[t, s]) @ Phi[s] @ (-taugw[s, t]))).real
+    CSp_nv = (-np.trace(Phi[t] @ tau[t, s] @ Phi[s] @ tau[s, t])).real
     print("# [Stilde] Y00 meson C_S[-tau'](t=%d,s=%d): point-sum=% .8e  Nv=% .8e  ratio=%.8f"
           % (t, s, CSp_point, CSp_nv, CSp_point / CSp_nv))
 

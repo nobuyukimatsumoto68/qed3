@@ -29,12 +29,35 @@ import diag_effmass_claude as de
 NS = dc.NS
 SPLIT = int(os.environ.get("SPLIT", "1"))
 VALIDATE = int(os.environ.get("VALIDATE", "1"))
+# MODE_CONTACT (env, default 0): where the GW equal-time contact 1/2 is subtracted.
+#   0 (original) = -1/2 I on the FULL 2Ns space (A -= 0.5 Iv AFTER U tau U^dag).  EXACT only at the COMPLETE
+#     basis (V V^dag = I); under TRUNCATION (V V^dag = P != I) the contact on the removed modes is uncompensated,
+#     which REVIVES the single-sigma tadpole D_S = Tr[Phi(tau_tt - 1/2)] (grows linearly in # removed modes) and
+#     feeds a single-meson piece into <sigma^2 sigma^2>, collapsing C_22 toward m_PS.
+#   1 (fix)      = -1/2 in MODE space: subtract 1/2 I_Nv from the Nv x Nv peram BEFORE U(...)U^dag (= -1/2 P in
+#     position space).  The GW contact is diagonal (=1/2) in the distillation basis, so this is preserved exactly
+#     under slicing -> D_S stays 0 truncated (verified tadpole_trunc_check_claude.py).  Identical to 0 at complete.
+MODE_CONTACT = int(os.environ.get("MODE_CONTACT", "0"))
 T0 = int(os.environ.get("T0", "3"))
 BINSIZE = int(os.environ.get("BINSIZE", "10"))
 DTMAX = int(os.environ.get("DTMAX", "24"))
 NCFG = int(os.environ.get("NCFG", "0"))          # 0 = all
 TIMING = int(os.environ.get("TIMING", "0"))
 NPROC = int(os.environ.get("NPROC", "1"))        # config-parallel workers (each OMP=1)
+
+# ============================ MACRO: FS "Stilde" furnished leg (DISABLED) ============================
+# FS_STILDE_FURNISH_ENABLED = False (default) GUARDS OFF every CALL SITE of the FS Stilde furnished leg
+#   AblkSt -- so AblkSt is never invoked (the guard lives at the call sites, not inside AblkSt).  At m=0 the
+#   Stilde leg collapses to the plain S leg (tau, = AblkS) by the Ginsparg-Wilson identity, so sigma_FS ==
+#   sigma_PS and callers use the S-part only (the S+Stilde sum becomes 2 x the S-part).
+#   The old AblkSt built the stored tau_gw = -(1-D_ov^dag)D_ov^{-1}, which applies (1-D_ov^dag) to the
+#   FORWARD inverse and carries a spurious BARE D_ov^dag -- an O(1) ARTIFACT (it faked an FS single-meson
+#   coupling).  Full derivation + why PS==FS: fs_gw_collapse_v_agent_two_meson_claude.md (this dir).
+# Flip to True ONLY for a CORRECT massive (m != 0) implementation, where GW is modified, the collapse
+#   fails, and a GENUINE Stilde leg is needed -- but that leg must use the ADJOINT inverse D_ov^{-dag}
+#   (= delta - tau), NOT the old forward-furnished tau_gw body.  See AblkSt below.
+FS_STILDE_FURNISH_ENABLED = False
+# ====================================================================================================
 
 # bridging permutations (sink {0,1} <-> source {2,3}) with their cycle decomposition
 PERMS = []
@@ -105,12 +128,27 @@ def make_config(k):
     def AblkS(ta, tb):
         key = (ta, tb)
         if key not in cacheS:
-            A = U[ta] @ tau[ta, tb] @ U[tb].conj().T
-            if ta == tb:
-                A = A - 0.5 * Iv
+            if ta == tb and MODE_CONTACT:
+                A = U[ta] @ (tau[ta, tb] - 0.5 * np.eye(tau.shape[-1])) @ U[tb].conj().T
+            else:
+                A = U[ta] @ tau[ta, tb] @ U[tb].conj().T
+                if ta == tb:
+                    A = A - 0.5 * Iv
             cacheS[key] = A.reshape(nsite, NS, nsite, NS)
         return cacheS[key]
 
+    # AblkSt = the FS "Stilde" furnished leg.  It is DISABLED AT THE CALL SITES via the
+    #   FS_STILDE_FURNISH_ENABLED macro (near the top of this file; default False), so this function is NEVER
+    #   INVOKED in the default (massless) program.  Reason: at m=0 the GW collapse makes this leg equal to the
+    #   plain S leg AblkS (S~ D_ov^{-dag} = 1 - D_ov^{-dag} = D_ov^{-1} = tau), so sigma_FS == sigma_PS and the
+    #   callers use AblkS only (the S+Stilde sum becomes 2 x the S-part).  The body below is the OLD furnished
+    #   form -(1-D_ov^dag)D_ov^{-1} = the stored tau_gw, which applies (1-D_ov^dag) to the FORWARD inverse and
+    #   carries a spurious bare D_ov^dag = an O(1) artifact (it faked an FS single-meson coupling).  Full
+    #   derivation + why PS==FS: fs_gw_collapse_v_agent_two_meson_claude.md (this dir).  Flipping the macro to
+    #   True re-invokes THIS body; for massive m != 0 (the only case a genuine Stilde leg is needed) it must
+    #   FIRST be rewritten to use the ADJOINT inverse D_ov^{-dag} = delta - tau, NOT this forward-furnished form.
+    # >>> COMMAND: DO NOT DELETE THIS COMMENT OR THE AblkSt BODY.  They record a fixed bug (the tau_gw FS-leg
+    #     artifact, disabled at the call sites) and the massive-case TODO (a correct adjoint delta-tau leg). <<<
     def AblkSt(ta, tb):
         key = (ta, tb)
         if key not in cacheSt:
@@ -142,12 +180,21 @@ def make_config_win(k, w):
     def AblkS(ta, tb):
         key = (ta, tb)
         if key not in cacheS:
-            A = U[ta] @ tau[ta, tb] @ U[tb].conj().T
-            if ta == tb:
-                A = A - 0.5 * Iv
+            if ta == tb and MODE_CONTACT:
+                A = U[ta] @ (tau[ta, tb] - 0.5 * np.eye(tau.shape[-1])) @ U[tb].conj().T
+            else:
+                A = U[ta] @ tau[ta, tb] @ U[tb].conj().T
+                if ta == tb:
+                    A = A - 0.5 * Iv
             cacheS[key] = A.reshape(nsite, NS, nsite, NS)
         return cacheS[key]
 
+    # AblkSt = the FS "Stilde" furnished leg (window sibling of make_config's).  DISABLED AT THE CALL SITES
+    #   via the FS_STILDE_FURNISH_ENABLED macro (default False) -- never invoked in the massless program; at
+    #   m=0 it collapses to AblkS (tau) by GW, so sigma_FS == sigma_PS.  See make_config's AblkSt above and
+    #   fs_gw_collapse_v_agent_two_meson_claude.md for the full rationale (buggy forward-furnished tau_gw =
+    #   spurious bare D_ov^dag; massive m != 0 needs the ADJOINT delta-tau leg, not this body).
+    # >>> COMMAND: DO NOT DELETE THIS COMMENT OR THE AblkSt BODY. <<<
     def AblkSt(ta, tb):
         key = (ta, tb)
         if key not in cacheSt:
@@ -169,6 +216,27 @@ def op_vspec(op, letters, dual, w):
     if op == 1:                         # O_2m antipodal : v1 site = P(v0) (shared index, antipode-reindex)
         return [(l0, dual, False), (l0, None, True)]
     return [(l0, dual, False), (l0, None, False)]   # O_1m coincident : v1 site = v0 (shared index)
+
+
+def op_vspec_point(x1, x2, letters, nsite):
+    # POINT sigma^2: the two bilinear vertices PINNED to fixed sites x1,x2 (NO sum, NO A_x Y00).  Implemented
+    # as one-hot (delta) weight vectors on two free site-letters -- perm_contrib_folded sums the letter, the
+    # delta collapses the sum to the fixed site.  Machinery (make_config/AblkS/perm_contrib_folded) unchanged.
+    # x1==x2 is the coincident-point case (carries the AblkS -1/2 contact, like O_1m).
+    l0, l1 = letters
+    e1 = np.zeros(nsite)
+    e1[x1] = 1.0
+    e2 = np.zeros(nsite)
+    e2[x2] = 1.0
+    return [(l0, e1, False), (l1, e2, False)]
+
+
+def five_vertices():
+    # the degree-5 (icosahedral) vertices: sites with 5 nearest neighbours (L1: all 12; L2: 12 of 42).
+    # Uses the geom_hopping nns (same source as the stress-tensor agent's t00_ham_pole).
+    import geom_hopping_claude as gh
+    _om, _alpha, nns, nsite = gh.build(dc.GEOM, dc.L)
+    return [i for i in range(nsite) if len(nns[i]) == 5]
 
 
 def perm_contrib_folded(cycles, vtime, bA, vspec, Pmap):
@@ -251,13 +319,22 @@ def matrix_one_config(k, KER, OFF, dual):
         bASt = {}
         for (c1, c2) in offsets:
             bAS[(c1, c2)] = np.array([AblkS(s + c1, s + c2) for s in s0s])
-            bASt[(c1, c2)] = np.array([AblkSt(s + c1, s + c2) for s in s0s])
+            if FS_STILDE_FURNISH_ENABLED:
+                bASt[(c1, c2)] = np.array([AblkSt(s + c1, s + c2) for s in s0s])   # only the massive path calls AblkSt
+        # FS S-part + Stilde-part.  DEFAULT (FS_STILDE_FURNISH_ENABLED=False, massless): the Stilde leg
+        #   collapses to the S leg at m=0 (GW: S~ D_ov^{-dag} = tau, sigma_FS == sigma_PS), so AblkSt is NEVER
+        #   CALLED (guard above) and the sum is 2 x the S-part.  The old code summed (bAS, bASt) with
+        #   bASt = AblkSt = the buggy forward-furnished tau_gw leg (spurious bare D_ov^dag = an O(1) artifact).
+        #   See fs_gw_collapse_v_agent_two_meson_claude.md.
+        # >>> COMMAND: DO NOT DELETE THIS COMMENT OR THE FS_STILDE_FURNISH_ENABLED GUARD.  The guard disables
+        #     the buggy tau_gw Stilde leg (AblkSt) at its call site; removing it re-introduces a fixed bug. <<<
+        legs = (bAS, bASt) if FS_STILDE_FURNISH_ENABLED else (bAS, bAS)
         for a in range(nop):
             for b in range(nop):
                 vt = [dt + OFF[a][0], dt + OFF[a][1], OFF[b][0], OFF[b][1]]
                 vspec = op_vspec(a, ('i', 'j'), dual, wY) + op_vspec(b, ('k', 'l'), dual, wY)
                 v = 0.0
-                for bA in (bAS, bASt):
+                for bA in legs:             # Stilde==S at m=0 (GW collapse) -> 2 x S-part when disabled
                     for cyc in PERMS:
                         v += perm_contrib_folded(cyc, vt, bA, vspec, Pmap)
                 C[a, b, dt] = v.real / len(s0s)

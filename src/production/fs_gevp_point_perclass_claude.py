@@ -67,13 +67,18 @@ def perclass_one_config(k, KER, OFF, dual):
                     for vb in range(4):
                         offs.add((vt[va], vt[vb]))
         bAS = {o: np.array([AblkS(s + o[0], s + o[1]) for s in s0s]) for o in offs}
-        bASt = {o: np.array([AblkSt(s + o[0], s + o[1]) for s in s0s]) for o in offs}
+        # >>> COMMAND: DO NOT DELETE THIS GUARD.  AblkSt (the -taugw FS Stilde leg) is the tau_gw artifact;
+        # it is disabled via G.FS_STILDE_FURNISH_ENABLED (default False).  When off, the Stilde leg collapses
+        # to the S-part (bAS) by GW (S~ D_ov^{-dag} = tau); see fs_furnishing_derivation_claude.md.  Only the
+        # massive path (macro True) calls AblkSt.
+        # bASt = {o: np.array([AblkSt(s + o[0], s + o[1]) for s in s0s]) for o in offs}   # massive path only
+        bASt = {o: np.array([AblkSt(s + o[0], s + o[1]) for s in s0s]) for o in offs} if G.FS_STILDE_FURNISH_ENABLED else {}
         for a in range(nop):
             for b in range(a, nop):
                 vt = [dt + OFF[a][0], dt + OFF[a][1], OFF[b][0], OFF[b][1]]
                 vspec = G.op_vspec(a, ('i', 'j'), dualf, wY) + G.op_vspec(b, ('k', 'l'), dualf, wY)
                 acc = np.zeros(ncl)
-                for bA in (bAS, bASt):
+                for bA in ((bAS, bASt) if G.FS_STILDE_FURNISH_ENABLED else (bAS, bAS)):
                     for ip, cyc in enumerate(G.PERMS):
                         v = G.perm_contrib_folded(cyc, vt, bA, vspec, Pmap)
                         acc[cidx[ip]] += v.real

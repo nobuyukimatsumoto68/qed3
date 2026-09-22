@@ -120,6 +120,16 @@ def _read_peram_raw(f):
     tau = f["peram/tau/real"][:] + 1j * f["peram/tau/imag"][:]
     taugw = f["peram/tau_gw/real"][:] + 1j * f["peram/tau_gw/imag"][:]
     twin = int(f["meta/twin"][0])
+    # NVKEEP (env, default 0 = keep all): POST-HOC BASIS TRUNCATION to the lowest NVKEEP distillation modes.
+    #   V's columns are ordered by ASCENDING eigenvalue, so V[:, :NVKEEP] is the lowest-NVKEEP-mode basis and
+    #   tau[..., :NVKEEP, :NVKEEP] = V_trunc^dag D_ov^{-1} V_trunc is EXACTLY that truncated-basis perambulator
+    #   (no re-solve).  Use to probe the symmetrized-vs-one-sided basis truncation effect at L1 (complete Nv=24):
+    #   set NVKEEP<24 and compare _sym (protected) vs _v2 (leaks m_PS).
+    _nvkeep = int(os.environ.get("NVKEEP", "0"))
+    if _nvkeep and _nvkeep < V.shape[1]:
+        V = V[:, :_nvkeep, :]
+        tau = tau[..., :_nvkeep, :_nvkeep]
+        taugw = taugw[..., :_nvkeep, :_nvkeep]
     if tau.ndim == 4:                              # nsrc==1 -> add the leading window axis
         tau = tau[None]
         taugw = taugw[None]
@@ -281,7 +291,12 @@ def four_point():
             Vt = V[tsrc0 + a].T
             Phi.append(Vt.conj().T @ (w00[:, None] * Vt))
         diags_ps, CSp = compute_diags(Phi, tau, twin)            # S_4 (plain legs) = PS S~_4 = PS S_4
-        diags_fs, CSf = compute_diags(Phi, -taugw, twin)         # FS S~_4 (furnished legs)
+        # FS S~_4: the FS leg is S~ * <eta xi^H> = -(1-D_ov^dag) D_ov^{-dag}, which COLLAPSES to plain tau by GW
+        # (1 - D_ov^{-dag} = D_ov^{-1} = tau).  So the correct FS leg is tau, NOT -taugw.  Using -taugw =
+        # -(1-D_ov^dag)D_ov^{-1} put the FORWARD inverse where the ADJOINT belongs -> a spurious bare-D_ov^dag
+        # artifact (FS.FS came out ~0.52 PS.PS instead of == PS.PS).  Derivation: fs_furnishing_derivation_claude.md.
+        # diags_fs, CSf = compute_diags(Phi, -taugw, twin)       # WRONG (tau_gw artifact) -- preserved for A/B
+        diags_fs, CSf = compute_diags(Phi, tau, twin)            # FS S~_4 = S_4 (GW collapse) -> FS.FS == PS.PS
         S4_ps = np.tensordot(W10, diags_ps, axes=(0, 0))
         S4_fs = np.tensordot(W10, diags_fs, axes=(0, 0))
         PSPS_all.append(2.0 * S4_ps)
@@ -295,7 +310,7 @@ def four_point():
     CSf = np.mean(CSf_all, axis=0)
 
     print("\n=== two-meson four-point (10 diagrams, %d configs) ===" % ncfg)
-    print("  PS.PS = 2 G10[tau] ;  FS.FS = G10[tau] + G10[-tau_gw]")
+    print("  PS.PS = 2 G10[tau] ;  FS.FS = 2 G10[tau] (FS leg collapses to tau by GW) == PS.PS")
     for name, X in (("PS.PS", PSPS), ("FS.FS", FSFS)):
         mi = np.max(np.abs(X.imag) / (np.abs(X.real) + 1e-300))
         # connected (subtract the dt->inf plateau estimated from the last window slices)

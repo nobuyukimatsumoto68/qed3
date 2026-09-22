@@ -49,6 +49,7 @@ Blackboard for measurement/ensemble status:
 | qed3-4e | AXIAL co-worker: sp (tangential s1+s2 local-proxy) piece | new 2026-09-14 |
 | qed3-a6 (Fin: Fsq) | GLUE co-worker: F^2 / F^4 (0++ scalar glueball) | new 2026-09-14 |
 | qed3-42 (jackknifer) | CROSS-CHANNEL aggregator: renormalized dimensions from jk dumps | new 2026-09-15 |
+| Fin: Stress tensor | SIGMA-THREAD offshoot (not a final-channel): fermionic T_00 (0++ Delta=3) from distillation, probing the sigma^2 {1,1,1,1} excited 0++; uses the frozen Hankel core, coordinates with sigma-meson-overlap-sweep | new 2026-09-16 |
 | qed3-1d (Fin:V)  | vector two-point (conn + disc)   | scope in |
 | qed3-a7          | gluonic two-point (glueball / $F^2$ / $F^4$) | scope in |
 | qed3-5b (Fin)    | scalar two-point ($\sigma_{PS}$ / $\sigma_{FS}$) | scope in |

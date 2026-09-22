@@ -23,6 +23,10 @@ import fs_gevp_point_claude as G
 import hankel_rebase_scan_claude as hs
 
 SPLIT = int(os.environ.get("SPLIT", "1"))
+# MODE_CONTACT (env, forwarded to fs_gevp_point AblkS): 1 = mode-space GW contact -1/2 I_Nv (truncation-safe,
+#   fixes the sigma^2 single-meson leak); 0 = original position-space -1/2 I_2Ns.  The cache filename is tagged
+#   _mc1 when =1 so the fixed cache is DISTINCT from the legacy position-contact caches (backward compatible).
+MCTAG = "_mc1" if int(os.environ.get("MODE_CONTACT", "0")) else ""
 DTMAX = int(os.environ.get("DTMAX", "24"))
 NPROC = int(os.environ.get("NPROC", "1"))
 NCFG = int(os.environ.get("NCFG", "0"))
@@ -122,7 +126,7 @@ def main():
     ks = dc.KS if NCFG == 0 else dc.KS[:NCFG]
     CACHEDIR = "sigma2_flavor_cache_claude"
     os.makedirs(CACHEDIR, exist_ok=True)
-    cache = "%s/sigma2_flavorgeom_FULL_%s_%dcfg_nsrc2_d%d_claude.npy" % (CACHEDIR, tag.replace(".", "p"), len(ks), SPLIT)
+    cache = "%s/sigma2_flavorgeom_FULL_%s_L%d_%dcfg_nsrc2_d%d%s_claude.npy" % (CACHEDIR, tag.replace(".", "p"), dc.L, len(ks), SPLIT, MCTAG)
     if os.path.exists(cache):
         allC = np.load(cache)
         print("# loaded <- %s" % cache)

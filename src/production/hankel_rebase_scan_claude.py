@@ -91,6 +91,27 @@ def hankel_off(Cts, offsets):
     return Big
 
 
+def hankel_permode(Cts, offs_list):
+    # PER-OPERATOR block-Hankel: operator i carries its own offset list offs_list[i].
+    # Augmented dim D = sum_i len(offs_list[i]); rows/cols enumerate (i, p) for p in offs_list[i].
+    # Block ((i,p),(j,q)) = Cts[t + p + q][i, j].  (hankel_off is the special case of one common list.)
+    twin, N, _ = Cts.shape
+    assert len(offs_list) == N, "offs_list must have one entry per operator"
+    rows = []
+    for i in range(N):
+        for p in offs_list[i]:
+            rows.append((i, p))
+    D = len(rows)
+    omax = max(max(o) for o in offs_list)
+    tmax = twin - 2 * omax
+    Big = np.full((tmax, D, D), np.nan)
+    for t in range(tmax):
+        for r, (i, p) in enumerate(rows):
+            for c, (j, q) in enumerate(rows):
+                Big[t, r, c] = Cts[t + p + q][i, j]
+    return Big
+
+
 def staged_project(Big, stages, t0):
     # stages = list of (t_reb, nkeep) applied successively.  Returns the composite projection
     # Vtot (Nbig x final_nkeep).  Composition is exact: with Cr1 = V1^T Big V1 and

@@ -9,18 +9,38 @@ ncfg>=100 LOW flag; ell=0 dropped for vector/axial current towers, kept for scal
 Definition (NM): Delta_O = 2 * m_O / m_J (pure ratio; Delta_J = 2 for BOTH currents). m_J = axial ell=1 T1
 (fermionic sector) / F l=1 T1 (gluonic sector). rho = m_axial(ell1)/m_F(l1) ties the two sectors. Config-
 aligned correlated jackknife on the unified W=80 k-interval binning.
-GLUE sector DONE 2026-09-15 (partial pass -- fermion sector + rho PENDING d4's k-interval axial_tp dump):
-- Tables: analysis_renorm/renorm_dim_masses_at0.2_claude.md (54 glue rows = Fsq 0++ 18 + Fl2 36) +
-  renorm_dim_masses_at0.1_claude.md (12 Fsq). PNGs (6) -> final/shared/renorm_dim/:
-  renorm_dim_glue_Nf{2,4,6}_at{0.2,0.1} (Delta vs g^2, panels per L).
-- HEADLINE: F^2 0++ Delta ~3.6-4.4 (near 4 = twice the current) at both a_t; F l=2 Delta ~2.9-3.3 at
-  L1-L3 (near 3), L4 ~3.1-3.8 (9 bins -> lower-bound errors).
-- (RESOLVED 2026-09-15) the 13 rows (6 glue_F + 7 glue_Fl2) that had central_sys=null now carry finite
-  sys/comb after a7's re-dump; jackknifer refreshed the tables (central/stat unchanged), 6 glue PNGs
-  re-copied to shared/renorm_dim/ (error bars only).
-- FERMION: 198 fermion operator entries pending the reference dumps. STATUS 2026-09-15: qed3-60 axial_perm
-  k-interval re-dump landed+validated; still waiting on d4 axial_tp (CRITICAL reference), 5b scalar_ps,
-  1d vector. Jackknifer emits the FULL set (fermion+glue) to shared/renorm_dim/ once fermion rows compute.
+FULL at0.2 SET DONE 2026-09-15 (jackknifer; tables in analysis_renorm/, copied to final/shared/renorm_dim/).
+Tables: renorm_dim_masses_at0.2_claude.md (324 operator rows -- axial ell2/3 72, scalar PS ell0-3 144,
+vector ell1/2 36, per-m ell3 18, glue Fsq 18 + Fl2 36; PLUS rho table 36 ens) + renorm_dim_masses_at0.1_claude.md
+(2026-09-16: 72 operator rows -- axial ell2/3 24, scalar PS ell0-3 36, glue Fsq 12; PLUS rho on all 12
+at0.1 ens; vector at0.1 still pending 1d. ALL rows config-aligned).
+**KEY RESULT (jackknifer, at0.1 vs at0.2): the renormalized Delta is a_t-STABLE within a few % -- i.e. the
+conserved-current anisotropy renormalization REMOVES the bare a_t-artifact.** At L1: scalar ell0 1.84-1.94
+(at0.1) vs 1.87-1.96 (at0.2); scalar ell1 ~2.53 vs 2.47-2.62; axial ell2 2.59-2.69 vs 2.49-2.62; axial ell3
+2.96-3.06 vs 2.75-2.92 (~4-7% higher at at0.1); rho 1.12-1.36 vs 1.04-1.31 (same falls-with-g^2-and-Nf).
+at0.1 PNGs added: renorm_dim_fermion_Nf{2,4,6}_at0.1, renorm_rho_at0.1 (shared/renorm_dim now 17).
+CAVEAT: L1 at0.1 stats PRELIMINARY (ncfg 456-960) -> errors shrink after 6d topup, re-dump then.
+ALIGNMENT: all 324 operator rows config-aligned correlated jk (aligned=Y). rho 29/36 aligned; 7 fall to
+independent errors (L3 Nf4 g1.5/3/4.5, L3 Nf6 g1.5/3/4.5, L4 Nf6 g6 -- glue coverage ends earlier than
+fermion conn there). central_sys-null glue rows RESOLVED (a7 re-dump).
+PNGs (13) in shared/renorm_dim/: renorm_dim_fermion_Nf{2,4,6}_at0.2, renorm_dim_glue_Nf{2,4,6}_at{0.2,0.1},
+renorm_dim_perm_Nf2_at0.2, renorm_rho_at0.2.
+HEADLINE (Delta = 2 m_O/m_J, at0.2): scalar PS ell0 ~1.75-1.96 (BELOW the current; falls w/ g^2 and L);
+scalar ell1 ~2.5-2.7, ell2 ~2.8-3.6, ell3 ~2.9-3.6; axial ell2 ~2.5-2.9, ell3 ~2.75-2.95; vector ell1
+~2.1-2.4 (near 2), ell2 ~2.9-3.3; glue F^2 0++ ~3.6-4.4 (near 4), F l=2 ~2.9-3.3 (near 3). rho =
+m_axial(ell1)/m_F(l1): 1.31 -> 1.04 falling w/ g^2 and Nf at L1, ~0.9-1.27 L2/L3, L4 ~1.0-1.4 (6-12% err);
+crosses 1 at large g^2 for Nf6.
+PENDING: at0.1 fermion vector (1d at0.1 dump), joint re-dump after 6d conn topup.
+sp EXCLUDED from renorm dump (NM 2026-09-17): the axial sp VSH is a special perambulator-based study, NOT
+the standard production channel -> stays recorded in this memo (see "Axial sp VSH" section) but does NOT
+enter the phase-2 renorm dump. No axial_sp dump, no jackknifer row.
+L4 UPDATE (SCC configs rsynced 2026-09-16, L4 only): a7 re-runs+finalizes L4 F/Fl2, a6 may extend F^2/F^4
+to L4 (pending NM); jackknifer refreshes L4 glue renorm rows + rho on their re-dumps. CONSEQUENCE
+(jackknifer): the new L4 configs extend the GLUE slab range beyond the FERMION (axial) conn k_max (~739,
+9 slabs) => L4 rho rows drop to INDEPENDENT errors UNLESS the axial conn is ALSO measured on the new L4
+configs + d4 re-dumps L4 axial_tp. Within-glue L4 ratios (Fl2/F, Fsq/F) stay aligned (same config set).
+=> DECISION for NM: commission the fermion (axial) conn L4 measurement on the new configs to keep L4 rho
+correlated, or accept independent-error L4 rho.
 
 ## Axial (qed3-d4) -- Conn A
 STATUS: DELIVERED 2026-09-14 (current working choices; re-run pending conn-complete). Units = LATTICE
@@ -78,6 +98,23 @@ than axial; T0-stable).
 Per-m tightly clustered per L; mass rises toward smaller 1/L^2. Files: source in analysis_axial/
 (qed3-60's per-m tooling) hankel_perm_delta_vs_L_scalar_ps_at0.200000_claude.{png,md} + platfit; the 2
 PNGs copied to final/shared/scalar/. Same gsq-per-L axis caveat (mixes spacing+coupling, not fixed-physics).
+
+## Axial sp VSH (qed3-4e) -- 2026-09-17
+Tangential sp = VSH decomposition (electric Phi_l, magnetic Psi_l) vs tp radial, Nf2 gsq1.0 at0.2,
+dimensionless a_t*m, GPOF reb1@4 T0=1, from COMPLETE(L1)/truncated-smearing-benign(L2) distillation perams.
+Truth = final/analysis_axial/findings_sp_vsh_claude.md sec 7. tp reproduces d4's tp tower (L2 ell1,2,3 =
+0.3664/0.5075/0.6001) -> pipeline VALIDATED; V=A everywhere.
+- L2 (627 cfg): ell1 Phi_1 0.3679(5) Psi_1 0.4978(48) tp 0.3664(7); ell2 Phi_2 0.4995(86) Psi_2 0.3695(16)
+  tp 0.5072(20); ell3 Phi_3 0.3706(99) Psi_3 0.4186(155) tp 0.5967(122).
+- L1 (398 cfg): ell1 Phi_1 0.3321(18) Psi_1 0.3604(41) tp 0.3332(14); ell2 Phi_2 0.3471(47) Psi_2 0.3327(28)
+  tp 0.4175(17).
+PHYSICS (qed3-4e): (1) the low higher-ell tangential values are NOT aliasing (VSH Gram overlaps orthogonal
+to 1e-16, free continuum gives clean Phi=Delta+l-1/Psi=Delta+l) -- they are a LARGE a^2 artifact SPECIFIC
+to the tangential (curl/grad on the simplicial sphere): dim<=3 all channels agree, but at dim4 radial tp3
+~0.60 (near-continuum) while tangential Phi_3,Psi_2 ~0.37 collapse; heals L1->L2 => fix is finer L / a->0,
+NOT a fit change. (2) degeneracy Psi_l ~ Phi_{l+1} (same continuum dim Delta+l AND same lattice value:
+dim3 0.498 vs 0.500, dim4 0.370 vs 0.371). tau_gw adjoint-leg bug (flagged by Fin:Two-meson): sp axial legs
+UNAFFECTED (conj-transpose-of-forward AblkS = delta-tau, correct).
 
 ## AXIAL at0.1 Hankel param reference (for relaying to scalar/vector when asked)
 at0.1 DIFFERS from at0.2 via d4's ATOFF/ATWIN overrides (axial_final_params_claude.md):
@@ -196,6 +233,25 @@ a7 next when NM directs: at0.1 F, then Fl2 (l=2).
   chi2/dof 2-7 as effmass droops past t~4). L2 RISES with gsq AND Nf: Nf2 0.58->0.66, Nf6 0.62->0.75
   (gsq 1->3), chi2/dof 0.6-2.0. Scope = L1+L2 x Nf{2,4,6} x per-L gsq (18 ens), at0.2 massless.
   Boundary held (F^2/F^4 0++ only; no Fl2, no sigma^2 mixing).
+  L4 RESOLUTION 2026-09-17 (ToFin): 799 IS the FULL L4 set (target bumped 600->800, 799=target-1=DONE;
+  SCC stats already landed weeks ago, Nf4/6 640-756 -> 799). So a7's 799-config L4 F/Fl2 ARE full-stats
+  final (a7 to CONFIRM analysis read current 799). Gauge configs = SIBLING dir Nf<n>_gsq<g>at0.2...L4_hb.../
+  ckpoint_lat.<k> (not data_). ONE gap: Nf6 g6.0 = 778/799 glue h5 (21 unmeasured) -> ToFin preps CPU
+  topup glue_msm_shapes.
+  CLOSED 2026-09-17 (a7 confirmed): L4 F l=1/Fl2 is FULLY FINAL for all 9 ensembles as-is -- the 8
+  non-Nf6g6 read the full 799 (Nc=780, 9 bins). Nf6 g6 topup (778->799) is a NUMERICAL NO-OP: the 21
+  missing configs are the TAIL k=779-799, which fall in the DROPPED binsize-80 jackknife remainder (fit uses
+  first 720 = k=20..~739), so nbins stays 9 and the number is identical before/after. => NO re-run, NO
+  re-dump, NO measurement needed; all L4 F/Fl2 numbers + glue_F/glue_Fl2 jk-dumps STAND as final. Topup is
+  OPTIONAL h5-completeness hygiene only (skipped by default). (To actually add a bin at Nf6 g6 would need
+  >=800 post-kmin = >819 ckpts, above the 800 ceiling.) OPEN:
+  if SCC generated beyond the 800 target, a fresh rsync_scc / SCC-agent maxk would confirm (flagged to NM);
+  else 799 = ceiling.
+  2026-09-16: a6 ran L3 (999 cfg) + L4 (799 cfg) 0++ through the locked pipeline as a diagnostic -> NO
+  clean plateau (0++ effmass droops from t=1 into noise by t~2-3; strongest coupling pure noise). NOT
+  nops-limited (14-op l=0 basis at every L) -- intrinsic 0++ S/N at coarse temporal resolution. NM
+  DECISION: F^2/F^4 0++ STAYS L1+L2 ONLY. No L3/L4 md/PNG refresh, no L4 jk-dump; glue_Fsq at0.2/at0.1
+  dumps stand unchanged under v1.1. (=> the SCC L4 update affects ONLY a7's F l=1 + Fl2, not a6's 0++.)
 - 2026-09-14 GLUE F^2/F^4 0++ at0.1 FINAL (qed3-a6; NM signed off). Numbers md:
   analysis_gluonic/Fsq_final_masses_at01_claude.md. PNGs copied to final/shared/glue/ (3):
   Fsq_spectrum_at01, Fsq_grid_L1_at01, Fsq_grid_L2_at01. Same locked method as at0.2 (14-op shape GEVP +

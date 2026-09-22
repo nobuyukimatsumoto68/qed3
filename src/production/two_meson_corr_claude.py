@@ -71,7 +71,9 @@ def main():
             Vt = V[tsrc0 + a].T
             Phi.append(Vt.conj().T @ (w00[:, None] * Vt))
         Gt = fourpoint_ta(Phi, tau, twin).real
-        Gg = fourpoint_ta(Phi, -taugw, twin).real
+        # FS leg collapses to tau by GW (S~ D_ov^{-dag} = tau); -taugw was the tau_gw artifact -> FS == PS.
+        # See fs_furnishing_derivation_claude.md.  Original (A/B): Gg = fourpoint_ta(Phi, -taugw, twin).real
+        Gg = fourpoint_ta(Phi, tau, twin).real
         PS.append(2.0 * Gt)               # PS.PS = 2 G10[tau]
         FS.append(Gt + Gg)                # FS.FS = G10[tau] + G10[-tau']
     PS = np.array(PS)                     # (ncfg, twin)

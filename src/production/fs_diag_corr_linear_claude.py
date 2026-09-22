@@ -70,8 +70,10 @@ def main():
                 t = s + dt
                 # S-part: off-diagonals tau(s,t), tau(t,s)
                 sS = diags_from_legs(Phi[s], Phi[t], ttS[s], ttS[t], tau[s, t], tau[t, s])
-                # Stilde-part: off-diagonals -tau'(s,t), -tau'(t,s)
-                sSt = diags_from_legs(Phi[s], Phi[t], ttSt[s], ttSt[t], -taugw[s, t], -taugw[t, s])
+                # Stilde-part COLLAPSES to the S-part by GW (S~ D_ov^{-dag} = tau): use ttS/tau legs, NOT
+                # ttSt/-taugw (the tau_gw artifact).  See fs_furnishing_derivation_claude.md -> FS == PS.
+                # Original (A/B): sSt = diags_from_legs(Phi[s], Phi[t], ttSt[s], ttSt[t], -taugw[s, t], -taugw[t, s])
+                sSt = diags_from_legs(Phi[s], Phi[t], ttS[s], ttS[t], tau[s, t], tau[t, s])
                 acc += sS + sSt
             D[:, dt] = (acc / ns).real
         allD.append(D)
