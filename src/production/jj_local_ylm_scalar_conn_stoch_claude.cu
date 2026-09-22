@@ -325,6 +325,11 @@ int main(int argc, char* argv[]){
 
   const double inv4pi = 1.0/(4.0*std::acos(-1.0));
   constexpr int L_MAX_YLM = 3;
+#ifdef TP_ONLY
+  constexpr int A_MIN = 3;   // TP_ONLY: skip the sp components (a=1,2); compute only tp (a=3). Scalar block unaffected.
+#else
+  constexpr int A_MIN = 1;   // default: all 3 vector/axial components s1,s2,s3
+#endif
   const int n_spin = spin_dilution ? NS : 1;
 
   // ---- output: data_<ESNID>/corr_ylm_conn_t0<t0>_nhits<H>_s<0/1>/corr.<k>.h<h>.h5
@@ -436,7 +441,8 @@ int main(int argc, char* argv[]){
 
         // vector+axial tower (skipped in --IsScalarOnly mode; scalar block below always runs)
         if(!is_scalar_only)
-        for(int a=1; a<=3; a++){
+        // for(int a=1; a<=3; a++){   // ORIGINAL: all 3 components s1,s2,s3
+        for(int a=A_MIN; a<=3; a++){   // TP_ONLY build: A_MIN=3 -> s3 (tp) only
           for(int l=0; l<=L_MAX_YLM; l++){
             for(int m=-l; m<=l; m++){
               // src = Sigma^a_{lm}(t0) eta  (shared by both source legs; mult_Ylm_real folds A_n)
@@ -526,9 +532,11 @@ int main(int argc, char* argv[]){
         h5.createDataSet("rng_seed", seed_str);
         h5.createDataSet("spin_dilution", std::vector<int>{spin_dilution?1:0});
         h5.createDataSet("L_MAX_YLM", std::vector<int>{L_MAX_YLM});
+        h5.createDataSet("A_MIN",     std::vector<int>{A_MIN});   // 1 = full s1,s2,s3 ; 3 = TP_ONLY (s3 only)
       }
       if(!is_scalar_only)                        // vector+axial tower (skipped in scalar-only mode)
-      for(int a=1; a<=3; a++){
+      // for(int a=1; a<=3; a++){   // ORIGINAL: all 3 components s1,s2,s3
+      for(int a=A_MIN; a<=3; a++){   // TP_ONLY build: A_MIN=3 -> s3 (tp) only
         const std::string chan="s"+std::to_string(a);
         for(int l=0; l<=L_MAX_YLM; l++){
           for(int m=-l; m<=l; m++){
