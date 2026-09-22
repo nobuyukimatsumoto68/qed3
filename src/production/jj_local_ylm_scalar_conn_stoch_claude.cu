@@ -161,6 +161,9 @@ void PrintHelp(){
   printf("  --mass-im <y>        valence mass Im (default 0.0; m_P parity NOT supported here)\n");
   printf("  --ens-dir <path>     sea config dir; OMIT => free field (U=1)\n");
   printf("  --nhits <n>          stochastic hits (default 1)\n");
+  printf("  --outdir-nhits <N>   force the nhits tag in the OUTPUT dir path (default: the run's nhits).\n");
+  printf("                       e.g. --nhits 2 --outdir-nhits 1 -> write h1 INTO the existing nhits1 dir\n");
+  printf("                       alongside h0 (the complete-gate skips h0). Keeps all hits in one dir.\n");
   printf("  --t0 <t>             SINGLE source-time origin (default 0)\n");
   printf("  --stride <s>         ensemble config stride (default 10)\n");
   printf("  --kmin <a> --kmax <b> config range [a,b) (default 0..1e6)\n");
@@ -176,7 +179,7 @@ void ParseArgs(int argc, char* argv[],
                double& mass_re, double& mass_im,
                std::string& ens_dir, int& nhits, int& t0, int& stride,
                int& kmin, int& kmax, bool& spin_dilution, bool& is_scalar_only,
-               double& at_cli){
+               double& at_cli, int& outdir_nhits){
   static struct option long_opts[] = {
     {"gsq",     required_argument, nullptr, 'g'},
     {"Nf",      required_argument, nullptr, 'N'},
@@ -187,6 +190,7 @@ void ParseArgs(int argc, char* argv[],
     {"mass-im", required_argument, nullptr, 'i'},
     {"ens-dir", required_argument, nullptr, 'e'},
     {"nhits",   required_argument, nullptr, 'H'},
+    {"outdir-nhits", required_argument, nullptr, 'O'},
     {"t0",      required_argument, nullptr, 'T'},
     {"stride",  required_argument, nullptr, 'I'},
     {"kmin",    required_argument, nullptr, 'a'},
@@ -197,7 +201,7 @@ void ParseArgs(int argc, char* argv[],
     {nullptr, 0, nullptr, 0}
   };
   int opt, idx;
-  while((opt = getopt_long(argc, argv, "g:N:n:m:A:r:i:e:H:T:I:a:b:sSh", long_opts, &idx)) != -1){
+  while((opt = getopt_long(argc, argv, "g:N:n:m:A:r:i:e:H:O:T:I:a:b:sSh", long_opts, &idx)) != -1){
     switch(opt){
     case 'g': gsq     = std::stod(optarg); break;
     case 'N': Nf      = std::stoi(optarg); break;
@@ -208,6 +212,7 @@ void ParseArgs(int argc, char* argv[],
     case 'i': mass_im = std::stod(optarg); break;
     case 'e': ens_dir = optarg; break;
     case 'H': nhits   = std::stoi(optarg); break;
+    case 'O': outdir_nhits = std::stoi(optarg); break;
     case 'T': t0      = std::stoi(optarg); break;
     case 'I': stride  = std::stoi(optarg); break;
     case 'a': kmin    = std::stoi(optarg); break;
@@ -230,6 +235,7 @@ int main(int argc, char* argv[]){
   double mass_re=0.0, mass_im=0.0;
   std::string ens_dir="";
   int nhits=1;
+  int outdir_nhits=-1;      // -1 => tag output dir by the run's nhits; >=0 => force this tag (e.g. write into nhits1 dir)
   int t0=0;            // SINGLE source-time origin
   int stride=10;
   int kmin=0;
@@ -239,7 +245,7 @@ int main(int argc, char* argv[]){
   double at_cli=-1.0;       // -1 => derive a_t from ens-dir (free field: 0.2)
 
   ParseArgs(argc, argv, gsq, Nf, nu0, nu1, mass_re, mass_im, ens_dir, nhits, t0, stride, kmin, kmax,
-            spin_dilution, is_scalar_only, at_cli);
+            spin_dilution, is_scalar_only, at_cli, outdir_nhits);
   if(nu1 < 0.0) nu1 = nu0;
 
   const Complex valence_mass(mass_re, mass_im);
@@ -327,8 +333,14 @@ int main(int argc, char* argv[]){
   { const auto slash = ens_base.find_last_of('/'); if(slash!=std::string::npos) ens_base = ens_base.substr(slash+1); }
   const std::string esnid = (free_field ? std::string("free") : ens_base)
                           + "_vmRe"+std::to_string(mass_re)+"vmIm"+std::to_string(mass_im);
+  // dir tag = the run's nhits by default; --outdir-nhits <N> forces tag N so a --nhits 2 run writes h1 INTO the
+  // existing corr_ylm_conn_t0<t0>_nhits<N>_s<...> dir alongside h0 (complete-gate skips h0). LOCAL (barracuda22)
+  // pull convention = all hits in ONE nhits1 dir -> run with --outdir-nhits 1 (NM 2026-08-29).
+  const int dir_nhits = (outdir_nhits >= 0 ? outdir_nhits : nhits);
+  // const std::string dir_out = "data_"+esnid+"/corr_ylm_conn_t0"+std::to_string(t0)
+  //                           + "_nhits"+std::to_string(nhits)+"_s"+std::to_string(spin_dilution?1:0)+"/";
   const std::string dir_out = "data_"+esnid+"/corr_ylm_conn_t0"+std::to_string(t0)
-                            + "_nhits"+std::to_string(nhits)+"_s"+std::to_string(spin_dilution?1:0)+"/";
+                            + "_nhits"+std::to_string(dir_nhits)+"_s"+std::to_string(spin_dilution?1:0)+"/";
   std::filesystem::create_directories(dir_out);
   std::cout << "# dir_out = " << dir_out << std::endl;
 
@@ -505,7 +517,11 @@ int main(int argc, char* argv[]){
       HighFive::File& h5 = *h5p;
       if(!append_mode){
         h5.createDataSet("t0",    std::vector<int>{t0});
-        h5.createDataSet("nhits", std::vector<int>{nhits});
+        // nhits metadata = the DIR tag (dir_nhits) so every file in a corr_ylm_conn_..._nhits<N>_s dir agrees
+        // with the dir name (default runs: dir_nhits==nhits, unchanged). Avoids an h0(nhits=1)/h1(nhits=2)
+        // mismatch when --outdir-nhits packs multiple hits into one dir. True hit count = number of h-files.
+        // h5.createDataSet("nhits", std::vector<int>{nhits});
+        h5.createDataSet("nhits", std::vector<int>{dir_nhits});
         h5.createDataSet("hit",   std::vector<int>{h});
         h5.createDataSet("rng_seed", seed_str);
         h5.createDataSet("spin_dilution", std::vector<int>{spin_dilution?1:0});

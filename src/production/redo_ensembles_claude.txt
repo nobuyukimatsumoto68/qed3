@@ -65,6 +65,16 @@
 #     2026-08-17: fresh L40S sweep RESUBMITTED (48 cs2 jobs = 12 units x 4 links) to pick up the grown HMC tail
 #     (Nf6g4 ->586, Nf6g6 ->427; Nf2g2 already complete). qfe ece/ece-long L40S enabled (public A100/L40S -pub
 #     disabled that day); complete-gating sweeps only new configs.
+#   - 2026-08-29 SCOPE CHANGE (NM): SCC now owns ALL 9 L4 conn (not just the 3); LOCAL is OUT of L4 conn gen.
+#     LOCAL pushed its k=1 mod10 partials + strays local->SCC (additive, --ignore-existing) -> all 9 L4 conn dirs
+#     now on SCC; the 6 formerly-FNAL/LOCAL ensembles have k=1 only -> SCC computes their k=3,5,7,9 (~1902 cfg,
+#     ETA ~3 days on L40S). Wrapper filter widened SCC-only(12) -> all-L4(36 units). h0 relaunch:
+#     ARCH_LIST=sm_80 GPUT_SM80=L40S N_CHAIN=8 bash run_wrapper_conn_s2_scc_claude.sh (no rebuild). 2nd hit (h1)
+#     built (--outdir-nhits 1 -> same nhits1 dir) but DEFERRED (needs rebuild; ~2x cost; noise-test first).
+#   - 2026-09-02 h1 VALIDATED + IN FULL PRODUCTION: variance_test_h1_claude.py shows the l=3 per-m conn is
+#     STOCHASTIC-limited -> 2nd hit cuts the error ~23-29% (sqrt2 floor), uniform across m. Running all 9 (288 c2h
+#     on L40S); h1 writes corr.<k>.h1.h5 into the SAME nhits1_s1 dir (LOCAL pull unchanged). Letting it run ~5-6d.
+#     L4 HMC essentially COMPLETE (8/9 @799, Nf6g6 785 finishing).
 #
 # UPDATE 2026-08-17 (MEASUREMENT -- conn stride-2 now L1+L2+L3, moved to affine, at=0.1 DROPPED):
 #   - L3 HMC target BUMPED 800 -> 1000 (NM; -DKMAX rebuild via tmp_build_L3_claude.sh; resume @799 stays
@@ -362,12 +372,12 @@
 # Rows here ALSO carry the trailing loc_ncfg/obs columns (see OBS-STATE header block above).
 #
 # ensemble                                                                              type     slot L Nf gsq mRe target ncfg status        loc_ncfg  obs
-  Nf4_gsq2.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p13  4 4  2.0 0.0  800  756  SCC-running  0  -
-  Nf4_gsq4.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p13  4 4  4.0 0.0  800  745  SCC-running       0  -
-  Nf4_gsq6.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p15  4 4  6.0 0.0  800  722  SCC-running       0  -
-  Nf6_gsq2.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p14  4 6  2.0 0.0  800  738  SCC-running       0  -
-  Nf6_gsq4.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p14  4 6  4.0 0.0  800  728  SCC-running       0  -
-  Nf6_gsq6.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p15  4 6  6.0 0.0  800  640  SCC-running       0  -
+  Nf4_gsq2.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p13  4 4  2.0 0.0  800  799  DONE              0  -
+  Nf4_gsq4.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p13  4 4  4.0 0.0  800  799  DONE              0  -
+  Nf4_gsq6.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p15  4 4  6.0 0.0  800  799  DONE       0  -
+  Nf6_gsq2.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p14  4 6  2.0 0.0  800  799  DONE              0  -
+  Nf6_gsq4.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p14  4 6  4.0 0.0  800  799  DONE       0  -
+  Nf6_gsq6.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p15  4 6  6.0 0.0  800  799  DONE       0  -
 
 # ----- RSYNC (FNAL -> local): pull the L1/L2/L4 gauge configs for local analysis -------------------
 # FNAL host : lq.fnal.gov   (login node; needs your FNAL ssh/kerberos auth. ~/affine -> /lustre2/affine symlink)
