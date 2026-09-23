@@ -110,7 +110,7 @@
 #   STRIDE-2 (3,5,7,9) LEFTOVER (local, odd-k target): L3 at0.2 ~1209 ; L1 at0.1 ~2692.  L2 at0.2 remainder
 #     (~1717, FNAL-inherited) is NOT in the runner (would need a PHASE C).
 #   HISTORY: GPU0-only ~1 wk (L3 ~2254 -> ~1209), then 2-GPU full-tower ~11 h (PGID 5736, stopped by NM).
-#   NOW RUNNING (2026-09-22 09:15): TP-ONLY on both GPUs, PGID 182852, 4 workers 2/GPU, L3 phase first (stop = kill -- -182852).
+#   NOW RUNNING (2026-09-22 11:08, NM needs GPU1 free): TP-ONLY on GPU0 ONLY, PGID 236251, 2 workers MPS, L3 phase first (stop = kill -- -236251). ETA ~5.5 d L3 + ~1.6 d L1 at0.1. (Brief 2-GPU run PGID 182852 09:15-11:00 stopped.)
 #   TP_ONLY (NM: sp components NOT needed for the remaining fill): driver jj_local_ylm_scalar_conn_stoch_claude.cu
 #     -DTP_ONLY -> A_MIN=3 (skip sp a=1,2; keep tp a=3 + the scalar block); originals left commented in place;
 #     h5 records "A_MIN" (1 = full s1,s2,s3 ; 3 = tp-only). WHY ~2x: sigma_a is applied at the SOURCE
@@ -121,6 +121,11 @@
 #     older configs have all three. tp/scalar analyses unaffected; an sp analysis would see a mixed set.
 #   RELAUNCH: TPONLY=1 GPU_LIST="0 1" nohup bash run_conn_s2_local_claude.sh > run_conn_s2_local_tponly_2gpu_claude.log 2>&1 &
 #     (4 workers, 2/GPU MPS). ETA ~2.7 d L3 + ~19 h L1 at0.1 = ~3.5 d.
+#   L4 CONN (SCC msg 2026-09-23 17:20, matches local read of the 09-19 pull): classes 3,5,7,9 COMPLETE h0+h1 all 9
+#     (Nf6 g6.0 ~7 strays being swept). Class k=1 (our stride-10 h0, partial 24-56/80, no h1) is being COMPLETED BY SCC:
+#     9 kmin=1 units --nhits 2 (deterministic esnid_k<k>_h<h> seeds) -> uniform h0+h1 over the full odd-k grid.
+#     ETA ~1 d (Nf6 g6.0 ~2.3 d) from 09-23. ACTION: pull (corr.*.h5 glob grabs h1) AFTER SCC confirms. NOTHING local for L4 conn.
+#     (SCC also delivered L4 distill perams Nv=48 -> see block 'UPDATE 2026-09-23 (SCC -- L4 DISTILL PERAMBULATORS'; sigma stream.)
 #   L4 (SCC/a7): configs 799 = target-1 = FULL (not stale); glue_msm + f2_v2 already on 799 (Nf6 g6.0 = 778 =
 #     jackknife-remainder no-op per a7). Config path = SIBLING non-data_ dir Nf*...L4_hb*/ckpoint_lat.<k>.
 #   MISC: primal link table primal_links_n1_claude.dat (il x y from geometry/data/links_n1.dat; map2sign=+1 for
