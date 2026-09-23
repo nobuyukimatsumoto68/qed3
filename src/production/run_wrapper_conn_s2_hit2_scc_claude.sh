@@ -18,6 +18,8 @@
 # Usage:  bash run_wrapper_conn_s2_hit2_scc_claude.sh
 #         DRYRUN=1 bash ...                                    # print qsub lines, do nothing
 #         GPUT_SM80=L40S ... (default)                         # conn is bandwidth-bound -> L40S is fast + off the HMC V100
+#         K1_ONLY=1 N_CHAIN=6 bash ...                        # 2026-09-23: ONLY the 9 kmin=1 (k=1 mod10) units -> h1 (+missing
+#                                                             #   h0) on LOCAL's baseline class; completes the uniform 2-hit grid
 # =============================================================================================
 set -u
 
@@ -64,6 +66,18 @@ mapfile -t UNITS < <(awk '$0 !~ /^#/ && $2==4 {print $1" "$3" "$4" "$7}' "$ASSIG
 echo "===== L4 conn h1 units (all 9 ensembles): ${#UNITS[@]} (want 36) ====="
 [ "${#UNITS[@]}" -eq 0 ] && { echo "ERROR: no SCC L4 units parsed from $ASSIGN"; exit 1; }
 
+# K1_ONLY=1 (2026-09-23): submit ONLY a kmin=1 (k=1 mod10) unit per ensemble INSTEAD of the 36 table units. The
+# assignment table lists only the 4 completion classes (3,5,7,9); the k=1 class is LOCAL's old stride-10 baseline,
+# pushed to SCC as h0 (PARTIAL, ~48-56 of ~80 per ensemble). Running --nhits 2 on it gives those configs h1 AND
+# fills the missing k=1 h0+h1 -> UNIFORM h0+h1 over the whole stride-2 (odd-k) grid. In scope: SCC owns ALL L4
+# conn (2026-08-29). The 36 table units are already 100% h1-complete (2026-09-23), so re-submitting them = no-ops.
+K1_ONLY=${K1_ONLY:-0}
+if [ "$K1_ONLY" -eq 1 ]
+then
+  mapfile -t UNITS < <(awk '$0 !~ /^#/ && $2==4 {print $1" "$3" "$4" 1"}' "$ASSIGN" | sort -u)
+  echo "===== K1_ONLY: ${#UNITS[@]} kmin=1 units (k=1 mod10 class), one per ensemble (want 9) ====="
+fi
+
 # binaries must already exist AND be rebuilt with the --outdir-nhits flag; do NOT rebuild here.
 # GUARD: an OLD binary (no --outdir-nhits) would hit getopt '?' -> PrintHelp -> exit(0), i.e. SILENTLY compute
 # nothing while logging "done (status 0)". grep the compiled help string to catch that before submitting.
@@ -71,7 +85,7 @@ for a in $SUBMIT_ARCHS
 do
   app=$(binname "$a")
   test -f "$app" || { echo "ERROR: $app missing -- build it with run_wrapper_conn_s2_scc_claude.sh first"; exit 1; }
-  grep -q 'outdir-nhits' "$app" || { echo "ERROR: $app lacks --outdir-nhits (would silently no-op). REBUILD the conn binary with the updated jj_local_ylm_scalar_conn_stoch_claude.cu (FORCE_BUILD=1) first."; exit 1; }
+  grep -a -q 'outdir-nhits' "$app" || { echo "ERROR: $app lacks --outdir-nhits (would silently no-op). REBUILD the conn binary with the updated jj_local_ylm_scalar_conn_stoch_claude.cu (FORCE_BUILD=1) first."; exit 1; }
 done
 
 # NOTE: no h0 pre-linking needed -- with --outdir-nhits 1 the driver writes h1 INTO the existing nhits1_s1 dir
