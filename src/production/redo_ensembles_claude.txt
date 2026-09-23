@@ -65,6 +65,32 @@
 #     2026-08-17: fresh L40S sweep RESUBMITTED (48 cs2 jobs = 12 units x 4 links) to pick up the grown HMC tail
 #     (Nf6g4 ->586, Nf6g6 ->427; Nf2g2 already complete). qfe ece/ece-long L40S enabled (public A100/L40S -pub
 #     disabled that day); complete-gating sweeps only new configs.
+#   - 2026-08-29 SCOPE CHANGE (NM): SCC now owns ALL 9 L4 conn (not just the 3); LOCAL is OUT of L4 conn gen.
+#     LOCAL pushed its k=1 mod10 partials + strays local->SCC (additive, --ignore-existing) -> all 9 L4 conn dirs
+#     now on SCC; the 6 formerly-FNAL/LOCAL ensembles have k=1 only -> SCC computes their k=3,5,7,9 (~1902 cfg,
+#     ETA ~3 days on L40S). Wrapper filter widened SCC-only(12) -> all-L4(36 units). h0 relaunch:
+#     ARCH_LIST=sm_80 GPUT_SM80=L40S N_CHAIN=8 bash run_wrapper_conn_s2_scc_claude.sh (no rebuild). 2nd hit (h1)
+#     built (--outdir-nhits 1 -> same nhits1 dir) but DEFERRED (needs rebuild; ~2x cost; noise-test first).
+#   - 2026-09-02 h1 VALIDATED + IN FULL PRODUCTION: variance_test_h1_claude.py shows the l=3 per-m conn is
+#     STOCHASTIC-limited -> 2nd hit cuts the error ~23-29% (sqrt2 floor), uniform across m. Running all 9 (288 c2h
+#     on L40S); h1 writes corr.<k>.h1.h5 into the SAME nhits1_s1 dir (LOCAL pull unchanged). Letting it run ~5-6d.
+#     L4 HMC essentially COMPLETE (8/9 @799, Nf6g6 785 finishing).
+#   - 2026-09-15: L4 HMC COMPLETE, all 9 @799.
+#   - 2026-09-23 CONN STATUS (corrects an earlier "drained at 89%" note): SCC's h1 is COMPLETE for the 4 completion
+#     classes k=3,5,7,9 on all 9 ensembles (h1 = 320/320 each; Nf6g6 313, ~7 k3579 strays left from its late HMC).
+#     The 371 h0-without-h1 are 100% the k=1 mod10 class = LOCAL's old stride-10 baseline (pushed as h0, PARTIAL
+#     ~48-56 of 80/ens, no h1) -- no hit2 unit targets k=1 (assignment table has only offsets 3,5,7,9). SCC owns
+#     ALL L4 conn, so SCC now completes it: hit2 wrapper `K1_ONLY=1` = 9 kmin=1 units (h1 on existing k=1 h0 AND
+#     fills the missing k=1 h0+h1) -> UNIFORM h0+h1 on the whole odd-k grid; plus one default N_CHAIN=1 sweep to mop
+#     the Nf6g6 strays. Then rsync to LOCAL (corr.*.h5 glob already grabs h1).
+#   - 2026-09-22/23 SCC DISTILL PERAMS (LOCAL handoff distill_sym_L4_scc_handoff_claude.md): symmetrized-basis
+#     (BASIS_SYM=1) distillation perambulators for L4 Nf2 g2.0, NM chose Nv=48 (nests the handoff's Nv=24: dense
+#     full diag -> lowest modes identical), stride-2 odd k ~400 -> data_<ENS>/distill_Nv48_sym/peram.<k>.h5.
+#     FINDING: memory-bound -> L40S 2.45x FASTER than V100 (mrhs block does not amortize, 0.89x) -> all 8 units
+#     on L40S, ~21 min/peram at Nv=48. Status 09-23: 361/400, last 2 units finishing (~04:00 09-24); validation
+#     passes (shape (2,32,32,48,48), uniform 183 MB, evals asc). NOTE L4 GW |Re diag tau-1/2| floor ~1e-4 (median
+#     1.1e-4), ~10x the handoff's nominal 1e-5 -- L4 solver-tolerance floor (TOL_OUTER=1e-5 rel), not a defect.
+#     Nv=24 run stopped as redundant (33 perams kept in distill_Nv24_sym/). Next: rsync to LOCAL (NVDIR=distill_Nv48_sym).
 #
 # UPDATE 2026-08-17 (MEASUREMENT -- conn stride-2 now L1+L2+L3, moved to affine, at=0.1 DROPPED):
 #   - L3 HMC target BUMPED 800 -> 1000 (NM; -DKMAX rebuild via tmp_build_L3_claude.sh; resume @799 stays
@@ -130,6 +156,27 @@
 #     jackknife-remainder no-op per a7). Config path = SIBLING non-data_ dir Nf*...L4_hb*/ckpoint_lat.<k>.
 #   MISC: primal link table primal_links_n1_claude.dat (il x y from geometry/data/links_n1.dat; map2sign=+1 for
 #     the listed (x,y)); ckpoint_lat = raw binary float64: spatial[Nt][n_links] then temporal[Nt][n_sites].
+#
+# UPDATE 2026-09-23 (SCC -- L4 DISTILL PERAMBULATORS, symmetrized basis, Nv=48 -- WHERE LOCAL FINDS THEM):
+#   Per LOCAL handoff distill_sym_L4_scc_handoff_claude.md (qed3-ef, 09-22). Exact-distillation perams for L4 Nf2 g2.0
+#     (799 cfg), BASIS_SYM=1, nsrc=2 fused (tsrc 0,64), twin=32, stride 2 over k (odd k, ~400 perams).
+#   NM CHOSE Nv=48 (handoff default was 24): the basis eigensolve is a DENSE FULL diag (Eigen SelfAdjointEigenSolver,
+#     ascending) so the lowest-Nv modes are identical for any Nv -> the Nv48 tau's top-left 24x24 block IS the Nv24
+#     perambulator (up to per-mode phases). Slice tau[:,:,:,:24,:24] for cross-L Nv=24 consistency with L1/L2 _sym.
+#   LOCATION (SCC): data_Nf2_gsq2.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000/
+#     distill_Nv48_sym/peram.<k>.h5   (k odd 1..799; ~183 MB each; tau shape (2,32,32,48,48); also tau_gw, evals).
+#     A superseded PARTIAL Nv24 set (33 perams, k=1..65) sits in .../distill_Nv24_sym/ -- ignore, or quick-look only.
+#   PULL (from local; extend rsync_scc_claude.sh pattern; ~73 GB when complete):
+#     rsync -avz --prune-empty-dirs --include='data_Nf2_gsq2.0*L4_hb*/' --include='distill_Nv48_sym/' \
+#       --include='peram.*.h5' --exclude='*' nmatsum@scc1.bu.edu:/projectnb/qfe/nmatsum/qed3/src/production/ \
+#       /mnt/barracuda22/qed3/qed3/src/production/
+#     Consumers: NVDIR=distill_Nv48_sym LREF=4 ; use tau (NOT tau_gw) ; MODE_CONTACT=1 for the truncated basis.
+#   STATUS 09-23 17:20: 361/400 done, last 2 units (u6,u7) finishing, ETA ~04:00 09-24 -> then pull.
+#   VALIDATION (handoff sec.4) PASSES: shape (2,32,32,48,48), finite, evals ascending, 361 x 182,916,000 B uniform.
+#     NOTE GW |Re diag tau - 1/2| = 7e-5..2.1e-4 (median 1.1e-4) -- ~10x the handoff's nominal 1e-5; this is the L4
+#     solver-tolerance floor (TOL_OUTER=1e-5 RELATIVE; the code's own T2b check reads 9.1e-5), uniform, not a defect.
+#   GPU FINDING: distill peram is MEMORY-bound -> L40S 2.45x FASTER than V100 (the mrhs block does not amortize,
+#     0.89x vs single-RHS) -> all units ran on L40S (~21 min/peram at Nv48; ~10 min at Nv24).
 #
 # UPDATE 2026-08-31b (CONN NODE ARRANGEMENT finalized -- 3-node split FNAL/SCC/LOCAL):
 #   FNAL premise CORRECTED: FNAL is NOT HMC-only/out-of-conn. FNAL HMC is DONE (all L); FNAL was running
@@ -570,12 +617,12 @@
 # Rows here ALSO carry the trailing loc_ncfg/obs columns (see OBS-STATE header block above).
 #
 # ensemble                                                                              type     slot L Nf gsq mRe target ncfg status        loc_ncfg  obs
-  Nf4_gsq2.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p13  4 4  2.0 0.0  800  756  SCC-running  0  -
-  Nf4_gsq4.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p13  4 4  4.0 0.0  800  745  SCC-running       0  -
-  Nf4_gsq6.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p15  4 4  6.0 0.0  800  722  SCC-running       0  -
-  Nf6_gsq2.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p14  4 6  2.0 0.0  800  738  SCC-running       0  -
-  Nf6_gsq4.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p14  4 6  4.0 0.0  800  728  SCC-running       0  -
-  Nf6_gsq6.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p15  4 6  6.0 0.0  800  640  SCC-running       0  -
+  Nf4_gsq2.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p13  4 4  2.0 0.0  800  799  DONE              0  -
+  Nf4_gsq4.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p13  4 4  4.0 0.0  800  799  DONE              0  -
+  Nf4_gsq6.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p15  4 4  6.0 0.0  800  799  DONE       0  -
+  Nf6_gsq2.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p14  4 6  2.0 0.0  800  799  DONE              0  -
+  Nf6_gsq4.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p14  4 6  4.0 0.0  800  799  DONE       0  -
+  Nf6_gsq6.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000 massless p15  4 6  6.0 0.0  800  799  DONE       0  -
 
 # ----- RSYNC (FNAL -> local): pull the L1/L2/L4 gauge configs for local analysis -------------------
 # FNAL host : lq.fnal.gov   (login node; needs your FNAL ssh/kerberos auth. ~/affine -> /lustre2/affine symlink)

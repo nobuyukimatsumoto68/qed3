@@ -8,6 +8,9 @@
 # Usage:  bash run_wrapper_distill_sym_L4_scc_claude.sh             # build + submit
 #         DRYRUN=1 bash run_wrapper_distill_sym_L4_scc_claude.sh    # print qsub lines only
 #         NOBUILD=1 ...  (binaries present)     ARCH=sm_70|sm_80 (default sm_70=V100)
+#         GPUT_SM80=L40S ARCH=sm_80 ...   # run sm_80 on the (much larger) L40S pool instead of A100 (2026-09-22)
+#         UNIT_LIST="4 5 6 7" NUNITS=8 ...  # submit only these units; lets two arches take DISJOINT k-sets
+#                                           # (same NUNITS in both invocations, different UNIT_LIST)
 set -u
 SRCDIR=/projectnb/qfe/nmatsum/qed3/src/production
 cd "$SRCDIR" || { echo "ERROR: cannot cd $SRCDIR"; exit 1; }
@@ -28,11 +31,37 @@ PE_OMP=${PE_OMP:-4}
 ARCH=${ARCH:-sm_70}
 DRYRUN=${DRYRUN:-0}
 NOBUILD=${NOBUILD:-0}
+# gpu_type pin per arch (2026-09-22): overridable so sm_80 can target the LARGE L40S pool (GPUT_SM80=L40S) instead of
+# the scarce public A100. The Nv=24 mrhs block solve sits near L40S's FP64 ridge, so benchmark 1 unit first.
+GPUT_SM70=${GPUT_SM70:-V100}
+GPUT_SM80=${GPUT_SM80:-A100}
+# case "$ARCH" in
+#   sm_70) GPUC=7.0; GPUT=V100 ;;
+#   sm_80) GPUC=8.0; GPUT=A100 ;;
+#   *) echo "unknown ARCH $ARCH"; exit 1 ;;
+# esac
 case "$ARCH" in
-  sm_70) GPUC=7.0; GPUT=V100 ;;
-  sm_80) GPUC=8.0; GPUT=A100 ;;
-  *) echo "unknown ARCH $ARCH"; exit 1 ;;
+  sm_70)
+    GPUC=7.0
+    GPUT=$GPUT_SM70
+    ;;
+  sm_80)
+    GPUC=8.0
+    GPUT=$GPUT_SM80
+    ;;
+  *)
+    echo "unknown ARCH $ARCH"
+    exit 1
+    ;;
 esac
+# UNIT_LIST (2026-09-22): optional space-separated unit indices to submit (default = all 0..NUNITS-1). The k-offset
+# math stays keyed on NUNITS (kmin=first+u*STRIDE, wstride=STRIDE*NUNITS), so two invocations with the SAME NUNITS
+# and DIFFERENT UNIT_LISTs cover disjoint k-sets -> run e.g. units 0-3 on V100 and 4-7 on L40S without overlap.
+UNIT_LIST=${UNIT_LIST:-}
+if [ -z "$UNIT_LIST" ]
+then
+  UNIT_LIST=$(seq -s ' ' 0 $(( NUNITS - 1 )))
+fi
 APP=distill_peram_mrhs_L4_Nv${NV}_sym_${ARCH}.out
 
 if [ "$NOBUILD" -eq 0 ] || [ ! -f "$APP" ]; then
@@ -44,7 +73,9 @@ first=$(ls "$ENSDIR"/ckpoint_lat.* | sed 's#.*ckpoint_lat\.##' | grep -E '^[0-9]
 last=$( ls "$ENSDIR"/ckpoint_lat.* | sed 's#.*ckpoint_lat\.##' | grep -E '^[0-9]+$' | sort -n | tail -1)
 KMAX=$(( last + 1 ))
 echo "### $ENSDIR : ckpoints $first..$last -> kmax=$KMAX ; Nv=$NV stride=$STRIDE units=$NUNITS chain=$N_CHAIN arch=$ARCH ($GPUT) ###"
-for (( u=0; u<NUNITS; u++ )); do
+for u in $UNIT_LIST
+do
+  [ "$u" -lt "$NUNITS" ] || { echo "ERROR: UNIT_LIST entry $u >= NUNITS $NUNITS (would overlap another unit's k-set)"; exit 1; }
   kmin=$(( first + u * STRIDE ))
   wstride=$(( STRIDE * NUNITS ))
   name="dsym_L4g${GSQ}_u${u}"

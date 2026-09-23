@@ -87,8 +87,12 @@ fi
 # ---- SCC L4 units from the assignment table -----------------------------------------------------
 # cols: 1=ensemble 2=L 3=Nf 4=gsq 5=at 6=offset 7=kmin 8=stride 9=kmax 10=cfg 11=site 12=worker_h
 [ -f "$ASSIGN" ] || { echo "ERROR: assignment table $ASSIGN not found"; exit 1; }
-mapfile -t UNITS < <(awk '$0 !~ /^#/ && toupper($11)=="SCC" && $2==4 {print $1" "$3" "$4" "$7}' "$ASSIGN")
-echo "===== SCC L4 units: ${#UNITS[@]} (want 12) ====="
+# 2026-08-29 (NM): SCC now owns ALL 9 L4 conn ensembles (LOCAL out of L4 conn gen; its k=1 partials rsync'd in
+# additively -> complete-gate skips them). So take EVERY L4 unit regardless of the site column (36 = 9 ens x 4 off),
+# not just the 12 SCC-tagged ones. (Old SCC-only filter kept below for rollback.)
+# mapfile -t UNITS < <(awk '$0 !~ /^#/ && toupper($11)=="SCC" && $2==4 {print $1" "$3" "$4" "$7}' "$ASSIGN")
+mapfile -t UNITS < <(awk '$0 !~ /^#/ && $2==4 {print $1" "$3" "$4" "$7}' "$ASSIGN")
+echo "===== L4 conn units (all 9 ensembles): ${#UNITS[@]} (want 36) ====="
 [ "${#UNITS[@]}" -eq 0 ] && { echo "ERROR: no SCC L4 units parsed from $ASSIGN"; exit 1; }
 
 read -r -a ARCHES <<< "$SUBMIT_ARCHS"
