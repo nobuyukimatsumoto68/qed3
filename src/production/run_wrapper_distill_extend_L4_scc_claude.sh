@@ -1,0 +1,106 @@
+#!/bin/bash -l
+# run_wrapper_distill_extend_L4_scc_claude.sh -- BU SCC login-node WRAPPER: INCREMENTAL basis extension Nv 48 -> 64 of the
+#   symmetrized-basis perambulators for L4 Nf2 gsq2.0 (NM 2026-11-03; plan distill_peram_extend_impl_plan_claude.md).
+#   Copy of run_wrapper_distill_sym_L4_scc_claude.sh (untouched).  Needs the STORED distill_Nv48_sym/peram.<k>.h5 on SCC.
+#   Defaults ARCH=sm_80 on L40S (the Nv48 run used L40S: memory-bound, 2.45x faster than V100).  Original notes:  (1) builds the binary (both arches), (2) splits the stride grid
+#   into NUNITS staggered k-offset units (unit u: kmin=first+u*STRIDE, stride=STRIDE*NUNITS -> disjoint k sets, no
+#   overwrite race), (3) computes a LIVE --kmax from the current ckpoint_lat max (HMC may still be running),
+#   (4) submits N_CHAIN dependent (-hold_jid) links per unit; the binary's skip-if-present makes each link resume.
+#   Pins strong-FP64 GPUs (V100 / A100) like the conn/HMC jobs.  Measurement only.  NO rm.  NO kill.
+# Usage:  bash run_wrapper_distill_extend_L4_scc_claude.sh             # build + submit
+#         DRYRUN=1 bash run_wrapper_distill_extend_L4_scc_claude.sh    # print qsub lines only
+#         NOBUILD=1 ...  (binaries present)     ARCH=sm_70|sm_80 (default sm_70=V100)
+#         GPUT_SM80=L40S ARCH=sm_80 ...   # run sm_80 on the (much larger) L40S pool instead of A100 (2026-09-22)
+#         UNIT_LIST="4 5 6 7" NUNITS=8 ...  # submit only these units; lets two arches take DISJOINT k-sets
+#                                           # (same NUNITS in both invocations, different UNIT_LIST)
+set -u
+SRCDIR=/projectnb/qfe/nmatsum/qed3/src/production
+cd "$SRCDIR" || { echo "ERROR: cannot cd $SRCDIR"; exit 1; }
+source /projectnb/qfe/nmatsum/qed3/env.sh
+module load hdf5/1.10.10 2>/dev/null
+module load gsl 2>/dev/null
+
+ENSDIR=${ENSDIR:-Nf2_gsq2.000000at0.200000nu01.000000mRe0.000000mIm0.000000nt128L4_hb0.400000-1.000000}
+NF=2
+GSQ=2.0
+AT=0.2
+NV=${NV:-64}
+NV_OLD=${NV_OLD:-48}
+OLD_SUFFIX=${OLD_SUFFIX:-_sym}
+OUT_SUFFIX=${OUT_SUFFIX:-_sym_ext}
+STRIDE=${STRIDE:-2}        # L4 has ~800 configs -> stride 2 = ~400 perams
+NUNITS=${NUNITS:-4}        # parallel GPU units (staggered offsets)
+N_CHAIN=${N_CHAIN:-4}      # 12h links per unit; skip-if-present resumes
+H_RT=${H_RT:-12:00:00}
+PE_OMP=${PE_OMP:-4}
+ARCH=${ARCH:-sm_80}
+DRYRUN=${DRYRUN:-0}
+NOBUILD=${NOBUILD:-0}
+# gpu_type pin per arch (2026-09-22): overridable so sm_80 can target the LARGE L40S pool (GPUT_SM80=L40S) instead of
+# the scarce public A100. The Nv=24 mrhs block solve sits near L40S's FP64 ridge, so benchmark 1 unit first.
+GPUT_SM70=${GPUT_SM70:-V100}
+GPUT_SM80=${GPUT_SM80:-L40S}
+# case "$ARCH" in
+#   sm_70) GPUC=7.0; GPUT=V100 ;;
+#   sm_80) GPUC=8.0; GPUT=A100 ;;
+#   *) echo "unknown ARCH $ARCH"; exit 1 ;;
+# esac
+case "$ARCH" in
+  sm_70)
+    GPUC=7.0
+    GPUT=$GPUT_SM70
+    ;;
+  sm_80)
+    GPUC=8.0
+    GPUT=$GPUT_SM80
+    ;;
+  *)
+    echo "unknown ARCH $ARCH"
+    exit 1
+    ;;
+esac
+# UNIT_LIST (2026-09-22): optional space-separated unit indices to submit (default = all 0..NUNITS-1). The k-offset
+# math stays keyed on NUNITS (kmin=first+u*STRIDE, wstride=STRIDE*NUNITS), so two invocations with the SAME NUNITS
+# and DIFFERENT UNIT_LISTs cover disjoint k-sets -> run e.g. units 0-3 on V100 and 4-7 on L40S without overlap.
+UNIT_LIST=${UNIT_LIST:-}
+if [ -z "$UNIT_LIST" ]
+then
+  UNIT_LIST=$(seq -s ' ' 0 $(( NUNITS - 1 )))
+fi
+APP=distill_peram_extend_L4_Nv${NV_OLD}to${NV}_${ARCH}.out
+
+if [ "$NOBUILD" -eq 0 ] || [ ! -f "$APP" ]; then
+  NV=$NV NV_OLD=$NV_OLD bash tmp_build_distill_extend_L4_scc_claude.sh 2>&1 | tee tmp_build_distill_extend_L4_scc_claude.log
+  [ -f "$APP" ] || { echo "ERROR: $APP missing after build"; exit 1; }
+fi
+[ -d "$ENSDIR" ] || { echo "ERROR: no ensemble dir $ENSDIR"; exit 1; }
+OLDDIR="data_${ENSDIR}/distill_Nv${NV_OLD}${OLD_SUFFIX}"
+[ -d "$OLDDIR" ] || { echo "ERROR: stored perams $OLDDIR missing on SCC (the extension reads them)"; exit 1; }
+echo "### stored perams in $OLDDIR: $(ls $OLDDIR/peram.*.h5 2>/dev/null | wc -l) ###"
+first=$(ls "$ENSDIR"/ckpoint_lat.* | sed 's#.*ckpoint_lat\.##' | grep -E '^[0-9]+$' | sort -n | head -1)
+last=$( ls "$ENSDIR"/ckpoint_lat.* | sed 's#.*ckpoint_lat\.##' | grep -E '^[0-9]+$' | sort -n | tail -1)
+KMAX=$(( last + 1 ))
+echo "### $ENSDIR : ckpoints $first..$last -> kmax=$KMAX ; Nv=$NV stride=$STRIDE units=$NUNITS chain=$N_CHAIN arch=$ARCH ($GPUT) ###"
+for u in $UNIT_LIST
+do
+  [ "$u" -lt "$NUNITS" ] || { echo "ERROR: UNIT_LIST entry $u >= NUNITS $NUNITS (would overlap another unit's k-set)"; exit 1; }
+  kmin=$(( first + u * STRIDE ))
+  wstride=$(( STRIDE * NUNITS ))
+  name="dext_L4g${GSQ}_u${u}"
+  vars="APP=${APP},GSQ=${GSQ},NF=${NF},AT=${AT},ENSDIR=${ENSDIR},KMIN=${kmin},STRIDE=${wstride},KMAX=${KMAX},NV=${NV},NV_OLD=${NV_OLD},OLD_SUFFIX=${OLD_SUFFIX},OUT_SUFFIX=${OUT_SUFFIX}"
+  prev=""
+  for (( c=0; c<N_CHAIN; c++ )); do
+    qsub_cmd=( qsub -terse -N "${name}_c${c}" -l gpus=1 -l "gpu_c=${GPUC}" -l "gpu_type=${GPUT}" -l "h_rt=${H_RT}" -pe omp "${PE_OMP}" )
+    [ -n "$prev" ] && qsub_cmd+=( -hold_jid "$prev" )
+    qsub_cmd+=( -v "${vars}" run_distill_extend_L4_scc_claude.sh )
+    echo "+ ${qsub_cmd[*]}"
+    if [ "$DRYRUN" -eq 0 ]; then
+      jid=$( "${qsub_cmd[@]}" | tr -d '[:space:]' )
+      echo "  -> submitted jid=$jid (unit $u link $c)"
+      prev=$jid
+    else
+      prev="<jid_u${u}_c${c}>"
+    fi
+  done
+done
+echo "### submitted $NUNITS units x $N_CHAIN links.  Monitor: qstat -u nmatsum ; ls data_${ENSDIR}/distill_Nv${NV}${OUT_SUFFIX} | wc -l ###"
